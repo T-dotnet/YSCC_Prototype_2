@@ -1472,6 +1472,8 @@ small {
   padding: 20px 12px 0;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .brand-row {
   padding: 2px var(--space-3) var(--space-5);
@@ -2503,6 +2505,12 @@ small {
   .people-episode {
     display: none;
   }
+}
+
+.table-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
 }
 
 .table-scroll::-webkit-scrollbar {
