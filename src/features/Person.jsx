@@ -43,7 +43,6 @@ import {
 import { recordCompleteness } from "../dataQuality";
 import {
   Button,
-  Avatar,
   Badge,
   Panel,
   Select,
@@ -162,7 +161,6 @@ export default function Person({ id, navigate, openModal }) {
         Back to {returnLabel}
       </button>
       <div className="person-heading">
-        <Avatar name={p.name} large />
         <div>
           <h1 className="person-name-heading">
             <span>{p.name}</span>
@@ -485,16 +483,13 @@ export default function Person({ id, navigate, openModal }) {
               <Panel title="People involved">
                 <div className="panel-body">
                   <div className="involved">
-                    <Avatar name={p.owner} />
                     <PersonIdentity name={p.owner} descriptor="Care owner" />
                   </div>
                   <div className="involved">
-                    <Avatar name={p.name} />
                     <PersonIdentity name={p.name} descriptor="Patient" />
                   </div>
                   {p.family && (
                     <div className="involved">
-                      <Avatar name={p.family} tone="blue" />
                       <PersonIdentity
                         name={p.family}
                         descriptor="Family carer"

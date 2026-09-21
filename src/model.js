@@ -97,7 +97,7 @@ export const practitionerServiceOptions = (people = []) => {
         .filter((value) => value?.trim())
         .map((value) => [value.trim().toLocaleLowerCase(), value.trim()]),
     ).values(),
-  ].toSorted((a, b) => a.localeCompare(b));
+  ].sort((a, b) => a.localeCompare(b));
 };
 export const currentStaff = (state) =>
   DEMO_STAFF.find((staff) => staff.id === (state.staffId ?? "jess"));
@@ -1065,7 +1065,7 @@ function updateParticipantRoles(value) {
 
 export function upgradeSampleData(state) {
   if (state.terminologyRevision !== 1) {
-    state = structuredClone(state);
+    state = JSON.parse(JSON.stringify(state));
     updateParticipantRoles(state);
     state.terminologyRevision = 1;
   }
@@ -1078,15 +1078,15 @@ export function upgradeSampleData(state) {
   );
   if (hasOldQuestionnaire) return createSeed();
   if (state.sampleRevision < 19 || !state.sampleRevision)
-    return prepareQualityState(prepareSeed(structuredClone(state)));
+    return prepareQualityState(prepareSeed(JSON.parse(JSON.stringify(state))));
   if (state.intakeRevision !== 3)
-    state = prepareIntakes(structuredClone(state));
+    state = prepareIntakes(JSON.parse(JSON.stringify(state)));
   state = state.consentRevision === 1
     ? state
-    : prepareConsentRequests(structuredClone(state));
+    : prepareConsentRequests(JSON.parse(JSON.stringify(state)));
   return state.qualityRevision === 1
     ? state
-    : prepareQualityState(structuredClone(state));
+    : prepareQualityState(JSON.parse(JSON.stringify(state)));
 }
 
 function addFictionalProgressReport(episode, { eventId, timestamp, content }) {
@@ -1159,7 +1159,7 @@ function prepareSeed(state) {
         }
       }
     }
-    jordanEpisode.reportOutcomeMeasures = structuredClone(jordanFixtureMeasures);
+    jordanEpisode.reportOutcomeMeasures = JSON.parse(JSON.stringify(jordanFixtureMeasures));
   }
   const zoe = next.people.find((p) => p.id === "YS-1027");
   const current = zoe?.episodes.find((e) => e.id === "EP-1027-01");
@@ -1962,7 +1962,7 @@ export function reducer(state, action) {
       today: TODAY,
       version: VERSION,
     });
-  const next = structuredClone(state);
+  const next = JSON.parse(JSON.stringify(state));
   const p = next.people.find((p) => p.id === action.personId);
   const e = p?.episodes.find((e) => e.id === action.episodeId);
   const c = e?.collections.find((c) => c.id === action.collectionId);

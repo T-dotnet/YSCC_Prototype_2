@@ -137,7 +137,7 @@ export function recordedCareEvents(episode) {
     .filter((event) =>
       ["ADD_CARE_EVENT", "CORRECT_CARE_EVENT"].includes(event.actionType),
     )
-    .toSorted(
+    .sort(
       (a, b) =>
         (b.eventDate || b.date || "").localeCompare(
           a.eventDate || a.date || "",

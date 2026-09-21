@@ -1,18 +1,26 @@
+import useQueueView from "../useQueueView";
 import { useMemo, useState } from "react";
 import { INSTRUMENTS } from "../instruments";
 import {
-  BookOpen,
-  SlidersHorizontal,
-  MessageSquare,
-  RotateCcw,
-  ShieldCheck,
-  Users,
-  ClipboardList,
-  CalendarClock,
+  X,
+  Plus,
+  ArrowRight,
+  ShieldAlert,
+  Clock,
+  CalendarX,
+  FileCheck,
+  Search,
   Filter,
   ChevronDown,
-  ArrowRight,
+  RotateCcw,
+  ClipboardList,
   FileCheck2,
+  CalendarClock,
+  Users,
+  SlidersHorizontal,
+  MessageSquare,
+  ShieldCheck,
+  BookOpen,
 } from "lucide-react";
 import { useStore } from "../store";
 import { currentStaff, formatDate, TODAY } from "../model";
@@ -26,7 +34,6 @@ import {
   Panel,
   Button,
   Badge,
-  Avatar,
   Notice,
   Empty,
   Select,
@@ -43,37 +50,109 @@ const EMPTY_FILTERS = {
 
 export function Quality({ openModal, navigate }) {
   const { state } = useStore();
-  const [filters, setFilters] = useState(EMPTY_FILTERS);
-  const [query, setQuery] = useState("");
+  const view = useQueueView();
+  const query = view.params.get("q") || "";
+  const filters = {
+    organisation: view.params.get("org") || "All organisations",
+    clinician: view.params.get("clinician") || "All clinicians",
+    status: view.params.get("status") || "All statuses",
+    severity: view.params.get("severity") || "All severities",
+    submissionPeriod: view.params.get("period") || "All submission periods",
+  };
+
+  const setQuery = (v) => view.set("q", v, "", true);
+  const setFilter = (key, value) => {
+    const paramMap = {
+      organisation: "org",
+      clinician: "clinician",
+      status: "status",
+      severity: "severity",
+      submissionPeriod: "period",
+    };
+    view.set(paramMap[key], value, EMPTY_FILTERS[key], true);
+  };
+
+  const clearAll = () => {
+    view.set("q", "", "", false);
+    view.set("org", "All organisations", "All organisations", false);
+    view.set("clinician", "All clinicians", "All clinicians", false);
+    view.set("status", "All statuses", "All statuses", false);
+    view.set("severity", "All severities", "All severities", false);
+    view.set("period", "All submission periods", "All submission periods", true);
+  };
+
+  const [sortConfig, setSortConfig] = useState({
+    key: "dueDate",
+    direction: "asc",
+  });
   const issues = useMemo(() => getQualityIssues(state, TODAY), [state]);
   const unresolved = issues.filter(
     (issue) => !["Resolved", "Closed"].includes(issue.status),
   );
-  const visibleIssues = issues.filter((issue) => {
-    const q = query.toLowerCase().trim();
-    const person = state.people.find((p) => p.id === issue.personId);
-    const personName = person?.name || "";
-    const matchesQuery =
-      !q ||
-      personName.toLowerCase().includes(q) ||
-      (issue.type && issue.type.toLowerCase().includes(q)) ||
-      (issue.description && issue.description.toLowerCase().includes(q)) ||
-      (issue.owner && issue.owner.toLowerCase().includes(q)) ||
-      (issue.organisation && issue.organisation.toLowerCase().includes(q));
+  
+  const severityValue = (s) => {
+    if (s === "Critical") return 3;
+    if (s === "High") return 2;
+    if (s === "Medium") return 1;
+    return 0;
+  };
 
-    return (
-      matchesQuery &&
-      (filters.organisation === "All organisations" ||
-        issue.organisation === filters.organisation) &&
-      (filters.clinician === "All clinicians" ||
-        issue.owner === filters.clinician) &&
-      (filters.status === "All statuses" || issue.status === filters.status) &&
-      (filters.severity === "All severities" ||
-        issue.severity === filters.severity) &&
-      (filters.submissionPeriod === "All submission periods" ||
-        issue.submissionPeriod === filters.submissionPeriod)
-    );
-  });
+  const visibleIssues = useMemo(() => {
+    let result = issues.filter((issue) => {
+      const q = query.toLowerCase().trim();
+      const person = state.people.find((p) => p.id === issue.personId);
+      const personName = person?.name || "";
+      const matchesQuery =
+        !q ||
+        personName.toLowerCase().includes(q) ||
+        (issue.type && issue.type.toLowerCase().includes(q)) ||
+        (issue.description && issue.description.toLowerCase().includes(q)) ||
+        (issue.owner && issue.owner.toLowerCase().includes(q)) ||
+        (issue.organisation && issue.organisation.toLowerCase().includes(q));
+
+      return (
+        matchesQuery &&
+        (filters.organisation === "All organisations" ||
+          issue.organisation === filters.organisation) &&
+        (filters.clinician === "All clinicians" ||
+          issue.owner === filters.clinician) &&
+        (filters.status === "All statuses" || issue.status === filters.status) &&
+        (filters.severity === "All severities" ||
+          issue.severity === filters.severity) &&
+        (filters.submissionPeriod === "All submission periods" ||
+          issue.submissionPeriod === filters.submissionPeriod)
+      );
+    });
+
+    if (sortConfig.key) {
+      result.sort((a, b) => {
+        let valA = a[sortConfig.key];
+        let valB = b[sortConfig.key];
+
+        if (sortConfig.key === "severity") {
+          valA = severityValue(valA);
+          valB = severityValue(valB);
+        }
+
+        if (valA < valB) return sortConfig.direction === "asc" ? -1 : 1;
+        if (valA > valB) return sortConfig.direction === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+    return result;
+  }, [issues, query, state.people, filters, sortConfig]);
+
+  const toggleSort = (key) => {
+    setSortConfig((current) => ({
+      key,
+      direction: current.key === key && current.direction === "asc" ? "desc" : "asc",
+    }));
+  };
+
+  const SortIndicator = ({ columnKey }) => {
+    if (sortConfig.key !== columnKey) return <span className="sort-indicator">↕</span>;
+    return <span className="sort-indicator active">{sortConfig.direction === "asc" ? "↑" : "↓"}</span>;
+  };
   const filterOptions = {
     organisations: [...new Set(issues.map((issue) => issue.organisation))],
     clinicians: [...new Set(issues.map((issue) => issue.owner))],
@@ -82,8 +161,6 @@ export function Quality({ openModal, navigate }) {
   const hasFilters = Object.entries(filters).some(
     ([key, value]) => value !== EMPTY_FILTERS[key],
   );
-  const setFilter = (key, value) =>
-    setFilters((current) => ({ ...current, [key]: value }));
   return (
     <>
       <PageHeading
@@ -97,11 +174,16 @@ export function Quality({ openModal, navigate }) {
         className="quality-queue"
       >
         <div className="work-toolbar quality-toolbar">
-          <SearchInput
-            value={query}
-            onChange={setQuery}
-            placeholder="Search issues..."
-          />
+          <div className="toolbar-search-and-count">
+            <SearchInput
+              value={query}
+              onChange={setQuery}
+              placeholder="Search issues..."
+            />
+            <span className="toolbar-count" aria-live="polite">
+              Showing {visibleIssues.length} of {issues.length}
+            </span>
+          </div>
           <Select
             label="Organisation filter"
             value={filters.organisation}
@@ -156,18 +238,45 @@ export function Quality({ openModal, navigate }) {
               <option key={value}>{value}</option>
             ))}
           </Select>
-          {(hasFilters || query) && (
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setFilters(EMPTY_FILTERS);
-                setQuery("");
-              }}
-            >
-              Clear
-            </Button>
-          )}
         </div>
+        {(hasFilters || query) && (
+          <div className="active-filters-row">
+            <div className="active-filters-list">
+              {query && (
+                <button
+                  className="filter-chip"
+                  onClick={() => setQuery("")}
+                  title="Remove search filter"
+                >
+                  <span>Search: {query}</span>
+                  <X size={14} />
+                </button>
+              )}
+              {Object.entries(filters).map(([key, value]) => {
+                if (value === EMPTY_FILTERS[key]) return null;
+                return (
+                  <button
+                    key={key}
+                    className="filter-chip"
+                    onClick={() => setFilter(key, EMPTY_FILTERS[key])}
+                    title={`Remove ${key} filter`}
+                  >
+                    <span>
+                      {key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1')}: {value}
+                    </span>
+                    <X size={14} />
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              className="text-button-small"
+              onClick={clearAll}
+            >
+              Clear all
+            </button>
+          </div>
+        )}
         {visibleIssues.length ? (
           <div className="table-scroll quality-table-scroll">
             <table
@@ -176,12 +285,22 @@ export function Quality({ openModal, navigate }) {
             >
               <thead>
                 <tr>
-                  <th>Severity</th>
+                  <th className="sortable" onClick={() => toggleSort("severity")}>
+                    Severity <SortIndicator columnKey="severity" />
+                  </th>
                   <th>Client</th>
-                  <th>Issue</th>
-                  <th>Owner</th>
-                  <th>Status</th>
-                  <th>Due</th>
+                  <th className="sortable" onClick={() => toggleSort("type")}>
+                    Issue <SortIndicator columnKey="type" />
+                  </th>
+                  <th className="sortable" onClick={() => toggleSort("owner")}>
+                    Owner <SortIndicator columnKey="owner" />
+                  </th>
+                  <th className="sortable" onClick={() => toggleSort("status")}>
+                    Status <SortIndicator columnKey="status" />
+                  </th>
+                  <th className="sortable" onClick={() => toggleSort("dueDate")}>
+                    Due <SortIndicator columnKey="dueDate" />
+                  </th>
                   <th>
                     <span className="sr-only">Manage issue</span>
                   </th>
@@ -193,7 +312,16 @@ export function Quality({ openModal, navigate }) {
                     (item) => item.id === issue.personId,
                   );
                   return (
-                    <tr key={issue.id}>
+                    <tr
+                      key={issue.id}
+                      onClick={() =>
+                        openModal({
+                          type: "quality-issue",
+                          personId: person.id,
+                          issueId: issue.id,
+                        })
+                      }
+                    >
                       <td data-label="Severity" className="quality-severity-cell">
                         <Badge>{issue.severity}</Badge>
                       </td>
@@ -249,7 +377,14 @@ export function Quality({ openModal, navigate }) {
             </table>
           </div>
         ) : (
-          <Empty title="No validation issues match these filters">
+          <Empty
+            title="No validation issues match these filters"
+            action={
+              <Button variant="secondary" onClick={clearAll}>
+                Reset all filters
+              </Button>
+            }
+          >
             Change a filter to see another part of the queue.
           </Empty>
         )}

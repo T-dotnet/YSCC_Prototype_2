@@ -204,7 +204,7 @@ export function clinicalRecordChanges(record) {
 }
 
 export function recordedClinicalRecords(episode) {
-  return (episode?.clinicalRecords ?? []).toSorted(
+  return (episode?.clinicalRecords ?? []).sort(
     (a, b) =>
       (b.recordDate || "").localeCompare(a.recordDate || "") ||
       (b.timestamp || "").localeCompare(a.timestamp || ""),

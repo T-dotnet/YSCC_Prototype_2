@@ -207,7 +207,7 @@ export function ClinicalHistory({
           <>
             <ol className="assignment-history" aria-label="Assessment assignment history">
               {episode.collections.map((collection) => {
-          const attempts = [...(collection.attempts || [])].toSorted((a, b) =>
+          const attempts = [...(collection.attempts || [])].sort((a, b) =>
             (a.timestamp || a.date || "").localeCompare(
               b.timestamp || b.date || "",
             ),

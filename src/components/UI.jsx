@@ -258,12 +258,19 @@ export function Notice({ children, tone = "" }) {
     </div>
   );
 }
-export function Empty({ title = "No matching work", children }) {
+export function Empty({ title = "No matching work", children, action, visual = "search" }) {
   return (
     <div className="empty">
-      <Search size={28} />
+      <div className="empty-visual">
+        {visual === "search" ? (
+          <Search size={32} />
+        ) : (
+          <img src="/src/assets/images/empty_state_botanical_1790002756211.jpg" alt="" referrerPolicy="no-referrer" />
+        )}
+      </div>
       <h3>{title}</h3>
       <p>{children || "Try a different search or adjust your filters."}</p>
+      {action && action}
     </div>
   );
 }

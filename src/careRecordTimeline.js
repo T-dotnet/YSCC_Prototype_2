@@ -85,7 +85,7 @@ export function careRecordTimelineEntries(episode) {
     });
   });
 
-  return [...appointments, ...records, ...events].toSorted(
+  return [...appointments, ...records, ...events].sort(
     (a, b) =>
       `${b.date || ""}T${b.time || ""}`.localeCompare(
         `${a.date || ""}T${a.time || ""}`,
@@ -102,7 +102,7 @@ export function careRecordTimelineTypes(entries, scope = "all") {
     ).entries(),
   ]
     .map(([value, label]) => ({ value, label }))
-    .toSorted((a, b) => a.label.localeCompare(b.label));
+    .sort((a, b) => a.label.localeCompare(b.label));
 }
 
 export function filterCareRecordTimelineEntries(entries, filters = {}) {

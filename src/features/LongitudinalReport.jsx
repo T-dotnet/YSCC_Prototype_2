@@ -363,7 +363,7 @@ function SharedTimeline({
   const visibleEntries = [
     ...visibleLanes.flatMap((lane) => lane.entries),
     ...(showMeasure ? k10Entries : []),
-  ].toSorted(
+  ].sort(
     (a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id),
   );
   const selected = selectedId
@@ -555,7 +555,7 @@ function SharedTimeline({
                 <h4>{lane.label}</h4>
                 <ul>
                   {lane.entries
-                    .toSorted((a, b) => a.date.localeCompare(b.date))
+                    .sort((a, b) => a.date.localeCompare(b.date))
                     .map((entry) => (
                       <li key={entry.id}>
                         <button

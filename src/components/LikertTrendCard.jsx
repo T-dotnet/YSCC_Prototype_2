@@ -104,7 +104,7 @@ export default function LikertTrendCard({
           <>
             <div className="likert-summary-comparison">
               <span>
-                Compared response · {formatDate(comparisonPoint.date)}
+                {comparisonPoint.label || "Compared response"} · {formatDate(comparisonPoint.date)}
               </span>
               <strong>{comparisonPoint.answer}</strong>
             </div>
@@ -112,126 +112,128 @@ export default function LikertTrendCard({
           </>
         )}
         <div className="likert-summary-selected">
-          <span>Selected assessment · {formatDate(latest.date)}</span>
+          <span>{latest.label || "Selected assessment"} · {formatDate(latest.date)}</span>
           <strong>{latest.answer}</strong>
         </div>
       </div>
 
-      <figure aria-labelledby={titleId} aria-describedby={descriptionId}>
-        <figcaption id={descriptionId}>
-          {trend.scale.label}. Each point is one submitted response; positions
-          show the authored ordinal choices, not a clinical score.
-        </figcaption>
-        <div className="likert-chart-shell">
-          <div
-            className="likert-axis"
-            style={{ "--likert-scale-count": options.length }}
-            aria-hidden="true"
-          >
-            {[...options].reverse().map((option, index) => (
-              <span key={option} style={{ gridRow: index + 1 }}>
-                {option}
-              </span>
-            ))}
+      {comparisonPoint && (
+        <figure aria-labelledby={titleId} aria-describedby={descriptionId}>
+          <figcaption id={descriptionId}>
+            {trend.scale.label}. Each point is one submitted response; positions
+            show the authored ordinal choices, not a clinical score.
+          </figcaption>
+          <div className="likert-chart-shell">
+            <div
+              className="likert-axis"
+              style={{ "--likert-scale-count": options.length }}
+              aria-hidden="true"
+            >
+              {[...options].reverse().map((option, index) => (
+                <span key={option} style={{ gridRow: index + 1 }}>
+                  {option}
+                </span>
+              ))}
+            </div>
+            <svg
+              className="likert-line-chart"
+              viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
+              preserveAspectRatio="none"
+              aria-hidden="true"
+            >
+              {options.map((option, index) => {
+                const value = options.length - index;
+                return (
+                  <line
+                    key={option}
+                    className="likert-grid-line"
+                    x1="0"
+                    x2={CHART_WIDTH}
+                    y1={chartY(value, options.length)}
+                    y2={chartY(value, options.length)}
+                  />
+                );
+              })}
+              {lineSegments(trend.points, options.length).map(
+                (segment, index) => (
+                  <polyline
+                    key={index}
+                    className="likert-series-line"
+                    points={segment.join(" ")}
+                  />
+                ),
+              )}
+              {trend.points.map((point, index) =>
+                point.value === null ? null : (
+                  <circle
+                    key={point.id}
+                    className={`likert-series-point${
+                      point.id === latest.id
+                        ? " selected-assessment"
+                        : point.id === comparisonPoint?.id
+                          ? " compared-assessment"
+                          : ""
+                    }`}
+                    cx={chartX(index, trend.points.length)}
+                    cy={chartY(point.value, options.length)}
+                    r={
+                      point.id === latest.id || point.id === comparisonPoint?.id
+                        ? "7"
+                        : "5"
+                    }
+                  />
+                ),
+              )}
+              {eventMarkers.map((event) => (
+                <g key={event.id} className="likert-event-marker">
+                  <line
+                    className="likert-event-guide"
+                    x1={event.x}
+                    x2={event.x}
+                    y1={CHART_INSET}
+                    y2={CHART_HEIGHT - CHART_INSET}
+                  />
+                  <circle
+                    className="likert-event-point"
+                    cx={event.x}
+                    cy={CHART_INSET}
+                    r="6"
+                    aria-label={`${event.title || "Care event"} · ${formatDate(event.date)}`}
+                  >
+                    <title>
+                      {event.title || "Care event"} · {formatDate(event.date)}
+                    </title>
+                  </circle>
+                </g>
+              ))}
+            </svg>
           </div>
-          <svg
-            className="likert-line-chart"
-            viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
-            preserveAspectRatio="none"
-            aria-hidden="true"
+          <ol
+            className="likert-point-values"
+            style={{ "--likert-point-count": trend.points.length }}
           >
-            {options.map((option, index) => {
-              const value = options.length - index;
+            {trend.points.map((point) => {
+              const pointRole =
+                point.id === latest.id
+                  ? "selected"
+                  : point.id === comparisonPoint?.id
+                    ? "comparison"
+                    : "";
               return (
-                <line
-                  key={option}
-                  className="likert-grid-line"
-                  x1="0"
-                  x2={CHART_WIDTH}
-                  y1={chartY(value, options.length)}
-                  y2={chartY(value, options.length)}
-                />
+                <li className={pointRole} key={point.id}>
+                  {pointRole && (
+                    <small>
+                      {point.label || (pointRole === "selected" ? "Selected assessment" : "Compared response")}
+                    </small>
+                  )}
+                  <time dateTime={point.date}>{formatDate(point.date)}</time>
+                  <strong>{point.answer}</strong>
+                </li>
               );
             })}
-            {lineSegments(trend.points, options.length).map(
-              (segment, index) => (
-                <polyline
-                  key={index}
-                  className="likert-series-line"
-                  points={segment.join(" ")}
-                />
-              ),
-            )}
-            {trend.points.map((point, index) =>
-              point.value === null ? null : (
-                <circle
-                  key={point.id}
-                  className={`likert-series-point${
-                    point.id === latest.id
-                      ? " selected-assessment"
-                      : point.id === comparisonPoint?.id
-                        ? " compared-assessment"
-                        : ""
-                  }`}
-                  cx={chartX(index, trend.points.length)}
-                  cy={chartY(point.value, options.length)}
-                  r={
-                    point.id === latest.id || point.id === comparisonPoint?.id
-                      ? "7"
-                      : "5"
-                  }
-                />
-              ),
-            )}
-            {eventMarkers.map((event) => (
-              <g key={event.id} className="likert-event-marker">
-                <line
-                  className="likert-event-guide"
-                  x1={event.x}
-                  x2={event.x}
-                  y1={CHART_INSET}
-                  y2={CHART_HEIGHT - CHART_INSET}
-                />
-                <circle
-                  className="likert-event-point"
-                  cx={event.x}
-                  cy={CHART_INSET}
-                  r="6"
-                  aria-label={`${event.title || "Care event"} · ${formatDate(event.date)}`}
-                >
-                  <title>
-                    {event.title || "Care event"} · {formatDate(event.date)}
-                  </title>
-                </circle>
-              </g>
-            ))}
-          </svg>
-        </div>
-        <ol
-          className="likert-point-values"
-          style={{ "--likert-point-count": trend.points.length }}
-        >
-          {trend.points.map((point) => {
-            const pointRole =
-              point.id === latest.id
-                ? "selected"
-                : point.id === comparisonPoint?.id
-                  ? "comparison"
-                  : "";
-            return (
-              <li className={pointRole} key={point.id}>
-                {pointRole && (
-                  <small>
-                    {pointRole === "selected" ? "Selected" : "Compared"}
-                  </small>
-                )}
-                <time dateTime={point.date}>{formatDate(point.date)}</time>
-                <strong>{point.answer}</strong>
-              </li>
-            );
-          })}
-        </ol>
-      </figure>
+          </ol>
+        </figure>
+      )}
     </article>
   );
 }

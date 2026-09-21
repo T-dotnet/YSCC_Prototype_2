@@ -218,8 +218,8 @@ export function careTimelineData(episode) {
     ...contextual.flatMap((entry) => [entry.date, entry.end]),
     ...goals.flatMap((entry) => [entry.date, entry.end]),
   ].filter(isRecordedDate);
-  const start = dateValues.toSorted()[0] || null;
-  const end = dateValues.toSorted().at(-1) || start;
+  const start = [...dateValues].sort()[0] || null;
+  const end = [...dateValues].sort().at(-1) || start;
 
   const riskCategories = [
     ["harm", "Safety-related event"],

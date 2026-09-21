@@ -22,7 +22,6 @@ import {
 import useDraft from "../useDraft";
 import { safeReturnTo } from "../workflow";
 import {
-  Avatar,
   Badge,
   Button,
   Field,
@@ -818,7 +817,6 @@ export default function IntakeWorkspace({ person, navigate, openModal }) {
         Back to {returnTo.split("?")[0] === "/" ? "My work" : "people"}
       </button>
       <div className="person-heading">
-        <Avatar name={person.name} large />
         <div>
           <h1>{displayPersonName(person)}</h1>
           <p>

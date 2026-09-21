@@ -1,5 +1,6 @@
+import { useState, useMemo } from "react";
 import useQueueView from "../useQueueView";
-import { Plus, ChevronRight, CircleAlert, CheckCircle2 } from "lucide-react";
+import { Plus, ChevronRight, CircleAlert, CheckCircle2, X } from "lucide-react";
 import { useStore } from "../store";
 import { age, formatDate, TODAY } from "../model";
 import { getQualityIssues, recordCompleteness } from "../dataQuality";
@@ -28,6 +29,7 @@ export default function People({ navigate, openModal }) {
   const { state } = useStore();
   const view = useQueueView();
   const query = view.params.get("q") || "";
+  const [sortConfig, setSortConfig] = useState({ key: "priority", direction: "asc" });
   const status = ["Active", "Paused", "Closed", "Intake"].includes(
     view.params.get("status"),
   )
@@ -40,20 +42,77 @@ export default function People({ navigate, openModal }) {
     view.remember();
     navigate(href);
   };
-  const rows = peopleInEpisodes(state.people, status)
-    .filter(
-      ({ person }) =>
-        !HIDDEN_FROM_PEOPLE_LIST.has(person.name) &&
-        `${person.name} ${person.id}`
-          .toLowerCase()
-          .includes(query.toLowerCase()),
-    )
-    .sort(
-      (a, b) =>
-        (PEOPLE_LIST_PRIORITY.get(a.person.name) ?? 1) -
-          (PEOPLE_LIST_PRIORITY.get(b.person.name) ?? 1) ||
-        comparePeople(a, b),
-    );
+
+  const clearAll = () => {
+    const next = new URLSearchParams(window.location.search);
+    next.delete("q");
+    next.delete("assessment");
+    next.delete("status");
+    next.delete("page");
+    const nextUrl = window.location.pathname + (next.size ? `?${next}` : "");
+    window.history.replaceState(null, "", nextUrl);
+    window.dispatchEvent(new Event("popstate"));
+  };
+
+  const qualityIssues = useMemo(() => getQualityIssues(state, TODAY), [state]);
+
+  const rows = useMemo(() => {
+    let result = peopleInEpisodes(state.people, status)
+      .filter(
+        ({ person }) =>
+          !HIDDEN_FROM_PEOPLE_LIST.has(person.name) &&
+          `${person.name} ${person.id}`
+            .toLowerCase()
+            .includes(query.toLowerCase()),
+      );
+
+    if (sortConfig.key === "priority") {
+      result.sort(
+        (a, b) =>
+          (PEOPLE_LIST_PRIORITY.get(a.person.name) ?? 1) -
+            (PEOPLE_LIST_PRIORITY.get(b.person.name) ?? 1) ||
+          comparePeople(a, b),
+      );
+    } else {
+      result.sort((a, b) => {
+        let valA, valB;
+        if (sortConfig.key === "name") {
+          valA = a.person.name;
+          valB = b.person.name;
+        } else if (sortConfig.key === "status") {
+          valA = a.status;
+          valB = b.status;
+        } else if (sortConfig.key === "completeness") {
+          valA = recordCompleteness(a.person, TODAY).requiredPercentage;
+          valB = recordCompleteness(b.person, TODAY).requiredPercentage;
+        } else if (sortConfig.key === "owner") {
+          valA = a.episode?.owner || a.person.owner || "Unassigned";
+          valB = b.episode?.owner || b.person.owner || "Unassigned";
+        } else if (sortConfig.key === "episodeStatus") {
+          valA = a.episode?.status || "Intake";
+          valB = b.episode?.status || "Intake";
+        }
+
+        if (valA < valB) return sortConfig.direction === "asc" ? -1 : 1;
+        if (valA > valB) return sortConfig.direction === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+    return result;
+  }, [state.people, status, query, sortConfig]);
+
+  const toggleSort = (key) => {
+    setSortConfig((current) => ({
+      key,
+      direction: current.key === key && current.direction === "asc" ? "desc" : "asc",
+    }));
+  };
+
+  const SortIndicator = ({ columnKey }) => {
+    if (sortConfig.key !== columnKey) return <span className="sort-indicator">↕</span>;
+    return <span className="sort-indicator active">{sortConfig.direction === "asc" ? "↑" : "↓"}</span>;
+  };
+
   const statusOptions = [...new Set(rows.map((row) => row.status))];
   if (
     assessmentStatus !== "All statuses" &&
@@ -72,7 +131,6 @@ export default function People({ navigate, openModal }) {
   );
   const pageStart = (page - 1) * PAGE_SIZE;
   const visiblePeople = people.slice(pageStart, pageStart + PAGE_SIZE);
-  const qualityIssues = getQualityIssues(state, TODAY);
   const showingFrom = people.length ? pageStart + 1 : 0;
   const showingTo = Math.min(pageStart + PAGE_SIZE, people.length);
   const personHref = ({ person, episode, collection }) => {
@@ -109,7 +167,12 @@ export default function People({ navigate, openModal }) {
         action={<span className="muted">{people.length} people</span>}
       >
         <div className="work-toolbar people-toolbar">
-          <SearchInput value={query} onChange={setQuery} />
+          <div className="toolbar-search-and-count">
+            <SearchInput value={query} onChange={setQuery} />
+            <span className="toolbar-count" aria-live="polite">
+              Showing {people.length} of {state.people.filter(p => !HIDDEN_FROM_PEOPLE_LIST.has(p.name)).length}
+            </span>
+          </div>
           <Select
             label="Assessment status"
             value={assessmentStatus}
@@ -136,6 +199,48 @@ export default function People({ navigate, openModal }) {
             )}
           </Select>
         </div>
+        {(assessmentStatus !== "All statuses" || status !== "All episodes" || query) && (
+          <div className="active-filters-row">
+            <div className="active-filters-list">
+              {query && (
+                <button
+                  className="filter-chip"
+                  onClick={() => setQuery("")}
+                  title="Remove search filter"
+                >
+                  <span>Search: {query}</span>
+                  <X size={14} />
+                </button>
+              )}
+              {assessmentStatus !== "All statuses" && (
+                <button
+                  className="filter-chip"
+                  onClick={() => view.set("assessment", "All statuses", "All statuses", true)}
+                  title="Remove assessment filter"
+                >
+                  <span>Assessment: {assessmentStatus}</span>
+                  <X size={14} />
+                </button>
+              )}
+              {status !== "All episodes" && (
+                <button
+                  className="filter-chip"
+                  onClick={() => setStatus("All episodes")}
+                  title="Remove episode status filter"
+                >
+                  <span>Episode: {status}</span>
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+            <button
+              className="text-button-small"
+              onClick={clearAll}
+            >
+              Clear all
+            </button>
+          </div>
+        )}
         <div className="table-scroll people-table-scroll">
           <table
             className="people-table"
@@ -143,12 +248,22 @@ export default function People({ navigate, openModal }) {
           >
             <thead>
               <tr>
-                <th>Person</th>
-                <th>Status</th>
+                <th className="sortable" onClick={() => toggleSort("name")}>
+                  Person <SortIndicator columnKey="name" />
+                </th>
+                <th className="sortable" onClick={() => toggleSort("status")}>
+                  Status <SortIndicator columnKey="status" />
+                </th>
                 <th>Next / latest assessment</th>
-                <th>Required data</th>
-                <th>Care owner</th>
-                <th>Episode</th>
+                <th className="sortable" onClick={() => toggleSort("completeness")}>
+                  Required data <SortIndicator columnKey="completeness" />
+                </th>
+                <th className="sortable people-owner" onClick={() => toggleSort("owner")}>
+                  Care owner <SortIndicator columnKey="owner" />
+                </th>
+                <th className="sortable people-episode" onClick={() => toggleSort("episodeStatus")}>
+                  Episode <SortIndicator columnKey="episodeStatus" />
+                </th>
                 <th>
                   <span className="sr-only">Open</span>
                 </th>
@@ -178,8 +293,10 @@ export default function People({ navigate, openModal }) {
                           >
                             {p.name}
                           </button>
-                          <small>
+                          <small className="people-id">
                             {p.id} ·{" "}
+                          </small>
+                          <small>
                             {p.dob ? `${age(p.dob)} years` : "Age unknown"}
                           </small>
                         </span>
@@ -275,7 +392,17 @@ export default function People({ navigate, openModal }) {
             </tbody>
           </table>
         </div>
-        {!people.length && <Empty title="No matching people" />}
+        {!people.length && (
+          <Empty
+            visual="botanical"
+            title="No matching people"
+            action={
+              <Button variant="secondary" onClick={clearAll}>
+                Reset all filters
+              </Button>
+            }
+          />
+        )}
         <div className="table-footer" role="status">
           <span>
             Showing {showingFrom}–{showingTo} of {people.length} people

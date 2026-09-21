@@ -33,7 +33,7 @@ export function k10Series(episode) {
     points: records
       .map((record) => ({ ...record, total: k10RawTotal(record) }))
       .filter((record) => record.total !== null)
-      .toSorted((a, b) => a.date.localeCompare(b.date)),
+      .sort((a, b) => a.date.localeCompare(b.date)),
     omitted: records.filter((record) => k10RawTotal(record) === null).length,
   };
 }

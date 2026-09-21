@@ -496,7 +496,7 @@ export function getQualityIssues(state, today) {
       const workflow = state.qualityIssueWorkflow?.[issue.id];
       return workflow ? { ...issue, ...workflow, source: issue.source } : issue;
     })
-    .toSorted(
+    .sort(
       (a, b) =>
         QUALITY_SEVERITIES.indexOf(a.severity) -
           QUALITY_SEVERITIES.indexOf(b.severity) ||

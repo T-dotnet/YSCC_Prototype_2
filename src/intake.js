@@ -317,7 +317,7 @@ export function applyIntakeAction(
   { staff, uid, today, version },
 ) {
   if (intakeActionError(state, action, staff)) return state;
-  const next = structuredClone(state),
+  const next = JSON.parse(JSON.stringify(state)),
     timestamp = new Date().toISOString();
   const p = next.people.find((p) => p.id === action.personId);
   const i = p?.intakes?.find((i) => i.id === action.intakeId);
@@ -363,7 +363,7 @@ export function applyIntakeAction(
       referrals: [],
     });
   } else if (action.type === "REOPEN_INTAKE") {
-    const previous = structuredClone(i);
+    const previous = JSON.parse(JSON.stringify(i));
     i.status = "In progress";
     i.outcome = "";
     i.decisionAt = "";
@@ -383,7 +383,7 @@ export function applyIntakeAction(
     });
   } else if (action.type === "SAVE_INTAKE") {
     const f = action.values;
-    const previous = structuredClone(i);
+    const previous = JSON.parse(JSON.stringify(i));
     const priorIdentity = { name: p.name, dob: p.dob || "Unknown" };
     // Whitelist editable form fields: IDs, actor and history cannot be overwritten.
     const fields = [
@@ -595,7 +595,7 @@ export function applyIntakeAction(
   } else {
     const r = p.referrals.find((r) => r.id === action.referralId),
       f = action.values;
-    const previous = structuredClone(r);
+    const previous = JSON.parse(JSON.stringify(r));
     const event = {
       ...history(f.kind, f.evidence.trim()),
       occurredAt: f.occurredAt,

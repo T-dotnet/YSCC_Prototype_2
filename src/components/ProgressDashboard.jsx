@@ -179,7 +179,7 @@ export default function ProgressDashboard({
                 change: before.value === after.value ? "Unchanged" : "Changed",
               };
             };
-            const visibleLikertTrends = group.likertTrends.filter((trend) => {
+            const visibleLikertTrends = group.likertQuestions.filter((trend) => {
               const change =
                 comparisonForTrend(trend)?.change || "Not comparable";
               return (
@@ -283,7 +283,7 @@ export default function ProgressDashboard({
                           </label>
                         </div>
                       )}
-                      {hasLikertComparison && group.likertTrends.length > 0 && (
+                      {group.likertQuestions.length > 0 && (
                         <>
                           <div className="answer-tools comparison-tools">
                             <label>
@@ -313,66 +313,70 @@ export default function ProgressDashboard({
                                 ))}
                               </select>
                             </label>
-                            <label>
-                              Change
-                              <select
-                                value={likertChangeFilter}
-                                onChange={(event) =>
-                                  setLikertChangeFilter(event.target.value)
-                                }
-                              >
-                                <option value="all">All questions</option>
-                                <option value="changed">Changed</option>
-                                <option value="unchanged">Unchanged</option>
-                              </select>
-                            </label>
+                            {hasLikertComparison && (
+                              <label>
+                                Change
+                                <select
+                                  value={likertChangeFilter}
+                                  onChange={(event) =>
+                                    setLikertChangeFilter(event.target.value)
+                                  }
+                                >
+                                  <option value="all">All questions</option>
+                                  <option value="changed">Changed</option>
+                                  <option value="unchanged">Unchanged</option>
+                                </select>
+                              </label>
+                            )}
                           </div>
                           <div className="likert-results-header">
                             <p className="muted">
                               Showing {visibleLikertTrends.length} of{" "}
-                              {group.likertTrends.length} Likert questions.
+                              {group.likertQuestions.length} Likert questions.
                             </p>
-                            <details className="chart-information">
-                              <summary>How to read these charts</summary>
-                              <div>
-                                <p>
-                                  Each chart tracks one question across
-                                  submitted responses.
-                                </p>
-                                <ul
-                                  className="likert-chart-key"
-                                  aria-label="Chart point key"
-                                >
-                                  <li className="selected">
-                                    <span aria-hidden="true" />
-                                    Selected assessment ·{" "}
-                                    {formatDate(
-                                      responseDate(latestLikertResponse),
-                                    )}
-                                  </li>
-                                  {selectedLikertComparison && (
-                                    <li className="comparison">
+                            {hasLikertComparison && (
+                              <details className="chart-information">
+                                <summary>How to read these charts</summary>
+                                <div>
+                                  <p>
+                                    Each chart tracks one question across
+                                    submitted responses.
+                                  </p>
+                                  <ul
+                                    className="likert-chart-key"
+                                    aria-label="Chart point key"
+                                  >
+                                    <li className="selected">
                                       <span aria-hidden="true" />
-                                      Compared response ·{" "}
+                                      {latestLikertResponse?.label || group.instrumentName || "Selected assessment"} ·{" "}
                                       {formatDate(
-                                        responseDate(selectedLikertComparison),
+                                        responseDate(latestLikertResponse),
                                       )}
                                     </li>
-                                  )}
-                                  <li className="other">
-                                    <span aria-hidden="true" />
-                                    Other submitted responses
-                                  </li>
-                                  {contextualEvents.length > 0 && (
-                                    <li className="context-event">
+                                    {selectedLikertComparison && (
+                                      <li className="comparison">
+                                        <span aria-hidden="true" />
+                                        {selectedLikertComparison.label || "Compared response"} ·{" "}
+                                        {formatDate(
+                                          responseDate(selectedLikertComparison),
+                                        )}
+                                      </li>
+                                    )}
+                                    <li className="other">
                                       <span aria-hidden="true" />
-                                      Context events mark recorded dates only —
-                                      timing, not cause.
+                                      Other submitted responses
                                     </li>
-                                  )}
-                                </ul>
-                              </div>
-                            </details>
+                                    {contextualEvents.length > 0 && (
+                                      <li className="context-event">
+                                        <span aria-hidden="true" />
+                                        Context events mark recorded dates only —
+                                        timing, not cause.
+                                      </li>
+                                    )}
+                                  </ul>
+                                </div>
+                              </details>
+                            )}
                           </div>
                           <div className="likert-trend-grid">
                             {visibleLikertTrends.map((trend) => (

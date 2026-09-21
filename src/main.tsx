@@ -3,9 +3,12 @@ import { createRoot } from "react-dom/client";
 import "@fontsource-variable/inter/index.css";
 import "./styles.css";
 import Prototype from "./Prototype.jsx";
+import ErrorBoundary from "./components/ErrorBoundary.jsx";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <Prototype />
+    <ErrorBoundary>
+      <Prototype />
+    </ErrorBoundary>
   </StrictMode>,
 );

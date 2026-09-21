@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Plus, ArrowRight, ShieldAlert, Clock, CalendarX, FileCheck } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Plus, ArrowRight, ShieldAlert, Clock, CalendarX, FileCheck, X } from "lucide-react";
 import { useStore } from "../store";
 import {
   getTasks,
@@ -55,6 +55,7 @@ export default function Worklist({ navigate, openModal }) {
   )
     ? view.params.get("owner")
     : "me";
+  const [sortConfig, setSortConfig] = useState({ key: "due", direction: "asc" });
   const tasks = ownedTasks(getTasks(state), state, ownership);
 
   // --- Notifications, Tasks & Alerts Container Data ---
@@ -174,14 +175,52 @@ export default function Worklist({ navigate, openModal }) {
         : selected === "Needs attention"
           ? ["Overdue", "Sending failed", "Declined"].includes(task.status)
           : task.status === "Ready for review");
-  const filtered = tasks.filter(
-    (task) =>
-      matchesFilter(task, filter) &&
-      (point === "All collection points" || workRecord(task).label === point) &&
-      `${task.person.name} ${task.person.id}`
-        .toLowerCase()
-        .includes(query.toLowerCase()),
-  );
+  const filtered = useMemo(() => {
+    let result = tasks.filter(
+      (task) =>
+        matchesFilter(task, filter) &&
+        (point === "All collection points" || workRecord(task).label === point) &&
+        `${task.person.name} ${task.person.id}`
+          .toLowerCase()
+          .includes(query.toLowerCase()),
+    );
+
+    if (sortConfig.key) {
+      result.sort((a, b) => {
+        let valA, valB;
+        if (sortConfig.key === "name") {
+          valA = a.person.name;
+          valB = b.person.name;
+        } else if (sortConfig.key === "due") {
+          valA = workRecord(a).due || "";
+          valB = workRecord(b).due || "";
+        } else if (sortConfig.key === "status") {
+          valA = a.status;
+          valB = b.status;
+        } else if (sortConfig.key === "item") {
+          valA = a.kind === "intake" ? "Intake" : workRecord(a).label;
+          valB = b.kind === "intake" ? "Intake" : workRecord(b).label;
+        }
+
+        if (valA < valB) return sortConfig.direction === "asc" ? -1 : 1;
+        if (valA > valB) return sortConfig.direction === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+    return result;
+  }, [tasks, filter, point, query, sortConfig]);
+
+  const toggleSort = (key) => {
+    setSortConfig((current) => ({
+      key,
+      direction: current.key === key && current.direction === "asc" ? "desc" : "asc",
+    }));
+  };
+
+  const SortIndicator = ({ columnKey }) => {
+    if (sortConfig.key !== columnKey) return <span className="sort-indicator">↕</span>;
+    return <span className="sort-indicator active">{sortConfig.direction === "asc" ? "↑" : "↓"}</span>;
+  };
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const requestedPage = Number(view.params.get("page"));
   const page = Math.min(
@@ -200,6 +239,18 @@ export default function Worklist({ navigate, openModal }) {
     view.remember();
     navigate(`/people/${person.id}?returnTo=${encodeURIComponent(view.href)}`);
   };
+
+  const clearAll = () => {
+    const next = new URLSearchParams(window.location.search);
+    next.delete("q");
+    next.delete("point");
+    next.delete("filter");
+    next.delete("page");
+    const nextUrl = window.location.pathname + (next.size ? `?${next}` : "");
+    window.history.replaceState(null, "", nextUrl);
+    window.dispatchEvent(new Event("popstate"));
+  };
+
   return (
     <>
       <PageHeading
@@ -252,10 +303,15 @@ export default function Worklist({ navigate, openModal }) {
             aria-labelledby={`work-tab-${filters.indexOf(filter)}`}
           >
             <div className="work-toolbar">
-              <SearchInput
-                value={query}
-                onChange={(value) => view.set("q", value, "", true)}
-              />
+              <div className="toolbar-search-and-count">
+                <SearchInput
+                  value={query}
+                  onChange={(value) => view.set("q", value, "", true)}
+                />
+                <span className="toolbar-count" aria-live="polite">
+                  Showing {filtered.length} of {tasks.length}
+                </span>
+              </div>
               <Select
                 label="Collection point filter"
                 value={point}
@@ -276,6 +332,38 @@ export default function Worklist({ navigate, openModal }) {
                 )}
               </Select>
             </div>
+            {(point !== "All collection points" || query) && (
+              <div className="active-filters-row">
+                <div className="active-filters-list">
+                  {query && (
+                    <button
+                      className="filter-chip"
+                      onClick={() => view.set("q", "", "", true)}
+                      title="Remove search filter"
+                    >
+                      <span>Search: {query}</span>
+                      <X size={14} />
+                    </button>
+                  )}
+                  {point !== "All collection points" && (
+                    <button
+                      className="filter-chip"
+                      onClick={() => view.set("point", "All collection points", "All collection points", true)}
+                      title="Remove collection point filter"
+                    >
+                      <span>Point: {point}</span>
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+                <button
+                  className="text-button-small"
+                  onClick={clearAll}
+                >
+                  Clear all
+                </button>
+              </div>
+            )}
             <div className="table-scroll desktop-worklist">
               <table
                 className="work-table"
@@ -283,10 +371,18 @@ export default function Worklist({ navigate, openModal }) {
               >
                 <thead>
                   <tr>
-                    <th>Person</th>
-                    <th>Work item</th>
-                    <th>Due / review date</th>
-                    <th>Status</th>
+                    <th className="sortable" onClick={() => toggleSort("name")}>
+                      Person <SortIndicator columnKey="name" />
+                    </th>
+                    <th className="sortable" onClick={() => toggleSort("item")}>
+                      Work item <SortIndicator columnKey="item" />
+                    </th>
+                    <th className="sortable" onClick={() => toggleSort("due")}>
+                      Due / review date <SortIndicator columnKey="due" />
+                    </th>
+                    <th className="sortable" onClick={() => toggleSort("status")}>
+                      Status <SortIndicator columnKey="status" />
+                    </th>
                     <th>Next action</th>
                   </tr>
                 </thead>
@@ -295,13 +391,16 @@ export default function Worklist({ navigate, openModal }) {
                     const { person: p, status, action } = task;
                     const c = workRecord(task);
                     return (
-                      <tr key={c.id}>
+                      <tr key={c.id} onClick={() => openTask(task)}>
                         <td>
                           <div className="person-cell">
                             <span>
                               <button
                                 className="name-link"
-                                onClick={() => openPerson(p)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openPerson(p);
+                                }}
                               >
                                 {p.name}
                               </button>
@@ -327,7 +426,10 @@ export default function Worklist({ navigate, openModal }) {
                         <td>
                           <Button
                             className="task-action"
-                            onClick={() => openTask(task)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openTask(task);
+                            }}
                             aria-label={`${action} · ${p.name} · ${c.label}`}
                           >
                             {action}
@@ -380,6 +482,11 @@ export default function Worklist({ navigate, openModal }) {
                   ownership === "me" && !tasks.length
                     ? "No tasks assigned to you"
                     : "No matching work"
+                }
+                action={
+                  <Button variant="secondary" onClick={clearAll}>
+                    Reset all filters
+                  </Button>
                 }
               >
                 {ownership === "me" && !tasks.length
@@ -434,15 +541,40 @@ export default function Worklist({ navigate, openModal }) {
           />
           <div role="tabpanel" id="alerts-panel">
             <div className="work-toolbar">
-              <SearchInput
-                value={alertQuery}
-                onChange={(val) => {
-                  setAlertQuery(val);
-                  setAlertPage(1);
-                }}
-                placeholder="Search tasks & alerts..."
-              />
+              <div className="toolbar-search-and-count">
+                <SearchInput
+                  value={alertQuery}
+                  onChange={(val) => {
+                    setAlertQuery(val);
+                    setAlertPage(1);
+                  }}
+                  placeholder="Search tasks & alerts..."
+                />
+                <span className="toolbar-count" aria-live="polite">
+                  Showing {filteredAlerts.length} of {allAlerts.length}
+                </span>
+              </div>
             </div>
+            {alertQuery && (
+              <div className="active-filters-row">
+                <div className="active-filters-list">
+                  <button
+                    className="filter-chip"
+                    onClick={() => setAlertQuery("")}
+                    title="Remove search filter"
+                  >
+                    <span>Search: {alertQuery}</span>
+                    <X size={14} />
+                  </button>
+                </div>
+                <button
+                  className="text-button-small"
+                  onClick={() => setAlertQuery("")}
+                >
+                  Clear search
+                </button>
+              </div>
+            )}
             <div className="alerts-side-list">
               {visibleAlerts.map((alert) => (
                 <article className="alert-card-item" key={alert.id}>
@@ -482,7 +614,7 @@ export default function Worklist({ navigate, openModal }) {
               ))}
             </div>
             {!filteredAlerts.length && (
-              <Empty title="No tasks or alerts matching filter">
+              <Empty visual="botanical" title="No tasks or alerts matching filter">
                 Try selecting another category or clear your search term.
               </Empty>
             )}
