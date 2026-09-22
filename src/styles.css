@@ -12466,6 +12466,80 @@ h6 {
   background: transparent;
 }
 
+.person-record-navigation {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-4);
+  min-width: 0;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.main:has(.person-heading) .person-record-navigation .person-tabs {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-bottom: 0;
+  border-bottom: 0;
+}
+
+.person-record-more {
+  position: relative;
+  flex: 0 0 auto;
+  z-index: 3;
+}
+
+.person-record-more-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 40px;
+  padding: 5px 9px;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.person-record-more-trigger:hover {
+  color: var(--ink);
+}
+
+.person-record-more-trigger.selected,
+.person-record-more-trigger.selected:hover {
+  color: var(--accent-text);
+}
+
+.person-record-more-trigger.selected {
+  border-bottom-color: var(--orygen-coral);
+}
+
+.person-record-more-options {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: min(240px, calc(100vw - 32px));
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+}
+
+.person-record-more-options button {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 6px;
+  color: var(--ink);
+  text-align: left;
+  font-size: var(--text-sm);
+}
+
+.person-record-more-options button:hover,
+.person-record-more-options button[aria-current="page"] {
+  background: var(--surface-warm);
+}
+
 .main:has(.person-heading) #person-panel > .overview-assessment {
   margin-bottom: 16px;
   border: 0;

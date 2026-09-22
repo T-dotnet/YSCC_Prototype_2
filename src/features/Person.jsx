@@ -10,7 +10,7 @@ import {
   safeReturnTo,
 } from "../workflow";
 import { useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -55,6 +55,82 @@ import {
   PersonIdentity,
   Avatar,
 } from "../components/UI";
+
+const moreRecordTabs = ["Consent & respondents", "History", "Change log"];
+
+function PersonRecordNavigation({ tabs, value, onChange }) {
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef(null);
+  const moreButtonRef = useRef(null);
+  const primaryTabs = tabs.filter((item) => !moreRecordTabs.includes(item));
+  const extraTabs = tabs.filter((item) => moreRecordTabs.includes(item));
+  const extraSelected = extraTabs.includes(value);
+
+  useEffect(() => {
+    setMoreOpen(false);
+  }, [value]);
+
+  useEffect(() => {
+    if (!moreOpen) return;
+    const closeOnOutsideClick = (event) => {
+      if (!moreRef.current?.contains(event.target)) setMoreOpen(false);
+    };
+    const closeOnEscape = (event) => {
+      if (event.key !== "Escape") return;
+      setMoreOpen(false);
+      moreButtonRef.current?.focus();
+    };
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [moreOpen]);
+
+  return (
+    <div className="person-record-navigation">
+      <RecordTabs
+        id="person"
+        label="Person record"
+        items={primaryTabs}
+        value={value}
+        onChange={onChange}
+      />
+      <div className="person-record-more" ref={moreRef}>
+        <button
+          ref={moreButtonRef}
+          type="button"
+          className={`person-record-more-trigger${extraSelected ? " selected" : ""}`}
+          aria-label={`More record sections${extraSelected ? `, current: ${value}` : ""}`}
+          aria-expanded={moreOpen}
+          aria-controls={moreOpen ? "person-record-more-options" : undefined}
+          onClick={() => setMoreOpen((open) => !open)}
+        >
+          More <ChevronDown size={15} aria-hidden="true" />
+        </button>
+        {moreOpen && (
+          <div id="person-record-more-options" className="person-record-more-options">
+            {extraTabs.map((item) => (
+              <button
+                key={item}
+                type="button"
+                aria-current={value === item ? "page" : undefined}
+                onClick={() => {
+                  setMoreOpen(false);
+                  moreButtonRef.current?.focus();
+                  onChange(item);
+                }}
+              >
+                {item}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function Person({ id, navigate, openModal }) {
   const { state } = useStore();
@@ -268,22 +344,23 @@ export default function Person({ id, navigate, openModal }) {
           </Button>
         </div>
       ) : (
-        <RecordTabs
-          id="person"
-          label="Person record"
-          items={tabs}
+        <PersonRecordNavigation
+          tabs={tabs}
           value={tab}
           onChange={setTab}
         />
       )}
       <div
-        role={contextualView ? "region" : "tabpanel"}
+        role={contextualView || moreRecordTabs.includes(tab) ? "region" : "tabpanel"}
         id="person-panel"
         aria-labelledby={
           contextualView
             ? "person-context-heading"
-            : `person-tab-${tabs.indexOf(tab)}`
+            : moreRecordTabs.includes(tab)
+              ? undefined
+              : `person-tab-${tabs.filter((item) => !moreRecordTabs.includes(item)).indexOf(tab)}`
         }
+        aria-label={moreRecordTabs.includes(tab) ? tab : undefined}
       >
         {!canAssess(p, e) && (
           <Notice tone="amber">
