@@ -53,6 +53,7 @@ import {
   Modal,
   Tabs,
   PersonIdentity,
+  Avatar,
 } from "../components/UI";
 
 export default function Person({ id, navigate, openModal }) {
@@ -483,13 +484,16 @@ export default function Person({ id, navigate, openModal }) {
               <Panel title="People involved">
                 <div className="panel-body">
                   <div className="involved">
+                    <Avatar name={p.owner} />
                     <PersonIdentity name={p.owner} descriptor="Care owner" />
                   </div>
                   <div className="involved">
+                    <Avatar name={p.name} />
                     <PersonIdentity name={p.name} descriptor="Patient" />
                   </div>
                   {p.family && (
                     <div className="involved">
+                      <Avatar name={p.family} />
                       <PersonIdentity
                         name={p.family}
                         descriptor="Family carer"
@@ -554,10 +558,13 @@ export default function Person({ id, navigate, openModal }) {
                       </div>
                       <div>
                         <small>Respondent</small>
-                        <PersonIdentity
-                          name={respondent.name}
-                          descriptor={respondent.role}
-                        />
+                        <div className="person-cell">
+                          <Avatar name={respondent.name} />
+                          <PersonIdentity
+                            name={respondent.name}
+                            descriptor={respondent.role}
+                          />
+                        </div>
                       </div>
                       <div>
                         <small>Due date</small>
