@@ -117,11 +117,31 @@ export default function Forms({
   );
   const selectedInstrument = getInstrument(instrumentVersion);
   const previewTrigger = useRef(null);
+  const appointmentSectionRef = useRef(null);
   const wasPreviewOpen = useRef(false);
   useEffect(() => {
     if (wasPreviewOpen.current && !previewOpen) previewTrigger.current?.focus();
     wasPreviewOpen.current = previewOpen;
   }, [previewOpen]);
+  useEffect(() => {
+    if (planChannel === "SMS link") return;
+
+    const frame = requestAnimationFrame(() => {
+      const section = appointmentSectionRef.current;
+      const scroller = section?.closest(".form-body");
+      if (!section || !scroller) return;
+
+      const sectionOffset =
+        section.getBoundingClientRect().top -
+        scroller.getBoundingClientRect().top;
+      scroller.scrollTo({
+        top: Math.max(0, scroller.scrollTop + sectionOffset - 16),
+        behavior: "smooth",
+      });
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [planChannel]);
   const p = state.people.find((p) => p.id === modal.personId),
     e = p?.episodes.find((e) => e.id === modal.episodeId),
     c = e?.collections.find((c) => c.id === modal.collectionId);
@@ -622,6 +642,7 @@ export default function Forms({
             {planChannel !== "SMS link" &&
               (existingAppointmentOnPlanDue ? (
                 <section
+                  ref={appointmentSectionRef}
                   style={{
                     background: "var(--surface-subtle, #f8fafc)",
                     border: "1px solid var(--border, #cbd5e1)",
@@ -797,6 +818,7 @@ export default function Forms({
                 </section>
               ) : (
                 <section
+                  ref={appointmentSectionRef}
                   style={{
                     background: "var(--surface-subtle, #f8fafc)",
                     border: "1px solid var(--border, #cbd5e1)",

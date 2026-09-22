@@ -5355,8 +5355,10 @@ dialog {
 }
 .modal {
   position: fixed;
-  inset: 0;
-  margin: auto;
+  top: 50%;
+  left: 50%;
+  margin: 0;
+  transform: translate(-50%, -50%);
   border: 1px solid var(--line);
   border-radius: 14px;
   box-shadow: var(--shadow-xl), 0 25px 50px -12px rgba(15, 23, 42, 0.25);
@@ -7814,7 +7816,10 @@ form.has-validation-errors .check-field:has(:invalid) {
 .modal[open] {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  /* The form body is the scroll container. `hidden` still permits the
+     dialog itself to be scrolled by focus/scrollIntoView, which can shift
+     the header and footer off the dialog bounds. */
+  overflow: clip;
   max-height: calc(100dvh - 32px);
 }
 .modal > .modal-heading {
