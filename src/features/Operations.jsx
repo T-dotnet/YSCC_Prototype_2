@@ -1,8 +1,7 @@
 import useQueueView from "../useQueueView";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { INSTRUMENTS } from "../instruments";
 import {
-  X,
   Plus,
   ArrowRight,
   ShieldAlert,
@@ -24,6 +23,8 @@ import {
 } from "lucide-react";
 import { useStore } from "../store";
 import { currentStaff, formatDate, TODAY } from "../model";
+import { sortQueueRows } from "../queueSort";
+import { ActiveFilters, SortableHeader, useQueueSort } from "../components/QueueControls";
 import {
   QUALITY_SEVERITIES,
   QUALITY_STATUSES,
@@ -81,7 +82,7 @@ export function Quality({ openModal, navigate }) {
     view.set("period", "All submission periods", "All submission periods", true);
   };
 
-  const [sortConfig, setSortConfig] = useState({
+  const { sort: sortConfig, toggleSort } = useQueueSort({
     key: "dueDate",
     direction: "asc",
   });
@@ -124,43 +125,19 @@ export function Quality({ openModal, navigate }) {
       );
     });
 
-    if (sortConfig.key) {
-      result.sort((a, b) => {
-        let valA = a[sortConfig.key];
-        let valB = b[sortConfig.key];
-
-        if (sortConfig.key === "severity") {
-          valA = severityValue(valA);
-          valB = severityValue(valB);
-        }
-
-        if (valA < valB) return sortConfig.direction === "asc" ? -1 : 1;
-        if (valA > valB) return sortConfig.direction === "asc" ? 1 : -1;
-        return 0;
-      });
-    }
-    return result;
+    return sortQueueRows(result, sortConfig, {
+      severity: (issue) => severityValue(issue.severity),
+      type: (issue) => issue.type,
+      owner: (issue) => issue.owner,
+      status: (issue) => issue.status,
+      dueDate: (issue) => issue.dueDate,
+    });
   }, [issues, query, state.people, filters, sortConfig]);
-
-  const toggleSort = (key) => {
-    setSortConfig((current) => ({
-      key,
-      direction: current.key === key && current.direction === "asc" ? "desc" : "asc",
-    }));
-  };
-
-  const SortIndicator = ({ columnKey }) => {
-    if (sortConfig.key !== columnKey) return <span className="sort-indicator">↕</span>;
-    return <span className="sort-indicator active">{sortConfig.direction === "asc" ? "↑" : "↓"}</span>;
-  };
   const filterOptions = {
     organisations: [...new Set(issues.map((issue) => issue.organisation))],
     clinicians: [...new Set(issues.map((issue) => issue.owner))],
     periods: [...new Set(issues.map((issue) => issue.submissionPeriod))],
   };
-  const hasFilters = Object.entries(filters).some(
-    ([key, value]) => value !== EMPTY_FILTERS[key],
-  );
   return (
     <>
       <PageHeading
@@ -239,44 +216,19 @@ export function Quality({ openModal, navigate }) {
             ))}
           </Select>
         </div>
-        {(hasFilters || query) && (
-          <div className="active-filters-row">
-            <div className="active-filters-list">
-              {query && (
-                <button
-                  className="filter-chip"
-                  onClick={() => setQuery("")}
-                  title="Remove search filter"
-                >
-                  <span>Search: {query}</span>
-                  <X size={14} />
-                </button>
-              )}
-              {Object.entries(filters).map(([key, value]) => {
-                if (value === EMPTY_FILTERS[key]) return null;
-                return (
-                  <button
-                    key={key}
-                    className="filter-chip"
-                    onClick={() => setFilter(key, EMPTY_FILTERS[key])}
-                    title={`Remove ${key} filter`}
-                  >
-                    <span>
-                      {key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1')}: {value}
-                    </span>
-                    <X size={14} />
-                  </button>
-                );
-              })}
-            </div>
-            <button
-              className="text-button-small"
-              onClick={clearAll}
-            >
-              Clear all
-            </button>
-          </div>
-        )}
+        <ActiveFilters
+          items={[
+            ...(query ? [{ id: "search", label: `Search: ${query}`, onRemove: () => setQuery("") }] : []),
+            ...Object.entries(filters)
+              .filter(([key, value]) => value !== EMPTY_FILTERS[key])
+              .map(([key, value]) => ({
+                id: key,
+                label: `${key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, " $1")}: ${value}`,
+                onRemove: () => setFilter(key, EMPTY_FILTERS[key]),
+              })),
+          ]}
+          onClear={clearAll}
+        />
         {visibleIssues.length ? (
           <div className="table-scroll quality-table-scroll">
             <table
@@ -285,22 +237,12 @@ export function Quality({ openModal, navigate }) {
             >
               <thead>
                 <tr>
-                  <th className="sortable" onClick={() => toggleSort("severity")}>
-                    Severity <SortIndicator columnKey="severity" />
-                  </th>
+                  <SortableHeader label="Severity" sortKey="severity" sort={sortConfig} onSort={toggleSort} />
                   <th>Client</th>
-                  <th className="sortable" onClick={() => toggleSort("type")}>
-                    Issue <SortIndicator columnKey="type" />
-                  </th>
-                  <th className="sortable" onClick={() => toggleSort("owner")}>
-                    Owner <SortIndicator columnKey="owner" />
-                  </th>
-                  <th className="sortable" onClick={() => toggleSort("status")}>
-                    Status <SortIndicator columnKey="status" />
-                  </th>
-                  <th className="sortable" onClick={() => toggleSort("dueDate")}>
-                    Due <SortIndicator columnKey="dueDate" />
-                  </th>
+                  <SortableHeader label="Issue" sortKey="type" sort={sortConfig} onSort={toggleSort} />
+                  <SortableHeader label="Owner" sortKey="owner" sort={sortConfig} onSort={toggleSort} />
+                  <SortableHeader label="Status" sortKey="status" sort={sortConfig} onSort={toggleSort} />
+                  <SortableHeader label="Due" sortKey="dueDate" sort={sortConfig} onSort={toggleSort} />
                   <th>
                     <span className="sr-only">Manage issue</span>
                   </th>

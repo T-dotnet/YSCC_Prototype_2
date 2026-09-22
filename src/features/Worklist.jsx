@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Plus, ArrowRight, CalendarX, X } from "lucide-react";
+import { Plus, ArrowRight, CalendarX } from "lucide-react";
 import { useStore } from "../store";
 import {
   getTasks,
@@ -12,6 +12,8 @@ import { getQualityIssues } from "../dataQuality";
 import { ownedTasks, taskHref } from "../workflow";
 import { intakeStage } from "../intake";
 import useQueueView from "../useQueueView";
+import { sortQueueRows } from "../queueSort";
+import { ActiveFilters, SortableHeader, useQueueSort } from "../components/QueueControls";
 import {
   PageHeading,
   Button,
@@ -21,7 +23,7 @@ import {
   Badge,
   Empty,
   Pagination,
-  Tabs,
+  FilterTabs,
 } from "../components/UI";
 
 const filters = [
@@ -55,7 +57,7 @@ export default function Worklist({ navigate, openModal }) {
   )
     ? view.params.get("owner")
     : "me";
-  const [sortConfig, setSortConfig] = useState({ key: "due", direction: "asc" });
+  const { sort: sortConfig, toggleSort } = useQueueSort({ key: "due", direction: "asc" });
   const tasks = ownedTasks(getTasks(state), state, ownership);
 
   // Alerts complement the worklist instead of repeating assessment tasks that
@@ -146,42 +148,13 @@ export default function Worklist({ navigate, openModal }) {
           .includes(query.toLowerCase()),
     );
 
-    if (sortConfig.key) {
-      result.sort((a, b) => {
-        let valA, valB;
-        if (sortConfig.key === "name") {
-          valA = a.person.name;
-          valB = b.person.name;
-        } else if (sortConfig.key === "due") {
-          valA = workRecord(a).due || "";
-          valB = workRecord(b).due || "";
-        } else if (sortConfig.key === "status") {
-          valA = a.status;
-          valB = b.status;
-        } else if (sortConfig.key === "item") {
-          valA = a.kind === "intake" ? "Intake" : workRecord(a).label;
-          valB = b.kind === "intake" ? "Intake" : workRecord(b).label;
-        }
-
-        if (valA < valB) return sortConfig.direction === "asc" ? -1 : 1;
-        if (valA > valB) return sortConfig.direction === "asc" ? 1 : -1;
-        return 0;
-      });
-    }
-    return result;
+    return sortQueueRows(result, sortConfig, {
+      name: (task) => task.person.name,
+      due: (task) => workRecord(task).due,
+      status: (task) => task.status,
+      item: (task) => task.kind === "intake" ? "Intake" : workRecord(task).label,
+    });
   }, [tasks, filter, point, query, sortConfig]);
-
-  const toggleSort = (key) => {
-    setSortConfig((current) => ({
-      key,
-      direction: current.key === key && current.direction === "asc" ? "desc" : "asc",
-    }));
-  };
-
-  const SortIndicator = ({ columnKey }) => {
-    if (sortConfig.key !== columnKey) return <span className="sort-indicator">↕</span>;
-    return <span className="sort-indicator active">{sortConfig.direction === "asc" ? "↑" : "↓"}</span>;
-  };
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const requestedPage = Number(view.params.get("page"));
   const page = Math.min(
@@ -247,10 +220,10 @@ export default function Worklist({ navigate, openModal }) {
             </Select>
           }
         >
-          <Tabs
+          <FilterTabs
             id="work"
             label="Work status"
-            className="work-tabs worklist-status-tabs"
+            className="worklist-status-tabs"
             value={filter}
             onChange={(value) => view.set("filter", value, "All work", true)}
             items={filters.map((value) => ({
@@ -293,38 +266,13 @@ export default function Worklist({ navigate, openModal }) {
                 )}
               </Select>
             </div>
-            {(point !== "All collection points" || query) && (
-              <div className="active-filters-row">
-                <div className="active-filters-list">
-                  {query && (
-                    <button
-                      className="filter-chip"
-                      onClick={() => view.set("q", "", "", true)}
-                      title="Remove search filter"
-                    >
-                      <span>Search: {query}</span>
-                      <X size={14} />
-                    </button>
-                  )}
-                  {point !== "All collection points" && (
-                    <button
-                      className="filter-chip"
-                      onClick={() => view.set("point", "All collection points", "All collection points", true)}
-                      title="Remove collection point filter"
-                    >
-                      <span>Point: {point}</span>
-                      <X size={14} />
-                    </button>
-                  )}
-                </div>
-                <button
-                  className="text-button-small"
-                  onClick={clearAll}
-                >
-                  Clear all
-                </button>
-              </div>
-            )}
+            <ActiveFilters
+              items={[
+                ...(query ? [{ id: "search", label: `Search: ${query}`, onRemove: () => view.set("q", "", "", true) }] : []),
+                ...(point !== "All collection points" ? [{ id: "point", label: `Point: ${point}`, onRemove: () => view.set("point", "All collection points", "All collection points", true) }] : []),
+              ]}
+              onClear={clearAll}
+            />
             <div className="table-scroll desktop-worklist">
               <table
                 className="work-table"
@@ -332,18 +280,10 @@ export default function Worklist({ navigate, openModal }) {
               >
                 <thead>
                   <tr>
-                    <th className="sortable" onClick={() => toggleSort("name")}>
-                      Person <SortIndicator columnKey="name" />
-                    </th>
-                    <th className="sortable" onClick={() => toggleSort("item")}>
-                      Work item <SortIndicator columnKey="item" />
-                    </th>
-                    <th className="sortable" onClick={() => toggleSort("due")}>
-                      Due / review date <SortIndicator columnKey="due" />
-                    </th>
-                    <th className="sortable" onClick={() => toggleSort("status")}>
-                      Status <SortIndicator columnKey="status" />
-                    </th>
+                    <SortableHeader label="Person" sortKey="name" sort={sortConfig} onSort={toggleSort} />
+                    <SortableHeader label="Work item" sortKey="item" sort={sortConfig} onSort={toggleSort} />
+                    <SortableHeader label="Due / review date" sortKey="due" sort={sortConfig} onSort={toggleSort} />
+                    <SortableHeader label="Status" sortKey="status" sort={sortConfig} onSort={toggleSort} />
                     <th>Next action</th>
                   </tr>
                 </thead>
@@ -481,10 +421,10 @@ export default function Worklist({ navigate, openModal }) {
             Data quality and appointment follow-up that is not already shown in
             the worklist.
           </p>
-          <Tabs
+          <FilterTabs
             id="alerts"
             label="Alert categories"
-            className="work-tabs alerts-tabs"
+            className="alerts-tabs"
             value={alertFilter}
             onChange={(val) => {
               setAlertFilter(val);
@@ -516,31 +456,15 @@ export default function Worklist({ navigate, openModal }) {
                 </span>
               </div>
             </div>
-            {alertQuery && (
-              <div className="active-filters-row">
-                <div className="active-filters-list">
-                  <button
-                    className="filter-chip"
-                    onClick={() => setAlertQuery("")}
-                    title="Remove search filter"
-                  >
-                    <span>Search: {alertQuery}</span>
-                    <X size={14} />
-                  </button>
-                </div>
-                <button
-                  className="text-button-small"
-                  onClick={() => setAlertQuery("")}
-                >
-                  Clear search
-                </button>
-              </div>
-            )}
+            <ActiveFilters
+              items={alertQuery ? [{ id: "search", label: `Search: ${alertQuery}`, onRemove: () => setAlertQuery("") }] : []}
+              onClear={() => setAlertQuery("")}
+            />
             <div className="alerts-side-list">
               {visibleAlerts.map((alert) => (
                 <article className="alert-card-item" key={alert.id}>
                   <div className="alert-card-header">
-                    <Badge className={alert.badgeColor}>{alert.category}</Badge>
+                    <Badge tone={alert.badgeColor}>{alert.category}</Badge>
                     <span className="small-text muted">{formatDate(alert.date)}</span>
                   </div>
                   <div className="alert-card-body">

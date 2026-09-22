@@ -258,9 +258,10 @@ export default function Shell({
                 onFocus={() => setSearchOpen(true)}
                 onKeyDown={handleSearchKeyDown}
                 placeholder="Search people or record ID"
+                role="combobox"
                 aria-label="Global search"
                 aria-autocomplete="list"
-                aria-controls="global-search-results"
+                aria-controls={searchOpen && normalizedSearchQuery ? "global-search-results" : undefined}
                 aria-expanded={searchOpen && Boolean(normalizedSearchQuery)}
                 aria-activedescendant={
                   activeSearchIndex >= 0

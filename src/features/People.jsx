@@ -1,10 +1,12 @@
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import useQueueView from "../useQueueView";
-import { Plus, ChevronRight, CircleAlert, CheckCircle2, X } from "lucide-react";
+import { Plus, ChevronRight, CircleAlert, CheckCircle2 } from "lucide-react";
 import { useStore } from "../store";
 import { age, formatDate, TODAY } from "../model";
 import { getQualityIssues, recordCompleteness } from "../dataQuality";
 import { comparePeople, peopleInEpisodes } from "../people";
+import { sortQueueRows } from "../queueSort";
+import { ActiveFilters, SortableHeader, useQueueSort } from "../components/QueueControls";
 import {
   PageHeading,
   Button,
@@ -29,7 +31,7 @@ export default function People({ navigate, openModal }) {
   const { state } = useStore();
   const view = useQueueView();
   const query = view.params.get("q") || "";
-  const [sortConfig, setSortConfig] = useState({ key: "priority", direction: "asc" });
+  const { sort: sortConfig, toggleSort } = useQueueSort({ key: "priority", direction: "asc" });
   const status = ["Active", "Paused", "Closed", "Intake"].includes(
     view.params.get("status"),
   )
@@ -66,52 +68,15 @@ export default function People({ navigate, openModal }) {
             .includes(query.toLowerCase()),
       );
 
-    if (sortConfig.key === "priority") {
-      result.sort(
-        (a, b) =>
-          (PEOPLE_LIST_PRIORITY.get(a.person.name) ?? 1) -
-            (PEOPLE_LIST_PRIORITY.get(b.person.name) ?? 1) ||
-          comparePeople(a, b),
-      );
-    } else {
-      result.sort((a, b) => {
-        let valA, valB;
-        if (sortConfig.key === "name") {
-          valA = a.person.name;
-          valB = b.person.name;
-        } else if (sortConfig.key === "status") {
-          valA = a.status;
-          valB = b.status;
-        } else if (sortConfig.key === "completeness") {
-          valA = recordCompleteness(a.person, TODAY).requiredPercentage;
-          valB = recordCompleteness(b.person, TODAY).requiredPercentage;
-        } else if (sortConfig.key === "owner") {
-          valA = a.episode?.owner || a.person.owner || "Unassigned";
-          valB = b.episode?.owner || b.person.owner || "Unassigned";
-        } else if (sortConfig.key === "episodeStatus") {
-          valA = a.episode?.status || "Intake";
-          valB = b.episode?.status || "Intake";
-        }
-
-        if (valA < valB) return sortConfig.direction === "asc" ? -1 : 1;
-        if (valA > valB) return sortConfig.direction === "asc" ? 1 : -1;
-        return 0;
-      });
-    }
-    return result;
+    return sortQueueRows(result, sortConfig, {
+      priority: (row) => PEOPLE_LIST_PRIORITY.get(row.person.name) ?? 1,
+      name: (row) => row.person.name,
+      status: (row) => row.status,
+      completeness: (row) => recordCompleteness(row.person, TODAY).requiredPercentage,
+      owner: (row) => row.episode?.owner || row.person.owner || "Unassigned",
+      episodeStatus: (row) => row.episode?.status || "Intake",
+    }, sortConfig.key === "priority" ? comparePeople : undefined);
   }, [state.people, status, query, sortConfig]);
-
-  const toggleSort = (key) => {
-    setSortConfig((current) => ({
-      key,
-      direction: current.key === key && current.direction === "asc" ? "desc" : "asc",
-    }));
-  };
-
-  const SortIndicator = ({ columnKey }) => {
-    if (sortConfig.key !== columnKey) return <span className="sort-indicator">↕</span>;
-    return <span className="sort-indicator active">{sortConfig.direction === "asc" ? "↑" : "↓"}</span>;
-  };
 
   const statusOptions = [...new Set(rows.map((row) => row.status))];
   if (
@@ -201,48 +166,14 @@ export default function People({ navigate, openModal }) {
             </Select>
           </div>
         </div>
-        {(assessmentStatus !== "All statuses" || status !== "All episodes" || query) && (
-          <div className="active-filters-row">
-            <div className="active-filters-list">
-              {query && (
-                <button
-                  className="filter-chip"
-                  onClick={() => setQuery("")}
-                  title="Remove search filter"
-                >
-                  <span>Search: {query}</span>
-                  <X size={14} />
-                </button>
-              )}
-              {assessmentStatus !== "All statuses" && (
-                <button
-                  className="filter-chip"
-                  onClick={() => view.set("assessment", "All statuses", "All statuses", true)}
-                  title="Remove assessment filter"
-                >
-                  <span>Assessment: {assessmentStatus}</span>
-                  <X size={14} />
-                </button>
-              )}
-              {status !== "All episodes" && (
-                <button
-                  className="filter-chip"
-                  onClick={() => setStatus("All episodes")}
-                  title="Remove episode status filter"
-                >
-                  <span>Episode: {status}</span>
-                  <X size={14} />
-                </button>
-              )}
-            </div>
-            <button
-              className="text-button-small"
-              onClick={clearAll}
-            >
-              Clear all
-            </button>
-          </div>
-        )}
+        <ActiveFilters
+          items={[
+            ...(query ? [{ id: "search", label: `Search: ${query}`, onRemove: () => setQuery("") }] : []),
+            ...(assessmentStatus !== "All statuses" ? [{ id: "assessment", label: `Assessment: ${assessmentStatus}`, onRemove: () => view.set("assessment", "All statuses", "All statuses", true) }] : []),
+            ...(status !== "All episodes" ? [{ id: "episode", label: `Episode: ${status}`, onRemove: () => setStatus("All episodes") }] : []),
+          ]}
+          onClear={clearAll}
+        />
         <div className="table-scroll people-table-scroll">
           <table
             className="people-table"
@@ -250,22 +181,12 @@ export default function People({ navigate, openModal }) {
           >
             <thead>
               <tr>
-                <th className="sortable" onClick={() => toggleSort("name")}>
-                  Person <SortIndicator columnKey="name" />
-                </th>
-                <th className="sortable" onClick={() => toggleSort("status")}>
-                  Status <SortIndicator columnKey="status" />
-                </th>
+                <SortableHeader label="Person" sortKey="name" sort={sortConfig} onSort={toggleSort} />
+                <SortableHeader label="Status" sortKey="status" sort={sortConfig} onSort={toggleSort} />
                 <th>Next / latest assessment</th>
-                <th className="sortable" onClick={() => toggleSort("completeness")}>
-                  Required data <SortIndicator columnKey="completeness" />
-                </th>
-                <th className="sortable people-owner" onClick={() => toggleSort("owner")}>
-                  Care owner <SortIndicator columnKey="owner" />
-                </th>
-                <th className="sortable people-episode" onClick={() => toggleSort("episodeStatus")}>
-                  Episode <SortIndicator columnKey="episodeStatus" />
-                </th>
+                <SortableHeader label="Required data" sortKey="completeness" sort={sortConfig} onSort={toggleSort} />
+                <SortableHeader label="Care owner" sortKey="owner" sort={sortConfig} onSort={toggleSort} className="people-owner" />
+                <SortableHeader label="Episode" sortKey="episodeStatus" sort={sortConfig} onSort={toggleSort} className="people-episode" />
                 <th>
                   <span className="sr-only">Open</span>
                 </th>

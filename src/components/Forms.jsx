@@ -23,14 +23,11 @@ import {
   practitionerServiceOptions,
   reducer,
   qualityResolutionError,
-  qualityWorkflowError,
-  formatTimestamp,
   displayPersonName,
   displayFamilyName,
   CONSENT_LIBRARY,
   uid,
 } from "../model";
-import { QUALITY_STATUSES, getQualityIssues } from "../dataQuality";
 import { DEMO_INSTRUMENT, INSTRUMENTS, getInstrument } from "../instruments";
 import { APPOINTMENT_DELIVERY_MODES } from "../appointments";
 import {
@@ -55,6 +52,7 @@ import CareEventForm from "./CareEventForm";
 import AppointmentForm from "./AppointmentForm";
 import AppointmentOutcomeForm from "./AppointmentOutcomeForm";
 import ClinicalRecordForm from "./ClinicalRecordForm";
+import QualityIssueForm from "./QualityIssueForm";
 const formValues = (e) => Object.fromEntries(new FormData(e.currentTarget));
 export default function Forms({
   modal,
@@ -158,17 +156,17 @@ export default function Forms({
         referral.handover,
       ),
   );
-  const save = (action, message) => {
+  const save = (action, message, onError = setFormError) => {
     const fullAction = { ...modal, ...action };
     if (reducer(state, fullAction) === state) {
-      setFormError(
+      onError(
         "This change could not be saved. Check the values and whether the record is still available for this action.",
       );
       return false;
     }
     const result = commit(fullAction);
     if (result.error) {
-      setFormError(result.error);
+      onError(result.error);
       return false;
     }
     onClose();
@@ -2083,163 +2081,18 @@ export default function Forms({
       </Modal>
     );
   }
-  if (modal.type === "quality-issue") {
-    const issue = getQualityIssues(state, TODAY).find(
-      (item) => item.id === modal.issueId && item.personId === modal.personId,
-    );
-    const canCorrect = state.issues.some(
-      (item) => item.id === issue?.id && item.field,
-    );
-    const workflowPath = {
-      Intake: "?tab=intake",
-      Referrals: "?tab=referrals",
-      Appointments: "?tab=appointments",
-      "Consent & respondents": "?tab=consent%20%26%20respondents",
-    }[issue?.workflow] || "";
-    if (!issue || !p) return null;
+  if (modal.type === "quality-issue")
     return (
-      <Modal
-        title="Manage data quality issue"
-        subtitle={`${displayPersonName(p)} · ${issue.id}`}
+      <QualityIssueForm
+        modal={modal}
+        state={state}
+        person={p}
         onClose={onClose}
-        wide
-      >
-        <ValidatedForm
-          onSubmit={(event) => {
-            event.preventDefault();
-            const action = {
-              type: "UPDATE_QUALITY_ISSUE",
-              personId: p.id,
-              issueId: issue.id,
-              ...formValues(event),
-            };
-            const problem = qualityWorkflowError(state, action);
-            if (problem) return setFormError(problem);
-            save(action, "Issue assignment and history updated.");
-          }}
-        >
-          <div className="form-body quality-issue-dialog">
-            <div className="quality-issue-summary">
-              <div>
-                <span className="quality-issue-label">{issue.type}</span>
-                <h3>{issue.title}</h3>
-              </div>
-              <Badge>{issue.severity}</Badge>
-            </div>
-            <p>{issue.description}</p>
-            <Notice>
-              <strong>What to do:</strong> {issue.remediation}
-            </Notice>
-            <dl className="quality-issue-facts">
-              <div>
-                <dt>Workflow</dt>
-                <dd>{issue.workflow}</dd>
-              </div>
-              <div>
-                <dt>Detected</dt>
-                <dd>{formatTimestamp(issue.detectedAt)}</dd>
-              </div>
-              <div>
-                <dt>Last updated</dt>
-                <dd>{formatTimestamp(issue.lastUpdated)}</dd>
-              </div>
-              {issue.resolvedAt && (
-                <div>
-                  <dt>Resolved</dt>
-                  <dd>
-                    {formatTimestamp(issue.resolvedAt)} · {issue.resolvedBy}
-                  </dd>
-                </div>
-              )}
-            </dl>
-            <div className="form-grid">
-              <Field label="Assigned owner">
-                <StaffPicker
-                  name="owner"
-                  defaultValue={issue.owner}
-                  required
-                />
-              </Field>
-              <Field label="Status">
-                <select name="status" defaultValue={issue.status}>
-                  {QUALITY_STATUSES.map((status) => (
-                    <option key={status}>{status}</option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Due date (optional)">
-                <input name="dueDate" type="date" defaultValue={issue.dueDate || ""} />
-              </Field>
-            </div>
-            <Field
-              label="Comment"
-              hint="Explain the status, assignment or information needed."
-            >
-              <textarea
-                name="comment"
-                rows={3}
-                required
-                placeholder="For example, requested a verified referral copy from the intake team."
-              />
-            </Field>
-            <Notice tone="amber">
-              A workflow status does not resolve a detected data problem. Correct
-              the underlying record before selecting Resolved.
-            </Notice>
-            <div className="quality-issue-history">
-              <h3>History</h3>
-              {issue.history?.length ? (
-                <ol>
-                  {issue.history.map((entry) => (
-                    <li key={entry.id}>
-                      <strong>{entry.title}</strong>
-                      <p>{entry.detail}</p>
-                      <small>
-                        {formatTimestamp(entry.timestamp)} · {entry.actor}
-                        {entry.status ? ` · ${entry.status}` : ""}
-                      </small>
-                    </li>
-                  ))}
-                </ol>
-              ) : (
-                <p className="muted">No workflow updates have been recorded.</p>
-              )}
-            </div>
-          </div>
-          <div className="modal-footer quality-issue-footer">
-            {formError && (
-              <p className="field-error form-save-error" role="alert">
-                {formError}
-              </p>
-            )}
-            <Button type="button" onClick={() => navigate(`/people/${p.id}${workflowPath}`)}>
-              Open {issue.workflow}
-            </Button>
-            {canCorrect && !["Resolved", "Closed"].includes(issue.status) && (
-              <Button
-                type="button"
-                onClick={() =>
-                  openModal({
-                    type: "correct",
-                    personId: p.id,
-                    issueId: issue.id,
-                  })
-                }
-              >
-                Correct source field
-              </Button>
-            )}
-            <Button type="button" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button type="submit" variant="primary">
-              Save workflow update
-            </Button>
-          </div>
-        </ValidatedForm>
-      </Modal>
+        openModal={openModal}
+        navigate={navigate}
+        save={save}
+      />
     );
-  }
   const content = {
     about: [
       "About this workspace",
@@ -2412,7 +2265,7 @@ export default function Forms({
               <strong>Database & Workspace Store</strong>
               <p className="small muted" style={{ margin: 0 }}>Operational • Query Latency 0.6ms</p>
             </div>
-            <Badge className="green">Normal</Badge>
+            <Badge tone="green">Normal</Badge>
           </div>
           <div className="status-item">
             <span className="system-status-dot green" />
@@ -2420,7 +2273,7 @@ export default function Forms({
               <strong>Clinical API Gateway</strong>
               <p className="small muted" style={{ margin: 0 }}>Operational • Response Time 14ms</p>
             </div>
-            <Badge className="green">Normal</Badge>
+            <Badge tone="green">Normal</Badge>
           </div>
           <div className="status-item">
             <span className="system-status-dot green" />
@@ -2428,7 +2281,7 @@ export default function Forms({
               <strong>Session & Security Services</strong>
               <p className="small muted" style={{ margin: 0 }}>Active • 256-bit Encrypted</p>
             </div>
-            <Badge className="green">Normal</Badge>
+            <Badge tone="green">Normal</Badge>
           </div>
         </div>
         <Notice>All systems operational. No scheduled maintenance or outages detected.</Notice>

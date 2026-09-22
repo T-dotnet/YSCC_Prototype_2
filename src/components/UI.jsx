@@ -11,6 +11,7 @@ import {
   Clock3,
 } from "lucide-react";
 import { DEMO_STAFF, initials } from "../model";
+import { badgeTone } from "../badgeTone";
 export function Logo() {
   return (
     <span className="brand">
@@ -128,11 +129,10 @@ export function PersonIdentity({ name, descriptor, className = "" }) {
     </span>
   );
 }
-export function Badge({ children }) {
-  const t = String(children);
+export function Badge({ children, tone, className = "" }) {
   return (
     <span
-      className={`badge ${/Critical|High/.test(t) ? "coral" : /Declined|Withdrawn|Revoked|Cancelled/.test(t) ? "neutral" : /Overdue|Pending|Paused|Sent|Medium/.test(t) ? "amber" : /review|Draft/.test(t) ? "purple" : /Active|Accepted|Reviewed|Recorded|Submitted|Fulfilled|Resolved/.test(t) ? "green" : "neutral"}`}
+      className={`badge ${tone || badgeTone(children)} ${className}`.trim()}
     >
       <span />
       {children}
@@ -407,9 +407,34 @@ export function Success({ title, children, action, heading = "h2" }) {
     </div>
   );
 }
-export function Tabs({ id, label, items, value, onChange, className = "" }) {
+export function Tabs({
+  id,
+  label,
+  items,
+  value,
+  onChange,
+  className = "",
+  panelId = `${id}-panel`,
+  itemClassName = "",
+  countClassName = "",
+  selectedClassName = "",
+  unstyled = false,
+  autoReveal = false,
+}) {
+  const tablistRef = useRef(null);
+  useEffect(() => {
+    if (!autoReveal) return;
+    tablistRef.current
+      ?.querySelector('[aria-selected="true"]')
+      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [value, autoReveal]);
   return (
-    <div className={`tabs ${className}`} role="tablist" aria-label={label}>
+    <div
+      ref={tablistRef}
+      className={`${unstyled ? "" : "tabs"} ${className}`.trim()}
+      role="tablist"
+      aria-label={label}
+    >
       {items.map((item, index) => {
         const key = typeof item === "string" ? item : item.value;
         return (
@@ -419,9 +444,9 @@ export function Tabs({ id, label, items, value, onChange, className = "" }) {
             role="tab"
             id={`${id}-tab-${index}`}
             aria-selected={key === value}
-            aria-controls={`${id}-panel`}
+            aria-controls={panelId}
             tabIndex={key === value ? 0 : -1}
-            className={key === value ? "selected" : ""}
+            className={`${itemClassName} ${key === value ? `selected ${selectedClassName}` : ""}`.trim()}
             onClick={() => onChange(key)}
             onKeyDown={(event) => {
               let next;
@@ -442,13 +467,19 @@ export function Tabs({ id, label, items, value, onChange, className = "" }) {
           >
             {typeof item === "string" ? item : item.label || item.value}
             {item.count !== undefined && (
-              <span className="tab-count">{item.count}</span>
+              <span className={`${unstyled ? "" : "tab-count"} ${countClassName}`.trim()}>{item.count}</span>
             )}
           </button>
         );
       })}
     </div>
   );
+}
+export function RecordTabs(props) {
+  return <Tabs {...props} autoReveal className={`person-tabs ${props.className || ""}`.trim()} />;
+}
+export function FilterTabs(props) {
+  return <Tabs {...props} className={`work-tabs ${props.className || ""}`.trim()} />;
 }
 export function TextLink({ children, ...props }) {
   return (

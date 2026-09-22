@@ -51,7 +51,7 @@ import {
   TextLink,
   Empty,
   Modal,
-  Tabs,
+  RecordTabs,
   PersonIdentity,
   Avatar,
 } from "../components/UI";
@@ -267,10 +267,9 @@ export default function Person({ id, navigate, openModal }) {
           </Button>
         </div>
       ) : (
-        <Tabs
+        <RecordTabs
           id="person"
           label="Person record"
-          className="person-tabs"
           items={tabs}
           value={tab}
           onChange={setTab}
@@ -688,72 +687,84 @@ export default function Person({ id, navigate, openModal }) {
           <div className="consent-board">
             <div className="section-toolbar consent-board-heading">
               <div>
-                <p className="eyebrow">Permission centre</p>
                 <h2>Consent & respondents</h2>
-                <p>Make the decision clear, then keep the evidence close.</p>
+                <p>Review the current decision and who can contribute.</p>
               </div>
               <Button variant="primary" onClick={() => modal("consent-send")}>
                 Send consent request
               </Button>
             </div>
-            <div className="consent-board-grid">
-              <section className="consent-hero-card" aria-labelledby="consent-status-title">
-                <div className="consent-card-kicker"><CheckCircle2 size={17} /> Current decision</div>
-                <div className="consent-hero-status" id="consent-status-title">{p.consent}</div>
-                <p>Assessment participation · this care episode</p>
-                <div className="consent-hero-rule" />
-                <div className="consent-hero-meta"><span>Source</span><strong>{p.consentReference || "No source recorded"}</strong></div>
-                <div className="consent-hero-meta"><span>Assessment respondent</span><strong>{p.respondentPreference || "Not recorded"}</strong></div>
-              </section>
-              <section className="consent-context-card" aria-labelledby="respondent-context-title">
-                <div className="consent-card-kicker">Who can contribute</div>
-                <h3 id="respondent-context-title">Respondent context</h3>
-                <dl className="consent-context-list">
+            {consentRequests.map((request) => (
+              <details key={request.id} className="consent-request-accordion">
+                <summary>
+                  <span>
+                    <strong>{request.title}</strong>
+                    <small>{request.version} · {request.scope}</small>
+                  </span>
+                  <Badge>{request.status}</Badge>
+                  <ChevronDown size={18} aria-hidden="true" />
+                </summary>
+                <Panel className="consent-request-panel">
+                  <div className="panel-body">
+                    <dl className="metadata">
+                      <div><dt>Version</dt><dd>{request.version}</dd></div>
+                      <div><dt>Scope</dt><dd>{request.scope}</dd></div>
+                      <div>
+                        <dt>Delivery</dt>
+                        <dd>{request.channel} · {request.sentAt ? formatDate(request.sentAt) : "Not sent"}</dd>
+                      </div>
+                      <div><dt>Current decision</dt><dd>{request.status}</dd></div>
+                      {request.decisionMaker && (
+                        <div><dt>Decision maker</dt><dd>{request.decisionMaker}</dd></div>
+                      )}
+                    </dl>
+                    <div className="assignment-footer">
+                      <span className="muted">
+                        {request.status === "Sent"
+                          ? "Waiting for the patient’s decision."
+                          : "Open request history and the permitted next action."}
+                      </span>
+                      <div className="actions">
+                        <Button
+                          variant="secondary"
+                          onClick={() => openModal({ ...context, type: "consent-detail", consentRequestId: request.id })}
+                        >
+                          View request
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </Panel>
+              </details>
+            ))}
+            <section className="consent-context-panel" aria-labelledby="consent-context-title">
+              <h3 id="consent-context-title">Contact and participant context</h3>
+              <dl className="consent-summary-row">
+                <div>
+                  <dt>Source</dt>
+                  <dd>{p.consentReference || "No source recorded"}</dd>
+                </div>
+                <div>
+                  <dt>Assessment respondent</dt>
+                  <dd>{p.respondentPreference || "Not recorded"}</dd>
+                </div>
+                <div>
+                  <dt>Participant</dt>
+                  <dd><PersonIdentity name={p.name} descriptor="Patient" /></dd>
+                </div>
+                <div><dt>Contact suitability</dt><dd>{p.contact}</dd></div>
+                <div><dt>Guardian authority</dt><dd>Not established</dd></div>
+                <div><dt>Research participation</dt><dd>Not recorded · separate purpose</dd></div>
+                {p.family && (
                   <div>
-                    <dt>Name</dt>
+                    <dt>Family respondent</dt>
                     <dd>
-                      <PersonIdentity name={p.name} descriptor="Patient" />
+                      <PersonIdentity name={p.family} descriptor="Family carer" />
+                      <span className="identity-suffix">own contribution only</span>
                     </dd>
                   </div>
-                  <div>
-                    <dt>Contact suitability</dt>
-                    <dd>{p.contact}</dd>
-                  </div>
-                  <div>
-                    <dt>Guardian authority</dt>
-                    <dd>Not established</dd>
-                  </div>
-                  <div>
-                    <dt>Research participation</dt>
-                    <dd>Not recorded · separate purpose</dd>
-                  </div>
-                  {p.family && (
-                    <div>
-                      <dt>Family respondent</dt>
-                      <dd>
-                        <PersonIdentity
-                          name={p.family}
-                          descriptor="Family carer"
-                        />
-                        <span className="identity-suffix">
-                          own contribution only
-                        </span>
-                      </dd>
-                    </div>
-                  )}
-                </dl>
-              </section>
-            </div>
-            <section className="consent-history" aria-labelledby="consent-history-title">
-              <div className="consent-history-heading"><div><p className="eyebrow">Audit trail</p><h3 id="consent-history-title">Request history</h3></div><span>{consentRequests.length} {consentRequests.length === 1 ? "request" : "requests"}</span></div>
-              <div className="consent-history-list">
-                {consentRequests.map((request) => (
-                  <details key={request.id} className="consent-history-item">
-                    <summary><span className="consent-history-marker" /><span className="consent-history-main"><strong>{request.title}</strong><small>{request.version} · {request.scope}</small></span><span className="consent-history-date">{request.sentAt ? formatDate(request.sentAt) : "Not sent"}</span><Badge>{request.status}</Badge><ChevronDown size={17} aria-hidden="true" /></summary>
-                    <div className="consent-history-detail"><span>{request.channel} · {request.decisionMaker || "Decision maker not recorded"}</span><Button variant="secondary" onClick={() => openModal({ ...context, type: "consent-detail", consentRequestId: request.id })}>View request</Button></div>
-                  </details>
-                ))}
-              </div>
+                )}
+              </dl>
             </section>
           </div>
         )}

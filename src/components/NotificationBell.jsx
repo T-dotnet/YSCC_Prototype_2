@@ -11,6 +11,7 @@ import {
 import { useStore } from "../store";
 import { TODAY, formatDate } from "../model";
 import { getNotifications } from "../notifications";
+import { Tabs } from "./UI";
 
 const CATEGORY_MAP = {
   data_quality: {
@@ -149,23 +150,26 @@ export default function NotificationBell({ navigate }) {
             </button>
           </div>
 
-          <div className="notification-filter-bar" role="tablist" aria-label="Notification categories">
-            {tabs.map((tab) => (
-              <button
-                key={tab.key}
-                type="button"
-                role="tab"
-                aria-selected={filter === tab.key}
-                className={`notification-pill-tab ${filter === tab.key ? "active" : ""}`}
-                onClick={() => setFilter(tab.key)}
-              >
-                <span>{tab.label}</span>
-                <span className="notification-pill-count">{tab.count}</span>
-              </button>
-            ))}
-          </div>
+          <Tabs
+            id="notification"
+            label="Notification categories"
+            items={tabs.map((tab) => ({ value: tab.key, label: tab.label, count: tab.count }))}
+            value={filter}
+            onChange={setFilter}
+            className="notification-filter-bar"
+            itemClassName="notification-pill-tab"
+            countClassName="notification-pill-count"
+            selectedClassName="active"
+            panelId="notification-panel"
+            unstyled
+          />
 
-          <div className="notification-list">
+          <div
+            className="notification-list"
+            role="tabpanel"
+            id="notification-panel"
+            aria-labelledby={`notification-tab-${tabs.findIndex((tab) => tab.key === filter)}`}
+          >
             {filteredNotifications.length === 0 ? (
               <div className="notification-empty">
                 <p>No notifications in this view.</p>
