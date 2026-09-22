@@ -12,6 +12,7 @@ import {
   Menu,
   X,
   LogOut,
+  Search,
 } from "lucide-react";
 import { Logo, Avatar } from "./UI";
 import NotificationBell from "./NotificationBell";
@@ -35,7 +36,23 @@ export default function Shell({
   const staff = currentStaff(state);
   const [mobile, setMobile] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [activeSearchIndex, setActiveSearchIndex] = useState(-1);
   const menuRef = useRef(null);
+  const searchRef = useRef(null);
+  const searchInputRef = useRef(null);
+  const normalizedSearchQuery = searchQuery.trim().toLocaleLowerCase();
+  const searchResults = normalizedSearchQuery
+    ? state.people
+        .filter((person) =>
+          `${person.name} ${person.id}`
+            .toLocaleLowerCase()
+            .includes(normalizedSearchQuery),
+        )
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .slice(0, 6)
+    : [];
   useEffect(() => {
     if (!mobile) return;
     menuRef.current?.querySelector(".mobile-only")?.focus();
@@ -45,10 +62,60 @@ export default function Shell({
     document.addEventListener("keydown", handle);
     return () => document.removeEventListener("keydown", handle);
   }, [mobile]);
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setSearchOpen(true);
+        requestAnimationFrame(() => searchInputRef.current?.focus());
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
+  useEffect(() => {
+    if (!searchOpen) return;
+    const handlePointerDown = (event) => {
+      if (!searchRef.current?.contains(event.target)) setSearchOpen(false);
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [searchOpen]);
   const active = path.startsWith("/people") ? "/people" : path;
   const go = (p) => {
     navigate(p);
     setMobile(false);
+  };
+  const selectPerson = (person) => {
+    setSearchQuery("");
+    setSearchOpen(false);
+    setActiveSearchIndex(-1);
+    go(`/people/${person.id}`);
+  };
+  const handleSearchKeyDown = (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setSearchOpen(false);
+      searchInputRef.current?.blur();
+    }
+    if (event.key === "ArrowDown" && searchResults.length) {
+      event.preventDefault();
+      setSearchOpen(true);
+      setActiveSearchIndex((index) =>
+        index < searchResults.length - 1 ? index + 1 : 0,
+      );
+    }
+    if (event.key === "ArrowUp" && searchResults.length) {
+      event.preventDefault();
+      setActiveSearchIndex((index) =>
+        index > 0 ? index - 1 : searchResults.length - 1,
+      );
+    }
+  };
+  const submitSearch = (event) => {
+    event.preventDefault();
+    const selected = searchResults[activeSearchIndex] || searchResults[0];
+    if (selected) selectPerson(selected);
   };
   return (
     <div className="shell">
@@ -161,6 +228,92 @@ export default function Shell({
               </>
             )}
           </div>
+          <form
+            ref={searchRef}
+            className={`topbar-search ${searchOpen ? "search-open" : ""}`}
+            role="search"
+            onSubmit={submitSearch}
+          >
+            <button
+              className="topbar-search-trigger"
+              type="button"
+              aria-label="Open global search"
+              aria-expanded={searchOpen}
+              onClick={() => {
+                setSearchOpen(true);
+                requestAnimationFrame(() => searchInputRef.current?.focus());
+              }}
+            >
+              <Search size={19} />
+            </button>
+            <div className="global-search-input">
+              <Search size={18} aria-hidden="true" />
+              <input
+                ref={searchInputRef}
+                value={searchQuery}
+                onChange={(event) => {
+                  setSearchQuery(event.target.value);
+                  setActiveSearchIndex(-1);
+                }}
+                onFocus={() => setSearchOpen(true)}
+                onKeyDown={handleSearchKeyDown}
+                placeholder="Search people or record ID"
+                aria-label="Global search"
+                aria-autocomplete="list"
+                aria-controls="global-search-results"
+                aria-expanded={searchOpen && Boolean(normalizedSearchQuery)}
+                aria-activedescendant={
+                  activeSearchIndex >= 0
+                    ? `global-search-option-${activeSearchIndex}`
+                    : undefined
+                }
+              />
+              {searchQuery && (
+                <button
+                  className="global-search-clear"
+                  type="button"
+                  aria-label="Clear global search"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setActiveSearchIndex(-1);
+                    searchInputRef.current?.focus();
+                  }}
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+            {searchOpen && normalizedSearchQuery && (
+              <div
+                id="global-search-results"
+                className="global-search-results"
+                role="listbox"
+                aria-label="Matching people"
+              >
+                {searchResults.length ? (
+                  searchResults.map((person, index) => (
+                    <button
+                      id={`global-search-option-${index}`}
+                      key={person.id}
+                      type="button"
+                      role="option"
+                      aria-selected={activeSearchIndex === index}
+                      className={
+                        activeSearchIndex === index ? "active" : undefined
+                      }
+                      onMouseEnter={() => setActiveSearchIndex(index)}
+                      onClick={() => selectPerson(person)}
+                    >
+                      <span>{person.name}</span>
+                      <small>{person.id}</small>
+                    </button>
+                  ))
+                ) : (
+                  <p>No people match “{searchQuery.trim()}”.</p>
+                )}
+              </div>
+            )}
+          </form>
           <div className="topbar-right">
             <button
               className="system-status-indicator"

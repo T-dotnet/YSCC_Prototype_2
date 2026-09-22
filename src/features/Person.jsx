@@ -177,13 +177,6 @@ export default function Person({ id, navigate, openModal }) {
         </div>
         <div className="actions">
           <Button
-            variant="primary"
-            disabled={e.status !== "Active" || !canAssess(p, e)}
-            onClick={() => modal("plan")}
-          >
-            Plan follow-up
-          </Button>
-          <Button
             disabled={e.status === "Closed"}
             onClick={() => modal("episode")}
           >
@@ -193,7 +186,7 @@ export default function Person({ id, navigate, openModal }) {
         </div>
       </div>
       <div className="episode-bar">
-        <div className="episode-context">
+        <div className="episode-context episode-period">
           {p.episodes.length > 1 ? (
             <>
               <label htmlFor="care-period">Care period</label>
@@ -226,9 +219,9 @@ export default function Person({ id, navigate, openModal }) {
             </>
           ) : (
             <>
-              <strong>
+              <small>
                 {e.status === "Active" ? "Current care" : `${e.status} care`}
-              </strong>
+              </small>
               <span>
                 Started {formatDate(e.start)}
                 {e.end ? ` · Ended ${formatDate(e.end)}` : ""}
@@ -236,16 +229,18 @@ export default function Person({ id, navigate, openModal }) {
             </>
           )}
         </div>
-        <Badge>{e.status}</Badge>
-        <div>
+        <div className="episode-status">
+          <Badge>{e.status}</Badge>
+        </div>
+        <div className="episode-fact episode-owner">
           <small>Key clinician</small>
           <span>{p.owner}</span>
         </div>
-        <div>
+        <div className="episode-fact episode-location">
           <small>Location</small>
           <span>Northside Centre</span>
         </div>
-        <div>
+        <div className="episode-fact episode-completeness">
           <small>Required data</small>
           <button
             type="button"
@@ -520,11 +515,14 @@ export default function Person({ id, navigate, openModal }) {
                   Separate collection points within care episode {e.number}.
                 </p>
               </div>
+              <Button
+                variant="primary"
+                disabled={e.status !== "Active" || !canAssess(p, e)}
+                onClick={() => modal("plan")}
+              >
+                Plan follow-up
+              </Button>
             </div>
-            <p className="muted">
-              Outstanding work appears first. Earlier reviewed responses remain
-              available below.
-            </p>
             {orderedCollections.map((col) => {
               const isPrior =
                 !isOutstanding(col) &&
@@ -592,10 +590,26 @@ export default function Person({ id, navigate, openModal }) {
                         version pinned at assignment
                       </span>
                       <div className="actions">
+                        <TextLink
+                          aria-haspopup="dialog"
+                          onClick={() =>
+                            openModal({
+                              type: "collection-details",
+                              personId: p.id,
+                              episodeId: e.id,
+                              collectionId: col.id,
+                            })
+                          }
+                        >
+                          View details
+                        </TextLink>
                         {col.response === "Submitted" &&
                           (!noClinicalReviewRequired(col) ||
                             collectionStatus(col) === "Completed") && (
-                            <Button onClick={() => openReview(col)}>
+                            <Button
+                              variant="secondary"
+                              onClick={() => openReview(col)}
+                            >
                               {col.needsReview
                                 ? "Review updated answers"
                                 : col.review === "Reviewed" ||
@@ -606,6 +620,7 @@ export default function Person({ id, navigate, openModal }) {
                           )}
                         {col.response !== "Submitted" && (
                           <Button
+                            variant="secondary"
                             aria-haspopup="dialog"
                             onClick={() =>
                               openModal({
@@ -619,20 +634,6 @@ export default function Person({ id, navigate, openModal }) {
                             Preview questionnaire
                           </Button>
                         )}
-                        <Button
-                          aria-haspopup="dialog"
-                          onClick={() =>
-                            openModal({
-                              type: "collection-details",
-                              personId: p.id,
-                              episodeId: e.id,
-                              collectionId: col.id,
-                            })
-                          }
-                          variant="primary"
-                        >
-                          View details
-                        </Button>
                       </div>
                     </div>
                   </div>
@@ -693,14 +694,10 @@ export default function Person({ id, navigate, openModal }) {
                   its own history.
                 </p>
               </div>
-              <Button onClick={() => modal("consent-send")}>
+              <Button variant="primary" onClick={() => modal("consent-send")}>
                 Send consent request
               </Button>
             </div>
-            <Notice>
-              Illustrative sample policy only. A sent request is not consent;
-              accept, decline and withdrawal remain purpose-specific.
-            </Notice>
             {consentRequests.map((request) => (
               <details key={request.id} className="consent-request-accordion">
                 <summary>

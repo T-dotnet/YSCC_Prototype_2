@@ -285,7 +285,7 @@ export default function People({ navigate, openModal }) {
                   <tr key={p.id} onClick={() => open(href)}>
                     <td className="people-identity">
                       <div className="person-cell">
-                        <span>
+                        <span className="people-identity-copy">
                           <button
                             className="name-link"
                             onClick={(e) => {
@@ -295,12 +295,12 @@ export default function People({ navigate, openModal }) {
                           >
                             {p.name}
                           </button>
-                          <small className="people-id">
-                            {p.id} ·{" "}
-                          </small>
-                          <small>
-                            {p.dob ? `${age(p.dob)} years` : "Age unknown"}
-                          </small>
+                          <span className="people-identity-meta">
+                            <small className="people-id">{p.id}</small>
+                            <small>
+                              {p.dob ? `${age(p.dob)} years` : "Age unknown"}
+                            </small>
+                          </span>
                         </span>
                       </div>
                     </td>

@@ -383,6 +383,7 @@ function SharedTimeline({
 
   return (
     <section
+      id="report-care-timeline"
       className={`longitudinal-panel longitudinal-report-card${isVisible ? "" : " report-section-collapsed"}`}
       aria-labelledby="longitudinal-timeline-heading"
     >
@@ -406,7 +407,12 @@ function SharedTimeline({
               {isVisible ? "Hide" : "Show"}
             </button>
           )}
-          {isVisible && (
+        </div>
+      </header>
+      {isVisible && (visibleEntries.length ? (
+        <>
+          <div className="longitudinal-view-toolbar">
+            <span>Timeline view</span>
             <div
               className="longitudinal-filter"
               role="group"
@@ -425,11 +431,23 @@ function SharedTimeline({
                 </button>
               ))}
             </div>
-          )}
-        </div>
-      </header>
-      {isVisible && (visibleEntries.length ? (
-        <>
+          </div>
+          <div className="longitudinal-key" aria-label="Timeline key">
+            <strong>How to read this timeline</strong>
+            <span>
+              <i className="longitudinal-key-bar" /> Care period
+            </span>
+            <span>
+              <i className="longitudinal-key-medication-bar" /> Medication
+              course
+            </span>
+            <span>
+              <i className="longitudinal-key-event" /> Dated event or risk
+            </span>
+            <span>
+              <i className="longitudinal-key-goal" /> Dated goal milestone
+            </span>
+          </div>
           <div
             className="longitudinal-scroll"
             tabIndex={0}
@@ -533,21 +551,6 @@ function SharedTimeline({
             Scroll sideways to see the full date range. Select a point, bar or
             marker for its source detail.
           </p>
-          <div className="longitudinal-key" aria-label="Timeline key">
-            <span>
-              <i className="longitudinal-key-bar" /> Care period
-            </span>
-            <span>
-              <i className="longitudinal-key-medication-bar" /> Medication
-              course
-            </span>
-            <span>
-              <i className="longitudinal-key-event" /> Recorded event or risk
-            </span>
-            <span>
-              <i className="longitudinal-key-goal" /> Goal milestone
-            </span>
-          </div>
           <details className="longitudinal-record-list">
             <summary>Browse visible records</summary>
             {visibleLanes.map((lane) => (

@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Plus, ArrowRight, ShieldAlert, Clock, CalendarX, FileCheck, X } from "lucide-react";
+import { Plus, ArrowRight, CalendarX, X } from "lucide-react";
 import { useStore } from "../store";
 import {
   getTasks,
@@ -58,8 +58,9 @@ export default function Worklist({ navigate, openModal }) {
   const [sortConfig, setSortConfig] = useState({ key: "due", direction: "asc" });
   const tasks = ownedTasks(getTasks(state), state, ownership);
 
-  // --- Notifications, Tasks & Alerts Container Data ---
-  const [alertFilter, setAlertFilter] = useState("All alerts");
+  // Alerts complement the worklist instead of repeating assessment tasks that
+  // already have a clear next action above.
+  const [alertFilter, setAlertFilter] = useState("All");
   const [alertQuery, setAlertQuery] = useState("");
   const [alertPage, setAlertPage] = useState(1);
 
@@ -70,32 +71,15 @@ export default function Worklist({ navigate, openModal }) {
   const dqAlerts = qualityIssues.map((issue) => ({
     id: `dq-${issue.id}`,
     category: "Data quality error",
-    categoryKey: "Data quality errors",
+    categoryKey: "Errors",
     title: issue.title || issue.type || "Data quality error",
     person: issue.person ? { name: issue.person.name, id: issue.person.id } : null,
     detail: issue.summary || issue.description || issue.detail || "Data quality check failed",
     badgeColor: "coral",
-    icon: ShieldAlert,
     actionLabel: "Resolve issue",
     href: issue.person ? `/people/${encodeURIComponent(issue.person.id)}?tab=quality` : "/quality",
     date: issue.detectedAt ? issue.detectedAt.slice(0, 10) : TODAY,
   }));
-
-  const assessmentOverdueAlerts = tasks
-    .filter((task) => task.status === "Overdue" && task.collection)
-    .map((task) => ({
-      id: `ao-${task.collection.id}`,
-      category: "Assessment overdue",
-      categoryKey: "Assessment overdue",
-      title: task.collection.label || "Assessment collection",
-      person: task.person,
-      detail: `Due ${formatDate(task.collection.due)} · Questionnaire response overdue`,
-      badgeColor: "amber",
-      icon: Clock,
-      actionLabel: task.action || "Follow up",
-      href: taskHref(task, view.href),
-      date: task.collection.due,
-    }));
 
   const appointmentOverdueAlerts = (state.people || []).flatMap((person) =>
     (person.episodes || [])
@@ -106,7 +90,7 @@ export default function Worklist({ navigate, openModal }) {
           .map((apt) => ({
             id: `apto-${apt.id}`,
             category: "Appointment input overdue",
-            categoryKey: "Appointment input overdue",
+            categoryKey: "Appointments",
             title: `${apt.practitionerService || "Planned contact"} attendance missing`,
             person: { name: person.name, id: person.id },
             detail: `Planned for ${apt.plannedDate} at ${apt.plannedTime || "unspecified time"} · Attendance input required`,
@@ -119,40 +103,17 @@ export default function Worklist({ navigate, openModal }) {
       )
   );
 
-  const assessmentReviewAlerts = tasks
-    .filter((task) => task.status === "Ready for review" && task.collection)
-    .map((task) => ({
-      id: `ar-${task.collection.id}`,
-      category: "Assessment ready for review",
-      categoryKey: "Ready for review",
-      title: task.collection.label || "Assessment review",
-      person: task.person,
-      detail: "Submitted response is awaiting clinical review",
-      badgeColor: "purple",
-      icon: FileCheck,
-      actionLabel: "Review response",
-      href: `/people/${encodeURIComponent(task.person.id)}/assessment-review/${encodeURIComponent(task.collection.id)}`,
-      date: task.collection.due || TODAY,
-    }));
-
-  const allAlerts = [
-    ...dqAlerts,
-    ...assessmentOverdueAlerts,
-    ...appointmentOverdueAlerts,
-    ...assessmentReviewAlerts,
-  ];
+  const allAlerts = [...dqAlerts, ...appointmentOverdueAlerts];
 
   const alertFiltersList = [
-    "All alerts",
-    "Data quality errors",
-    "Assessment overdue",
-    "Appointment input overdue",
-    "Ready for review",
+    "All",
+    "Errors",
+    "Appointments",
   ];
 
   const filteredAlerts = allAlerts.filter((alert) => {
     const matchesCategory =
-      alertFilter === "All alerts" || alert.categoryKey === alertFilter;
+      alertFilter === "All" || alert.categoryKey === alertFilter;
     const personStr = alert.person ? `${alert.person.name} ${alert.person.id}` : "";
     const searchStr = `${alert.category} ${alert.title} ${alert.detail} ${personStr}`.toLowerCase();
     const matchesQuery = searchStr.includes(alertQuery.toLowerCase());
@@ -289,7 +250,7 @@ export default function Worklist({ navigate, openModal }) {
           <Tabs
             id="work"
             label="Work status"
-            className="work-tabs"
+            className="work-tabs worklist-status-tabs"
             value={filter}
             onChange={(value) => view.set("filter", value, "All work", true)}
             items={filters.map((value) => ({
@@ -514,12 +475,16 @@ export default function Worklist({ navigate, openModal }) {
 
         <Panel
           className="work-panel alerts-container-panel"
-          title="Tasks & Alerts"
+          title="Additional alerts"
         >
+          <p className="alerts-intro">
+            Data quality and appointment follow-up that is not already shown in
+            the worklist.
+          </p>
           <Tabs
             id="alerts"
             label="Alert categories"
-            className="work-tabs"
+            className="work-tabs alerts-tabs"
             value={alertFilter}
             onChange={(val) => {
               setAlertFilter(val);
@@ -528,15 +493,11 @@ export default function Worklist({ navigate, openModal }) {
             items={alertFiltersList.map((val) => ({
               value: val,
               count:
-                val === "All alerts"
+                val === "All"
                   ? allAlerts.length
-                  : val === "Data quality errors"
+                  : val === "Errors"
                     ? dqAlerts.length
-                    : val === "Assessment overdue"
-                      ? assessmentOverdueAlerts.length
-                      : val === "Appointment input overdue"
-                        ? appointmentOverdueAlerts.length
-                        : assessmentReviewAlerts.length,
+                    : appointmentOverdueAlerts.length,
             }))}
           />
           <div role="tabpanel" id="alerts-panel">
@@ -548,7 +509,7 @@ export default function Worklist({ navigate, openModal }) {
                     setAlertQuery(val);
                     setAlertPage(1);
                   }}
-                  placeholder="Search tasks & alerts..."
+                  placeholder="Search additional alerts..."
                 />
                 <span className="toolbar-count" aria-live="polite">
                   Showing {filteredAlerts.length} of {allAlerts.length}
@@ -614,8 +575,8 @@ export default function Worklist({ navigate, openModal }) {
               ))}
             </div>
             {!filteredAlerts.length && (
-              <Empty visual="botanical" title="No tasks or alerts matching filter">
-                Try selecting another category or clear your search term.
+              <Empty visual="botanical" title="No additional alerts match">
+                Try another category or clear your search term.
               </Empty>
             )}
             <div className="table-footer" role="status">
@@ -624,7 +585,7 @@ export default function Worklist({ navigate, openModal }) {
                 {filteredAlerts.length === 1 ? "item" : "items"}
               </span>
               <Pagination
-                label="Tasks & Alerts"
+                label="Additional alerts"
                 page={currentAlertPage}
                 pageCount={alertPageCount}
                 onPageChange={(nextPage) => setAlertPage(nextPage)}

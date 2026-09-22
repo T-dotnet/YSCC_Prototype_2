@@ -377,6 +377,40 @@ test("Migration preserves saved assessments and adds pending intake for earlier 
   assert.equal(canAssess(p, p.episodes[0]), false);
   assert.equal(upgradeSampleData(migrated), migrated);
 });
+test("Migration preserves a custom person that used Jordan Ellis's reserved fixture ID", () => {
+  const saved = createSeed();
+  saved.people = saved.people.filter((item) => item.id !== "YS-1034");
+  saved.people.push({
+    id: "YS-1034",
+    name: "Tim Burton",
+    dob: null,
+    pronouns: "Not recorded",
+    owner: "Jess Taylor",
+    consent: "Not recorded",
+    contact: "Not confirmed",
+    family: null,
+    episodes: [],
+    intakes: [],
+    referrals: [],
+  });
+  saved.audit.push({ id: "AUD-custom-person", personId: "YS-1034" });
+  saved.sampleRevision = 21;
+
+  const upgraded = upgradeSampleData(saved);
+  const jordan = upgraded.people.find((item) => item.name === "Jordan Ellis");
+  const tim = upgraded.people.find((item) => item.name === "Tim Burton");
+
+  assert.equal(jordan.id, "YS-1034");
+  assert.equal(tim.id, "YS-1035");
+  assert.equal(
+    upgraded.audit.find((item) => item.id === "AUD-custom-person").personId,
+    tim.id,
+  );
+  assert.equal(
+    upgraded.people.filter((item) => item.id === "YS-1034").length,
+    1,
+  );
+});
 test("legacy mock records with a completed intake are upgraded for assessment work", () => {
   const legacy = createSeed();
   const mia = legacy.people.find((item) => item.name === "Mia Robinson");

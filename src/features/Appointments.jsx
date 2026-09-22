@@ -185,7 +185,7 @@ function AppointmentCard({ appointment, episode, openModal }) {
       <footer className="appointment-card-footer">
         {appointment.attendance === "Planned" ? (
           <Button
-            variant="primary"
+            variant="secondary"
             disabled={episode.status !== "Active"}
             onClick={recordOutcome}
           >

@@ -1526,7 +1526,7 @@ export function upgradeSampleData(state) {
     ),
   );
   if (hasOldQuestionnaire) return createSeed();
-  if (state.sampleRevision < 21 || !state.sampleRevision)
+  if (state.sampleRevision < 22 || !state.sampleRevision)
     return prepareQualityState(prepareSeed(JSON.parse(JSON.stringify(state))));
   if (state.intakeRevision !== 3)
     state = prepareIntakes(JSON.parse(JSON.stringify(state)));
@@ -1577,21 +1577,45 @@ function addFictionalProgressReport(episode, { eventId, timestamp, content }) {
   }
 }
 
+function remapPersonReferences(value, previousId, nextId) {
+  if (!value || typeof value !== "object") return;
+  for (const [key, child] of Object.entries(value)) {
+    if (key === "personId" && child === previousId) value[key] = nextId;
+    else remapPersonReferences(child, previousId, nextId);
+  }
+}
+
 function prepareSeed(state) {
   const next = state;
+  const jordanFixture = createMockFullReportPerson();
+  const jordanIdCollision = next.people.find(
+    (person) =>
+      person.id === jordanFixture.id && person.name !== jordanFixture.name,
+  );
+  if (jordanIdCollision) {
+    const replacementId = `YS-${
+      Math.max(
+        1034,
+        ...next.people
+          .map((person) => Number(person.id.slice(3)))
+          .filter(Number.isFinite),
+      ) + 1
+    }`;
+    jordanIdCollision.id = replacementId;
+    remapPersonReferences(next, jordanFixture.id, replacementId);
+  }
   next.people = next.people.filter((person) => person.id !== "YS-1030");
   for (const fixture of [
     createMockIntakePerson(),
     createMockIntakeOutcomePerson(),
     createMockIntakeAssessmentPerson(),
-    createMockFullReportPerson(),
+    jordanFixture,
   ]) {
     if (!next.people.some((person) => person.id === fixture.id))
       next.people.push(fixture);
   }
   const jordan = next.people.find((person) => person.id === "YS-1034");
   const jordanEpisode = jordan?.episodes.find((episode) => episode.id === "EP-1034-01");
-  const jordanFixture = createMockFullReportPerson();
   const jordanFixtureAppointments = jordanFixture.episodes[0].appointments;
   const jordanFixtureMeasures = jordanFixture.episodes[0].reportOutcomeMeasures;
   if (jordanEpisode) {
@@ -2044,7 +2068,7 @@ function prepareSeed(state) {
       jordanLeeEpisode.appointments.push(jordanLeeAppt);
     }
   }
-  next.sampleRevision = 21;
+  next.sampleRevision = 22;
   return prepareConsentRequests(prepareIntakes(next));
 }
 
