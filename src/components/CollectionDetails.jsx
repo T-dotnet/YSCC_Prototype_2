@@ -7,7 +7,7 @@ import {
 import { canAssess } from "../intake";
 import { collectionSetupLabel } from "../overview";
 import { Modal, Button, Badge, Notice } from "./UI";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Calendar } from "lucide-react";
 
 export default function CollectionDetails({
   person,
@@ -118,6 +118,73 @@ export default function CollectionDetails({
                   {c.channel || (submitted ? "Not recorded" : "Not selected")}
                 </dd>
               </div>
+              {(() => {
+                const linkedApptId = c.submittedAppointmentId || c.appointmentId;
+                const linkedAppt =
+                  (episode.appointments || []).find((a) => a.id === linkedApptId) ||
+                  (episode.appointments || []).find(
+                    (a) =>
+                      (a.actualDate || a.plannedDate) === c.due ||
+                      (a.actualDate || a.plannedDate) ===
+                        (c.submittedAt ? c.submittedAt.slice(0, 10) : null),
+                  );
+                return linkedAppt ? (
+                  <div>
+                    <dt>Linked appointment</dt>
+                    <dd
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <Calendar
+                        size={14}
+                        style={{ color: "var(--accent, #2563eb)", flexShrink: 0 }}
+                        aria-hidden="true"
+                      />
+                      {onAction ? (
+                        <button
+                          type="button"
+                          className="link-button"
+                          style={{
+                            background: "none",
+                            border: "none",
+                            padding: 0,
+                            color: "var(--accent, #2563eb)",
+                            cursor: "pointer",
+                            textDecoration: "underline",
+                            fontSize: "inherit",
+                            fontWeight: 500,
+                          }}
+                          onClick={() => {
+                            onClose();
+                            onAction({
+                              type: "appointment-outcome",
+                              appointmentId: linkedAppt.id,
+                              episodeId: episode.id,
+                              personId: person.id,
+                              collectionId: c.id,
+                            });
+                          }}
+                        >
+                          {formatDate(linkedAppt.actualDate || linkedAppt.plannedDate)}{" "}
+                          · {linkedAppt.plannedTime || linkedAppt.actualTime} ·{" "}
+                          {linkedAppt.deliveryMode}
+                        </button>
+                      ) : (
+                        <span>
+                          {formatDate(linkedAppt.actualDate || linkedAppt.plannedDate)}{" "}
+                          · {linkedAppt.plannedTime || linkedAppt.actualTime} ·{" "}
+                          {linkedAppt.deliveryMode}
+                        </span>
+                      )}
+                      <Badge>{linkedAppt.attendance}</Badge>
+                    </dd>
+                  </div>
+                ) : null;
+              })()}
               {!submitted && (
                 <>
                   <div>
@@ -135,37 +202,6 @@ export default function CollectionDetails({
                 </>
               )}
             </dl>
-          </div>
-        </details>
-        <details className="collection-details-accordion" open>
-          <summary>
-            <span>Delivery attempts</span>
-            <ChevronDown size={18} aria-hidden="true" />
-          </summary>
-          <div className="collection-details-accordion-body">
-            {c.attempts.length ? (
-              c.attempts.map((a, i) => (
-                <div className="attempt" key={a.id}>
-                  <div>
-                    <strong>
-                      Attempt {i + 1} · {a.channel}
-                    </strong>
-                    <small>{formatDate(a.date)}</small>
-                  </div>
-                  <Badge>{a.status}</Badge>
-                </div>
-              ))
-            ) : (
-              <p className="muted">
-                {submitted
-                  ? "Delivery history was not recorded for this response."
-                  : "No delivery attempts recorded."}
-              </p>
-            )}
-            <Notice>
-              Reissuing a link adds an attempt to this assignment. It does not
-              create a new time point.
-            </Notice>
           </div>
         </details>
       </div>

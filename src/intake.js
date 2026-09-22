@@ -641,7 +641,7 @@ export function applyIntakeAction(
 }
 
 export function intakeTasks(state, today) {
-  return state.people.flatMap((p) => [
+  return (state?.people || []).flatMap((p) => [
     ...(p.intakes || [])
       .filter(
         (i) =>

@@ -152,7 +152,7 @@ function AppointmentCard({ appointment, episode, openModal }) {
         <details className="appointment-more-detail">
           <summary>More detail</summary>
           <dl className="appointment-details">
-            {appointmentDetails(appointment)
+            {appointmentDetails(appointment, episode)
               .filter(([label]) => !label.toLocaleLowerCase().includes("note"))
               .map(([label, value]) => (
                 <div key={label}>

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { activityEntries, changeLogEntries } from "./activity.js";
+import { appointmentDetails } from "./appointments.js";
 import {
   createSeed,
   practitionerServiceOptions,
@@ -189,7 +190,83 @@ test("saved mock data gains Jordan's complete appointment fixture once", () => {
   const migrated = upgradeSampleData(saved);
   const migratedJordan = migrated.people.find((person) => person.id === "YS-1034");
   assert.deepEqual(saved, before);
-  assert.equal(migrated.sampleRevision, 19);
-  assert.equal(migratedJordan.episodes[0].appointments.length, 5);
+  assert.equal(migrated.sampleRevision, 21);
+  assert.equal(migratedJordan.episodes[0].appointments.length, 9);
   assert.equal(upgradeSampleData(migrated), migrated);
 });
+
+test("delivery attempts in seeded data are linked to appointments with valid status", () => {
+  const state = createSeed();
+  for (const person of state.people) {
+    for (const ep of person.episodes) {
+      for (const c of ep.collections) {
+        for (const attempt of c.attempts) {
+          if (["Clinic tablet", "Clinician entry"].includes(attempt.channel)) {
+            assert.ok(
+              attempt.appointmentId || c.appointmentId || c.submittedAppointmentId,
+              `Attempt ${attempt.id} in collection ${c.id} should have a linked appointment`,
+            );
+            const linkedId = attempt.appointmentId || c.appointmentId || c.submittedAppointmentId;
+            const appt = (ep.appointments || []).find((a) => a.id === linkedId);
+            assert.ok(appt, `Linked appointment ${linkedId} must exist in episode appointments`);
+            assert.ok(appt.attendance, `Appointment ${linkedId} must have an attendance status`);
+          }
+        }
+      }
+    }
+  }
+});
+
+test("planning a follow-up assessment supports linking an appointment and non-SMS channel", () => {
+  const state = createSeed();
+  const person = state.people[0];
+  const ep = person.episodes[0];
+  const apptId = "APT-followup-test-1";
+  const colId = "COL-followup-test-1";
+
+  const withAppt = reducer(state, {
+    type: "ADD_APPOINTMENT",
+    id: apptId,
+    personId: person.id,
+    episodeId: ep.id,
+    plannedDate: "2026-10-20",
+    plannedTime: "11:00",
+    plannedDurationMinutes: 45,
+    practitionerService: "Jess Taylor · Northside Centre",
+    deliveryMode: "In person",
+    attendance: "Planned",
+    notes: "Follow-up assessment appointment",
+  });
+
+  const withFollowUp = reducer(withAppt, {
+    type: "PLAN",
+    id: colId,
+    personId: person.id,
+    episodeId: ep.id,
+    label: "Mid-treatment review",
+    due: "2026-10-20",
+    channel: "Clinic tablet",
+    assistance: "Supported",
+    appointmentId: apptId,
+  });
+
+  const updatedEpisode = withFollowUp.people[0].episodes[0];
+  const plannedCollection = updatedEpisode.collections.find((c) => c.id === colId);
+  assert.ok(plannedCollection);
+  assert.equal(plannedCollection.label, "Mid-treatment review");
+  assert.equal(plannedCollection.due, "2026-10-20");
+  assert.equal(plannedCollection.channel, "Clinic tablet");
+  assert.equal(plannedCollection.assistance, "Supported");
+  assert.equal(plannedCollection.appointmentId, apptId);
+  assert.ok(updatedEpisode.appointments.some((a) => a.id === apptId));
+});
+
+test("appointment details include associated assignments if any", () => {
+  const state = createSeed();
+  const person = state.people[0];
+  const ep = person.episodes[0];
+  const appt = ep.appointments[0];
+  const details = appointmentDetails(appt, ep);
+  assert.ok(details.some(([label, value]) => label.includes("Associated assignment") && value.includes(ep.collections[0].label)));
+});
+

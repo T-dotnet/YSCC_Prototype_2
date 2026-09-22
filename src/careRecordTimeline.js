@@ -37,7 +37,7 @@ export function careRecordTimelineEntries(episode) {
       dateLabel: appointment.actualDate ? "Actual contact" : "Planned contact",
       title: appointmentTitle(appointment),
       detail: appointment.practitionerService,
-      details: appointmentDetails(appointment),
+      details: appointmentDetails(appointment, episode),
       actor: appointment.actor,
       role: appointment.role,
       timestamp: appointment.timestamp,

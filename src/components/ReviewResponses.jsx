@@ -8,6 +8,7 @@ import {
   ChevronDown,
   Clock3,
   ArrowLeft,
+  Calendar,
 } from "lucide-react";
 import { useStore } from "../store";
 import {
@@ -18,6 +19,7 @@ import {
   noClinicalReviewRequired,
   displayPersonName,
   displayCollectionActor,
+  TODAY,
 } from "../model";
 import { Modal, Button, Badge, Field, Notice, ValidatedForm } from "./UI";
 import SubmittedAnswers from "./SubmittedAnswers";
@@ -60,6 +62,46 @@ export default function ReviewResponses({
     canEditResponses(state) &&
     !!getInstrument(c.version) &&
     c.response === "Submitted";
+
+  const assessmentDate = c.submittedAt ? c.submittedAt.slice(0, 10) : TODAY;
+  const plannedAppointments = (episode?.appointments || []).filter(
+    (a) => a.attendance === "Planned",
+  );
+  const recordedAppointments = (episode?.appointments || []).filter(
+    (a) => a.attendance !== "Planned",
+  );
+  const sameDayRecordedAppointments = recordedAppointments.filter(
+    (a) =>
+      a.actualDate === assessmentDate || a.plannedDate === assessmentDate,
+  );
+
+  const defaultAppt =
+    plannedAppointments.find((a) => a.plannedDate === assessmentDate) ||
+    plannedAppointments[0];
+
+  const [selectedAppointmentId, setSelectedAppointmentId] = useState(
+    defaultAppt?.id || "",
+  );
+
+  const activeAppointment =
+    plannedAppointments.find((a) => a.id === selectedAppointmentId) ||
+    defaultAppt;
+
+  const [appointmentAttendance, setAppointmentAttendance] =
+    useState("Attended");
+  const [actualDate, setActualDate] = useState(
+    assessmentDate || activeAppointment?.plannedDate || TODAY,
+  );
+  const [actualTime, setActualTime] = useState(
+    activeAppointment?.plannedTime || "10:00",
+  );
+  const [actualDuration, setActualDuration] = useState(
+    activeAppointment?.plannedDurationMinutes || 60,
+  );
+  const [outcomeNotes, setOutcomeNotes] = useState("");
+  const actualLatestDate =
+    episode?.end && episode.end < TODAY ? episode.end : TODAY;
+
   const requestClose = () => {
     if (!canReview || (!note.trim() && !confirmed)) {
       clearDraft();
@@ -87,6 +129,30 @@ export default function ReviewResponses({
       onSubmit={(event) => {
         event.preventDefault();
         if (!canReview || !note.trim() || !confirmed) return;
+
+        if (activeAppointment && appointmentAttendance !== "Planned") {
+          const outcomeResult = commit({
+            type: "RECORD_APPOINTMENT_OUTCOME",
+            personId: person.id,
+            episodeId: episode.id,
+            appointmentId: activeAppointment.id,
+            attendance: appointmentAttendance,
+            actualDate:
+              appointmentAttendance === "Attended" ? actualDate : null,
+            actualTime:
+              appointmentAttendance === "Attended" ? actualTime : null,
+            actualDurationMinutes:
+              appointmentAttendance === "Attended"
+                ? Number(actualDuration) || 60
+                : null,
+            outcomeNotes: outcomeNotes.trim() || null,
+          });
+          if (outcomeResult.error) {
+            setSaveError(outcomeResult.error);
+            return;
+          }
+        }
+
         const result = commit({
           type: "REVIEW",
           personId: person.id,
@@ -101,7 +167,9 @@ export default function ReviewResponses({
         clearDraft();
         onClose();
         notify(
-          "Clinical review saved. Assessment completion remains a separate care decision.",
+          activeAppointment && appointmentAttendance !== "Planned"
+            ? "Clinical review and associated appointment outcome saved."
+            : "Clinical review saved. Assessment completion remains a separate care decision.",
         );
       }}
     >
@@ -118,17 +186,6 @@ export default function ReviewResponses({
               ? `Submitted ${formatDate(c.submittedAt.slice(0, 10))}`
               : "Submission date not recorded"}
           </span>
-          {canEdit && onEdit && (
-            <button
-              type="button"
-              className="inline-link"
-              onClick={() => onEdit(note)}
-              style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
-            >
-              <Pencil size={14} aria-hidden="true" />
-              Edit answers
-            </button>
-          )}
           {c.needsReview && canReview && (
             <button
               type="button"
@@ -173,6 +230,25 @@ export default function ReviewResponses({
                   ? `${c.channel}${c.assistance ? ` · ${c.assistance}` : ""}`
                   : c.reviewNote || "No review note recorded."}
               </p>
+              {sameDayRecordedAppointments.length > 0 && (
+                <p
+                  style={{
+                    marginTop: "8px",
+                    paddingTop: "8px",
+                    borderTop: "1px solid var(--border-light, #e2e8f0)",
+                    fontSize: "0.83rem",
+                    color: "var(--muted, #64748b)",
+                  }}
+                >
+                  <strong>Associated contact:</strong>{" "}
+                  {sameDayRecordedAppointments
+                    .map(
+                      (a) =>
+                        `${a.attendance} (${a.actualDate || a.plannedDate} at ${a.actualTime || a.plannedTime}) · ${a.practitionerService}`,
+                    )
+                    .join("; ")}
+                </p>
+              )}
               {c.needsReview && (
                 <p className="review-impact">
                   Answers have changed since this review. The updated answers
@@ -257,6 +333,211 @@ export default function ReviewResponses({
                 placeholder="Observations and agreed next steps…"
               />
             </Field>
+
+            {plannedAppointments.length > 0 && (
+              <div
+                style={{
+                  background: "var(--surface-subtle, #f8fafc)",
+                  border: "1px solid var(--border, #cbd5e1)",
+                  borderRadius: "8px",
+                  padding: "16px",
+                  marginTop: "16px",
+                  marginBottom: "16px",
+                }}
+                aria-label="Associated appointment outcome"
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "10px",
+                    marginBottom: "6px",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                    }}
+                  >
+                    <Calendar size={18} style={{ color: "#2563eb" }} />
+                    <strong style={{ fontSize: "0.95rem", color: "#0f172a" }}>
+                      Associated appointment outcome
+                    </strong>
+                  </div>
+                  <Badge>
+                    {activeAppointment?.attendance === "Planned"
+                      ? "Outcome pending"
+                      : activeAppointment?.attendance}
+                  </Badge>
+                </div>
+                <p
+                  style={{
+                    margin: "0 0 12px 0",
+                    fontSize: "0.83rem",
+                    color: "#64748b",
+                  }}
+                >
+                  Capture the service contact outcome alongside your clinical
+                  assessment review.
+                </p>
+
+                {plannedAppointments.length > 1 && (
+                  <Field label="Associated planned contact">
+                    <select
+                      value={selectedAppointmentId}
+                      onChange={(ev) => {
+                        const id = ev.target.value;
+                        setSelectedAppointmentId(id);
+                        const found = plannedAppointments.find(
+                          (a) => a.id === id,
+                        );
+                        if (found) {
+                          setActualTime(found.plannedTime || "10:00");
+                          setActualDuration(found.plannedDurationMinutes || 60);
+                          if (found.plannedDate)
+                            setActualDate(found.plannedDate);
+                        }
+                      }}
+                    >
+                      {plannedAppointments.map((appt) => (
+                        <option key={appt.id} value={appt.id}>
+                          {formatDate(appt.plannedDate)} at {appt.plannedTime} ·{" "}
+                          {appt.practitionerService} ({appt.deliveryMode})
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                )}
+
+                {activeAppointment && (
+                  <div>
+                    <div
+                      style={{
+                        fontSize: "0.85rem",
+                        marginBottom: "12px",
+                        padding: "8px 12px",
+                        background: "#ffffff",
+                        borderRadius: "6px",
+                        border: "1px solid #e2e8f0",
+                        color: "#334155",
+                      }}
+                    >
+                      <strong>Planned:</strong>{" "}
+                      {formatDate(activeAppointment.plannedDate)} at{" "}
+                      {activeAppointment.plannedTime} (
+                      {activeAppointment.plannedDurationMinutes} min) ·{" "}
+                      {activeAppointment.practitionerService} ·{" "}
+                      {activeAppointment.deliveryMode}
+                    </div>
+
+                    <div className="form-grid" style={{ marginBottom: "12px" }}>
+                      <Field label="Contact outcome">
+                        <select
+                          value={appointmentAttendance}
+                          onChange={(ev) =>
+                            setAppointmentAttendance(ev.target.value)
+                          }
+                        >
+                          <option value="Attended">
+                            Attended (Contact completed)
+                          </option>
+                          <option value="Did not attend">
+                            Did not attend
+                          </option>
+                          <option value="Cancelled">Cancelled</option>
+                          <option value="Planned">
+                            Leave as planned (record later)
+                          </option>
+                        </select>
+                      </Field>
+
+                      {appointmentAttendance === "Attended" && (
+                        <>
+                          <Field label="Actual contact date">
+                            <input
+                              type="date"
+                              min={episode.start}
+                              max={actualLatestDate}
+                              value={actualDate}
+                              onChange={(ev) => setActualDate(ev.target.value)}
+                              required
+                            />
+                          </Field>
+                          <Field label="Actual time">
+                            <input
+                              type="time"
+                              value={actualTime}
+                              onChange={(ev) => setActualTime(ev.target.value)}
+                              required
+                            />
+                          </Field>
+                          <Field label="Actual duration (min)">
+                            <input
+                              type="number"
+                              min="1"
+                              max="600"
+                              value={actualDuration}
+                              onChange={(ev) =>
+                                setActualDuration(ev.target.value)
+                              }
+                              required
+                            />
+                          </Field>
+                        </>
+                      )}
+                    </div>
+
+                    {appointmentAttendance !== "Planned" && (
+                      <Field label="Contact outcome notes (optional)">
+                        <input
+                          type="text"
+                          value={outcomeNotes}
+                          onChange={(ev) => setOutcomeNotes(ev.target.value)}
+                          placeholder="Factual notes regarding the contact or outcome…"
+                        />
+                      </Field>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {sameDayRecordedAppointments.length > 0 && (
+              <div
+                style={{
+                  background: "var(--surface-subtle, #f0fdf4)",
+                  border: "1px solid #bbf7d0",
+                  borderRadius: "8px",
+                  padding: "10px 14px",
+                  margin: "12px 0",
+                  fontSize: "0.85rem",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  color: "#166534",
+                }}
+              >
+                <CheckCircle2
+                  size={16}
+                  style={{ color: "#16a34a", flexShrink: 0 }}
+                />
+                <span>
+                  <strong>
+                    Recorded contact on {formatDate(assessmentDate)}:
+                  </strong>{" "}
+                  {sameDayRecordedAppointments
+                    .map(
+                      (a) =>
+                        `${a.attendance} (${a.actualDate || a.plannedDate} at ${a.actualTime || a.plannedTime}) · ${a.practitionerService}`,
+                    )
+                    .join("; ")}
+                </span>
+              </div>
+            )}
+
             <label className="check-field">
               <input
                 type="checkbox"

@@ -157,8 +157,21 @@ export function appointmentSummary(appointment) {
   return `${planned} · ${appointment.attendance}${actual}${notes ? ` · ${notes}` : ""}`;
 }
 
-export function appointmentDetails(appointment) {
-  return [
+export function associatedCollections(appointment, episode) {
+  if (!episode || !episode.collections) return [];
+  return episode.collections.filter((c) => {
+    const linkedApptId = c.submittedAppointmentId || c.appointmentId;
+    if (linkedApptId === appointment.id) return true;
+    if (c.attempts?.some((attempt) => attempt.appointmentId === appointment.id)) return true;
+    const apptDate = appointment.actualDate || appointment.plannedDate;
+    if (apptDate && (c.due === apptDate || c.submittedAt?.slice(0, 10) === apptDate)) return true;
+    return false;
+  });
+}
+
+export function appointmentDetails(appointment, episode) {
+  const associated = associatedCollections(appointment, episode);
+  const details = [
     ["Planned date", appointment.plannedDate],
     ["Planned time", appointment.plannedTime],
     ["Planned duration", appointment.plannedDurationMinutes && `${appointment.plannedDurationMinutes} min`],
@@ -170,7 +183,14 @@ export function appointmentDetails(appointment) {
     ["Actual duration", appointment.actualDurationMinutes && `${appointment.actualDurationMinutes} min`],
     ["Notes", appointment.notes],
     ["Outcome notes", appointment.outcomeNotes],
-  ].filter(([, value]) => value);
+  ];
+  if (associated.length > 0) {
+    details.push([
+      "Associated assignment" + (associated.length > 1 ? "s" : ""),
+      associated.map((c) => c.label).join(", "),
+    ]);
+  }
+  return details.filter(([, value]) => value);
 }
 
 export function appointmentChanges(appointment) {

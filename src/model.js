@@ -74,7 +74,7 @@ export const DEMO_STAFF = [
   { id: "ananya", name: "Ananya", role: "Data Manager" },
 ];
 export const practitionerServiceOptions = (people = []) => {
-  const existingContacts = people.flatMap((person) => [
+  const existingContacts = (people || []).flatMap((person) => [
     ...(person.referrals ?? []).map((referral) => referral.destination),
     ...(person.episodes ?? []).flatMap((episode) => [
       ...(episode.appointments ?? []).map(
@@ -209,6 +209,255 @@ const seeds = [
   ],
 ];
 
+export function sampleAppointmentsForSeed(seedIndex) {
+  switch (seedIndex) {
+    case 0: // Kai Thompson
+      return [
+        {
+          id: "APT-0-baseline",
+          appointmentType: "Initial assessment",
+          plannedDate: "2026-06-15",
+          plannedTime: "09:30",
+          plannedDurationMinutes: 60,
+          practitionerService: "Jess Taylor · Northside Centre",
+          location: "Northside Centre",
+          deliveryMode: "In person",
+          attendance: "Attended",
+          actualDate: "2026-06-15",
+          actualTime: "09:35",
+          actualDurationMinutes: 50,
+          notes: "In-person baseline assessment and initial check-in on clinic tablet.",
+          outcomeNotes:
+            "Completed baseline assessment on clinic tablet; routine goals established.",
+          outcomeRecordedAt: "2026-06-15T11:00:00Z",
+          outcomeRecordedBy: "Jess Taylor",
+          timestamp: "2026-06-10T09:00:00Z",
+          actor: "Sample fixture",
+          role: "Clinician",
+        },
+        {
+          id: "APT-0-90day-review",
+          appointmentType: "Care review",
+          plannedDate: "2026-09-12",
+          plannedTime: "13:30",
+          plannedDurationMinutes: 45,
+          practitionerService: "Jess Taylor · Northside Centre",
+          location: "Northside Centre",
+          deliveryMode: "In person",
+          attendance: "Planned",
+          notes:
+            "90-day progress review — check questionnaire draft status with Kai.",
+          timestamp: "2026-09-05T10:00:00Z",
+          actor: "Sample fixture",
+          role: "Clinician",
+        },
+      ];
+    case 1: // Amelia Chen
+      return [
+        {
+          id: "APT-1-initial-assessment",
+          appointmentType: "Initial assessment",
+          plannedDate: TODAY,
+          plannedTime: "10:00",
+          plannedDurationMinutes: 60,
+          practitionerService: "Jess Taylor · Northside Centre",
+          location: "Northside Centre",
+          deliveryMode: "In person",
+          attendance: "Planned",
+          notes:
+            "Initial clinical assessment session — review submitted responses and agree next care step.",
+          timestamp: "2026-09-08T09:00:00Z",
+          actor: "Sample fixture",
+          role: "Clinician",
+        },
+      ];
+    case 2: // Noah Williams
+      return [
+        {
+          id: "APT-2-upcoming",
+          appointmentType: "Initial assessment",
+          plannedDate: "2026-09-18",
+          plannedTime: "11:00",
+          plannedDurationMinutes: 45,
+          practitionerService: "Northside Centre",
+          location: "Northside Centre",
+          deliveryMode: "In person",
+          attendance: "Planned",
+          notes: "Introductory meeting and assessment planning.",
+          timestamp: "2026-09-10T14:00:00Z",
+          actor: "Sample fixture",
+          role: "Clinician",
+        },
+      ];
+    case 3: // Zoe Patel
+      return [
+        {
+          id: "APT-3-baseline",
+          appointmentType: "Initial assessment",
+          plannedDate: "2026-06-15",
+          plannedTime: "11:00",
+          plannedDurationMinutes: 60,
+          practitionerService: "Jess Taylor · Northside Centre",
+          location: "Northside Centre",
+          deliveryMode: "In person",
+          attendance: "Attended",
+          actualDate: "2026-06-15",
+          actualTime: "11:05",
+          actualDurationMinutes: 55,
+          notes: "Baseline assessment appointment — completed on clinic tablet.",
+          outcomeNotes:
+            "Questionnaire completed independently; care plan initiated.",
+          outcomeRecordedAt: "2026-06-15T12:30:00Z",
+          outcomeRecordedBy: "Jess Taylor",
+          timestamp: "2026-06-10T10:00:00Z",
+          actor: "Sample fixture",
+          role: "Clinician",
+        },
+        {
+          id: "APT-3-90day-review",
+          appointmentType: "Care review",
+          plannedDate: TODAY,
+          plannedTime: "14:00",
+          plannedDurationMinutes: 45,
+          practitionerService: "Jess Taylor · Northside Centre",
+          location: "Northside Centre",
+          deliveryMode: "In person",
+          attendance: "Planned",
+          notes:
+            "90-day progress check-in — review submitted questionnaire responses.",
+          timestamp: "2026-09-08T11:00:00Z",
+          actor: "Sample fixture",
+          role: "Clinician",
+        },
+      ];
+    case 4: // Oliver James
+      return [
+        {
+          id: "APT-4-initial",
+          appointmentType: "Initial assessment",
+          plannedDate: "2026-09-16",
+          plannedTime: "10:30",
+          plannedDurationMinutes: 45,
+          practitionerService: "Jess Taylor · Northside Centre",
+          location: "Northside Centre",
+          deliveryMode: "Video",
+          attendance: "Planned",
+          notes: "Initial assessment follow-up via video telehealth.",
+          timestamp: "2026-09-10T09:00:00Z",
+          actor: "Sample fixture",
+          role: "Clinician",
+        },
+      ];
+    case 5: // Mia Robinson
+      return [
+        {
+          id: "APT-5-baseline",
+          appointmentType: "Initial assessment",
+          plannedDate: "2026-06-15",
+          plannedTime: "09:30",
+          plannedDurationMinutes: 60,
+          practitionerService: "Jess Taylor · Northside Centre",
+          location: "Northside Centre",
+          deliveryMode: "In person",
+          attendance: "Attended",
+          actualDate: "2026-06-15",
+          actualTime: "09:30",
+          actualDurationMinutes: 60,
+          notes: "Starting point assessment session on clinic tablet.",
+          outcomeNotes: "Completed baseline questionnaire; supportive goals set.",
+          outcomeRecordedAt: "2026-06-15T11:00:00Z",
+          outcomeRecordedBy: "Jess Taylor",
+          timestamp: "2026-06-10T09:00:00Z",
+          actor: "Sample fixture",
+          role: "Clinician",
+        },
+        {
+          id: "APT-5-four-weeks",
+          appointmentType: "Care review",
+          plannedDate: "2026-07-14",
+          plannedTime: "09:30",
+          plannedDurationMinutes: 45,
+          practitionerService: "Jess Taylor · Northside Centre",
+          location: "Northside Centre",
+          deliveryMode: "In person",
+          attendance: "Attended",
+          actualDate: "2026-07-14",
+          actualTime: "09:35",
+          actualDurationMinutes: 45,
+          notes: "4-week progress check-in.",
+          outcomeNotes:
+            "Reviewed 4-week questionnaire responses; positive routine adjustments.",
+          outcomeRecordedAt: "2026-07-14T11:00:00Z",
+          outcomeRecordedBy: "Jess Taylor",
+          timestamp: "2026-07-08T09:00:00Z",
+          actor: "Sample fixture",
+          role: "Clinician",
+        },
+        {
+          id: "APT-5-eight-weeks",
+          appointmentType: "Care review",
+          plannedDate: "2026-08-11",
+          plannedTime: "09:30",
+          plannedDurationMinutes: 45,
+          practitionerService: "Jess Taylor · Northside Centre",
+          location: "Northside Centre",
+          deliveryMode: "In person",
+          attendance: "Attended",
+          actualDate: "2026-08-11",
+          actualTime: "09:30",
+          actualDurationMinutes: 40,
+          notes: "8-week check-in.",
+          outcomeNotes:
+            "8-week questionnaire reviewed with Mia; agreed continuation of group programme.",
+          outcomeRecordedAt: "2026-08-11T11:00:00Z",
+          outcomeRecordedBy: "Jess Taylor",
+          timestamp: "2026-08-05T09:00:00Z",
+          actor: "Sample fixture",
+          role: "Clinician",
+        },
+        {
+          id: "APT-5-twelve-weeks",
+          appointmentType: "Care review",
+          plannedDate: "2026-09-08",
+          plannedTime: "09:30",
+          plannedDurationMinutes: 45,
+          practitionerService: "Jess Taylor · Northside Centre",
+          location: "Northside Centre",
+          deliveryMode: "In person",
+          attendance: "Attended",
+          actualDate: "2026-09-08",
+          actualTime: "09:35",
+          actualDurationMinutes: 45,
+          notes: "12-week review and outcome trajectory review.",
+          outcomeNotes:
+            "12-week measures completed; significant wellbeing gains noted.",
+          outcomeRecordedAt: "2026-09-08T11:00:00Z",
+          outcomeRecordedBy: "Jess Taylor",
+          timestamp: "2026-09-02T09:00:00Z",
+          actor: "Sample fixture",
+          role: "Clinician",
+        },
+        {
+          id: "APT-5-upcoming",
+          appointmentType: "Care review",
+          plannedDate: "2026-09-22",
+          plannedTime: "10:00",
+          plannedDurationMinutes: 45,
+          practitionerService: "Jess Taylor · Northside Centre",
+          location: "Northside Centre",
+          deliveryMode: "In person",
+          attendance: "Planned",
+          notes: "Upcoming fortnightly care review.",
+          timestamp: "2026-09-12T09:00:00Z",
+          actor: "Sample fixture",
+          role: "Clinician",
+        },
+      ];
+    default:
+      return [];
+  }
+}
+
 function previousZoeEpisode() {
   return {
     id: "EP-1027-history-01",
@@ -221,25 +470,89 @@ function previousZoeEpisode() {
     collections: [
       ["baseline", "Initial assessment", "2025-02-10", "2025-02-12"],
       ["discharge", "Discharge check-in", "2025-06-12", "2025-06-16"],
-    ].map(([key, label, due, reviewDate]) => ({
-      id: `A-3-history-${key}`,
-      label,
-      due,
-      version: VERSION,
-      assignment: "Fulfilled",
-      response: "Submitted",
-      review: "Reviewed",
-      assessmentProgress: "Completed",
-      reviewNote: "Sample responses reviewed during the 2025 course of care.",
-      reviewDate,
-      answers: sampleAnswersFor(3, key === "baseline" ? "baseline" : "current"),
-      attempts: [],
-      link: "Ended",
-      respondent: "Person",
-      recorder: "Person",
-      assistance: "Independent",
-      channel: "Clinic tablet",
-    })),
+    ].map(([key, label, due, reviewDate]) => {
+      const apptId = `APT-3-history-${key}`;
+      const attemptId = `A-3-history-${key}-sample-session`;
+      return {
+        id: `A-3-history-${key}`,
+        label,
+        due,
+        version: VERSION,
+        assignment: "Fulfilled",
+        response: "Submitted",
+        review: "Reviewed",
+        assessmentProgress: "Completed",
+        reviewNote: "Sample responses reviewed during the 2025 course of care.",
+        reviewDate,
+        answers: sampleAnswersFor(3, key === "baseline" ? "baseline" : "current"),
+        attempts: [
+          {
+            id: attemptId,
+            date: due,
+            channel: "Clinic tablet",
+            appointmentId: apptId,
+            status: "Session started (sample)",
+            respondentName: "Zoe Patel",
+          },
+        ],
+        submittedAt: due,
+        submittedAttemptId: attemptId,
+        appointmentId: apptId,
+        submittedAppointmentId: apptId,
+        link: "Ended",
+        respondent: "Person",
+        respondentName: "Zoe Patel",
+        recorder: "Person",
+        recorderName: "Zoe Patel",
+        assistance: "Independent",
+        channel: "Clinic tablet",
+      };
+    }),
+    appointments: [
+      {
+        id: "APT-3-history-baseline",
+        appointmentType: "Initial assessment",
+        plannedDate: "2025-02-10",
+        plannedTime: "10:00",
+        plannedDurationMinutes: 60,
+        practitionerService: "Jess Taylor · Northside Centre",
+        location: "Northside Centre",
+        deliveryMode: "In person",
+        attendance: "Attended",
+        actualDate: "2025-02-10",
+        actualTime: "10:05",
+        actualDurationMinutes: 55,
+        notes: "Historical initial assessment completed in person.",
+        outcomeNotes:
+          "Questionnaire completed independently on clinic tablet.",
+        outcomeRecordedAt: "2025-02-10T11:30:00Z",
+        outcomeRecordedBy: "Jess Taylor",
+        timestamp: "2025-02-05T10:00:00Z",
+        actor: "Sample fixture",
+        role: "Clinician",
+      },
+      {
+        id: "APT-3-history-discharge",
+        appointmentType: "Care review",
+        plannedDate: "2025-06-12",
+        plannedTime: "14:00",
+        plannedDurationMinutes: 45,
+        practitionerService: "Jess Taylor · Northside Centre",
+        location: "Northside Centre",
+        deliveryMode: "In person",
+        attendance: "Attended",
+        actualDate: "2025-06-12",
+        actualTime: "14:00",
+        actualDurationMinutes: 45,
+        notes: "Historical discharge check-in.",
+        outcomeNotes: "Discharge check-in completed on clinic tablet.",
+        outcomeRecordedAt: "2025-06-12T15:00:00Z",
+        outcomeRecordedBy: "Jess Taylor",
+        timestamp: "2025-06-05T10:00:00Z",
+        actor: "Sample fixture",
+        role: "Clinician",
+      },
+    ],
     events: [
       {
         id: "E-3-history-closed",
@@ -261,11 +574,11 @@ function previousZoeEpisode() {
 const sampleHistories = {
   "A-1-current": ["SMS link", "2026-09-14", "2026-09-15"],
   "A-3-current": ["SMS link", "2026-09-14", "2026-09-15"],
-  "A-0-baseline": ["Clinic tablet", "2026-06-15", "2026-06-15"],
-  "A-3-baseline": ["Clinic tablet", "2026-06-15", "2026-06-15"],
-  "A-5-baseline": ["Clinic tablet", "2026-06-15", "2026-06-15"],
-  "A-3-history-baseline": ["Clinic tablet", "2025-02-10", "2025-02-10"],
-  "A-3-history-discharge": ["Clinic tablet", "2025-06-12", "2025-06-12"],
+  "A-0-baseline": ["Clinic tablet", "2026-06-15", "2026-06-15", "APT-0-baseline"],
+  "A-3-baseline": ["Clinic tablet", "2026-06-15", "2026-06-15", "APT-3-baseline"],
+  "A-5-baseline": ["Clinic tablet", "2026-06-15", "2026-06-15", "APT-5-baseline"],
+  "A-3-history-baseline": ["Clinic tablet", "2025-02-10", "2025-02-10", "APT-3-history-baseline"],
+  "A-3-history-discharge": ["Clinic tablet", "2025-06-12", "2025-06-12", "APT-3-history-discharge"],
 };
 
 const longitudinalLikertPoints = [
@@ -404,10 +717,28 @@ const longitudinalQualitativePoints = [
   },
 ];
 
+const samplePointAppointmentId = (idPrefix, key) => {
+  if (idPrefix.startsWith("A-7")) {
+    if (key === "starting-point") return "APT-7-baseline";
+    if (key === "four-weeks") return "APT-7-four-weeks";
+    if (key === "eight-weeks") return "APT-7-eight-weeks";
+    if (key === "twelve-weeks") return "APT-7-twelve-weeks";
+    return null;
+  }
+  if (idPrefix.startsWith("A-5") || idPrefix.startsWith("A-6")) {
+    if (key === "starting-point") return "APT-5-baseline";
+    if (key === "four-weeks") return "APT-5-four-weeks";
+    if (key === "eight-weeks") return "APT-5-eight-weeks";
+    if (key === "twelve-weeks") return "APT-5-twelve-weeks";
+  }
+  return null;
+};
+
 function longitudinalLikertCollections(person, idPrefix = "A-5-life-care") {
   return longitudinalLikertPoints.map((point) => {
     const id = `${idPrefix}-${point.key}`;
     const attemptId = `${id}-sample-session`;
+    const apptId = samplePointAppointmentId(idPrefix, point.key);
     return {
       id,
       label: point.label,
@@ -427,12 +758,15 @@ function longitudinalLikertCollections(person, idPrefix = "A-5-life-care") {
           id: attemptId,
           date: point.submittedAt.slice(0, 10),
           channel: "Clinic tablet",
+          appointmentId: apptId,
           status: "Session started (sample)",
           respondentName: person.name,
         },
       ],
       submittedAt: point.submittedAt,
       submittedAttemptId: attemptId,
+      appointmentId: apptId,
+      submittedAppointmentId: apptId,
       link: "Ended",
       respondent: "Person",
       respondentName: person.name,
@@ -451,6 +785,7 @@ function longitudinalQualitativeCollections(
   return longitudinalQualitativePoints.map((point) => {
     const id = `${idPrefix}-${point.key}`;
     const attemptId = `${id}-sample-session`;
+    const apptId = samplePointAppointmentId(idPrefix, point.key);
     return {
       id,
       label: point.label,
@@ -470,12 +805,15 @@ function longitudinalQualitativeCollections(
           id: attemptId,
           date: point.submittedAt.slice(0, 10),
           channel: "Clinic tablet",
+          appointmentId: apptId,
           status: "Session started (sample)",
           respondentName: person.name,
         },
       ],
       submittedAt: point.submittedAt,
       submittedAttemptId: attemptId,
+      appointmentId: apptId,
+      submittedAppointmentId: apptId,
       link: "Ended",
       respondent: "Person",
       respondentName: person.name,
@@ -693,6 +1031,96 @@ function createMockFullReportPerson() {
         },
       ],
       appointments: [
+        {
+          id: "APT-7-baseline",
+          appointmentType: "Initial assessment",
+          plannedDate: "2026-06-16",
+          plannedTime: "10:00",
+          plannedDurationMinutes: 60,
+          practitionerService: "Jess Taylor · Northside Centre",
+          location: "Northside Centre",
+          deliveryMode: "In person",
+          attendance: "Attended",
+          actualDate: "2026-06-16",
+          actualTime: "10:00",
+          actualDurationMinutes: 60,
+          notes:
+            "Initial comprehensive clinical assessment and baseline questionnaire.",
+          outcomeNotes:
+            "Baseline measures recorded on clinic tablet; admission goals agreed.",
+          outcomeRecordedAt: "2026-06-16T11:30:00Z",
+          outcomeRecordedBy: "Jess Taylor",
+          timestamp: "2026-06-10T09:00:00Z",
+          actor: "Sample fixture",
+          role: "Clinician",
+        },
+        {
+          id: "APT-7-four-weeks",
+          appointmentType: "Care review",
+          plannedDate: "2026-07-14",
+          plannedTime: "09:30",
+          plannedDurationMinutes: 45,
+          practitionerService: "Jess Taylor · Northside Centre",
+          location: "Northside Centre",
+          deliveryMode: "In person",
+          attendance: "Attended",
+          actualDate: "2026-07-14",
+          actualTime: "09:35",
+          actualDurationMinutes: 45,
+          notes: "4-week progress check-in and clinic tablet questionnaire.",
+          outcomeNotes:
+            "Reviewed 4-week questionnaire responses; positive routine adjustments.",
+          outcomeRecordedAt: "2026-07-14T11:00:00Z",
+          outcomeRecordedBy: "Jess Taylor",
+          timestamp: "2026-07-08T09:00:00Z",
+          actor: "Sample fixture",
+          role: "Clinician",
+        },
+        {
+          id: "APT-7-eight-weeks",
+          appointmentType: "Care review",
+          plannedDate: "2026-08-11",
+          plannedTime: "09:30",
+          plannedDurationMinutes: 45,
+          practitionerService: "Jess Taylor · Northside Centre",
+          location: "Northside Centre",
+          deliveryMode: "In person",
+          attendance: "Attended",
+          actualDate: "2026-08-11",
+          actualTime: "09:30",
+          actualDurationMinutes: 40,
+          notes: "8-week check-in and clinic tablet questionnaire.",
+          outcomeNotes:
+            "8-week questionnaire reviewed with Mia; agreed continuation of support plan.",
+          outcomeRecordedAt: "2026-08-11T11:00:00Z",
+          outcomeRecordedBy: "Jess Taylor",
+          timestamp: "2026-08-05T09:00:00Z",
+          actor: "Sample fixture",
+          role: "Clinician",
+        },
+        {
+          id: "APT-7-twelve-weeks",
+          appointmentType: "Care review",
+          plannedDate: "2026-09-08",
+          plannedTime: "10:00",
+          plannedDurationMinutes: 60,
+          practitionerService: "Jess Taylor · Northside Centre",
+          location: "Northside Centre",
+          deliveryMode: "In person",
+          attendance: "Attended",
+          actualDate: "2026-09-08",
+          actualTime: "10:05",
+          actualDurationMinutes: 55,
+          notes:
+            "12-week review and longitudinal assessment battery completion.",
+          outcomeNotes:
+            "Completed 12-week outcome questionnaires; progress report prepared.",
+          outcomeRecordedAt: "2026-09-08T11:30:00Z",
+          outcomeRecordedBy: "Jess Taylor",
+          timestamp: "2026-09-02T10:00:00Z",
+          actor: "Sample fixture",
+          role: "Clinician",
+        },
         {
           id: "APT-7-overdue-plan",
           appointmentType: "Care review",
@@ -1036,6 +1464,24 @@ function createMockIntakeAssessmentPerson() {
             channel: null,
           },
         ],
+        appointments: [
+          {
+            id: "APT-YS-1033-initial",
+            appointmentType: "Initial assessment",
+            plannedDate: "2026-09-22",
+            plannedTime: "11:00",
+            plannedDurationMinutes: 60,
+            practitionerService: "Jess Taylor · Northside Centre",
+            location: "Northside Centre",
+            deliveryMode: "In person",
+            attendance: "Planned",
+            notes:
+              "Intake completed · initial clinical assessment scheduled.",
+            timestamp: "2026-09-10T09:30:00Z",
+            actor: "Sample fixture",
+            role: "Clinician",
+          },
+        ],
         events: [
           {
             id: "E-YS-1033-started",
@@ -1077,7 +1523,7 @@ export function upgradeSampleData(state) {
     ),
   );
   if (hasOldQuestionnaire) return createSeed();
-  if (state.sampleRevision < 19 || !state.sampleRevision)
+  if (state.sampleRevision < 21 || !state.sampleRevision)
     return prepareQualityState(prepareSeed(JSON.parse(JSON.stringify(state))));
   if (state.intakeRevision !== 3)
     state = prepareIntakes(JSON.parse(JSON.stringify(state)));
@@ -1400,11 +1846,16 @@ function prepareSeed(state) {
           !c.submittedAt &&
           !c.attempts.length
         ) {
-          const [channel, sentAt, submittedAt] = history;
+          const [channel, sentAt, submittedAt, appointmentId] = history;
+          if (appointmentId) {
+            c.appointmentId ??= appointmentId;
+            c.submittedAppointmentId ??= appointmentId;
+          }
           c.attempts.push({
             id: `${c.id}-sample-session`,
             date: sentAt,
             channel,
+            appointmentId: appointmentId || null,
             status:
               channel === "SMS link"
                 ? "Sent (sample)"
@@ -1415,6 +1866,41 @@ function prepareSeed(state) {
           c.respondentName ??= person.name;
           c.recorderName ??= person.name;
           if (c.review === "Reviewed") c.reviewActor ??= "Jess Taylor";
+        }
+        // Link any unlinked clinic tablet, clinician entry, or other delivery attempts to appointments
+        if (["Clinic tablet", "Clinician entry"].includes(c.channel) || c.attempts.some(a => ["Clinic tablet", "Clinician entry"].includes(a.channel))) {
+          if (!c.appointmentId) {
+            const matching = (episode.appointments ?? []).find(
+              (a) =>
+                a.plannedDate === c.due ||
+                a.actualDate === c.due ||
+                a.plannedDate === c.submittedAt?.slice(0, 10) ||
+                a.actualDate === c.submittedAt?.slice(0, 10),
+            );
+            if (matching) {
+              c.appointmentId = matching.id;
+              c.submittedAppointmentId ??= matching.id;
+            }
+          }
+          for (const attempt of c.attempts) {
+            if (!attempt.appointmentId) {
+              const matching =
+                (episode.appointments ?? []).find(
+                  (a) =>
+                    a.id === c.appointmentId ||
+                    a.id === c.submittedAppointmentId ||
+                    a.plannedDate === attempt.date ||
+                    a.actualDate === attempt.date ||
+                    a.plannedDate === c.due ||
+                    a.actualDate === c.due,
+                );
+              if (matching) {
+                attempt.appointmentId = matching.id;
+                c.appointmentId ??= matching.id;
+                c.submittedAppointmentId ??= matching.id;
+              }
+            }
+          }
         }
         // An untouched, unsent sample request has no collection method yet.
         if (
@@ -1522,7 +2008,40 @@ function prepareSeed(state) {
         "At the next review, discuss the recorded changes with Mia, check whether care events affect priorities, and agree any follow-up.",
     },
   });
-  next.sampleRevision = 19;
+  for (let i = 0; i < seeds.length; i++) {
+    const person = next.people.find((p) => p.id === `YS-${1024 + i}`);
+    const episode = person?.episodes[0];
+    if (episode) {
+      episode.appointments ??= [];
+      const sampleAppointments = sampleAppointmentsForSeed(i);
+      for (const appointment of sampleAppointments) {
+        const existing = episode.appointments.find(
+          (item) => item.id === appointment.id,
+        );
+        if (!existing) {
+          episode.appointments.push(appointment);
+        } else {
+          for (const [key, value] of Object.entries(appointment)) {
+            if (existing[key] == null) existing[key] = value;
+          }
+        }
+      }
+    }
+  }
+  const jordanLee = next.people.find((p) => p.id === "YS-1033");
+  const jordanLeeEpisode = jordanLee?.episodes[0];
+  if (jordanLeeEpisode) {
+    jordanLeeEpisode.appointments ??= [];
+    const jordanLeeFixture = createMockIntakeAssessmentPerson();
+    const jordanLeeAppt = jordanLeeFixture.episodes[0].appointments[0];
+    if (
+      jordanLeeAppt &&
+      !jordanLeeEpisode.appointments.some((a) => a.id === jordanLeeAppt.id)
+    ) {
+      jordanLeeEpisode.appointments.push(jordanLeeAppt);
+    }
+  }
+  next.sampleRevision = 21;
   return prepareConsentRequests(prepareIntakes(next));
 }
 
@@ -1775,9 +2294,24 @@ export function createSeed() {
                       reviewNote: "Sample baseline review recorded.",
                       reviewDate: "2026-06-20",
                       answers: sampleAnswersFor(i, "baseline"),
-                      attempts: [],
+                      attempts: [
+                        {
+                          id: `A-${i}-baseline-sample-session`,
+                          date: "2026-06-15",
+                          channel: "Clinic tablet",
+                          appointmentId: `APT-${i}-baseline`,
+                          status: "Session started (sample)",
+                          respondentName: s[0],
+                        },
+                      ],
+                      submittedAt: "2026-06-15",
+                      submittedAttemptId: `A-${i}-baseline-sample-session`,
+                      appointmentId: `APT-${i}-baseline`,
+                      submittedAppointmentId: `APT-${i}-baseline`,
                       respondent: "Person",
+                      respondentName: s[0],
                       recorder: "Person",
+                      recorderName: s[0],
                       assistance: "Independent",
                       channel: "Clinic tablet",
                     },
@@ -1810,6 +2344,7 @@ export function createSeed() {
                 channel: "SMS link",
               },
             ],
+            appointments: sampleAppointmentsForSeed(i),
             events: [
               {
                 id: `E-${i}`,
@@ -1921,11 +2456,11 @@ export function nextAction(c) {
 export function getTasks(state) {
   return [
     ...intakeTasks(state, TODAY),
-    ...state.people.flatMap((p) =>
-      p.episodes
+    ...(state?.people || []).flatMap((p) =>
+      (p.episodes || [])
         .filter((e) => e.status === "Active" && canAssess(p, e))
         .flatMap((e) =>
-          e.collections
+          (e.collections || [])
             .filter(
               (c) =>
                 !["Cancelled", "Paused"].includes(c.assignment) &&
@@ -2000,7 +2535,7 @@ export function reducer(state, action) {
       if (e?.status !== "Active" || appointmentError(e, action, TODAY))
         return state;
       const appointment = {
-        id: uid(),
+        id: action.id || uid(),
         ...appointmentContent(action),
         timestamp: recordedAt,
         actor: staff?.name || "Not recorded",
@@ -2021,6 +2556,45 @@ export function reducer(state, action) {
         outcomeRecordedBy: staff?.name || "Not recorded",
         outcomeRecordedById: staff?.id || null,
       });
+      break;
+    }
+    case "UPDATE_APPOINTMENT": {
+      const appointment = e?.appointments?.find(
+        (item) => item.id === action.appointmentId,
+      );
+      if (!appointment) return state;
+      if (action.plannedDate) appointment.plannedDate = action.plannedDate;
+      if (action.plannedTime) appointment.plannedTime = action.plannedTime;
+      if (action.plannedDurationMinutes)
+        appointment.plannedDurationMinutes =
+          Number(action.plannedDurationMinutes) || 60;
+      if (action.practitionerService)
+        appointment.practitionerService = action.practitionerService;
+      if (action.deliveryMode) appointment.deliveryMode = action.deliveryMode;
+      if (action.notes !== undefined) appointment.notes = action.notes;
+      break;
+    }
+    case "DELETE_APPOINTMENT": {
+      if (!e?.appointments) return state;
+      const index = e.appointments.findIndex(
+        (item) => item.id === action.appointmentId,
+      );
+      if (index !== -1) {
+        e.appointments.splice(index, 1);
+        for (const col of e.collections || []) {
+          if (col.appointmentId === action.appointmentId) {
+            col.appointmentId = null;
+          }
+          if (col.submittedAppointmentId === action.appointmentId) {
+            col.submittedAppointmentId = null;
+          }
+          for (const attempt of col.attempts || []) {
+            if (attempt.appointmentId === action.appointmentId) {
+              attempt.appointmentId = null;
+            }
+          }
+        }
+      }
       break;
     }
     case "ADD_CARE_EVENT": {
@@ -2160,7 +2734,7 @@ export function reducer(state, action) {
       const instrument = getInstrument(c.version);
       const priorPath = questionnaireState(instrument, priorAnswers);
       const nextPath = questionnaireState(instrument, action.answers);
-      const changes = nextPath.answers.flatMap((value, index) =>
+      const changes = (nextPath.answers || []).flatMap((value, index) =>
         value === priorAnswers[index]
           ? []
           : [
@@ -2232,8 +2806,9 @@ export function reducer(state, action) {
         action.due < TODAY
       )
         return state;
+      const plannedCollectionId = action.id || uid();
       e.collections.push({
-        id: uid(),
+        id: plannedCollectionId,
         label: action.label.trim(),
         due: action.due,
         version: action.version ?? VERSION,
@@ -2241,16 +2816,18 @@ export function reducer(state, action) {
         response: "Not started",
         review: "Pending",
         link: "Not sent",
+        channel: action.channel || undefined,
+        appointmentId: action.appointmentId || null,
         attempts: [],
         answers: [],
-        respondent: "Person",
-        recorder: "Person",
-        assistance: "Independent",
+        respondent: action.respondent || "Person",
+        recorder: action.recorder || "Person",
+        assistance: action.assistance || "Independent",
       });
       event(
         "Follow-up planned",
         `${action.label} · due ${formatDate(action.due)} · same care episode`,
-        { collectionId: e.collections.at(-1).id },
+        { collectionId: plannedCollectionId, appointmentId: action.appointmentId || null },
       );
       break;
     case "DELIVER":
@@ -2300,6 +2877,15 @@ export function reducer(state, action) {
         action.channel === "Clinician entry" ? c.recorder : c.respondentName;
       c.recorderId =
         action.channel === "Clinician entry" ? currentStaff(state).id : null;
+      const linkedApptId =
+        action.appointmentId ||
+        (action.channel !== "SMS link"
+          ? e.appointments?.find((a) => a.plannedDate === TODAY || a.actualDate === TODAY)?.id
+          : null) ||
+        null;
+      if (linkedApptId) {
+        c.appointmentId = linkedApptId;
+      }
       c.attempts.push({
         id: uid(),
         date: TODAY,
@@ -2309,6 +2895,7 @@ export function reducer(state, action) {
         recorderName: c.recorderName,
         recorderId: c.recorderId,
         assistance: c.assistance,
+        appointmentId: linkedApptId,
         status:
           action.channel === "SMS link"
             ? "Prepared (sample; not sent)"
@@ -2319,7 +2906,7 @@ export function reducer(state, action) {
           ? "Questionnaire link prepared"
           : "Collection session started",
         `${c.respondentName} · ${action.channel} · simulated`,
-        { attemptId: c.attempts.at(-1).id },
+        { attemptId: c.attempts.at(-1).id, appointmentId: linkedApptId },
       );
       break;
     case "SUBMIT":
@@ -2356,6 +2943,7 @@ export function reducer(state, action) {
       c.submittedAt = TODAY;
       c.submittedTimestamp = recordedAt;
       c.submittedAttemptId = c.attempts.at(-1)?.id;
+      c.submittedAppointmentId = c.appointmentId || c.attempts.at(-1)?.appointmentId || null;
       const reviewRequired = !noClinicalReviewRequired({
         ...c,
         response: "Submitted",
@@ -2590,9 +3178,9 @@ export function reducer(state, action) {
             ["consent", "Assessment participation"],
             ["contact", "Contact suitability"],
           ]),
-          ...p.episodes.flatMap((episode) =>
+          ...(p.episodes || []).flatMap((episode) =>
             careChanges(
-              priorPerson.episodes.find((prior) => prior.id === episode.id),
+              (priorPerson?.episodes || []).find((prior) => prior.id === episode.id),
               episode,
             ),
           ),
@@ -2880,9 +3468,9 @@ export function reducer(state, action) {
               ["nextStep", "Next investigation step"],
             ],
           ),
-          ...p.episodes.flatMap((episode) =>
+          ...(p.episodes || []).flatMap((episode) =>
             careChanges(
-              priorPerson.episodes.find((prior) => prior.id === episode.id),
+              (priorPerson?.episodes || []).find((prior) => prior.id === episode.id),
               episode,
             ),
           ),

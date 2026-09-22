@@ -11,6 +11,8 @@ import {
   Check,
   ShieldCheck,
   Eye,
+  Calendar,
+  CalendarDays,
 } from "lucide-react";
 import { useStore } from "../store";
 import {
@@ -18,6 +20,7 @@ import {
   formatDate,
   DEMO_STAFF,
   currentStaff,
+  practitionerServiceOptions,
   reducer,
   qualityResolutionError,
   qualityWorkflowError,
@@ -25,9 +28,11 @@ import {
   displayPersonName,
   displayFamilyName,
   CONSENT_LIBRARY,
+  uid,
 } from "../model";
 import { QUALITY_STATUSES, getQualityIssues } from "../dataQuality";
 import { DEMO_INSTRUMENT, INSTRUMENTS, getInstrument } from "../instruments";
+import { APPOINTMENT_DELIVERY_MODES } from "../appointments";
 import {
   Modal,
   Field,
@@ -76,6 +81,31 @@ export default function Forms({
     [name, setName] = useState(""),
     [episodeAction, setEpisodeAction] = useState("Paused"),
     [previewOpen, setPreviewOpen] = useState(false);
+  const [createAppointment, setCreateAppointment] = useState(true);
+  const [appointmentTime, setAppointmentTime] = useState("10:00");
+  const [appointmentDuration, setAppointmentDuration] = useState("60");
+  const [appointmentPractitioner, setAppointmentPractitioner] = useState(
+    staff?.name
+      ? `${staff.name} · Northside Centre`
+      : "Jess Taylor · Northside Centre",
+  );
+  const [appointmentDeliveryMode, setAppointmentDeliveryMode] =
+    useState("In person");
+  const [planDue, setPlanDue] = useState(TODAY);
+  const [planChannel, setPlanChannel] = useState("SMS link");
+  const [planRespondent, setPlanRespondent] = useState("Person");
+  const [planAssistance, setPlanAssistance] = useState("Independent");
+  const [planCreateAppointment, setPlanCreateAppointment] = useState(true);
+  const [planAppointmentTime, setPlanAppointmentTime] = useState("10:00");
+  const [planAppointmentDuration, setPlanAppointmentDuration] = useState("60");
+  const [planAppointmentPractitioner, setPlanAppointmentPractitioner] = useState(
+    staff?.name
+      ? `${staff.name} · Northside Centre`
+      : "Jess Taylor · Northside Centre",
+  );
+  const [planAppointmentDeliveryMode, setPlanAppointmentDeliveryMode] =
+    useState("In person");
+  const [editingExistingAppt, setEditingExistingAppt] = useState(false);
   const [formError, setFormError] = useState("");
   const [collectionConfirmed, setCollectionConfirmed] = useState(false);
   const [collectionAttempted, setCollectionAttempted] = useState(false);
@@ -95,6 +125,12 @@ export default function Forms({
   const p = state.people.find((p) => p.id === modal.personId),
     e = p?.episodes.find((e) => e.id === modal.episodeId),
     c = e?.collections.find((c) => c.id === modal.collectionId);
+  const existingAppointmentToday = (e?.appointments || []).find(
+    (a) => a.plannedDate === TODAY || a.actualDate === TODAY,
+  );
+  const existingAppointmentOnPlanDue = (e?.appointments || []).find(
+    (a) => a.plannedDate === planDue || a.actualDate === planDue,
+  );
   const unresolvedReferrals = (p?.referrals ?? []).filter(
     (referral) =>
       referral.episodeId === e?.id &&
@@ -355,37 +391,88 @@ export default function Forms({
           hidden={previewOpen}
           onSubmit={(ev) => {
             ev.preventDefault();
+            const values = formValues(ev);
+            const label =
+              collectionType === "Custom" ? values.label : collectionType;
+            const dueDate = planDue || values.due;
+            let linkedAppointmentId =
+              existingAppointmentOnPlanDue?.id || null;
+
+            if (
+              planChannel !== "SMS link" &&
+              planCreateAppointment &&
+              !existingAppointmentOnPlanDue
+            ) {
+              const generatedApptId = uid();
+              const apptResult = commit({
+                type: "ADD_APPOINTMENT",
+                id: generatedApptId,
+                personId: p.id,
+                episodeId: e.id,
+                plannedDate: dueDate,
+                plannedTime: planAppointmentTime,
+                plannedDurationMinutes:
+                  Number(planAppointmentDuration) || 60,
+                practitionerService: planAppointmentPractitioner,
+                deliveryMode: planAppointmentDeliveryMode,
+                attendance: "Planned",
+                notes: `Associated appointment for follow-up assessment (${label} · ${planChannel})`,
+              });
+              if (apptResult.error) {
+                setFormError(apptResult.error);
+                return;
+              }
+              linkedAppointmentId = generatedApptId;
+            } else if (
+              planChannel !== "SMS link" &&
+              existingAppointmentOnPlanDue &&
+              editingExistingAppt
+            ) {
+              commit({
+                type: "UPDATE_APPOINTMENT",
+                personId: p.id,
+                episodeId: e.id,
+                appointmentId: existingAppointmentOnPlanDue.id,
+                plannedDate: dueDate,
+                plannedTime: planAppointmentTime,
+                plannedDurationMinutes:
+                  Number(planAppointmentDuration) || 60,
+                practitionerService: planAppointmentPractitioner,
+                deliveryMode: planAppointmentDeliveryMode,
+              });
+              linkedAppointmentId = existingAppointmentOnPlanDue.id;
+            }
+
+            const generatedColId = uid();
             const result = commit({
               ...modal,
               type: "PLAN",
-              ...formValues(ev),
+              id: generatedColId,
+              label,
+              due: dueDate,
+              version: instrumentVersion,
+              respondent: planRespondent,
+              channel: planChannel,
+              assistance: planAssistance,
+              appointmentId: linkedAppointmentId,
             });
             if (result.error) {
               setFormError(result.error);
               return;
             }
-            if (ev.nativeEvent.submitter?.value === "collection") {
-              const collection = result.state.people
-                .find((person) => person.id === p.id)
-                .episodes.find((episode) => episode.id === e.id)
-                .collections.at(-1);
-              openModal({
-                type: "collection",
-                personId: p.id,
-                episodeId: e.id,
-                collectionId: collection.id,
-              });
-            } else {
-              onClose();
-            }
-            notify("Follow-up added to the existing care episode.");
+            onClose();
+            notify(
+              linkedAppointmentId
+                ? "Follow-up and linked appointment saved to the care episode."
+                : "Follow-up added to the existing care episode.",
+            );
           }}
         >
           <div className="form-body">
             <Notice>
               This creates a new collection point in care episode {e.number},
-              preserving the previous responses. Choose Set up collection to
-              save the follow-up and choose how to collect the response.
+              preserving the previous responses. Choose Add follow-up to
+              save the follow-up.
             </Notice>
             <Field
               label="Collection point type"
@@ -432,7 +519,14 @@ export default function Forms({
               label="Due date"
               hint="This workspace uses 15 September 2026 as today. Cadence is set explicitly for this sample."
             >
-              <input name="due" type="date" min={TODAY} required />
+              <input
+                name="due"
+                type="date"
+                min={TODAY}
+                value={planDue}
+                onChange={(event) => setPlanDue(event.target.value)}
+                required
+              />
             </Field>
             <div className="instrument-field">
               <Field label="Instrument" hint={selectedInstrument.description}>
@@ -466,8 +560,374 @@ export default function Forms({
               </button>
             </div>
             <Field label="Respondent">
-              <input value={displayPersonName(p)} readOnly />
+              <select
+                value={planRespondent}
+                onChange={(event) => setPlanRespondent(event.target.value)}
+              >
+                <option value="Person">{displayPersonName(p)}</option>
+                {p?.family &&
+                  selectedInstrument?.respondents?.includes(
+                    "Family respondent",
+                  ) && (
+                    <option value="Family respondent">
+                      {displayFamilyName(p)}
+                    </option>
+                  )}
+              </select>
             </Field>
+
+            <fieldset className="channel-options">
+              <legend>How will this follow-up be collected?</legend>
+              {[
+                ["SMS link", "Account-free sample link", MessageSquare],
+                ["Clinic tablet", "In-person device handover", Tablet],
+                [
+                  "Clinician entry",
+                  "Complete the questionnaire in your workspace",
+                  ClipboardPen,
+                ],
+              ].map(([label, description, Icon]) => (
+                <label
+                  className={`channel ${planChannel === label ? "chosen" : ""}`}
+                  key={label}
+                >
+                  <input
+                    type="radio"
+                    name="planChannel"
+                    value={label}
+                    checked={planChannel === label}
+                    disabled={
+                      label === "Clinician entry" &&
+                      staff?.role !== "Clinician"
+                    }
+                    onChange={() => {
+                      setPlanChannel(label);
+                      setPlanAssistance(
+                        label === "Clinician entry"
+                          ? "Transcribed"
+                          : "Independent",
+                      );
+                    }}
+                  />
+                  <Icon size={23} />
+                  <span>
+                    <strong>{label}</strong>
+                    <small>{description}</small>
+                  </span>
+                  <span className="radio-dot" />
+                </label>
+              ))}
+            </fieldset>
+
+            {planChannel !== "SMS link" &&
+              (existingAppointmentOnPlanDue ? (
+                <section
+                  style={{
+                    background: "var(--surface-subtle, #f8fafc)",
+                    border: "1px solid var(--border, #cbd5e1)",
+                    borderRadius: "8px",
+                    padding: "14px 16px",
+                    margin: "16px 0",
+                  }}
+                  aria-label="Associated appointment"
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      justifyContent: "space-between",
+                      gap: "12px",
+                      marginBottom: editingExistingAppt ? "12px" : 0,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: "10px",
+                      }}
+                    >
+                      <Calendar
+                        size={20}
+                        style={{
+                          color: "#2563eb",
+                          marginTop: "2px",
+                          flexShrink: 0,
+                        }}
+                      />
+                      <div>
+                        <div
+                          style={{
+                            fontWeight: 600,
+                            fontSize: "0.92rem",
+                            color: "#0f172a",
+                          }}
+                        >
+                          Associated appointment on due date
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "0.85rem",
+                            color: "#64748b",
+                            marginTop: "2px",
+                          }}
+                        >
+                          {formatDate(planDue)} at{" "}
+                          {existingAppointmentOnPlanDue.plannedTime ||
+                            existingAppointmentOnPlanDue.actualTime}{" "}
+                          · {existingAppointmentOnPlanDue.deliveryMode} ·{" "}
+                          {existingAppointmentOnPlanDue.practitionerService} (
+                          {existingAppointmentOnPlanDue.attendance})
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => {
+                          if (!editingExistingAppt) {
+                            setPlanAppointmentTime(
+                              existingAppointmentOnPlanDue.plannedTime ||
+                                "10:00",
+                            );
+                            setPlanAppointmentDuration(
+                              String(
+                                existingAppointmentOnPlanDue.plannedDurationMinutes ||
+                                  60,
+                              ),
+                            );
+                            setPlanAppointmentPractitioner(
+                              existingAppointmentOnPlanDue.practitionerService ||
+                                "",
+                            );
+                            setPlanAppointmentDeliveryMode(
+                              existingAppointmentOnPlanDue.deliveryMode ||
+                                "In person",
+                            );
+                          }
+                          setEditingExistingAppt(!editingExistingAppt);
+                        }}
+                      >
+                        {editingExistingAppt
+                          ? "Done editing"
+                          : "Edit appointment"}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="danger"
+                        onClick={() => {
+                          commit({
+                            type: "DELETE_APPOINTMENT",
+                            personId: p.id,
+                            episodeId: e.id,
+                            appointmentId: existingAppointmentOnPlanDue.id,
+                          });
+                          setEditingExistingAppt(false);
+                          notify("Associated appointment deleted.");
+                        }}
+                      >
+                        Delete appointment
+                      </Button>
+                    </div>
+                  </div>
+
+                  {editingExistingAppt && (
+                    <div
+                      className="form-grid"
+                      style={{
+                        marginTop: "12px",
+                        paddingTop: "12px",
+                        borderTop: "1px solid #e2e8f0",
+                      }}
+                    >
+                      <Field label="Planned time">
+                        <input
+                          type="time"
+                          value={planAppointmentTime}
+                          onChange={(ev) =>
+                            setPlanAppointmentTime(ev.target.value)
+                          }
+                          required
+                        />
+                      </Field>
+                      <Field label="Duration (min)">
+                        <input
+                          type="number"
+                          min="1"
+                          max="600"
+                          value={planAppointmentDuration}
+                          onChange={(ev) =>
+                            setPlanAppointmentDuration(ev.target.value)
+                          }
+                          required
+                        />
+                      </Field>
+                      <Field label="Practitioner / service">
+                        <select
+                          value={planAppointmentPractitioner}
+                          onChange={(ev) =>
+                            setPlanAppointmentPractitioner(ev.target.value)
+                          }
+                        >
+                          {practitionerServiceOptions(state).map((opt) => (
+                            <option key={opt} value={opt}>
+                              {opt}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                      <Field label="Delivery mode">
+                        <select
+                          value={planAppointmentDeliveryMode}
+                          onChange={(ev) =>
+                            setPlanAppointmentDeliveryMode(ev.target.value)
+                          }
+                        >
+                          {APPOINTMENT_DELIVERY_MODES.map((mode) => (
+                            <option key={mode} value={mode}>
+                              {mode}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                    </div>
+                  )}
+                </section>
+              ) : (
+                <section
+                  style={{
+                    background: "var(--surface-subtle, #f8fafc)",
+                    border: "1px solid var(--border, #cbd5e1)",
+                    borderRadius: "8px",
+                    padding: "14px 16px",
+                    margin: "16px 0",
+                  }}
+                  aria-label="Associated appointment on assessment day"
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      justifyContent: "space-between",
+                      gap: "12px",
+                      marginBottom: planCreateAppointment ? "12px" : 0,
+                    }}
+                  >
+                    <div>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                        }}
+                      >
+                        <Calendar size={18} style={{ color: "#2563eb" }} />
+                        <strong
+                          style={{ fontSize: "0.92rem", color: "#0f172a" }}
+                        >
+                          Day-of-assessment appointment
+                        </strong>
+                      </div>
+                      <p
+                        style={{
+                          margin: "4px 0 0 0",
+                          fontSize: "0.83rem",
+                          color: "#64748b",
+                        }}
+                      >
+                        Non-SMS follow-up assessments require an in-person or clinician
+                        contact record on the day of assessment ({formatDate(planDue)}).
+                      </p>
+                    </div>
+                    <label
+                      style={{
+                        margin: 0,
+                        whiteSpace: "nowrap",
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        fontSize: "0.85rem",
+                        fontWeight: 600,
+                        color: "#0f172a",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={planCreateAppointment}
+                        onChange={(ev) =>
+                          setPlanCreateAppointment(ev.target.checked)
+                        }
+                      />
+                      <span>Create linked appointment</span>
+                    </label>
+                  </div>
+
+                  {planCreateAppointment && (
+                    <div
+                      className="form-grid"
+                      style={{
+                        marginTop: "12px",
+                        paddingTop: "12px",
+                        borderTop: "1px solid #e2e8f0",
+                      }}
+                    >
+                      <Field label="Planned time">
+                        <input
+                          type="time"
+                          value={planAppointmentTime}
+                          onChange={(ev) =>
+                            setPlanAppointmentTime(ev.target.value)
+                          }
+                          required
+                        />
+                      </Field>
+                      <Field label="Duration (min)">
+                        <input
+                          type="number"
+                          min="1"
+                          max="600"
+                          value={planAppointmentDuration}
+                          onChange={(ev) =>
+                            setPlanAppointmentDuration(ev.target.value)
+                          }
+                          required
+                        />
+                      </Field>
+                      <Field label="Practitioner / service">
+                        <select
+                          value={planAppointmentPractitioner}
+                          onChange={(ev) =>
+                            setPlanAppointmentPractitioner(ev.target.value)
+                          }
+                        >
+                          {practitionerServiceOptions(state).map((opt) => (
+                            <option key={opt} value={opt}>
+                              {opt}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                      <Field label="Delivery mode">
+                        <select
+                          value={planAppointmentDeliveryMode}
+                          onChange={(ev) =>
+                            setPlanAppointmentDeliveryMode(ev.target.value)
+                          }
+                        >
+                          {APPOINTMENT_DELIVERY_MODES.map((mode) => (
+                            <option key={mode} value={mode}>
+                              {mode}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                    </div>
+                  )}
+                </section>
+              ))}
           </div>
           <div className="modal-footer">
             {formError && (
@@ -478,10 +938,8 @@ export default function Forms({
             <Button type="button" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit">Add follow-up</Button>
-            <Button variant="primary" type="submit" value="collection">
-              Set up collection
-              <ArrowRight size={18} aria-hidden="true" />
+            <Button variant="primary" type="submit">
+              Add follow-up
             </Button>
           </div>
         </ValidatedForm>
@@ -592,12 +1050,39 @@ export default function Forms({
                 });
                 return;
               }
+              let linkedAppointmentId = existingAppointmentToday?.id || null;
+              if (
+                channel !== "SMS link" &&
+                createAppointment &&
+                !existingAppointmentToday
+              ) {
+                const generatedApptId = uid();
+                const apptResult = commit({
+                  type: "ADD_APPOINTMENT",
+                  id: generatedApptId,
+                  personId: p.id,
+                  episodeId: e.id,
+                  plannedDate: TODAY,
+                  plannedTime: appointmentTime,
+                  plannedDurationMinutes: Number(appointmentDuration) || 60,
+                  practitionerService: appointmentPractitioner,
+                  deliveryMode: appointmentDeliveryMode,
+                  attendance: "Planned",
+                  notes: `Associated appointment on day of assessment (${c.label} · ${channel})`,
+                });
+                if (apptResult.error) {
+                  setFormError(apptResult.error);
+                  return;
+                }
+                linkedAppointmentId = generatedApptId;
+              }
               const result = commit({
                 ...modal,
                 type: "DELIVER",
                 channel,
                 respondent,
                 assistance,
+                appointmentId: linkedAppointmentId,
               });
               if (result.error) {
                 setFormError(result.error);
@@ -727,6 +1212,188 @@ export default function Forms({
                   ))}
                 </select>
               </Field>
+              {channel !== "SMS link" &&
+                (existingAppointmentToday ? (
+                  <div
+                    style={{
+                      background: "var(--surface-subtle, #f8fafc)",
+                      border: "1px solid var(--border, #e2e8f0)",
+                      borderRadius: "8px",
+                      padding: "12px 16px",
+                      margin: "16px 0",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "12px",
+                    }}
+                  >
+                    <Calendar
+                      size={20}
+                      style={{ color: "#2563eb", flexShrink: 0 }}
+                    />
+                    <div>
+                      <div
+                        style={{
+                          fontWeight: 600,
+                          fontSize: "0.9rem",
+                          color: "#1e293b",
+                        }}
+                      >
+                        Associated appointment on assessment day
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "0.85rem",
+                          color: "#64748b",
+                          marginTop: "2px",
+                        }}
+                      >
+                        {formatDate(TODAY)} at{" "}
+                        {existingAppointmentToday.plannedTime ||
+                          existingAppointmentToday.actualTime}{" "}
+                        · {existingAppointmentToday.deliveryMode} ·{" "}
+                        {existingAppointmentToday.practitionerService} (
+                        {existingAppointmentToday.attendance})
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <section
+                    style={{
+                      background: "var(--surface-subtle, #f8fafc)",
+                      border: "1px solid var(--border, #cbd5e1)",
+                      borderRadius: "8px",
+                      padding: "14px 16px",
+                      margin: "16px 0",
+                    }}
+                    aria-label="Associated appointment on assessment day"
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "flex-start",
+                        justifyContent: "space-between",
+                        gap: "12px",
+                        marginBottom: createAppointment ? "12px" : 0,
+                      }}
+                    >
+                      <div>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "6px",
+                          }}
+                        >
+                          <Calendar size={18} style={{ color: "#2563eb" }} />
+                          <strong
+                            style={{ fontSize: "0.92rem", color: "#0f172a" }}
+                          >
+                            Day-of-assessment appointment
+                          </strong>
+                        </div>
+                        <p
+                          style={{
+                            margin: "4px 0 0 0",
+                            fontSize: "0.83rem",
+                            color: "#64748b",
+                          }}
+                        >
+                          Non-SMS assessments require an in-person or clinician
+                          contact record on the day of assessment (
+                          {formatDate(TODAY)}).
+                        </p>
+                      </div>
+                      <label
+                        style={{
+                          margin: 0,
+                          whiteSpace: "nowrap",
+                          cursor: "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          fontSize: "0.85rem",
+                          fontWeight: 600,
+                          color: "#0f172a",
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={createAppointment}
+                          onChange={(ev) =>
+                            setCreateAppointment(ev.target.checked)
+                          }
+                        />
+                        <span>Create appointment</span>
+                      </label>
+                    </div>
+
+                    {createAppointment && (
+                      <div
+                        className="form-grid"
+                        style={{
+                          marginTop: "12px",
+                          paddingTop: "12px",
+                          borderTop: "1px solid #e2e8f0",
+                        }}
+                      >
+                        <Field label="Planned time">
+                          <input
+                            type="time"
+                            value={appointmentTime}
+                            onChange={(ev) =>
+                              setAppointmentTime(ev.target.value)
+                            }
+                            required
+                          />
+                        </Field>
+                        <Field label="Duration (min)">
+                          <input
+                            type="number"
+                            min="1"
+                            max="600"
+                            value={appointmentDuration}
+                            onChange={(ev) =>
+                              setAppointmentDuration(ev.target.value)
+                            }
+                            required
+                          />
+                        </Field>
+                        <Field label="Practitioner or service">
+                          <select
+                            value={appointmentPractitioner}
+                            onChange={(ev) =>
+                              setAppointmentPractitioner(ev.target.value)
+                            }
+                            required
+                          >
+                            {practitionerServiceOptions(state.people).map(
+                              (opt) => (
+                                <option key={opt} value={opt}>
+                                  {opt}
+                                </option>
+                              ),
+                            )}
+                          </select>
+                        </Field>
+                        <Field label="Delivery mode">
+                          <select
+                            value={appointmentDeliveryMode}
+                            onChange={(ev) =>
+                              setAppointmentDeliveryMode(ev.target.value)
+                            }
+                            required
+                          >
+                            {APPOINTMENT_DELIVERY_MODES.map((mode) => (
+                              <option key={mode} value={mode}>
+                                {mode}
+                              </option>
+                            ))}
+                          </select>
+                        </Field>
+                      </div>
+                    )}
+                  </section>
+                ))}
               <section className="setup-summary" aria-label="Collection checks">
                 <h3>Check this collection</h3>
                 <dl className="metadata">

@@ -7,7 +7,7 @@ const openIntake = (intake) =>
   (intakeReady(intake) && !intake.episodeId);
 
 export function peopleInEpisodes(people, status = "All episodes") {
-  return people.flatMap((person) => {
+  return (people || []).flatMap((person) => {
     const episode =
       status === "Intake"
         ? undefined

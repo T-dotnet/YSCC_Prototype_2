@@ -97,7 +97,7 @@ export default function Worklist({ navigate, openModal }) {
       date: task.collection.due,
     }));
 
-  const appointmentOverdueAlerts = state.people.flatMap((person) =>
+  const appointmentOverdueAlerts = (state.people || []).flatMap((person) =>
     (person.episodes || [])
       .filter((e) => e.status === "Active")
       .flatMap((episode) =>
