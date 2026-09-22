@@ -3383,30 +3383,13 @@ td:last-child {
   color: var(--ink);
   overflow-wrap: anywhere;
 }
-.history-intro {
-  color: var(--muted);
-  line-height: 1.55;
-  margin: 0;
-  padding: var(--panel-padding) var(--panel-padding) 0;
-}
 .clinical-history,
 .change-log {
   min-width: 0;
 }
 .clinical-history > .care-timeline-filters,
 .change-log > .care-timeline-filters {
-  margin: var(--space-4) var(--panel-padding) 0;
-}
-.history-view-switcher {
-  padding: var(--space-4) var(--panel-padding) 0;
-}
-.history-view-switcher .tabs {
-  gap: var(--space-4);
-}
-.history-view-switcher .tabs button {
-  font-size: var(--text-sm);
-  min-height: 40px;
-  padding: var(--space-2) var(--space-1);
+  margin: 0;
 }
 .clinical-continuous-timeline {
   padding-top: var(--space-5);
@@ -3416,7 +3399,7 @@ td:last-child {
   gap: var(--space-4);
   list-style: none;
   margin: 0;
-  padding: var(--space-5) var(--panel-padding);
+  padding: var(--space-5) 0;
 }
 .assignment-history > li,
 .episode-history-events {
@@ -3495,7 +3478,7 @@ td:last-child {
   margin: var(--space-1) 0 0;
 }
 .episode-history-events {
-  margin: 0 var(--panel-padding) var(--panel-padding);
+  margin: 0 0 var(--panel-padding);
 }
 .history-empty {
   color: var(--muted);
@@ -3504,7 +3487,10 @@ td:last-child {
   margin: var(--space-4) 0 0;
 }
 .change-log > .history-empty {
-  padding: 0 var(--panel-padding) var(--panel-padding);
+  padding: 0 0 var(--panel-padding);
+}
+.person-record-plain .timeline {
+  padding-inline: 0;
 }
 @media (max-width: 700px) {
   .activity-entry-details > div {

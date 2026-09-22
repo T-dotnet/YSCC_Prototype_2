@@ -155,19 +155,10 @@ export default function Person({ id, navigate, openModal }) {
     const params = new URLSearchParams(searchParams.toString());
     if (value === "Overview") params.delete("tab");
     else params.set("tab", value.toLowerCase());
-    if (value !== "History") params.delete("historyView");
+    params.delete("historyView");
     navigate(`/people/${p.id}${params.size ? `?${params}` : ""}`, {
       scroll: false,
     });
-  };
-  const historyView =
-    searchParams.get("historyView") === "timeline" ? "timeline" : "grouped";
-  const setHistoryView = (value) => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("tab", "history");
-    if (value === "timeline") params.set("historyView", "timeline");
-    else params.delete("historyView");
-    navigate(`/people/${p.id}?${params}`, { scroll: false });
   };
   const episodeId = searchParams.get("episode");
   if (!p)
@@ -847,34 +838,36 @@ export default function Person({ id, navigate, openModal }) {
           </div>
         )}
         {tab === "History" && (
-          <Panel
-            title="History"
-            action={
-              <span className="muted">
-                Clinician view · Care episode {e.number}
-              </span>
-            }
-          >
+          <div className="stack person-record-plain">
+            <div className="section-toolbar">
+              <div>
+                <h2>History</h2>
+                <p>
+                  Assessment responses and reviews, appointments, contextual events and
+                  structured care records in this care episode.
+                </p>
+              </div>
+            </div>
             <ClinicalHistory
               episode={e}
               person={p}
               audit={state.audit}
-              view={historyView}
-              onViewChange={setHistoryView}
             />
-          </Panel>
+          </div>
         )}
         {tab === "Change log" && (
-          <Panel
-            title="Change log"
-            action={
-              <span className="muted">
-                Compliance view · Care episode {e.number}
-              </span>
-            }
-          >
+          <div className="stack person-record-plain">
+            <div className="section-toolbar">
+              <div>
+                <h2>Change log</h2>
+                <p>
+                  Field-level record of who changed what in this care episode. Expand an
+                  entry to view the before and after values.
+                </p>
+              </div>
+            </div>
             <ChangeLog episode={e} person={p} audit={state.audit} />
-          </Panel>
+          </div>
         )}
       </div>
       </div>

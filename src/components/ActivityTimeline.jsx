@@ -7,7 +7,7 @@ import {
   clinicalHistoryEntries,
 } from "../activity";
 import { formatDate, personEventText } from "../model";
-import { Badge, Tabs, SearchInput, Select, Button, Empty } from "./UI";
+import { SearchInput, Select, Button, Empty } from "./UI";
 
 const displayValue = (value) =>
   value === true
@@ -171,8 +171,6 @@ export function ClinicalHistory({
   episode,
   person,
   audit = [],
-  view = "grouped",
-  onViewChange,
 }) {
   const entries = clinicalHistoryEntries(person, episode, audit);
 
@@ -229,35 +227,8 @@ export function ClinicalHistory({
     })).sort((a, b) => a.label.localeCompare(b.label));
   }, [entries]);
 
-  const entriesForCollection = (collectionId) =>
-    visibleEntries.filter((entry) => entry.collectionId === collectionId);
-  const careEvents = visibleEntries.filter((entry) => !entry.collectionId);
-
-  const visibleCollections = useMemo(() => {
-    return episode.collections.filter((collection) => {
-      const events = entriesForCollection(collection.id);
-      if (events.length > 0) return true;
-      if (!hasFilters) return true;
-      if (filters.query) {
-        const q = filters.query.trim().toLowerCase();
-        return (
-          collection.label?.toLowerCase().includes(q) ||
-          collection.version?.toLowerCase().includes(q) ||
-          collection.assignment?.toLowerCase().includes(q)
-        );
-      }
-      return false;
-    });
-  }, [episode.collections, visibleEntries, hasFilters, filters.query]);
-
   return (
     <div className="clinical-history">
-      <p className="history-intro">
-        All assessment assignments in this care episode, including their stage,
-        delivery method, start, completion, appointments and recorded clinical
-        events and structured care records.
-      </p>
-
       <details
         className={`care-timeline-filters${hasFilters ? " has-active-filters" : ""}`}
         open={filtersOpen}
@@ -269,7 +240,7 @@ export function ClinicalHistory({
             <span className="sr-only">Filter timeline</span>
           </div>
           <span aria-live="polite">
-            Showing {view === "timeline" ? visibleEntries.length : visibleCollections.length + careEvents.length} of {view === "timeline" ? entries.length : episode.collections.length + entries.filter(e => !e.collectionId).length} records
+            Showing {visibleEntries.length} of {entries.length} records
           </span>
           <ChevronDown className="care-timeline-filter-chevron" size={18} aria-hidden="true" />
         </summary>
@@ -320,119 +291,18 @@ export function ClinicalHistory({
         </div>
       </details>
 
-      <div className="history-view-switcher">
-        <Tabs
-          id="history-view"
-          label="History view"
-          items={[
-            { value: "grouped", label: "By assessment" },
-            { value: "timeline", label: "Continuous timeline" },
-          ]}
-          value={view}
-          onChange={onViewChange}
-        />
-      </div>
-      <div
-        id="history-view-panel"
-        role="tabpanel"
-        aria-labelledby={`history-view-tab-${view === "grouped" ? 0 : 1}`}
-      >
-        {view === "timeline" ? (
-          visibleEntries.length === 0 ? (
-            <Empty title="No timeline records match these filters">
-              Try a different search, type or date range.
-              <div style={{ marginTop: "12px" }}>
-                <Button variant="secondary" onClick={() => setFilters({ type: "all", startDate: "", endDate: "", query: "" })}>
-                  Clear filters
-                </Button>
-              </div>
-            </Empty>
-          ) : (
-            <ContinuousHistory entries={visibleEntries} episode={episode} person={person} />
-          )
-        ) : (
-          visibleCollections.length === 0 && careEvents.length === 0 ? (
-            <Empty title="No history records match these filters">
-              Try a different search, type or date range.
-              <div style={{ marginTop: "12px" }}>
-                <Button variant="secondary" onClick={() => setFilters({ type: "all", startDate: "", endDate: "", query: "" })}>
-                  Clear filters
-                </Button>
-              </div>
-            </Empty>
-          ) : (
-            <>
-              {visibleCollections.length > 0 && (
-                <ol className="assignment-history" aria-label="Assessment assignment history">
-                  {visibleCollections.map((collection) => {
-                    const attempts = [...(collection.attempts || [])].sort((a, b) =>
-                      (a.timestamp || a.date || "").localeCompare(
-                        b.timestamp || b.date || "",
-                      ),
-                    );
-                    const events = entriesForCollection(collection.id);
-                    const startedAt =
-                      attempts[0]?.timestamp ||
-                      attempts[0]?.date ||
-                      events.find((entry) => entry.actionType === "DELIVER")?.timestamp ||
-                      events.find((entry) => entry.actionType === "DELIVER")?.date;
-                    const completedAt =
-                      collection.submittedTimestamp ||
-                      collection.submittedAt ||
-                      events.find((entry) => entry.actionType === "SUBMIT")?.timestamp ||
-                      events.find((entry) => entry.actionType === "SUBMIT")?.date;
-                    return (
-                      <li key={collection.id}>
-                        <header>
-                          <div>
-                            <h3>{collection.label}</h3>
-                            <p>{collection.version}</p>
-                          </div>
-                          <Badge>{collection.assignment || "Not recorded"}</Badge>
-                        </header>
-                        <dl className="assignment-history-details">
-                          <div>
-                            <dt>Stage</dt>
-                            <dd>{collection.assignment || "Not recorded"}</dd>
-                          </div>
-                          <div>
-                            <dt>Delivery</dt>
-                            <dd>{collection.channel || "Not set"}</dd>
-                          </div>
-                          <div>
-                            <dt>Started</dt>
-                            <dd>{displayDate(startedAt)}</dd>
-                          </div>
-                          <div>
-                            <dt>Completed</dt>
-                            <dd>{displayDate(completedAt)}</dd>
-                          </div>
-                        </dl>
-                        <h4>Events</h4>
-                        <EventList
-                          entries={events}
-                          person={person}
-                          label={`${collection.label} events`}
-                        />
-                      </li>
-                    );
-                  })}
-                </ol>
-              )}
-              {careEvents.length > 0 && (
-                <section className="episode-history-events" aria-labelledby="episode-events-heading">
-                  <h3 id="episode-events-heading">Care-period activity</h3>
-                  <EventList
-                    entries={careEvents}
-                    person={person}
-                    label="Care-period activity"
-                  />
-                </section>
-              )}
-            </>
-          )
-        )}
-      </div>
+      {visibleEntries.length === 0 ? (
+        <Empty title="No timeline records match these filters">
+          Try a different search, type or date range.
+          <div style={{ marginTop: "12px" }}>
+            <Button variant="secondary" onClick={() => setFilters({ type: "all", startDate: "", endDate: "", query: "" })}>
+              Clear filters
+            </Button>
+          </div>
+        </Empty>
+      ) : (
+        <ContinuousHistory entries={visibleEntries} episode={episode} person={person} />
+      )}
     </div>
   );
 }
@@ -500,11 +370,6 @@ export function ChangeLog({ episode, person, audit = [] }) {
 
   return (
     <div className="change-log">
-      <p className="history-intro">
-        Field-level record of who changed what in this care episode. Expand an
-        entry to view the before and after values.
-      </p>
-
       <details
         className={`care-timeline-filters${hasFilters ? " has-active-filters" : ""}`}
         open={filtersOpen}
