@@ -1693,9 +1693,7 @@ small {
 }
 .topbar {
   height: 56px;
-  background: rgba(251, 251, 249, 0.88);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  background: var(--surface);
   border-bottom: 1px solid var(--line);
   display: flex;
   align-items: center;
@@ -5356,6 +5354,9 @@ dialog {
   color: var(--ink);
 }
 .modal {
+  position: fixed;
+  inset: 0;
+  margin: auto;
   border: 1px solid var(--line);
   border-radius: 14px;
   box-shadow: var(--shadow-xl), 0 25px 50px -12px rgba(15, 23, 42, 0.25);
@@ -5368,8 +5369,6 @@ dialog {
 }
 .modal::backdrop {
   background: rgba(15, 23, 42, 0.45);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
 }
 .modal.wide {
   width: min(720px, calc(100vw - 32px));
@@ -5512,6 +5511,9 @@ dialog {
   padding-top: 24px;
 }
 .response-dialog[open] {
+  position: fixed;
+  inset: 0;
+  margin: auto;
   display: flex;
   flex-direction: column;
   width: min(860px, calc(100vw - 32px));

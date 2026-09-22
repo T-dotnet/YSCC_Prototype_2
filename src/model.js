@@ -73,7 +73,10 @@ export const DEMO_STAFF = [
   { id: "jess", name: "Jess Taylor", role: "Clinician" },
   { id: "ananya", name: "Ananya", role: "Data Manager" },
 ];
-export const practitionerServiceOptions = (people = []) => {
+export const practitionerServiceOptions = (peopleOrState = []) => {
+  const people = Array.isArray(peopleOrState)
+    ? peopleOrState
+    : (peopleOrState?.people || []);
   const existingContacts = (people || []).flatMap((person) => [
     ...(person.referrals ?? []).map((referral) => referral.destination),
     ...(person.episodes ?? []).flatMap((episode) => [

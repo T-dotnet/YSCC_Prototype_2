@@ -402,13 +402,15 @@ export default function Person({ id, navigate, openModal }) {
                         Preview questionnaire
                       </Button>
                     </div>
-                    <Notice>
-                      {noClinicalReviewRequired(c)
-                        ? "The response is complete; no separate clinical review is required."
-                        : reviewed
-                          ? "The response and its clinical review are retained separately."
-                          : "A submitted response still needs clinical review."}
-                    </Notice>
+                    {c.response === "Submitted" && (
+                      <Notice>
+                        {noClinicalReviewRequired(c)
+                          ? "The response is complete; no separate clinical review is required."
+                          : reviewed
+                            ? "The response and its clinical review are retained separately."
+                            : "A submitted response still needs clinical review."}
+                      </Notice>
+                    )}
                   </section>
                 </div>
               </div>
