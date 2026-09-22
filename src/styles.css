@@ -12471,7 +12471,7 @@ h6 {
   align-items: stretch;
   gap: var(--space-4);
   min-width: 0;
-  margin-bottom: 16px;
+  margin-bottom: var(--space-10);
   border-bottom: 1px solid var(--line);
 }
 
@@ -12852,7 +12852,10 @@ h6 {
   letter-spacing: 0.015em;
 }
 
-.main:has(.person-heading) .overview-assessment-title h2 {
+.main:has(.person-heading) .overview-assessment-title h2,
+.main:has(.person-heading) #person-panel > .stack > .section-toolbar h2,
+.main:has(.person-heading) #person-panel > .consent-board > .section-toolbar h2,
+.main:has(.person-heading) .person-content-surface > .section-toolbar h2 {
   font-size: 24px;
   font-weight: 650;
   line-height: 1.2;
