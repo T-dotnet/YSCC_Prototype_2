@@ -12033,29 +12033,6 @@ h6 {
   font-size: 13.5px;
 }
 
-.button {
-  border-color: var(--control-border);
-  box-shadow: none;
-  font-weight: 600;
-}
-
-.button:hover:not(:disabled) {
-  transform: none;
-  box-shadow: none;
-}
-
-.button.primary {
-  background: var(--orygen-coral);
-  border-color: var(--orygen-coral);
-  box-shadow: 0 2px 5px rgba(250, 83, 44, 0.2);
-}
-
-.button.primary:hover:not(:disabled) {
-  background: var(--orygen-coral-hover);
-  border-color: var(--orygen-coral-hover);
-  box-shadow: 0 3px 8px rgba(250, 83, 44, 0.24);
-}
-
 .panel,
 .record-two-card,
 .longitudinal-report-card,
@@ -12172,29 +12149,6 @@ h6 {
 .work-table .task-action {
   color: var(--orygen-forest);
   font-weight: 620;
-}
-
-.badge {
-  padding: 2px 8px;
-  font-size: 11px;
-  font-weight: 650;
-}
-
-.badge.amber {
-  border-color: #eadca9;
-  background: #fbf5df;
-  color: #765811;
-}
-
-.badge.purple {
-  border-color: #ddd8e8;
-  background: #f3f1f7;
-  color: #5f4b7a;
-}
-
-.badge.green {
-  border-color: var(--sage-border);
-  background: var(--sage);
 }
 
 .alerts-intro {
@@ -12665,16 +12619,6 @@ h6 {
 .work-tabs button.selected,
 .selected .tab-count {
   color: var(--accent-text);
-}
-
-.button.primary {
-  border-color: var(--accent-solid);
-  background: var(--accent-solid);
-}
-
-.button.primary:hover:not(:disabled) {
-  border-color: #a93215;
-  background: #a93215;
 }
 
 .work-tabs button,
