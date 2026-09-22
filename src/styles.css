@@ -8125,6 +8125,185 @@ form.has-validation-errors .check-field:has(:invalid) {
   border-top: 1px solid var(--line);
   border-radius: 0 0 var(--radius) var(--radius);
 }
+.consent-board {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.consent-board-heading {
+  margin-bottom: 0;
+}
+.consent-board-heading .eyebrow,
+.consent-history-heading .eyebrow {
+  margin-bottom: 6px;
+}
+.consent-board-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, .8fr) minmax(0, 1.5fr);
+  gap: 16px;
+}
+.consent-hero-card,
+.consent-context-card,
+.consent-history {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: white;
+}
+.consent-hero-card {
+  padding: 24px;
+  background: #f0f6ef;
+  border-color: #d8e7d5;
+}
+.consent-card-kicker {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+}
+.consent-hero-status {
+  margin-top: 22px;
+  color: var(--teal);
+  font-family: var(--heading-font);
+  font-size: 29px;
+  font-weight: 700;
+}
+.consent-hero-card > p {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.consent-hero-rule {
+  height: 1px;
+  margin: 24px 0 14px;
+  background: #d8e7d5;
+}
+.consent-hero-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 7px 0;
+  font-size: 12px;
+}
+.consent-hero-meta span,
+.consent-context-list dt {
+  color: var(--muted);
+}
+.consent-hero-meta strong {
+  text-align: right;
+  font-weight: 600;
+}
+.consent-context-card {
+  overflow: hidden;
+}
+.consent-context-card > .consent-card-kicker,
+.consent-context-card > h3 {
+  margin-left: 24px;
+  margin-right: 24px;
+}
+.consent-context-card > .consent-card-kicker {
+  margin-top: 24px;
+}
+.consent-context-card > h3 {
+  margin-top: 6px;
+  font-size: 20px;
+}
+.consent-context-list {
+  display: flex;
+  align-items: stretch;
+  margin: 22px 0 0;
+  border-top: 1px solid var(--line);
+}
+.consent-context-list > div {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 18px 20px 20px;
+  border-right: 1px solid var(--line);
+}
+.consent-context-list > div:first-child {
+  padding-left: 24px;
+}
+.consent-context-list > div:last-child {
+  border-right: 0;
+  padding-right: 24px;
+}
+.consent-context-list dt {
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+.consent-context-list dd {
+  font-size: 14px;
+  font-weight: 600;
+}
+.consent-context-list .identity {
+  gap: 8px;
+}
+.consent-context-list .identity-suffix {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 400;
+}
+.consent-history {
+  overflow: hidden;
+}
+.consent-history-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 20px 24px 16px;
+}
+.consent-history-heading h3 {
+  font-size: 20px;
+}
+.consent-history-heading > span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.consent-history-item {
+  border-top: 1px solid var(--line);
+}
+.consent-history-item > summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 17px 24px;
+  cursor: pointer;
+  list-style: none;
+}
+.consent-history-item > summary::-webkit-details-marker { display: none; }
+.consent-history-marker {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--coral);
+  box-shadow: 0 0 0 4px #fff0ec;
+}
+.consent-history-main { min-width: 0; margin-right: auto; }
+.consent-history-main strong,
+.consent-history-main small { display: block; }
+.consent-history-main small { margin-top: 4px; color: var(--muted); font-size: 12px; }
+.consent-history-date { color: var(--muted); font-size: 12px; }
+.consent-history-item[open] > summary > svg { transform: rotate(180deg); }
+.consent-history-detail {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 0 24px 17px 57px;
+  color: var(--muted);
+  font-size: 12px;
+}
+@media (max-width: 760px) {
+  .consent-board-grid { grid-template-columns: 1fr; }
+  .consent-context-list { overflow-x: auto; }
+  .consent-context-list > div { min-width: 145px; }
+  .consent-history-date { display: none; }
+}
 .answer-summary {
   padding: 18px 0;
   border-bottom: 1px solid var(--line);
