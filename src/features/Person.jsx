@@ -558,13 +558,10 @@ export default function Person({ id, navigate, openModal }) {
                       </div>
                       <div>
                         <small>Respondent</small>
-                        <div className="person-cell">
-                          <Avatar name={respondent.name} />
-                          <PersonIdentity
-                            name={respondent.name}
-                            descriptor={respondent.role}
-                          />
-                        </div>
+                        <PersonIdentity
+                          name={respondent.name}
+                          descriptor={respondent.role}
+                        />
                       </div>
                       <div>
                         <small>Due date</small>
