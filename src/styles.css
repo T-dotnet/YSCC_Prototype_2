@@ -2410,7 +2410,7 @@ small {
 .work-toolbar {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--space-3);
   padding: var(--space-4) var(--panel-padding);
 }
@@ -3286,6 +3286,10 @@ td:last-child {
 .clinical-history,
 .change-log {
   min-width: 0;
+}
+.clinical-history > .care-timeline-filters,
+.change-log > .care-timeline-filters {
+  margin: var(--space-4) var(--panel-padding) 0;
 }
 .history-view-switcher {
   padding: var(--space-4) var(--panel-padding) 0;
@@ -8018,7 +8022,14 @@ form.has-validation-errors .check-field:has(:invalid) {
   flex: 1 1 220px;
   max-width: none;
 }
-.people-toolbar > .select-wrap select {
+.people-toolbar-filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.people-toolbar > .select-wrap select,
+.people-toolbar-filters .select-wrap select {
   min-width: 170px;
 }
 .people-table .person-cell {
@@ -8102,10 +8113,19 @@ form.has-validation-errors .check-field:has(:invalid) {
   }
 }
 @media (max-width: 700px) {
-  .people-toolbar > .search {
+  .people-toolbar > .search,
+  .people-toolbar .toolbar-search-and-count {
     flex-basis: 100%;
+    max-width: 100%;
   }
-  .people-toolbar > .select-wrap select {
+  .people-toolbar-filters {
+    width: 100%;
+  }
+  .people-toolbar-filters .select-wrap {
+    flex: 1 1 140px;
+  }
+  .people-toolbar > .select-wrap select,
+  .people-toolbar-filters .select-wrap select {
     width: 100%;
     min-width: 0;
   }
@@ -11132,7 +11152,7 @@ form.has-validation-errors .check-field:has(:invalid) {
 .quality-toolbar {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--space-3);
   padding: var(--space-4) var(--panel-padding);
 }

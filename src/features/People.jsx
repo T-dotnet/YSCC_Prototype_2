@@ -173,31 +173,33 @@ export default function People({ navigate, openModal }) {
               Showing {people.length} of {state.people.filter(p => !HIDDEN_FROM_PEOPLE_LIST.has(p.name)).length}
             </span>
           </div>
-          <Select
-            label="Assessment status"
-            value={assessmentStatus}
-            onChange={(e) =>
-              view.set("assessment", e.target.value, "All statuses", true)
-            }
-          >
-            <option value="All statuses">All statuses</option>
-            {statusOptions.map((s) => (
-              <option key={s} value={s}>
-                {s} ({rows.filter((row) => row.status === s).length})
-              </option>
-            ))}
-          </Select>
-          <Select
-            label="Episode status"
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-          >
-            {["All episodes", "Intake", "Active", "Paused", "Closed"].map(
-              (s) => (
-                <option key={s}>{s}</option>
-              ),
-            )}
-          </Select>
+          <div className="people-toolbar-filters">
+            <Select
+              label="Episode status"
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+            >
+              {["All episodes", "Intake", "Active", "Paused", "Closed"].map(
+                (s) => (
+                  <option key={s}>{s}</option>
+                ),
+              )}
+            </Select>
+            <Select
+              label="Assessment status"
+              value={assessmentStatus}
+              onChange={(e) =>
+                view.set("assessment", e.target.value, "All statuses", true)
+              }
+            >
+              <option value="All statuses">All statuses</option>
+              {statusOptions.map((s) => (
+                <option key={s} value={s}>
+                  {s} ({rows.filter((row) => row.status === s).length})
+                </option>
+              ))}
+            </Select>
+          </div>
         </div>
         {(assessmentStatus !== "All statuses" || status !== "All episodes" || query) && (
           <div className="active-filters-row">

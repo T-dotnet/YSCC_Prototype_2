@@ -10,6 +10,7 @@ export default function AssessmentReviewRecord({
   personId,
   collectionId,
   navigate,
+  openModal,
 }) {
   const { state } = useStore();
   const person = state.people.find((item) => item.id === personId);
@@ -89,6 +90,18 @@ export default function AssessmentReviewRecord({
       notify={() => {}}
       fullPage
       analysis={analysis}
+      onEdit={(reviewDraft) =>
+        openModal &&
+        openModal({
+          type: "edit-responses",
+          personId: person.id,
+          episodeId: episode.id,
+          collectionId: collection.id,
+          returnToDetails: false,
+          returnToReview: false,
+          reviewDraft,
+        })
+      }
     />
   );
 }

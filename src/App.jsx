@@ -93,6 +93,7 @@ export default function App() {
         personId={assessmentReviewMatch[1]}
         collectionId={assessmentReviewMatch[2]}
         navigate={navigate}
+        openModal={setModal}
       />
     ) : path.startsWith("/people/") ? (
       <Person key={path} id={path.split("/")[2]} {...shared} />

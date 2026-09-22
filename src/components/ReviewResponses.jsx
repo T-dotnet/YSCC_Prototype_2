@@ -118,6 +118,17 @@ export default function ReviewResponses({
               ? `Submitted ${formatDate(c.submittedAt.slice(0, 10))}`
               : "Submission date not recorded"}
           </span>
+          {canEdit && onEdit && (
+            <button
+              type="button"
+              className="inline-link"
+              onClick={() => onEdit(note)}
+              style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+            >
+              <Pencil size={14} aria-hidden="true" />
+              Edit answers
+            </button>
+          )}
           {c.needsReview && canReview && (
             <button
               type="button"
@@ -334,7 +345,15 @@ export default function ReviewResponses({
             <h1>{title}</h1>
             <p>{`${displayPersonName(person)} · ${c.label} · ${c.version}`}</p>
           </div>
-          <Badge>{clinicalReviewStatus(c)}</Badge>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            {canEdit && onEdit && (
+              <Button type="button" onClick={() => onEdit(note)}>
+                <Pencil size={16} aria-hidden="true" />
+                Edit answers
+              </Button>
+            )}
+            <Badge>{clinicalReviewStatus(c)}</Badge>
+          </div>
         </header>
         <div className="assessment-review-surface">
           {record}

@@ -1,6 +1,8 @@
 {
-  "name": "YSCC Platform",
+  "name": "Remix YSCC Platform",
   "description": "Interactive YSCC care and assessment workspace for youth care coordination, questionnaire collection, and clinical review.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }
