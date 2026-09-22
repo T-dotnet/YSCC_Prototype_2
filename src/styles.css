@@ -12013,7 +12013,7 @@ h6 {
 }
 
 .main {
-  max-width: 1240px;
+  max-width: 1440px;
   padding: 34px 38px 64px;
 }
 
@@ -12313,7 +12313,7 @@ h6 {
   }
 
   .main:has(.person-heading) {
-    max-width: 1240px;
+    max-width: 1440px;
   }
 
   .main:has(.person-heading) > .back-link,
@@ -12322,7 +12322,7 @@ h6 {
   .main:has(.person-heading) > .person-tabs,
   .main:has(.person-heading) > #person-panel,
   .main:has(.person-heading) > .section-toolbar {
-    width: min(100%, 1180px);
+    width: min(100%, 1360px);
     margin-right: auto;
     margin-left: auto;
   }
