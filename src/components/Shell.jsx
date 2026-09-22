@@ -34,6 +34,7 @@ export default function Shell({
 }) {
   const { state } = useStore();
   const staff = currentStaff(state);
+  const isInternalPage = path.startsWith("/people/");
   const [mobile, setMobile] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -63,6 +64,7 @@ export default function Shell({
     return () => document.removeEventListener("keydown", handle);
   }, [mobile]);
   useEffect(() => {
+    if (isInternalPage) return;
     const handleKeyDown = (event) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
@@ -72,7 +74,10 @@ export default function Shell({
     };
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [isInternalPage]);
+  useEffect(() => {
+    if (isInternalPage) setSearchOpen(false);
+  }, [isInternalPage]);
   useEffect(() => {
     if (!searchOpen) return;
     const handlePointerDown = (event) => {
@@ -215,106 +220,104 @@ export default function Shell({
           >
             <Menu />
           </button>
-          <div className="breadcrumb">
-            <span>Workspace</span>
-            <span className="breadcrumb-separator">/</span>
-            <span>
-              {links.find((l) => l[0] === active)?.[1] || "Help & guidance"}
-            </span>
-            {path.startsWith("/people/") && (
-              <>
-                <span className="breadcrumb-separator">/</span>
-                <span>{path.split("/")[2]}</span>
-              </>
-            )}
-          </div>
-          <form
-            ref={searchRef}
-            className={`topbar-search ${searchOpen ? "search-open" : ""}`}
-            role="search"
-            onSubmit={submitSearch}
-          >
-            <button
-              className="topbar-search-trigger"
-              type="button"
-              aria-label="Open global search"
-              aria-expanded={searchOpen}
-              onClick={() => {
-                setSearchOpen(true);
-                requestAnimationFrame(() => searchInputRef.current?.focus());
-              }}
-            >
-              <Search size={19} />
-            </button>
-            <div className="global-search-input">
-              <Search size={18} aria-hidden="true" />
-              <input
-                ref={searchInputRef}
-                value={searchQuery}
-                onChange={(event) => {
-                  setSearchQuery(event.target.value);
-                  setActiveSearchIndex(-1);
-                }}
-                onFocus={() => setSearchOpen(true)}
-                onKeyDown={handleSearchKeyDown}
-                placeholder="Search people or record ID"
-                role="combobox"
-                aria-label="Global search"
-                aria-autocomplete="list"
-                aria-controls={searchOpen && normalizedSearchQuery ? "global-search-results" : undefined}
-                aria-expanded={searchOpen && Boolean(normalizedSearchQuery)}
-                aria-activedescendant={
-                  activeSearchIndex >= 0
-                    ? `global-search-option-${activeSearchIndex}`
-                    : undefined
-                }
-              />
-              {searchQuery && (
-                <button
-                  className="global-search-clear"
-                  type="button"
-                  aria-label="Clear global search"
-                  onClick={() => {
-                    setSearchQuery("");
-                    setActiveSearchIndex(-1);
-                    searchInputRef.current?.focus();
-                  }}
-                >
-                  <X size={16} />
-                </button>
-              )}
+          {isInternalPage && (
+            <div className="breadcrumb">
+              <span>Workspace</span>
+              <span className="breadcrumb-separator">/</span>
+              <span>People</span>
+              <span className="breadcrumb-separator">/</span>
+              <span>{path.split("/")[2]}</span>
             </div>
-            {searchOpen && normalizedSearchQuery && (
-              <div
-                id="global-search-results"
-                className="global-search-results"
-                role="listbox"
-                aria-label="Matching people"
+          )}
+          {!isInternalPage && (
+            <form
+              ref={searchRef}
+              className={`topbar-search ${searchOpen ? "search-open" : ""}`}
+              role="search"
+              onSubmit={submitSearch}
+            >
+              <button
+                className="topbar-search-trigger"
+                type="button"
+                aria-label="Open global search"
+                aria-expanded={searchOpen}
+                onClick={() => {
+                  setSearchOpen(true);
+                  requestAnimationFrame(() => searchInputRef.current?.focus());
+                }}
               >
-                {searchResults.length ? (
-                  searchResults.map((person, index) => (
-                    <button
-                      id={`global-search-option-${index}`}
-                      key={person.id}
-                      type="button"
-                      role="option"
-                      aria-selected={activeSearchIndex === index}
-                      className={
-                        activeSearchIndex === index ? "active" : undefined
-                      }
-                      onMouseEnter={() => setActiveSearchIndex(index)}
-                      onClick={() => selectPerson(person)}
-                    >
-                      <span>{person.name}</span>
-                      <small>{person.id}</small>
-                    </button>
-                  ))
-                ) : (
-                  <p>No people match “{searchQuery.trim()}”.</p>
+                <Search size={19} />
+              </button>
+              <div className="global-search-input">
+                <Search size={18} aria-hidden="true" />
+                <input
+                  ref={searchInputRef}
+                  value={searchQuery}
+                  onChange={(event) => {
+                    setSearchQuery(event.target.value);
+                    setActiveSearchIndex(-1);
+                  }}
+                  onFocus={() => setSearchOpen(true)}
+                  onKeyDown={handleSearchKeyDown}
+                  placeholder="Search people or record ID"
+                  role="combobox"
+                  aria-label="Global search"
+                  aria-autocomplete="list"
+                  aria-controls={searchOpen && normalizedSearchQuery ? "global-search-results" : undefined}
+                  aria-expanded={searchOpen && Boolean(normalizedSearchQuery)}
+                  aria-activedescendant={
+                    activeSearchIndex >= 0
+                      ? `global-search-option-${activeSearchIndex}`
+                      : undefined
+                  }
+                />
+                {searchQuery && (
+                  <button
+                    className="global-search-clear"
+                    type="button"
+                    aria-label="Clear global search"
+                    onClick={() => {
+                      setSearchQuery("");
+                      setActiveSearchIndex(-1);
+                      searchInputRef.current?.focus();
+                    }}
+                  >
+                    <X size={16} />
+                  </button>
                 )}
               </div>
-            )}
-          </form>
+              {searchOpen && normalizedSearchQuery && (
+                <div
+                  id="global-search-results"
+                  className="global-search-results"
+                  role="listbox"
+                  aria-label="Matching people"
+                >
+                  {searchResults.length ? (
+                    searchResults.map((person, index) => (
+                      <button
+                        id={`global-search-option-${index}`}
+                        key={person.id}
+                        type="button"
+                        role="option"
+                        aria-selected={activeSearchIndex === index}
+                        className={
+                          activeSearchIndex === index ? "active" : undefined
+                        }
+                        onMouseEnter={() => setActiveSearchIndex(index)}
+                        onClick={() => selectPerson(person)}
+                      >
+                        <span>{person.name}</span>
+                        <small>{person.id}</small>
+                      </button>
+                    ))
+                  ) : (
+                    <p>No people match “{searchQuery.trim()}”.</p>
+                  )}
+                </div>
+              )}
+            </form>
+          )}
           <div className="topbar-right">
             <button
               className="system-status-indicator"
@@ -339,7 +342,11 @@ export default function Shell({
             </button>
           </div>
         </header>
-        <main id="main" className="main" tabIndex={-1}>
+        <main
+          id="main"
+          className={`main${isInternalPage ? " main-internal" : ""}`}
+          tabIndex={-1}
+        >
           {storageError && (
             <div className="error-banner" role="alert">
               Changes are only held in this open tab. Browser storage is

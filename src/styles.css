@@ -1724,7 +1724,7 @@ small {
   position: relative;
   flex: 1 1 280px;
   max-width: 390px;
-  margin: 0 auto;
+  margin: 0;
 }
 .global-search-input {
   height: 36px;
@@ -7442,7 +7442,7 @@ form.has-validation-errors .check-field:has(:invalid) {
     width: 32px;
     min-width: 32px;
     flex: 0 0 32px;
-    margin-left: auto;
+    margin-left: 0;
   }
   .topbar-search-trigger {
     display: inline-flex;
@@ -8140,9 +8140,7 @@ form.has-validation-errors .check-field:has(:invalid) {
   border: 0;
   border-radius: 12px;
   background: #f7f7f4;
-  box-shadow:
-    0 12px 28px -20px rgba(30, 53, 16, 0.38),
-    0 2px 6px rgba(30, 53, 16, 0.055);
+  box-shadow: none;
   overflow: hidden;
 }
 .consent-context-panel > h3 {
@@ -8191,6 +8189,17 @@ form.has-validation-errors .check-field:has(:invalid) {
   margin-top: 6px;
   font-size: 11px;
   font-weight: 400;
+}
+@media (min-width: 1100px) {
+  .consent-summary-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 24px;
+  }
+  .consent-summary-row > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
 }
 @media (max-width: 760px) {
   .consent-summary-row {
@@ -11999,8 +12008,8 @@ h6 {
 .topbar {
   height: 50px;
   padding: 0 28px;
-  background: var(--surface);
-  border-bottom-color: #e7ebe3;
+  background: var(--canvas);
+  border-bottom: 0;
 }
 
 .breadcrumb {
@@ -12029,7 +12038,7 @@ h6 {
 
 .page-heading p {
   margin-top: 4px;
-  color: #697666;
+  color: var(--muted);
   font-size: 13.5px;
 }
 
@@ -12132,9 +12141,9 @@ h6 {
 .work-table th {
   padding-top: 10px;
   padding-bottom: 10px;
-  background: #fafaf8;
-  color: #697666;
-  letter-spacing: 0.04em;
+  background: var(--surface-warm);
+  color: var(--muted);
+  letter-spacing: 0.035em;
 }
 
 .work-table td {
@@ -12183,7 +12192,7 @@ h6 {
 .table-footer {
   align-items: center;
   border-top: 1px solid var(--line-soft);
-  background: #fafaf8;
+  background: var(--surface-warm);
 }
 
 .pagination-button {
@@ -12207,6 +12216,35 @@ h6 {
 
 .work-grid > * {
   min-width: 0;
+}
+
+/* Give the five-column worklist its reading width on laptop screens. */
+@media (min-width: 1025px) and (max-width: 1550px) {
+  .work-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+  }
+
+  .work-panel {
+    height: auto;
+  }
+
+  .alerts-side-list {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    column-gap: 24px;
+  }
+}
+
+@media (min-width: 1200px) and (max-width: 1550px) {
+  .alerts-side-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .alerts-side-list .alert-card-footer {
+    margin-top: auto;
+  }
 }
 
 .alerts-container-panel .work-tabs {
@@ -12300,13 +12338,31 @@ h6 {
   }
 }
 
-/* Delphi Insights refinement: one quiet canvas with restrained inset surfaces. */
+/* Main pages use the canvas; person records keep their inset reading surface. */
 @media (min-width: 701px) {
   .main {
     width: calc(100% - 24px);
     min-height: calc(100vh - 92px);
     margin: 12px auto 48px;
     padding: 30px 32px 56px;
+  }
+
+  .main.main-internal {
+    border: 1px solid #e7eae4;
+    border-radius: 16px;
+    background: var(--surface);
+  }
+
+  .main.main-internal:has(.person-content-surface) {
+    padding-top: 18px;
+    padding-bottom: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  .main.main-internal .person-content-surface {
+    margin: 24px 0 0;
+    padding: 28px 32px 56px;
     border: 1px solid #e7eae4;
     border-radius: 16px;
     background: var(--surface);
@@ -12415,9 +12471,7 @@ h6 {
   border: 0;
   border-radius: 12px;
   background: #f7f7f4;
-  box-shadow:
-    0 12px 28px -20px rgba(30, 53, 16, 0.38),
-    0 2px 6px rgba(30, 53, 16, 0.055);
+  box-shadow: none;
 }
 
 .main:has(.person-heading) .overview-assessment-heading {
@@ -12480,7 +12534,8 @@ h6 {
 .main:has(.person-heading) .person-grid > .panel {
   border: 0;
   border-radius: 12px;
-  background: #f7f7f4;
+  background: transparent;
+  box-shadow: none;
 }
 
 .main:has(.person-heading) .person-grid .panel-heading {
@@ -12515,9 +12570,11 @@ h6 {
     background: transparent;
   }
 
-  .main:has(.person-heading) .episode-bar,
-  .main:has(.person-heading) #person-panel > .overview-assessment,
-  .main:has(.person-heading) .person-grid > .panel {
+  .main:has(.person-heading) .episode-bar {
+    background: #f7f7f4;
+  }
+
+  .main:has(.person-heading) #person-panel > .overview-assessment {
     background: #f7f7f4;
   }
 
@@ -12827,7 +12884,7 @@ h6 {
     width: 32px;
     min-width: 32px;
     flex: 0 0 32px;
-    margin-left: auto;
+    margin-left: 0;
   }
 
   .topbar-search-trigger {

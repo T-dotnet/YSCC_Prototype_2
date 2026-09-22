@@ -259,6 +259,7 @@ export default function Person({ id, navigate, openModal }) {
           </button>
         </div>
       </div>
+      <div className="person-content-surface">
       {contextualView ? (
         <div className="section-toolbar">
           <h2 id="person-context-heading">{contextualView}</h2>
@@ -798,6 +799,7 @@ export default function Person({ id, navigate, openModal }) {
             <ChangeLog episode={e} person={p} audit={state.audit} />
           </Panel>
         )}
+      </div>
       </div>
     </>
   );
