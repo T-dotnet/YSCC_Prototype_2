@@ -1286,7 +1286,7 @@ function createMockFullReportPerson() {
         ],
         [
           "inpatient",
-          "2026-08-30",
+          "2026-06-15",
           "Inpatient admission recorded",
           "inpatient",
         ],
@@ -1294,7 +1294,7 @@ function createMockFullReportPerson() {
         id: `E-7-${key}`,
         date,
         eventDate: date,
-        timestamp: `${date}T09:00:00Z`,
+        timestamp: `${date}T${key === "inpatient" ? "08" : "09"}:00:00Z`,
         title,
         detail: `Fictional demo record of ${title.toLowerCase()}.`,
         actionType: "ADD_CARE_EVENT",
@@ -1526,7 +1526,7 @@ export function upgradeSampleData(state) {
     ),
   );
   if (hasOldQuestionnaire) return createSeed();
-  if (state.sampleRevision < 22 || !state.sampleRevision)
+  if (state.sampleRevision < 23 || !state.sampleRevision)
     return prepareQualityState(prepareSeed(JSON.parse(JSON.stringify(state))));
   if (state.intakeRevision !== 3)
     state = prepareIntakes(JSON.parse(JSON.stringify(state)));
@@ -1585,6 +1585,16 @@ function remapPersonReferences(value, previousId, nextId) {
   }
 }
 
+function moveMockAdmissionToCareStart(episode, eventId) {
+  const admission = episode?.events?.find(
+    (event) => event.id === eventId && event.actor === "Sample fixture",
+  );
+  if (admission?.eventDate !== "2026-08-30") return;
+  admission.date = "2026-06-15";
+  admission.eventDate = "2026-06-15";
+  admission.timestamp = "2026-06-15T08:00:00Z";
+}
+
 function prepareSeed(state) {
   const next = state;
   const jordanFixture = createMockFullReportPerson();
@@ -1619,6 +1629,7 @@ function prepareSeed(state) {
   const jordanFixtureAppointments = jordanFixture.episodes[0].appointments;
   const jordanFixtureMeasures = jordanFixture.episodes[0].reportOutcomeMeasures;
   if (jordanEpisode) {
+    moveMockAdmissionToCareStart(jordanEpisode, "E-7-inpatient");
     jordanEpisode.appointments ??= [];
     for (const appointment of jordanFixtureAppointments) {
       const existing = jordanEpisode.appointments.find(
@@ -1802,9 +1813,9 @@ function prepareSeed(state) {
       },
       {
         id: "E-5-visual-inpatient",
-        date: "2026-08-30",
-        eventDate: "2026-08-30",
-        timestamp: "2026-08-30T09:00:00Z",
+        date: "2026-06-15",
+        eventDate: "2026-06-15",
+        timestamp: "2026-06-15T08:00:00Z",
         title: "Inpatient admission recorded",
         detail: "Fictional demo record of an inpatient admission.",
         actionType: "ADD_CARE_EVENT",
@@ -1816,6 +1827,7 @@ function prepareSeed(state) {
       if (!miaEpisode.events.some((existing) => existing.id === event.id))
         miaEpisode.events.push(event);
     }
+    moveMockAdmissionToCareStart(miaEpisode, "E-5-visual-inpatient");
     next.audit ??= [];
     if (
       !next.audit.some((entry) => entry.id === "AUD-5-collection-correction")
@@ -2068,7 +2080,7 @@ function prepareSeed(state) {
       jordanLeeEpisode.appointments.push(jordanLeeAppt);
     }
   }
-  next.sampleRevision = 22;
+  next.sampleRevision = 23;
   return prepareConsentRequests(prepareIntakes(next));
 }
 

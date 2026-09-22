@@ -19,6 +19,7 @@ import {
   LIKERT_INSTRUMENT,
   questionnaireState,
 } from "./instruments.js";
+import { careRecordTimelineEntries } from "./careRecordTimeline.js";
 const ctx = {
   personId: "YS-1024",
   episodeId: "EP-1024-01",
@@ -79,12 +80,34 @@ test("older mock data is replaced once with the refreshed branching scenarios", 
   const updated = upgradeSampleData(old);
   assert.deepEqual(old, before);
   assert.equal(updated.people[0].name, "Kai Thompson");
-  assert.equal(updated.sampleRevision, 22);
+  assert.equal(updated.sampleRevision, 23);
   assert.equal(
     updated.audit.some((item) => item.id === "old-edit"),
     false,
   );
   assert.equal(upgradeSampleData(updated), updated);
+});
+test("saved mock inpatient admission is moved to the oldest event", () => {
+  const saved = createSeed();
+  const jordan = saved.people.find((person) => person.id === "YS-1034");
+  const episode = jordan.episodes.find((item) => item.id === "EP-1034-01");
+  const admission = episode.events.find((event) => event.id === "E-7-inpatient");
+  admission.date = "2026-08-30";
+  admission.eventDate = "2026-08-30";
+  admission.timestamp = "2026-08-30T09:00:00Z";
+  saved.sampleRevision = 22;
+
+  const migrated = upgradeSampleData(saved);
+  const migratedEpisode = migrated.people.find(
+    (person) => person.id === "YS-1034",
+  ).episodes[0];
+  const eventEntries = careRecordTimelineEntries(migratedEpisode).filter(
+    (entry) => entry.sourceType === "contextual-event",
+  );
+  assert.equal(admission.eventDate, "2026-08-30");
+  assert.equal(eventEntries.at(-1).sourceId, "E-7-inpatient");
+  assert.equal(eventEntries.at(-1).date, "2026-06-15");
+  assert.equal(migrated.sampleRevision, 23);
 });
 test("a follow-up adds a pinned collection in the existing episode and preserves baseline answers", () => {
   const seed = createSeed();
@@ -663,7 +686,7 @@ test("revision four mock data gains longitudinal Likert responses once", () => {
     (person) => person.name === "Mia Robinson",
   );
   assert.deepEqual(saved, before);
-  assert.equal(migrated.sampleRevision, 22);
+  assert.equal(migrated.sampleRevision, 23);
   assert.equal(
     migratedMia.episodes[0].collections.filter(
       (collection) => collection.version === LIKERT_INSTRUMENT.version,

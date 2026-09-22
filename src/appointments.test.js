@@ -190,7 +190,7 @@ test("saved mock data gains Jordan's complete appointment fixture once", () => {
   const migrated = upgradeSampleData(saved);
   const migratedJordan = migrated.people.find((person) => person.id === "YS-1034");
   assert.deepEqual(saved, before);
-  assert.equal(migrated.sampleRevision, 22);
+  assert.equal(migrated.sampleRevision, 23);
   assert.equal(migratedJordan.episodes[0].appointments.length, 9);
   assert.equal(upgradeSampleData(migrated), migrated);
 });
