@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import {
-  CalendarClock,
   ClipboardList,
   ChevronDown,
   Filter,
@@ -33,7 +32,6 @@ const CONTEXTUAL_EVENT_ICONS = {
 };
 
 const STRUCTURED_RECORD_ICONS = {
-  appointment: CalendarClock,
   risk: ShieldAlert,
   diagnosis: Stethoscope,
   medication: Pill,
@@ -48,7 +46,7 @@ const EMPTY_FILTERS = {
 };
 
 const scopeLabel = (scope) =>
-  scope === "structured" ? "Structured record or contact" : "Contextual event";
+  scope === "structured" ? "Structured record" : "Contextual event";
 
 function TimelineIcon({ entry }) {
   const Icon =
@@ -61,7 +59,10 @@ function TimelineIcon({ entry }) {
 export default function CareEvents({ episode, openModal, eventId }) {
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const entries = useMemo(() => careRecordTimelineEntries(episode), [episode]);
+  const entries = useMemo(
+    () => careRecordTimelineEntries(episode).filter((entry) => entry.sourceType !== "appointment"),
+    [episode],
+  );
   const types = useMemo(() => careRecordTimelineTypes(entries), [entries]);
   const visibleEntries = useMemo(
     () => filterCareRecordTimelineEntries(entries, filters),
@@ -80,7 +81,7 @@ export default function CareEvents({ episode, openModal, eventId }) {
       <div className="section-toolbar">
         <div>
           <h2>Events</h2>
-          <p>Appointments, structured records and contextual events for this care period.</p>
+          <p>Structured records and contextual events for this care period.</p>
         </div>
         <div className="button-row">
           <Button variant="primary" onClick={openRecordModal}>
@@ -109,7 +110,7 @@ export default function CareEvents({ episode, openModal, eventId }) {
             <SearchInput
               value={filters.query}
               onChange={(value) => setFilter("query", value)}
-              placeholder="Search records, services or notes"
+              placeholder="Search events, records or notes"
             />
             <label className="care-timeline-date">
               <span>From</span>
@@ -155,13 +156,13 @@ export default function CareEvents({ episode, openModal, eventId }) {
         <Empty
           title={
             hasFilters
-              ? "No timeline records match these filters"
-              : "No records in this care timeline"
+              ? "No events or records match these filters"
+              : "No events or records in this care period"
           }
         >
           {hasFilters
             ? "Try a different search, type or date range."
-            : "Record an event, structured record or appointment to add it to this timeline."}
+            : "Add an event or structured record to this care period."}
           {hasFilters && (
             <Button variant="secondary" onClick={() => setFilters(EMPTY_FILTERS)}>
               Clear filters
@@ -169,7 +170,7 @@ export default function CareEvents({ episode, openModal, eventId }) {
           )}
         </Empty>
       ) : (
-        <ol className="care-event-timeline" aria-label="Care timeline records">
+        <ol className="care-event-timeline" aria-label="Events and structured records">
           {visibleEntries.map((entry) => {
             const isSelected =
               entry.sourceType === "contextual-event" && entry.sourceId === eventId;
