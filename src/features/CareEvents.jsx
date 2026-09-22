@@ -79,12 +79,12 @@ export default function CareEvents({ episode, openModal, eventId }) {
     <div className="stack care-events">
       <div className="section-toolbar">
         <div>
-          <h2>Care timeline</h2>
+          <h2>Events</h2>
           <p>Appointments, structured records and contextual events for this care period.</p>
         </div>
         <div className="button-row">
           <Button variant="primary" onClick={openRecordModal}>
-            <Plus size={17} aria-hidden="true" /> Record care timeline entry
+            <Plus size={17} aria-hidden="true" /> Add event
           </Button>
         </div>
       </div>

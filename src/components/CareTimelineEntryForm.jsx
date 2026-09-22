@@ -109,7 +109,7 @@ export default function CareTimelineEntryForm({
 
   return (
     <Modal
-      title={isCorrection ? "Correct event" : "Record care timeline entry"}
+      title={isCorrection ? "Correct event" : "Add event"}
       subtitle={`Care period ${episode.number} · ${formatDate(episode.start)}–${episode.end ? formatDate(episode.end) : "present"}`}
       onClose={onClose}
     >
