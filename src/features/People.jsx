@@ -14,7 +14,6 @@ import {
   Badge,
   Empty,
   Pagination,
-  Avatar,
 } from "../components/UI";
 
 const PAGE_SIZE = 6;
@@ -286,7 +285,6 @@ export default function People({ navigate, openModal }) {
                   <tr key={p.id} onClick={() => open(href)}>
                     <td className="people-identity">
                       <div className="person-cell">
-                        <Avatar name={p.name} />
                         <span>
                           <button
                             className="name-link"
