@@ -8046,15 +8046,6 @@ form.has-validation-errors .check-field:has(:invalid) {
   min-width: 0;
   padding-bottom: 18px;
 }
-.record-timeline > li:not(:last-child)::before {
-  content: "";
-  position: absolute;
-  top: 24px;
-  bottom: -1px;
-  left: 9px;
-  width: 1px;
-  background: #d7e2de;
-}
 .record-timeline > li > .record-item {
   min-width: 0;
 }
@@ -8062,8 +8053,14 @@ form.has-validation-errors .check-field:has(:invalid) {
   grid-template-columns: 92px 38px minmax(0, 1fr);
   gap: 12px;
 }
-.record-timeline-entry:not(:last-child)::before {
+.record-timeline > .record-timeline-entry:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  top: 27px;
+  bottom: -27px;
   left: 122px;
+  width: 1px;
+  background: #d7e2de;
 }
 .record-timeline-date {
   padding-top: 17px;
@@ -8098,7 +8095,9 @@ form.has-validation-errors .check-field:has(:invalid) {
     grid-template-columns: 68px 30px minmax(0, 1fr);
     gap: 8px;
   }
-  .record-timeline-entry:not(:last-child)::before {
+  .record-timeline > .record-timeline-entry:not(:last-child)::before {
+    top: 25px;
+    bottom: -25px;
     left: 91px;
   }
   .record-timeline-date {
