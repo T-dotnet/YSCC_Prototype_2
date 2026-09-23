@@ -25,6 +25,7 @@ import { useStore } from "../store";
 import { currentStaff, formatDate, TODAY } from "../model";
 import { sortQueueRows } from "../queueSort";
 import { ActiveFilters, SortableHeader, useQueueSort } from "../components/QueueControls";
+import { QueueCell, QueueRow } from "../components/QueueRow";
 import {
   QUALITY_SEVERITIES,
   QUALITY_STATUSES,
@@ -232,7 +233,7 @@ export function Quality({ openModal, navigate }) {
         {visibleIssues.length ? (
           <div className="table-scroll quality-table-scroll">
             <table
-              className="quality-table"
+              className="quality-table responsive-queue-table"
               aria-label="Validation issue queue"
             >
               <thead>
@@ -254,7 +255,7 @@ export function Quality({ openModal, navigate }) {
                     (item) => item.id === issue.personId,
                   );
                   return (
-                    <tr
+                    <QueueRow
                       key={issue.id}
                       onClick={() =>
                         openModal({
@@ -264,10 +265,10 @@ export function Quality({ openModal, navigate }) {
                         })
                       }
                     >
-                      <td data-label="Severity" className="quality-severity-cell">
+                      <QueueCell label="Severity" slot="priority" className="quality-severity-cell">
                         <Badge>{issue.severity}</Badge>
-                      </td>
-                      <td data-label="Client" className="quality-client-cell">
+                      </QueueCell>
+                      <QueueCell label="Client" slot="subject" className="quality-client-cell">
                         <div className="person-cell">
                           <span>
                             <button
@@ -282,21 +283,21 @@ export function Quality({ openModal, navigate }) {
                             <small>{person.id}</small>
                           </span>
                         </div>
-                      </td>
-                      <td data-label="Issue" className="quality-issue-cell">
+                      </QueueCell>
+                      <QueueCell label="Issue" slot="summary" className="quality-issue-cell">
                         <strong>{issue.type}</strong>
                         <span>{issue.description}</span>
-                      </td>
-                      <td data-label="Owner" className="quality-owner-cell">
+                      </QueueCell>
+                      <QueueCell label="Owner" slot="owner" className="quality-owner-cell">
                         <span>{issue.owner}</span>
-                      </td>
-                      <td data-label="Status" className="quality-status-cell">
+                      </QueueCell>
+                      <QueueCell label="Status" slot="state" className="quality-status-cell">
                         <Badge>{issue.status}</Badge>
-                      </td>
-                      <td data-label="Due" className="quality-due-cell">
+                      </QueueCell>
+                      <QueueCell label="Due" slot="date" className="quality-due-cell">
                         <span>{issue.dueDate ? formatDate(issue.dueDate) : "Not set"}</span>
-                      </td>
-                      <td className="quality-manage-cell">
+                      </QueueCell>
+                      <QueueCell label="Manage" slot="action" className="quality-manage-cell">
                         <Button
                           variant="secondary"
                           aria-label={`Manage ${issue.type} for ${person.name}`}
@@ -311,8 +312,8 @@ export function Quality({ openModal, navigate }) {
                         >
                           Manage
                         </Button>
-                      </td>
-                    </tr>
+                      </QueueCell>
+                    </QueueRow>
                   );
                 })}
               </tbody>

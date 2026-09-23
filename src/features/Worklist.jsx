@@ -14,6 +14,7 @@ import { intakeStage } from "../intake";
 import useQueueView from "../useQueueView";
 import { sortQueueRows } from "../queueSort";
 import { ActiveFilters, SortableHeader, useQueueSort } from "../components/QueueControls";
+import { QueueCell, QueueRow } from "../components/QueueRow";
 import {
   PageHeading,
   Button,
@@ -275,7 +276,7 @@ export default function Worklist({ navigate, openModal }) {
             />
             <div className="table-scroll desktop-worklist">
               <table
-                className="work-table"
+                className="work-table responsive-queue-table"
                 aria-label="Work items and next actions"
               >
                 <thead>
@@ -292,8 +293,8 @@ export default function Worklist({ navigate, openModal }) {
                     const { person: p, status, action } = task;
                     const c = workRecord(task);
                     return (
-                      <tr key={c.id} onClick={() => openTask(task)}>
-                        <td>
+                      <QueueRow key={c.id} onClick={() => openTask(task)}>
+                        <QueueCell label="Person" slot="subject">
                           <div className="person-cell">
                             <span>
                               <button
@@ -308,23 +309,23 @@ export default function Worklist({ navigate, openModal }) {
                               <small>{p.id}</small>
                             </span>
                           </div>
-                        </td>
-                        <td>
+                        </QueueCell>
+                        <QueueCell label="Work item" slot="summary">
                           {task.kind === "intake"
                             ? `Intake - ${intakeStage(task.record)}`
                             : c.label}
-                        </td>
-                        <td>
+                        </QueueCell>
+                        <QueueCell label="Due / review date" slot="date">
                           {c.response === "Submitted" ? (
-                            <span className="muted">Response received</span>
+                            <span className="muted">Response received · review pending</span>
                           ) : (
                             formatDate(c.due)
                           )}
-                        </td>
-                        <td>
+                        </QueueCell>
+                        <QueueCell label="Status" slot="state">
                           <Badge>{status}</Badge>
-                        </td>
-                        <td>
+                        </QueueCell>
+                        <QueueCell label="Next action" slot="action">
                           <Button
                             className="task-action"
                             onClick={(e) => {
@@ -336,46 +337,12 @@ export default function Worklist({ navigate, openModal }) {
                             {action}
                             <ArrowRight size={16} />
                           </Button>
-                        </td>
-                      </tr>
+                        </QueueCell>
+                      </QueueRow>
                     );
                   })}
                 </tbody>
               </table>
-            </div>
-            <div className="mobile-worklist">
-              {visibleTasks.map((task) => {
-                const { person: p, status, action } = task;
-                const c = workRecord(task);
-                return (
-                  <article className="task-card" key={c.id}>
-                    <div className="task-card-heading">
-                      <button className="name-link" onClick={() => openPerson(p)}>
-                        {p.name}
-                      </button>
-                      <Badge>{status}</Badge>
-                    </div>
-                    <p>
-                      {p.id} ·{" "}
-                      {task.kind === "intake" &&
-                        `Intake - ${intakeStage(task.record)}`}
-                      {task.kind !== "intake" && c.label}
-                    </p>
-                    <p>
-                      {c.response === "Submitted"
-                        ? "Response received · review pending"
-                        : `${task.kind ? "Review" : "Collection due"} ${formatDate(c.due)}`}
-                    </p>
-                    <Button
-                      onClick={() => openTask(task)}
-                      aria-label={`${action} · ${p.name} · ${c.label}`}
-                    >
-                      {action}
-                      <ArrowRight size={16} />
-                    </Button>
-                  </article>
-                );
-              })}
             </div>
             {!filtered.length && (
               <Empty

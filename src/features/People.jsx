@@ -7,6 +7,7 @@ import { getQualityIssues, recordCompleteness } from "../dataQuality";
 import { comparePeople, peopleInEpisodes } from "../people";
 import { sortQueueRows } from "../queueSort";
 import { ActiveFilters, SortableHeader, useQueueSort } from "../components/QueueControls";
+import { QueueCell, QueueRow } from "../components/QueueRow";
 import {
   PageHeading,
   Button,
@@ -176,7 +177,7 @@ export default function People({ navigate, openModal }) {
         />
         <div className="table-scroll people-table-scroll">
           <table
-            className="people-table"
+            className="people-table responsive-queue-table"
             aria-label="People and assessment status"
           >
             <thead>
@@ -203,8 +204,8 @@ export default function People({ navigate, openModal }) {
                     !["Resolved", "Closed"].includes(issue.status),
                 );
                 return (
-                  <tr key={p.id} onClick={() => open(href)}>
-                    <td className="people-identity">
+                  <QueueRow key={p.id} onClick={() => open(href)}>
+                    <QueueCell label="Person" slot="subject" className="people-identity">
                       <div className="person-cell">
                         <span className="people-identity-copy">
                           <button
@@ -224,11 +225,11 @@ export default function People({ navigate, openModal }) {
                           </span>
                         </span>
                       </div>
-                    </td>
-                    <td className="people-status">
+                    </QueueCell>
+                    <QueueCell label="Status" slot="state" className="people-status">
                       <Badge>{row.status}</Badge>
-                    </td>
-                    <td className="people-assessment">
+                    </QueueCell>
+                    <QueueCell label="Next / latest assessment" slot="summary" className="people-assessment">
                       <span>
                         {row.stage ? `Intake - ${row.stage}` : row.label}
                       </span>
@@ -239,8 +240,8 @@ export default function People({ navigate, openModal }) {
                       >
                         {row.detail}
                       </small>
-                    </td>
-                    <td className="people-completeness" data-label="Required data">
+                    </QueueCell>
+                    <QueueCell label="Required data" slot="metric" className="people-completeness">
                       <div className={`people-completeness-summary ${completeness.requiredPercentage === 100 ? "complete-100" : ""}`}>
                         {completeness.requiredPercentage === 100 ? (
                           <span className="people-completeness-100-badge">
@@ -294,22 +295,22 @@ export default function People({ navigate, openModal }) {
                           </span>
                         )}
                       </div>
-                    </td>
-                    <td className="people-owner" data-label="Care owner">
+                    </QueueCell>
+                    <QueueCell label="Care owner" slot="owner" className="people-owner">
                       {episode?.owner || p.owner || "Unassigned"}
-                    </td>
-                    <td className="people-episode" data-label="Episode">
+                    </QueueCell>
+                    <QueueCell label="Episode" slot="date" className="people-episode">
                       <span>{episode?.status || "Intake"}</span>
                       <small>
                         {episode
                           ? `Started ${formatDate(episode.start)}`
                           : "Not started"}
                       </small>
-                    </td>
-                    <td className="people-open">
+                    </QueueCell>
+                    <QueueCell label="Open" slot="action" className="people-open">
                       <ChevronRight size={18} aria-hidden="true" />
-                    </td>
-                  </tr>
+                    </QueueCell>
+                  </QueueRow>
                 );
               })}
             </tbody>
