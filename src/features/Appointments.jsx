@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import {
   CalendarDays,
   ChevronDown,
-  Clock3,
   FileText,
   Filter,
   MapPin,
@@ -102,7 +101,6 @@ function AppointmentCard({ appointment, episode, openModal }) {
 
   return (
     <RecordItem
-      className={`appointment-card appointment-card-${appointment.attendance.toLocaleLowerCase().replaceAll(" ", "-")}`}
       title={
         appointment.attendance === "Planned"
           ? "Planned appointment"
@@ -111,40 +109,25 @@ function AppointmentCard({ appointment, episode, openModal }) {
       subtitle={appointmentType}
       status={status}
       headingLevel={4}
-    >
-      <div className="appointment-card-body">
-        <div
-          className="appointment-card-when"
-          aria-label={`${when.label} ${formatDate(when.date)} at ${when.time}, ${when.duration} minutes`}
-        >
-          <span>
-            <CalendarDays size={15} aria-hidden="true" />{" "}
-            {formatDate(when.date)}
+      lead={
+        <>
+          <span className="record-item-lead-icon">
+            <CalendarDays size={22} aria-hidden="true" />
           </span>
           <span>
-            <Clock3 size={15} aria-hidden="true" /> {when.time} ·{" "}
-            {when.duration} min
+            <strong>{formatDate(when.date)} · {when.time}</strong>
+            <small>{when.label} · {when.duration} min</small>
           </span>
-        </div>
-        <dl className="appointment-facts" aria-label="Appointment details">
-          <div>
-            <dt>Delivery</dt>
-            <dd>{displayDeliveryMode(appointment.deliveryMode)}</dd>
-          </div>
-          <div>
-            <dt>Clinician or service</dt>
-            <dd>{appointment.practitionerService}</dd>
-          </div>
-          {appointment.location && (
-            <div>
-              <dt>Location</dt>
-              <dd>
-                <MapPin size={14} aria-hidden="true" /> {appointment.location}
-              </dd>
-            </div>
-          )}
-        </dl>
-
+        </>
+      }
+      facts={[
+        { label: "Delivery", value: displayDeliveryMode(appointment.deliveryMode) },
+        { label: "Clinician or service", value: appointment.practitionerService },
+        ...(appointment.location
+          ? [{ label: "Location", value: <><MapPin size={14} aria-hidden="true" /> {appointment.location}</> }]
+          : []),
+      ]}
+      secondary={
         <details className="appointment-more-detail">
           <summary>More detail</summary>
           <dl className="appointment-details">
@@ -176,10 +159,9 @@ function AppointmentCard({ appointment, episode, openModal }) {
               "Staff member"}
           </p>
         </details>
-      </div>
-
-      <footer className="appointment-card-footer">
-        {appointment.attendance === "Planned" ? (
+      }
+      actions={
+        appointment.attendance === "Planned" ? (
           <Button
             variant="secondary"
             disabled={episode.status !== "Active"}
@@ -195,9 +177,9 @@ function AppointmentCard({ appointment, episode, openModal }) {
           >
             Add outcome measure
           </Button>
-        )}
-      </footer>
-    </RecordItem>
+        )
+      }
+    />
   );
 }
 

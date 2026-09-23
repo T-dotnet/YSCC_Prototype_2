@@ -9,7 +9,11 @@ export default function RecordItem({
   selected = false,
   headingLevel = 3,
   className = "",
-  children,
+  lead,
+  facts = [],
+  secondary,
+  note,
+  actions,
 }) {
   const Heading = `h${headingLevel}`;
   const heading = (
@@ -22,6 +26,30 @@ export default function RecordItem({
     </>
   );
   const classes = `record-item${selected ? " selected-collection" : ""}${className ? ` ${className}` : ""}`;
+  const content = (
+    <div className="record-item-content">
+      <div className="record-item-body">
+        {lead && <div className="record-item-lead">{lead}</div>}
+        {facts.length > 0 && (
+          <dl className="record-item-facts">
+            {facts.map(({ label, value }) => (
+              <div key={label}>
+                <dt>{label}</dt>
+                <dd>{value}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+        {secondary && <div className="record-item-secondary">{secondary}</div>}
+      </div>
+      {(note || actions) && (
+        <footer className="record-item-footer">
+          {note && <span className="record-item-note">{note}</span>}
+          {actions && <div className="record-item-actions">{actions}</div>}
+        </footer>
+      )}
+    </div>
+  );
 
   return collapsible ? (
     <details className={classes}>
@@ -29,12 +57,12 @@ export default function RecordItem({
         {heading}
         <ChevronDown size={18} aria-hidden="true" />
       </summary>
-      <div className="record-item-content">{children}</div>
+      {content}
     </details>
   ) : (
     <article className={classes}>
       <div className="record-item-heading">{heading}</div>
-      <div className="record-item-content">{children}</div>
+      {content}
     </article>
   );
 }

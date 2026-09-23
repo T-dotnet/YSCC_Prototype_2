@@ -18,6 +18,7 @@ import {
   ChevronDown,
   FileText,
   CheckCircle2,
+  FileCheck2,
 } from "lucide-react";
 import { useStore } from "../store";
 import RecordTwo from "./RecordTwo";
@@ -605,104 +606,84 @@ export default function Person({ id, navigate, openModal }) {
                   status={collectionStatus(col)}
                   collapsible={isPrior}
                   selected={col.id === searchParams.get("collection")}
-                >
-                  <div className="panel-body">
-                    <div className="assignment-grid">
-                      <div className="measure-title">
-                        <span className="measure-icon">
-                          <FileText size={24} />
-                        </span>
-                        <div>
-                          <h3>{col.version}</h3>
-                          <p>
-                            {getInstrument(col.version)?.questions.length ||
-                              "Version-specific"}{" "}
-                            sample questions · no clinical score
-                          </p>
-                        </div>
-                      </div>
-                      <div>
-                        <small>Respondent</small>
-                        <PersonIdentity
-                          name={respondent.name}
-                          descriptor={respondent.role}
-                        />
-                      </div>
-                      <div>
-                        <small>Due date</small>
-                        <strong>{formatDate(col.due)}</strong>
-                      </div>
-                      <div>
-                        <small>Collection method</small>
-                        <strong>{col.channel || "Not set up"}</strong>
-                      </div>
+                  lead={
+                    <>
+                      <span className="record-item-lead-icon"><FileText size={22} /></span>
+                      <span>
+                        <strong>{col.version}</strong>
+                        <small>
+                          {getInstrument(col.version)?.questions.length || "Version-specific"}{" "}
+                          sample questions · no clinical score
+                        </small>
+                      </span>
+                    </>
+                  }
+                  facts={[
+                    {
+                      label: "Respondent",
+                      value: <PersonIdentity name={respondent.name} descriptor={respondent.role} />,
+                    },
+                    { label: "Due date", value: formatDate(col.due) },
+                    { label: "Collection method", value: col.channel || "Not set up" },
+                  ]}
+                  secondary={
+                    <div className="record-item-statuses">
+                      <span>Assignment <Badge>{col.assignment}</Badge></span>
+                      <span>Response <Badge>{col.response}</Badge></span>
+                      <span>Review <Badge>{clinicalReviewStatus(col)}</Badge></span>
                     </div>
-                    <div className="assignment-status">
-                      <span>
-                        Assignment <Badge>{col.assignment}</Badge>
-                      </span>
-                      <span>
-                        Response <Badge>{col.response}</Badge>
-                      </span>
-                      <span>
-                        Review <Badge>{clinicalReviewStatus(col)}</Badge>
-                      </span>
-                    </div>
-                    <div className="assignment-footer">
-                      <span className="muted">
-                        {col.attempts.length} delivery{" "}
-                        {col.attempts.length === 1 ? "attempt" : "attempts"} ·
-                        version pinned at assignment
-                      </span>
-                      <div className="actions">
-                        <TextLink
+                  }
+                  note={
+                    <>
+                      {col.attempts.length} delivery{" "}
+                      {col.attempts.length === 1 ? "attempt" : "attempts"} · version pinned at assignment
+                    </>
+                  }
+                  actions={
+                    <>
+                      <TextLink
+                        aria-haspopup="dialog"
+                        onClick={() =>
+                          openModal({
+                            type: "collection-details",
+                            personId: p.id,
+                            episodeId: e.id,
+                            collectionId: col.id,
+                          })
+                        }
+                      >
+                        View details
+                      </TextLink>
+                      {col.response === "Submitted" &&
+                        (!noClinicalReviewRequired(col) ||
+                          collectionStatus(col) === "Completed") && (
+                          <Button variant="secondary" onClick={() => openReview(col)}>
+                            {col.needsReview
+                              ? "Review updated answers"
+                              : col.review === "Reviewed" || collectionStatus(col) === "Completed"
+                                ? "Review recorded"
+                                : "Review responses"}
+                          </Button>
+                        )}
+                      {col.response !== "Submitted" && (
+                        <Button
+                          variant="secondary"
                           aria-haspopup="dialog"
                           onClick={() =>
                             openModal({
-                              type: "collection-details",
+                              type: "questionnaire-preview",
                               personId: p.id,
                               episodeId: e.id,
                               collectionId: col.id,
                             })
                           }
                         >
-                          View details
-                        </TextLink>
-                        {col.response === "Submitted" &&
-                          (!noClinicalReviewRequired(col) ||
-                            collectionStatus(col) === "Completed") && (
-                            <Button
-                              variant="secondary"
-                              onClick={() => openReview(col)}
-                            >
-                              {col.needsReview
-                                ? "Review updated answers"
-                                : col.review === "Reviewed" ||
-                                    collectionStatus(col) === "Completed"
-                                  ? "Review recorded"
-                                  : "Review responses"}
-                            </Button>
-                          )}
-                        {col.response !== "Submitted" && (
-                          <Button
-                            variant="secondary"
-                            aria-haspopup="dialog"
-                            onClick={() =>
-                              openModal({
-                                type: "questionnaire-preview",
-                                personId: p.id,
-                                episodeId: e.id,
-                                collectionId: col.id,
-                              })
-                            }
-                          >
-                            Preview questionnaire
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </RecordItem>
+                          Preview questionnaire
+                        </Button>
+                      )}
+                    </>
+                  }
+                />
               );
             })}
             <Notice>
@@ -750,37 +731,39 @@ export default function Person({ id, navigate, openModal }) {
                 subtitle={`${request.version} · ${request.scope}`}
                 status={request.status}
                 collapsible
-              >
-                  <div className="panel-body">
-                    <dl className="metadata">
-                      <div><dt>Version</dt><dd>{request.version}</dd></div>
-                      <div><dt>Scope</dt><dd>{request.scope}</dd></div>
-                      <div>
-                        <dt>Delivery</dt>
-                        <dd>{request.channel} · {request.sentAt ? formatDate(request.sentAt) : "Not sent"}</dd>
-                      </div>
-                      <div><dt>Current decision</dt><dd>{request.status}</dd></div>
-                      {request.decisionMaker && (
-                        <div><dt>Decision maker</dt><dd>{request.decisionMaker}</dd></div>
-                      )}
-                    </dl>
-                    <div className="assignment-footer">
-                      <span className="muted">
-                        {request.status === "Sent"
-                          ? "Waiting for the patient’s decision."
-                          : "Open request history and the permitted next action."}
-                      </span>
-                      <div className="actions">
-                        <Button
-                          variant="secondary"
-                          onClick={() => openModal({ ...context, type: "consent-detail", consentRequestId: request.id })}
-                        >
-                          View request
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-              </RecordItem>
+                lead={
+                  <>
+                    <span className="record-item-lead-icon"><FileCheck2 size={22} aria-hidden="true" /></span>
+                    <span>
+                      <strong>{request.version}</strong>
+                    </span>
+                  </>
+                }
+                facts={[
+                  { label: "Scope", value: request.scope },
+                  {
+                    label: "Delivery",
+                    value: `${request.channel} · ${request.sentAt ? formatDate(request.sentAt) : "Not sent"}`,
+                  },
+                  { label: "Current decision", value: request.status },
+                  ...(request.decisionMaker
+                    ? [{ label: "Decision maker", value: request.decisionMaker }]
+                    : []),
+                ]}
+                note={
+                  request.status === "Sent"
+                    ? "Waiting for the patient’s decision."
+                    : "Open request history and the permitted next action."
+                }
+                actions={
+                  <Button
+                    variant="secondary"
+                    onClick={() => openModal({ ...context, type: "consent-detail", consentRequestId: request.id })}
+                  >
+                    View request
+                  </Button>
+                }
+              />
             ))}
             <section className="consent-context-panel" aria-labelledby="consent-context-title">
               <h3 id="consent-context-title">Contact and participant context</h3>
