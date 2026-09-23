@@ -1,3 +1,5 @@
+import { carePeriodAt } from "./carePeriods.js";
+
 export const APPOINTMENT_ATTENDANCE = [
   "Planned",
   "Attended",
@@ -74,11 +76,11 @@ const validContact = (action, prior = {}) => {
 };
 
 export function appointmentError(episode, action, today) {
-  if (!episode) return "The selected care period is unavailable.";
+  if (!episode) return "The selected care episode is unavailable.";
   if (!validDate(action.plannedDate) || !validTime(action.plannedTime))
     return "Enter a valid planned date and time.";
   if (action.plannedDate < episode.start || (episode.end && action.plannedDate > episode.end))
-    return "The planned contact must be within this care period.";
+    return "The planned contact must be within this care episode.";
   if (!validDuration(action.plannedDurationMinutes))
     return "Enter a planned duration between 1 and 600 minutes.";
   if (!action.practitionerService?.trim())
@@ -101,7 +103,7 @@ export function appointmentError(episode, action, today) {
   if (!validDate(action.actualDate) || !validTime(action.actualTime))
     return "Enter the actual contact date and time.";
   if (!withinCarePeriod(episode, action.actualDate, today))
-    return "The actual contact must be within this care period and cannot be in the future.";
+    return "The actual contact must be within this care episode and cannot be in the future.";
   if (!validDuration(action.actualDurationMinutes))
     return "Enter the actual duration between 1 and 600 minutes.";
   return null;
@@ -111,7 +113,7 @@ export function appointmentOutcomeError(episode, appointment, action, today) {
   if (!episode || !appointment)
     return "The selected appointment or service contact is unavailable.";
   if (episode.status !== "Active")
-    return "An outcome can only be recorded while this care period is active.";
+    return "An outcome can only be recorded while this care episode is active.";
   if (appointment.attendance !== "Planned")
     return "An outcome has already been recorded for this appointment or service contact.";
   if (!APPOINTMENT_ATTENDANCE.includes(action.attendance) || action.attendance === "Planned")
@@ -122,7 +124,7 @@ export function appointmentOutcomeError(episode, appointment, action, today) {
   if (!validDate(action.actualDate) || !validTime(action.actualTime))
     return "Enter the actual contact date and time.";
   if (!withinCarePeriod(episode, action.actualDate, today))
-    return "The actual contact must be within this care period and cannot be in the future.";
+    return "The actual contact must be within this care episode and cannot be in the future.";
   if (!validDuration(action.actualDurationMinutes))
     return "Enter the actual duration between 1 and 600 minutes.";
   return null;
@@ -250,6 +252,10 @@ export function associatedCollections(appointment, episode) {
 
 export function appointmentDetails(appointment, episode) {
   const associated = associatedCollections(appointment, episode);
+  const contactDate = appointment.attendance === "Planned"
+    ? null
+    : appointment.actualDate || appointment.plannedDate;
+  const levelAtContact = carePeriodAt(episode, contactDate);
   const details = [
     ["Planned date", appointment.plannedDate],
     ["Planned time", appointment.plannedTime],
@@ -257,6 +263,7 @@ export function appointmentDetails(appointment, episode) {
     ["Practitioner or service", appointment.practitionerService],
     ["Delivery mode", appointment.deliveryMode],
     ["Attendance", appointment.attendance],
+    ["Care level on contact date", levelAtContact?.careLevel],
     ["Direct contact type", appointment.contactType],
     ["Recipient", appointment.recipientType],
     ["Related person", appointment.relatedPersonName],

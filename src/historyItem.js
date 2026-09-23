@@ -3,7 +3,9 @@ import { careEventDetails, careEventType } from "./careEvents.js";
 import { clinicalRecordDetails, clinicalRecordType } from "./clinicalRecords.js";
 
 export const historyDate = (entry) =>
-  entry.type === "appointment"
+  ["SET_INITIAL_CARE_LEVEL", "CHANGE_CARE_LEVEL"].includes(entry.actionType)
+    ? entry.effectiveDate || entry.date || null
+    : entry.type === "appointment"
     ? entry.actualDate || entry.plannedDate || entry.date || null
     : entry.type === "assessment"
       ? entry.date || entry.due || null
@@ -12,7 +14,9 @@ export const historyDate = (entry) =>
       : entry.eventDate || entry.timestamp || entry.date || null;
 
 export const historyCategory = (entry) =>
-  entry.type === "appointment" ? "appointment"
+  ["SET_INITIAL_CARE_LEVEL", "CHANGE_CARE_LEVEL"].includes(entry.actionType)
+    ? "care-level"
+    : entry.type === "appointment" ? "appointment"
     : entry.type === "clinical-record" ? "clinical-record"
       : entry.eventDate ? "contextual-event"
         : entry.collectionId ? "assessment"
@@ -29,7 +33,8 @@ export const HISTORY_CATEGORIES = {
   intake: "Intake",
   referral: "Referrals",
   report: "Reports",
-  "care-period": "Care period",
+  "care-period": "Care episode",
+  "care-level": "Care level changes",
 };
 
 const fact = (label, value) => ({ label, value });
@@ -135,6 +140,27 @@ export function historyItem(entry, episode, formatDetail = (value) => value) {
     };
   }
 
+  if (["SET_INITIAL_CARE_LEVEL", "CHANGE_CARE_LEVEL"].includes(entry.actionType)) {
+    const period = episode.carePeriods?.find((item) => item.id === entry.carePeriodId);
+    const review = episode.collections?.find((item) => item.id === period?.triggeringReviewId);
+    return {
+      subtitle: "Care level",
+      date: historyDate(entry),
+      dateLabel: "Effective",
+      primary: [
+        ...(period?.programStream ? [fact("Program stream", period.programStream)] : []),
+        ...(period?.previousCareLevel ? [fact("From level", period.previousCareLevel)] : []),
+        ...(period ? [fact("Care level", period.careLevel), fact("Delivering team or pod", period.deliveringUnit)] : []),
+      ],
+      more: [
+        ...(period?.entryReason ? [fact("Reason", period.entryReason)] : []),
+        ...(review ? [fact("Triggering review", review.label)] : []),
+        ...(period?.authorisingPractitioner ? [fact("Authorising clinician", period.authorisingPractitioner)] : []),
+        ...metadata,
+      ],
+    };
+  }
+
   const assessment = entry.collectionId
     ? episode.collections.find((collection) => collection.id === entry.collectionId)
     : null;
@@ -153,7 +179,7 @@ export function historyItem(entry, episode, formatDetail = (value) => value) {
     ...(usefulDetail && !entry.attemptRespondent ? [fact(detailLabel, usefulDetail)] : []),
   ];
   return {
-    subtitle: entry.scope?.startsWith("Referral") ? "Referral" : entry.scope === "Intake" ? "Intake" : assessment ? "Assessment activity" : entry.actionType === "SAVE_PROGRESS_REPORT" ? "Report" : entry.title?.startsWith("Care episode") ? "Care period" : entry.scope || "Care history",
+    subtitle: entry.scope?.startsWith("Referral") ? "Referral" : entry.scope === "Intake" ? "Intake" : assessment ? "Assessment activity" : entry.actionType === "SAVE_PROGRESS_REPORT" ? "Report" : entry.title?.startsWith("Care episode") ? "Care episode" : entry.scope || "Care history",
     date: historyDate(entry),
     dateLabel: null,
     primary: primary.slice(0, 3),

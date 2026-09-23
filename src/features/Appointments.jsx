@@ -152,8 +152,8 @@ function AppointmentCard({ appointment, episode, openModal }) {
                 </div>
               ))}
             <div>
-              <dt>Linked care period</dt>
-              <dd>Care period {episode.number}</dd>
+              <dt>Linked care episode</dt>
+              <dd>Care episode {episode.number}</dd>
             </div>
           </dl>
           <p className="appointment-recorded">
@@ -367,7 +367,7 @@ export default function Appointments({ episode, openModal }) {
       {appointments.length === 0 ? (
         <Empty title="No service contacts recorded">
           Add a planned, attended, cancelled or did-not-attend contact. It will
-          also appear in this care period’s History and change log.
+          also appear in this care episode’s History and change log.
         </Empty>
       ) : visibleAppointments.length === 0 ? (
         <Empty title="No contacts match these filters">

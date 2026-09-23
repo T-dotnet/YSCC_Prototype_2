@@ -50,6 +50,8 @@ import CareTimelineEntryForm from "./CareTimelineEntryForm";
 import CareEventForm from "./CareEventForm";
 import AppointmentForm from "./AppointmentForm";
 import AppointmentOutcomeForm from "./AppointmentOutcomeForm";
+import CareLevelForm from "./CareLevelForm";
+import { carePeriodError } from "../carePeriods";
 import ClinicalRecordForm from "./ClinicalRecordForm";
 import QualityIssueForm from "./QualityIssueForm";
 const formValues = (e) => Object.fromEntries(new FormData(e.currentTarget));
@@ -233,7 +235,7 @@ export default function Forms({
           save(
             action,
             action.type === "ADD_CLINICAL_RECORD"
-              ? "Structured care record added to this care period."
+              ? "Structured care record added to this care episode."
               : "Event added to the timeline.",
           )
         }
@@ -248,10 +250,26 @@ export default function Forms({
         error={formError}
         onClose={onClose}
         onSave={(action) =>
-          save(action, "Appointment or service contact added to this care period.")
+          save(action, "Appointment or service contact added to this care episode.")
         }
       />
     );
+  if (modal.type === "care-level") {
+    const clinicians = DEMO_STAFF.filter((item) => item.role === "Clinician");
+    return (
+      <CareLevelForm
+        episode={e}
+        clinicians={clinicians}
+        error={formError}
+        onClose={onClose}
+        onSave={(action) => {
+          const problem = carePeriodError(e, action, staff, TODAY, clinicians);
+          if (problem) return setFormError(problem);
+          save(action, action.type === "CHANGE_CARE_LEVEL" ? "Care level changed. Earlier level retained in history." : "Starting care level recorded.");
+        }}
+      />
+    );
+  }
   if (modal.type === "appointment-outcome") {
     const appointment = e?.appointments?.find(
       (item) => item.id === modal.appointmentId,
@@ -1831,8 +1849,8 @@ export default function Forms({
   if (modal.type === "episode")
     return (
       <Modal
-        title="Care period actions"
-        subtitle={`${displayPersonName(p)} · Care period ${e.number}`}
+        title="Care episode actions"
+        subtitle={`${displayPersonName(p)} · Care episode ${e.number}`}
         onClose={onClose}
       >
         <ValidatedForm
@@ -1840,7 +1858,7 @@ export default function Forms({
             ev.preventDefault();
             save(
               { type: "EPISODE", status: episodeAction, ...formValues(ev) },
-              `Care period ${episodeAction.toLowerCase()}. Outstanding collections reconciled.`,
+              `Care episode ${episodeAction.toLowerCase()}. Outstanding collections reconciled.`,
             );
           }}
         >
@@ -1850,8 +1868,8 @@ export default function Forms({
                 value={episodeAction}
                 onChange={(ev) => setEpisodeAction(ev.target.value)}
               >
-                <option value="Paused">Pause care period</option>
-                <option value="Closed">Close care period</option>
+                <option value="Paused">Pause care episode</option>
+                <option value="Closed">Close care episode</option>
               </select>
             </Field>
             <Field label="Reason for this decision">
@@ -1859,7 +1877,7 @@ export default function Forms({
                 name="reason"
                 required
                 rows={3}
-                placeholder="Explain why this period of care is being paused or closed…"
+                placeholder="Explain why this episode of care is being paused or closed…"
               />
             </Field>
             {episodeAction === "Closed" && (
@@ -2019,7 +2037,7 @@ export default function Forms({
             </label>
           </div>
           {footer(
-            episodeAction === "Paused" ? "Pause care period" : "Close care period",
+            episodeAction === "Paused" ? "Pause care episode" : "Close care episode",
             e.status !== "Active",
           )}
         </ValidatedForm>

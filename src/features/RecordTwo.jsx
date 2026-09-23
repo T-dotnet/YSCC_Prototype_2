@@ -647,7 +647,7 @@ function OutcomeComparison({ measures, inModal = false }) {
       <summary>
         <span>
           <strong>Compare measures</strong>
-          <small>Across this care period</small>
+          <small>Across this care episode</small>
         </span>
         <ChevronDown size={18} aria-hidden="true" />
       </summary>

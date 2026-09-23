@@ -1,4 +1,5 @@
 import { careChanges, recordFieldChanges } from "./activity.js";
+import { PROGRAM_STREAMS } from "./carePeriods.js";
 
 // Prototype workflow only: clinical criteria and external agreements remain D-26/D-27.
 export const INTAKE_STATES = [
@@ -212,6 +213,8 @@ export function intakeActionError(state, action, staff) {
       return "";
     }
     if (action.type === "START_ASSESSMENT") {
+      if (!PROGRAM_STREAMS.includes(action.programStream))
+        return "Choose the program stream for this episode.";
       if (!intakeReady(i))
         return "Complete intake with a proceed decision and assessment owner first.";
       if (i.episodeId || p.episodes.length)
@@ -559,6 +562,7 @@ export function applyIntakeAction(
       number: "01",
       status: "Active",
       start: today,
+      programStream: action.programStream,
       disposition: "Undecided",
       owner: i.assessmentOwner,
       events: [

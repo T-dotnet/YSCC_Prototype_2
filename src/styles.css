@@ -2958,6 +2958,13 @@ td:last-child {
   justify-content: flex-end;
   gap: 8px;
 }
+@media (max-width: 640px) {
+  .person-heading-title-row,
+  .person-heading-tags {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
 .person-name-heading small {
   color: var(--muted);
   font-size: 13px;
@@ -3207,15 +3214,141 @@ td:last-child {
 .overview-assessment {
   margin-bottom: 18px;
 }
+.care-level-panel {
+  margin-bottom: 18px;
+}
+.overview-top-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+  gap: 16px;
+  align-items: stretch;
+  margin-bottom: 18px;
+}
+.overview-top-row > .panel {
+  min-width: 0;
+  height: 100%;
+  margin-bottom: 0;
+}
+.overview-top-row .care-level-current {
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+.overview-top-row .care-level-fact + .care-level-fact {
+  border-left: 0;
+  border-top: 1px solid var(--line-soft);
+  padding: 16px 0 0;
+}
+@media (max-width: 1100px) {
+  .overview-top-row {
+    grid-template-columns: 1fr;
+  }
+}
+.care-level-panel .panel-heading {
+  flex-wrap: wrap;
+  padding: 14px 20px;
+}
+.care-level-panel .panel-heading h2 {
+  font-size: var(--text-title);
+}
+.care-level-panel .panel-body {
+  padding: 16px 20px;
+}
+.care-level-current {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+.care-level-fact {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  min-width: 0;
+}
+.care-level-fact + .care-level-fact {
+  border-left: 1px solid var(--line-soft);
+  padding-left: 20px;
+}
+.care-level-current small,
+.care-level-current span,
+.care-level-history small,
+.care-level-empty-note {
+  color: var(--muted);
+  font-size: 12px;
+}
+.care-level-current strong {
+  font-size: 17px;
+}
+.care-level-empty-note {
+  margin: 16px 0 0;
+}
+@media (max-width: 520px) {
+  .care-level-current {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .care-level-fact + .care-level-fact {
+    border-left: 0;
+    border-top: 1px solid var(--line-soft);
+    padding: 14px 0 0;
+  }
+}
+.care-level-history {
+  margin-top: 16px;
+  border-top: 1px solid var(--line-soft);
+  padding-top: 12px;
+}
+.care-level-history > summary {
+  color: var(--teal);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+}
+.care-level-history ol {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+}
+.care-level-history li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 5px 12px;
+  border-left: 3px solid var(--teal);
+  padding: 5px 0 5px 12px;
+  font-size: 12px;
+}
+.care-level-history li strong {
+  font-size: 14px;
+}
+.care-level-history li small {
+  flex-basis: 100%;
+}
+.care-level-form > p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
 .overview-assessment-heading {
   padding: 20px 22px 18px;
   border-bottom: 1px solid var(--line);
+}
+.overview-assessment-topline {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.overview-assessment-topline .badge {
+  flex-shrink: 0;
 }
 .overview-assessment-label {
   color: var(--muted);
   font-size: 12px;
   font-weight: 600;
-  margin: 0 0 6px;
+  margin: 0;
 }
 .overview-assessment-title {
   display: flex;
@@ -3264,9 +3397,6 @@ td:last-child {
 .overview-assessment-details .notice {
   margin-top: 16px;
   font-size: 12px;
-}
-.assessment-preview-action {
-  margin-top: 16px;
 }
 @media (max-width: 960px) {
   .topbar-search {
@@ -12928,7 +13058,7 @@ h6 {
   border-bottom: 0;
 }
 
-.main:has(.person-heading) #person-panel > .overview-assessment {
+.main:has(.person-heading) .overview-top-row > .overview-assessment {
   margin-bottom: 16px;
   border: 0;
   border-radius: 12px;
@@ -13036,7 +13166,7 @@ h6 {
     background: #f7f7f4;
   }
 
-  .main:has(.person-heading) #person-panel > .overview-assessment {
+  .main:has(.person-heading) .overview-top-row > .overview-assessment {
     background: #f7f7f4;
   }
 
@@ -13403,11 +13533,12 @@ h6 {
   .main:has(.person-heading) .episode-bar {
     display: grid;
     grid-template-columns:
-      minmax(0, 1.45fr)
-      minmax(0, .7fr)
+      minmax(0, 1.55fr)
+      minmax(0, .55fr)
       minmax(0, 1fr)
-      minmax(0, 1.15fr)
-      minmax(0, .8fr);
+      minmax(0, 1.05fr)
+      minmax(0, .85fr)
+      minmax(0, .7fr);
     align-items: center;
     gap: 0;
     min-height: 72px;
@@ -13444,7 +13575,8 @@ h6 {
       minmax(76px, .65fr)
       minmax(0, .9fr)
       minmax(0, 1fr)
-      minmax(75px, .75fr);
+      minmax(75px, .75fr)
+      minmax(75px, .7fr);
   }
 
   .main:has(.person-heading) .episode-bar > div:not(:first-child) {
@@ -13486,6 +13618,34 @@ h6 {
   line-height: 1.4;
 }
 
+.main:has(.person-heading) .episode-care-level-value {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.main:has(.person-heading) .episode-care-level-value > span {
+  color: var(--ink);
+  font-size: var(--type-supporting);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.main:has(.person-heading) .episode-care-level-change {
+  padding: 0;
+  color: var(--teal);
+  font-size: var(--type-metadata);
+  font-weight: 600;
+  line-height: 1.4;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.main:has(.person-heading) .episode-care-level-change:hover {
+  color: var(--teal-dark);
+}
+
 @media (max-width: 700px) {
   .main:has(.person-heading) .episode-bar {
     display: grid;
@@ -13523,21 +13683,21 @@ h6 {
 
 @container person-record (max-width: 1100px) {
   .main:has(.person-heading) .episode-bar {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(12, minmax(0, 1fr));
     row-gap: 14px;
   }
 
   .main:has(.person-heading) .episode-period {
-    grid-column: 1 / 5;
+    grid-column: 1 / 9;
   }
 
   .main:has(.person-heading) .episode-bar > .episode-status {
-    grid-column: 5 / -1;
+    grid-column: 9 / -1;
     justify-self: end;
   }
 
   .main:has(.person-heading) .episode-bar > .episode-fact {
-    grid-column: span 2;
+    grid-column: span 3;
     height: auto;
     min-height: 52px;
     justify-content: flex-start;
@@ -13553,15 +13713,14 @@ h6 {
 
 @container person-record (max-width: 520px) {
   .main:has(.person-heading) .episode-bar > .episode-owner,
-  .main:has(.person-heading) .episode-bar > .episode-location {
-    grid-column: span 3;
+  .main:has(.person-heading) .episode-bar > .episode-location,
+  .main:has(.person-heading) .episode-bar > .episode-care-level,
+  .main:has(.person-heading) .episode-bar > .episode-completeness {
+    grid-column: span 6;
   }
 
   .main:has(.person-heading) .episode-bar > div.episode-completeness {
-    grid-column: 1 / -1;
     min-height: 0;
-    padding-left: 0;
-    border-left: 0;
   }
 }
 

@@ -119,6 +119,7 @@ const start = (s) =>
     intakeId: person(s).intakes[0].id,
     revision: person(s).intakes[0].revision,
     due: TODAY,
+    programStream: "General",
   });
 const reopen = (s) =>
   reducer(s, {

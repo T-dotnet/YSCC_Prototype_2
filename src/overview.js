@@ -44,7 +44,7 @@ export function overviewNextStep(person, episode, collection, staff) {
   if (episode.status !== "Active")
     return step(
       episode.status === "Closed"
-        ? "This care period is closed"
+        ? "This care episode is closed"
         : "Care is paused",
       episode.nextCareStep ||
         episode.reason ||

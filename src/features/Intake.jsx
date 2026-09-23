@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ArrowLeft, ChevronDown } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useStore } from "../store";
+import { PROGRAM_STREAMS } from "../carePeriods";
 import {
   TODAY,
   currentStaff,
@@ -776,6 +777,7 @@ export function IntakePanel({ person, intake, navigate }) {
 function IntakeAssessmentPanel({ person, intake, navigate }) {
   const { state, commit } = useStore();
   const [due, setDue] = useState(TODAY);
+  const [programStream, setProgramStream] = useState("");
   const [error, setError] = useState("");
   const ready = intakeReady(intake);
   const startAssessment = (event) => {
@@ -786,6 +788,7 @@ function IntakeAssessmentPanel({ person, intake, navigate }) {
       intakeId: intake.id,
       revision: intake.revision,
       due,
+      programStream,
     };
     const problem = intakeActionError(state, action, currentStaff(state));
     if (problem) return setError(problem);
@@ -831,6 +834,12 @@ function IntakeAssessmentPanel({ person, intake, navigate }) {
                     value={due}
                     onChange={(event) => setDue(event.target.value)}
                   />
+                </Field>
+                <Field label="Program stream">
+                  <select required value={programStream} onChange={(event) => setProgramStream(event.target.value)}>
+                    <option value="">Choose stream</option>
+                    {PROGRAM_STREAMS.map((stream) => <option key={stream} value={stream}>{stream}</option>)}
+                  </select>
                 </Field>
                 {error && <p role="alert" className="field-error">{error}</p>}
                 <Button type="submit" variant="primary">Create assessment plan</Button>

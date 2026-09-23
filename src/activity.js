@@ -93,6 +93,19 @@ export function careChanges(before, after) {
       })),
     );
   }
+  for (const period of after.carePeriods ?? []) {
+    const previous = before?.carePeriods?.find((item) => item.id === period.id);
+    changes.push(...recordFieldChanges(previous, period, [
+      ["programStream", "Program stream"],
+      ["careLevel", "Care level"],
+      ["deliveringUnit", "Delivering team or pod"],
+      ["startDate", "Level effective date"],
+      ["endDateExclusive", "Level ended before"],
+      ["entryReason", "Level entry reason"],
+      ["triggeringReviewId", "Triggering review"],
+      ["authorisingPractitioner", "Authorising clinician"],
+    ]).map((change) => ({ ...change, key: `${period.id}-${change.key}` })));
+  }
   if (after.progressReport && after.progressReport !== before?.progressReport) {
     changes.push(
       ...reportChanges(

@@ -111,7 +111,7 @@ function RecordDetail({ person, episode, entry, onClose, onOpenSource }) {
       : entry.sourceType === "event"
         ? "Care event"
         : entry.sourceType === "service"
-          ? "Care period"
+          ? "Service period"
           : entry.sourceType === "medication-course"
             ? "Medication course"
             : entry.sourceType === "k10"
@@ -437,7 +437,7 @@ function SharedTimeline({
           <div className="longitudinal-key" aria-label="Timeline key">
             <strong>How to read this timeline</strong>
             <span>
-              <i className="longitudinal-key-bar" /> Care period
+              <i className="longitudinal-key-bar" /> Service period
             </span>
             <span>
               <i className="longitudinal-key-medication-bar" /> Medication
@@ -735,8 +735,8 @@ function CareAndMedicationChart({ timeline }) {
           <h3 id="longitudinal-care-heading">Care and medication context</h3>
           <p>
             {hasCourses
-              ? "Recorded care periods and medication courses are bars. Medication reviews and adverse events are dated markers; no other duration is inferred."
-              : "Recorded care periods are bars. Medication records are dated events; no prescription duration is inferred."}
+              ? "Recorded service periods and medication courses are bars. Medication reviews and adverse events are dated markers; no other duration is inferred."
+              : "Recorded service periods are bars. Medication records are dated events; no prescription duration is inferred."}
           </p>
         </div>
       </div>
@@ -795,7 +795,7 @@ function CareAndMedicationChart({ timeline }) {
         </div>
       ) : (
         <p className="longitudinal-empty">
-          No dated care periods or medication events are recorded for this
+          No dated service periods or medication events are recorded for this
           episode.
         </p>
       )}

@@ -26,7 +26,7 @@ export default function AppointmentForm({
   return (
     <Modal
       title="Add appointment or service contact"
-      subtitle={`Care period ${episode.number} · ${formatDate(episode.start)}–${episode.end ? formatDate(episode.end) : "present"}`}
+      subtitle={`Care episode ${episode.number} · ${formatDate(episode.start)}–${episode.end ? formatDate(episode.end) : "present"}`}
       onClose={onClose}
     >
       <ValidatedForm
