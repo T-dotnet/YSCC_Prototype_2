@@ -379,12 +379,32 @@ export default function Person({ id, navigate, openModal }) {
           </button>
           {requiredDataIssues.length > 0 && (
             <div className="episode-required-issues">
-              <strong>{requiredDataIssues.length} {requiredDataIssues.length === 1 ? "data issue" : "data issues"}</strong>
-              <ul>
-                {requiredDataIssues.map((issue) => (
-                  <li key={issue.id}>{issue.title || issue.type || "Data issue"}</li>
-                ))}
-              </ul>
+              {requiredDataIssues.length === 1 ? (
+                <button
+                  type="button"
+                  className="episode-required-issue-link"
+                  onClick={() => openModal({ type: "quality-issue", personId: p.id, issueId: requiredDataIssues[0].id })}
+                >
+                  1 data issue
+                </button>
+              ) : (
+                <>
+                  <strong>{requiredDataIssues.length} data issues</strong>
+                  <ul>
+                    {requiredDataIssues.map((issue) => (
+                      <li key={issue.id}>
+                        <button
+                          type="button"
+                          className="episode-required-issue-link"
+                          onClick={() => openModal({ type: "quality-issue", personId: p.id, issueId: issue.id })}
+                        >
+                          {issue.title || issue.type || "Data issue"}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
             </div>
           )}
         </div>

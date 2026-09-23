@@ -3143,6 +3143,21 @@ td:last-child {
 .episode-required-issues strong {
   font-weight: 700;
 }
+.episode-required-issue-link {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: #a33324;
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.episode-required-issue-link:hover {
+  color: #7e271d;
+}
 .episode-required-issues ul {
   max-height: 160px;
   overflow: auto;
