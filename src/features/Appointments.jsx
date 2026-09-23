@@ -16,13 +16,13 @@ import {
 } from "../appointments";
 import { formatDate, formatTimestamp, TODAY } from "../model";
 import {
-  Badge,
   Button,
   Empty,
   Notice,
   SearchInput,
   Select,
 } from "../components/UI";
+import RecordItem from "../components/RecordItem";
 
 const EMPTY_FILTERS = {
   attendance: "all",
@@ -101,35 +101,31 @@ function AppointmentCard({ appointment, episode, openModal }) {
     openModal({ type: "clinical-record", episodeId: episode.id });
 
   return (
-    <article
+    <RecordItem
       className={`appointment-card appointment-card-${appointment.attendance.toLocaleLowerCase().replaceAll(" ", "-")}`}
+      title={
+        appointment.attendance === "Planned"
+          ? "Planned appointment"
+          : `Appointment ${appointment.attendance.toLocaleLowerCase()}`
+      }
+      subtitle={appointmentType}
+      status={status}
+      headingLevel={4}
     >
-      <header className="appointment-card-header">
-        <div>
-          <p className="appointment-card-kicker">{appointmentType}</p>
-          <h4>
-            {appointment.attendance === "Planned"
-              ? "Planned appointment"
-              : `Appointment ${appointment.attendance.toLocaleLowerCase()}`}
-          </h4>
-          <div
-            className="appointment-card-when"
-            aria-label={`${when.label} ${formatDate(when.date)} at ${when.time}, ${when.duration} minutes`}
-          >
-            <span>
-              <CalendarDays size={15} aria-hidden="true" />{" "}
-              {formatDate(when.date)}
-            </span>
-            <span>
-              <Clock3 size={15} aria-hidden="true" /> {when.time} ·{" "}
-              {when.duration} min
-            </span>
-          </div>
-        </div>
-        <Badge>{status}</Badge>
-      </header>
-
       <div className="appointment-card-body">
+        <div
+          className="appointment-card-when"
+          aria-label={`${when.label} ${formatDate(when.date)} at ${when.time}, ${when.duration} minutes`}
+        >
+          <span>
+            <CalendarDays size={15} aria-hidden="true" />{" "}
+            {formatDate(when.date)}
+          </span>
+          <span>
+            <Clock3 size={15} aria-hidden="true" /> {when.time} ·{" "}
+            {when.duration} min
+          </span>
+        </div>
         <dl className="appointment-facts" aria-label="Appointment details">
           <div>
             <dt>Delivery</dt>
@@ -201,7 +197,7 @@ function AppointmentCard({ appointment, episode, openModal }) {
           </Button>
         )}
       </footer>
-    </article>
+    </RecordItem>
   );
 }
 

@@ -24,6 +24,7 @@ import RecordTwo from "./RecordTwo";
 import CareEvents from "./CareEvents";
 import Appointments from "./Appointments";
 import ReviewPack from "../components/ReviewPack";
+import RecordItem from "../components/RecordItem";
 import Timeline, {
   ChangeLog,
   ClinicalHistory,
@@ -596,18 +597,14 @@ export default function Person({ id, navigate, openModal }) {
                 !isOutstanding(col) &&
                 col.id !== searchParams.get("collection");
               const respondent = collectionActorIdentity(p, col, "respondent");
-              const card = (
-                <Panel
+              return (
+                <RecordItem
                   key={col.id}
-                  className={
-                    col.id === searchParams.get("collection")
-                      ? "selected-collection"
-                      : ""
-                  }
-                  title={isPrior ? undefined : col.label}
-                  action={
-                    isPrior ? undefined : <Badge>{collectionStatus(col)}</Badge>
-                  }
+                  title={col.label}
+                  subtitle={isPrior ? `${formatDate(col.due)} · ${col.version}` : undefined}
+                  status={collectionStatus(col)}
+                  collapsible={isPrior}
+                  selected={col.id === searchParams.get("collection")}
                 >
                   <div className="panel-body">
                     <div className="assignment-grid">
@@ -705,24 +702,7 @@ export default function Person({ id, navigate, openModal }) {
                       </div>
                     </div>
                   </div>
-                </Panel>
-              );
-              return !isPrior ? (
-                card
-              ) : (
-                <details key={col.id} className="prior-collection">
-                  <summary>
-                    <span>
-                      <strong>{col.label}</strong>
-                      <small>
-                        {formatDate(col.due)} · {col.version}
-                      </small>
-                    </span>
-                    <Badge>{collectionStatus(col)}</Badge>
-                    <ChevronDown size={18} aria-hidden="true" />
-                  </summary>
-                  {card}
-                </details>
+                </RecordItem>
               );
             })}
             <Notice>
@@ -764,16 +744,13 @@ export default function Person({ id, navigate, openModal }) {
               </Button>
             </div>
             {consentRequests.map((request) => (
-              <details key={request.id} className="consent-request-accordion">
-                <summary>
-                  <span>
-                    <strong>{request.title}</strong>
-                    <small>{request.version} · {request.scope}</small>
-                  </span>
-                  <Badge>{request.status}</Badge>
-                  <ChevronDown size={18} aria-hidden="true" />
-                </summary>
-                <Panel className="consent-request-panel">
+              <RecordItem
+                key={request.id}
+                title={request.title}
+                subtitle={`${request.version} · ${request.scope}`}
+                status={request.status}
+                collapsible
+              >
                   <div className="panel-body">
                     <dl className="metadata">
                       <div><dt>Version</dt><dd>{request.version}</dd></div>
@@ -803,8 +780,7 @@ export default function Person({ id, navigate, openModal }) {
                       </div>
                     </div>
                   </div>
-                </Panel>
-              </details>
+              </RecordItem>
             ))}
             <section className="consent-context-panel" aria-labelledby="consent-context-title">
               <h3 id="consent-context-title">Contact and participant context</h3>

@@ -3965,28 +3965,6 @@ td:last-child {
   border-radius: var(--radius);
   background: var(--surface);
 }
-.appointment-card-header {
-  align-items: flex-start;
-  display: flex;
-  gap: var(--space-4);
-  justify-content: space-between;
-  padding: var(--space-4) var(--space-5);
-  border-bottom: 1px solid var(--line-soft);
-}
-.appointment-card-kicker {
-  margin: 0 0 2px;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-.appointment-card-header h4 {
-  margin: 0;
-  color: var(--ink);
-  font-size: 17px;
-  line-height: 1.35;
-}
 .appointment-card-when {
   display: flex;
   flex-wrap: wrap;
@@ -8045,74 +8023,64 @@ form.has-validation-errors .check-field:has(:invalid) {
   padding-left: 18px;
   margin: 8px 0;
 }
-.prior-collection {
+.record-item {
+  min-width: 0;
+  overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: white;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
 }
-.prior-collection > summary {
-  list-style: none;
+.record-item-heading {
   display: flex;
-  gap: 16px;
   align-items: center;
-  cursor: pointer;
-  padding: 18px 22px;
+  gap: var(--space-4);
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--line-soft);
 }
-.prior-collection > summary::-webkit-details-marker {
-  display: none;
-}
-.prior-collection > summary > span:first-child {
+.record-item-heading-text {
+  min-width: 0;
   margin-right: auto;
 }
-.prior-collection summary small {
+.record-item-heading-text h3,
+.record-item-heading-text h4 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 670;
+  line-height: 1.4;
+}
+.record-item-heading-text small {
   display: block;
-  color: var(--muted);
   margin-top: 5px;
+  color: var(--muted);
   font-size: 12px;
+  line-height: 1.4;
 }
-.prior-collection[open] > summary > svg {
-  transform: rotate(180deg);
-}
-.prior-collection > .panel {
-  border: 0;
-  border-top: 1px solid var(--line);
-  border-radius: 0 0 var(--radius) var(--radius);
-}
-.prior-collection .assignment-footer {
-  padding-top: 20px;
-}
-.consent-request-accordion {
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: white;
-}
-.consent-request-accordion > summary {
+.record-item > summary {
   list-style: none;
-  display: flex;
-  gap: 16px;
-  align-items: center;
   cursor: pointer;
-  padding: 18px 22px;
+  border-bottom: 0;
 }
-.consent-request-accordion > summary::-webkit-details-marker {
+.record-item > summary::-webkit-details-marker {
   display: none;
 }
-.consent-request-accordion > summary > span:first-child {
-  margin-right: auto;
+.record-item > summary:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--teal) 28%, transparent);
+  outline-offset: -3px;
 }
-.consent-request-accordion summary small {
-  display: block;
+.record-item > summary > svg {
+  flex: 0 0 auto;
   color: var(--muted);
-  margin-top: 5px;
-  font-size: 12px;
+  transition: transform 0.16s ease;
 }
-.consent-request-accordion[open] > summary > svg {
+.record-item[open] > summary {
+  border-bottom: 1px solid var(--line-soft);
+}
+.record-item[open] > summary > svg {
   transform: rotate(180deg);
 }
-.consent-request-accordion > .panel {
-  border: 0;
-  border-top: 1px solid var(--line);
-  border-radius: 0 0 var(--radius) var(--radius);
+.record-item-content > .panel-body {
+  padding: var(--panel-padding);
 }
 .consent-board {
   display: flex;
@@ -8529,15 +8497,15 @@ form.has-validation-errors .check-field:has(:invalid) {
     font-size: 11px;
     line-height: 1.6;
   }
-  .prior-collection > summary {
+  .record-item > summary {
     padding: 16px;
     flex-wrap: wrap;
     gap: 12px;
   }
-  .prior-collection > summary > span:first-child {
+  .record-item > summary > .record-item-heading-text {
     flex-basis: 100%;
   }
-  .prior-collection summary small {
+  .record-item-heading-text small {
     line-height: 1.5;
   }
   .setup-summary .metadata > div {
