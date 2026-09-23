@@ -6,8 +6,8 @@ import {
   changeLogEntries,
   clinicalHistoryEntries,
 } from "../activity";
-import { formatDate, personEventText } from "../model";
-import { appointmentDetails } from "../appointments";
+import { formatDate, formatTimestamp, personEventText } from "../model";
+import { historyCategory, HISTORY_CATEGORIES, historyDate, historyItem } from "../historyItem";
 import { SearchInput, Select, Button, Empty } from "./UI";
 import RecordItem from "./RecordItem";
 
@@ -55,30 +55,21 @@ const displayDate = (value) =>
 const actorLabel = (entry) =>
   `${entry.actor || "Editor not recorded"}${entry.role ? ` · ${entry.role}` : ""}`;
 
-function TimelineDate({ timestamp, date }) {
-  const parts = timestamp ? timelineTimestamp(timestamp) : null;
+function TimelineDate({ timestamp, date, time, dateLabel }) {
+  const parts = !time && !dateLabel && timestamp && timestamp === date
+    ? timelineTimestamp(timestamp)
+    : null;
   return (
-    <time className="record-timeline-date" dateTime={timestamp || date || undefined}>
+    <time className="record-timeline-date" dateTime={time && date ? `${date.slice(0, 10)}T${time}` : parts ? timestamp : date || undefined}>
       {parts ? parts.date : displayDate(date)}
-      <small>
-        {parts ? (
+      {(time || dateLabel || parts) && <small>
+        {time ? `${time} · ${dateLabel}` : dateLabel || (parts ? (
           <>{parts.time}{parts.zone && <><br />{parts.zone}</>}</>
-        ) : "Exact time not recorded"}
-      </small>
+        ) : null)}
+      </small>}
     </time>
   );
 }
-
-const historyKind = (entry) =>
-  entry.type === "appointment"
-    ? "Appointment"
-    : entry.type === "clinical-record"
-      ? "Clinical record"
-      : entry.collectionId
-        ? "Assessment"
-        : entry.eventDate
-          ? "Event"
-          : entry.scope || "Care history";
 
 function EventList({ entries, person, label }) {
   if (!entries.length)
@@ -135,76 +126,40 @@ export default function ActivityTimeline({ episode, person, audit = [] }) {
 }
 
 function ContinuousHistory({ entries, episode, person }) {
-  const collections = new Map(
-    episode.collections.map((collection) => [collection.id, collection.label]),
-  );
   if (!entries.length)
     return <p className="history-empty">No clinical activity has been recorded.</p>;
   return (
     <ol className="record-timeline clinical-continuous-timeline" aria-label="Continuous clinical history">
       {entries.map((entry) => {
-        const entryTimestamp =
-          entry.timestamp || (entry.date?.includes("T") ? entry.date : null);
-        const appointment = entry.type === "appointment"
-          ? episode.appointments?.find((item) => `appointment-${item.id}` === entry.id)
-          : null;
-        const details = [
-          ...(entry.collectionId && collections.get(entry.collectionId)
-            ? [["Assessment", collections.get(entry.collectionId)]]
-            : []),
-          ...(appointment
-            ? appointmentDetails(appointment, episode).map(([label, value]) => [
-                label,
-                label.toLowerCase().includes("date") ? formatDate(value) : value,
-              ])
-            : []),
-          ...(!appointment && entry.detail
-            ? [["Details", personEventText(person, entry.detail)]]
-            : []),
-          ...(entry.actor ? [["Recorded by", actorLabel(entry)]] : []),
-          ...(entry.scope ? [["Scope", entry.scope]] : []),
-          ...(entry.eventDate ? [["Event date", formatDate(entry.eventDate)]] : []),
-        ];
-        const showMore = details.length > 4;
-        const keyLabels = appointment
-          ? appointment.attendance === "Attended"
-            ? ["Actual date", "Actual time", "Practitioner or service"]
-            : ["Planned date", "Planned time", "Practitioner or service"]
-          : details.slice(0, 3).map(([label]) => label);
-        const visibleDetails = showMore
-          ? details.filter(([label]) => keyLabels.includes(label))
-          : details;
-        const moreDetails = showMore
-          ? details.filter(([label]) => !keyLabels.includes(label))
-          : [];
-        const toFact = ([label, value]) => ({
+        const item = historyItem(entry, episode, (value) => personEventText(person, value));
+        const toFact = ({ label, value }) => ({
           label,
-          value,
-          wide: ["Details", "Notes", "Outcome notes"].includes(label) ||
+          value: label === "Recorded at" ? formatTimestamp(value) : label.toLowerCase().includes("date") ? formatDate(value) : value,
+          wide: ["Summary", "Notes", "Outcome notes"].includes(label) ||
             label.startsWith("Associated assignment"),
         });
         return (
           <li className="record-timeline-entry" key={entry.id}>
-            <TimelineDate timestamp={entryTimestamp} date={entry.date} />
+            <TimelineDate timestamp={entry.timestamp} date={item.date} time={item.time} dateLabel={item.dateLabel} />
             <span className="record-timeline-icon" aria-hidden="true">
               <Clock3 size={22} />
             </span>
             <RecordItem
               title={entry.title || "Recorded event"}
-              subtitle={historyKind(entry)}
+              subtitle={item.subtitle}
               className="record-item-compact"
-              facts={visibleDetails.map(toFact)}
-              secondary={moreDetails.length > 0 && (
+              facts={item.primary.map(toFact)}
+              secondary={item.more.length > 0 && (
                 <details className="appointment-more-detail history-more-details">
                   <summary>
-                    <span className="history-more-closed">Show more · {moreDetails.length} details</span>
+                    <span className="history-more-closed">Record details · {item.more.length}</span>
                     <span className="history-more-open">Show less</span>
                   </summary>
                   <dl className="record-item-facts">
-                    {moreDetails.map(([label, value]) => (
-                      <div key={label} className={toFact([label, value]).wide ? "record-item-fact-wide" : undefined}>
-                        <dt>{label}</dt>
-                        <dd>{value}</dd>
+                    {item.more.map((detail) => (
+                      <div key={detail.label} className={toFact(detail).wide ? "record-item-fact-wide" : undefined}>
+                        <dt>{detail.label}</dt>
+                        <dd>{toFact(detail).value}</dd>
                       </div>
                     ))}
                   </dl>
@@ -237,31 +192,28 @@ export function ClinicalHistory({
     return entries.filter((entry) => {
       if (filters.query) {
         const q = filters.query.trim().toLowerCase();
+        const item = historyItem(entry, episode, (value) => personEventText(person, value));
         const text = [
           entry.title,
           entry.detail,
           personEventText(person, entry.detail),
           entry.actor,
           entry.role,
-          entry.scope
+          entry.scope,
+          item.subtitle,
+          ...[...item.primary, ...item.more].flatMap(({ label, value }) => [label, value]),
         ].filter(Boolean).join(" ").toLowerCase();
         if (!text.includes(q)) return false;
       }
-      const entryDate = entry.timestamp || entry.date || entry.eventDate;
-      if (filters.startDate && entryDate) {
-        const d = entryDate.slice(0, 10);
-        if (d < filters.startDate) return false;
-      }
-      if (filters.endDate && entryDate) {
-        const d = entryDate.slice(0, 10);
-        if (d > filters.endDate) return false;
-      }
-      if (filters.type !== "all" && entry.type !== filters.type) {
+      const entryDate = historyDate(entry);
+      if (filters.startDate && (!entryDate || entryDate.slice(0, 10) < filters.startDate)) return false;
+      if (filters.endDate && (!entryDate || entryDate.slice(0, 10) > filters.endDate)) return false;
+      if (filters.type !== "all" && historyCategory(entry) !== filters.type) {
         return false;
       }
       return true;
     });
-  }, [entries, filters, person]);
+  }, [entries, filters, episode, person]);
 
   const hasFilters = Object.entries(filters).some(
     ([key, value]) => value !== "all" && value !== "",
@@ -271,10 +223,10 @@ export function ClinicalHistory({
     setFilters((current) => ({ ...current, [key]: value }));
 
   const types = useMemo(() => {
-    const uniqueTypes = [...new Set(entries.map((e) => e.type).filter(Boolean))];
+    const uniqueTypes = [...new Set(entries.map(historyCategory))];
     return uniqueTypes.map((t) => ({
       value: t,
-      label: t === "appointment" ? "Appointment" : t === "clinical-record" ? "Clinical Record" : t,
+      label: HISTORY_CATEGORIES[t],
     })).sort((a, b) => a.label.localeCompare(b.label));
   }, [entries]);
 
@@ -319,9 +271,9 @@ export function ClinicalHistory({
               />
             </label>
             <div className="care-timeline-type">
-              <span>Type</span>
+              <span>Category</span>
               <Select
-                label="Record type"
+                label="History category"
                 value={filters.type}
                 onChange={(event) => setFilter("type", event.target.value)}
               >

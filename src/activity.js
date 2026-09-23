@@ -13,6 +13,7 @@ import {
   clinicalRecordChanges,
   clinicalRecordDetails,
 } from "./clinicalRecords.js";
+import { historyDate } from "./historyItem.js";
 
 export function recordFieldChanges(before, after, fields) {
   return fields.flatMap(([key, label]) => {
@@ -297,5 +298,8 @@ export function clinicalHistoryEntries(person, episode, audit = []) {
       !entry.type ||
       entry.type === "appointment" ||
       entry.type === "clinical-record",
+  ).sort((a, b) =>
+    (historyDate(b) || "").localeCompare(historyDate(a) || "") ||
+    (b.timestamp || "").localeCompare(a.timestamp || ""),
   );
 }

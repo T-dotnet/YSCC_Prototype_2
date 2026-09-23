@@ -8090,28 +8090,49 @@ form.has-validation-errors .check-field:has(:invalid) {
   border-color: var(--teal);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--teal) 14%, transparent);
 }
-@media (max-width: 600px) {
+@media (max-width: 700px) {
   .record-timeline > .record-timeline-entry {
-    grid-template-columns: 68px 30px minmax(0, 1fr);
-    gap: 8px;
+    grid-template-columns: 30px minmax(0, 1fr);
+    column-gap: 10px;
+    row-gap: 8px;
+    padding-bottom: 20px;
   }
   .record-timeline > .record-timeline-entry:not(:last-child)::before {
-    top: 25px;
-    bottom: -25px;
-    left: 91px;
+    top: 30px;
+    bottom: -2px;
+    left: 14px;
   }
   .record-timeline-date {
-    font-size: 11px;
-    overflow-wrap: normal;
+    grid-column: 2;
+    grid-row: 1;
+    display: flex;
+    min-width: 0;
+    min-height: 30px;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 2px 6px;
+    padding-top: 0;
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+  .record-timeline-date small {
+    display: inline;
+    margin-top: 0;
   }
   .record-timeline-icon {
+    grid-column: 1;
+    grid-row: 1;
     width: 30px;
     height: 30px;
-    margin-top: 10px;
+    margin-top: 0;
   }
   .record-timeline-icon svg {
     width: 18px;
     height: 18px;
+  }
+  .record-timeline > .record-timeline-entry > .record-item {
+    grid-column: 2;
+    grid-row: 2;
   }
 }
 @container record-item (max-width: 620px) {
@@ -12949,6 +12970,58 @@ h6 {
     justify-content: space-between;
     padding-top: var(--space-3);
     border-top: 1px solid var(--line-soft);
+  }
+}
+
+/* Reflow the care summary against the record's usable width, including when
+   browser zoom or the persistent sidebar leaves less room than the viewport. */
+@media (min-width: 701px) {
+  .main:has(.person-heading) {
+    container: person-record / inline-size;
+  }
+}
+
+@container person-record (max-width: 1100px) {
+  .main:has(.person-heading) .episode-bar {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    row-gap: 14px;
+  }
+
+  .main:has(.person-heading) .episode-period {
+    grid-column: 1 / 5;
+  }
+
+  .main:has(.person-heading) .episode-bar > .episode-status {
+    grid-column: 5 / -1;
+    justify-self: end;
+  }
+
+  .main:has(.person-heading) .episode-bar > .episode-fact {
+    grid-column: span 2;
+    height: auto;
+    min-height: 52px;
+    justify-content: flex-start;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+  }
+
+  .main:has(.person-heading) .episode-bar > div.episode-owner {
+    padding-left: 0;
+    border-left: 0;
+  }
+}
+
+@container person-record (max-width: 520px) {
+  .main:has(.person-heading) .episode-bar > .episode-owner,
+  .main:has(.person-heading) .episode-bar > .episode-location {
+    grid-column: span 3;
+  }
+
+  .main:has(.person-heading) .episode-bar > div.episode-completeness {
+    grid-column: 1 / -1;
+    min-height: 0;
+    padding-left: 0;
+    border-left: 0;
   }
 }
 
