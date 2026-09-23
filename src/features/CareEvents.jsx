@@ -79,7 +79,7 @@ export default function CareEvents({ episode, openModal, eventId }) {
       <div className="section-toolbar">
         <div>
           <h2>Care events</h2>
-          <p>Structured records and contextual events for this care period.</p>
+          <p>Structured records and contextual events for this care episode.</p>
         </div>
         <div className="button-row">
           <Button variant="primary" onClick={openRecordModal}>
@@ -155,12 +155,12 @@ export default function CareEvents({ episode, openModal, eventId }) {
           title={
             hasFilters
               ? "No events or records match these filters"
-              : "No events or records in this care period"
+              : "No events or records in this care episode"
           }
         >
           {hasFilters
             ? "Try a different search, type or date range."
-            : "Add an event or structured record to this care period."}
+            : "Add an event or structured record to this care episode."}
           {hasFilters && (
             <Button variant="secondary" onClick={() => setFilters(EMPTY_FILTERS)}>
               Clear filters

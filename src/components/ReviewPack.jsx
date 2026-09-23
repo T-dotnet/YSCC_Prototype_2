@@ -103,8 +103,8 @@ export default function ReviewPack({
               <h4>Contextual events</h4>
               <p>
                 {events.length
-                  ? `${countLabel(events.length, "recent contextual event")} recorded in this care period.`
-                  : "No contextual events have been recorded in this care period."}
+                  ? `${countLabel(events.length, "recent contextual event")} recorded in this care episode.`
+                  : "No contextual events have been recorded in this care episode."}
               </p>
               {events.length > 0 && (
                 <ul>

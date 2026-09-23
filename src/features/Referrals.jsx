@@ -139,7 +139,7 @@ export default function Referrals({ person, intake, episode, openModal }) {
                 <dd>{r.attempts.length}</dd>
               </div>
               <div>
-                <dt>Linked care period</dt>
+                <dt>Linked care episode</dt>
                 <dd>
                   {r.episodeId
                     ? person.episodes.find((e) => e.id === r.episodeId)

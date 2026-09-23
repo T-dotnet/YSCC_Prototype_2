@@ -704,7 +704,7 @@ function OutcomeComparison({ measures, inModal = false }) {
       <summary>
         <span>
           <strong>Compare measures</strong>
-          <small>Across this care period</small>
+          <small>Across this care episode</small>
         </span>
         <ChevronDown size={18} aria-hidden="true" />
       </summary>
@@ -980,7 +980,7 @@ export default function RecordTwo({ person, episode, navigate }) {
               onToggle={() => setCareTimelineVisible((visible) => !visible)}
             />
             <div className="record-two-empty record-two-empty-wide">
-              Structured observations, care periods, goals, activity ratings,
+              Structured observations, service periods, goals, activity ratings,
               outcome measures, risk reviews and medication courses are needed
               before this report can draw additional longitudinal graphs.
             </div>

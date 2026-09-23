@@ -26,6 +26,8 @@ import CareEvents from "./CareEvents";
 import Appointments from "./Appointments";
 import ReviewPack from "../components/ReviewPack";
 import RecordItem from "../components/RecordItem";
+import CareLevelSection from "../components/CareLevelSection";
+import { currentCarePeriod, nextDate } from "../carePeriods";
 import Timeline, {
   ChangeLog,
   ClinicalHistory,
@@ -225,6 +227,9 @@ export default function Person({ id, navigate, openModal }) {
     (noClinicalReviewRequired(c) ||
       (c.review === "Reviewed" && !c.needsReview));
   const completeness = recordCompleteness(p, TODAY);
+  const currentLevelPeriod = currentCarePeriod(e);
+  const canChangeLevel = e.status === "Active" && currentStaff(state)?.role === "Clinician" &&
+    (!currentLevelPeriod || nextDate(currentLevelPeriod.startDate) <= TODAY);
   return (
     <>
       <button className="back-link" onClick={() => navigate(returnTo)}>
@@ -250,7 +255,7 @@ export default function Person({ id, navigate, openModal }) {
             disabled={e.status === "Closed"}
             onClick={() => modal("episode")}
           >
-            Care period actions
+            Care episode actions
             <ChevronDown size={16} />
           </Button>
         </div>
@@ -259,10 +264,10 @@ export default function Person({ id, navigate, openModal }) {
         <div className="episode-context episode-period">
           {p.episodes.length > 1 ? (
             <>
-              <label htmlFor="care-period">Care period</label>
+              <label htmlFor="care-episode">Care episode</label>
               <Select
-                id="care-period"
-                label="Care period"
+                id="care-episode"
+                label="Care episode"
                 value={e.id}
                 onChange={(ev) => {
                   const params = new URLSearchParams(searchParams.toString());
@@ -284,13 +289,13 @@ export default function Person({ id, navigate, openModal }) {
                 ))}
               </Select>
               <small>
-                Overview, Report, assessments and history for this period.
+                Overview, Report, assessments and history for this episode.
               </small>
             </>
           ) : (
             <>
               <small>
-                {e.status === "Active" ? "Current care" : `${e.status} care`}
+                {e.status === "Active" ? "Current care episode" : `${e.status} care episode`}
               </small>
               <span>
                 Started {formatDate(e.start)}
@@ -309,6 +314,22 @@ export default function Person({ id, navigate, openModal }) {
         <div className="episode-fact episode-location">
           <small>Location</small>
           <span>Northside Centre</span>
+        </div>
+        <div className="episode-fact episode-care-level">
+          <small>Care level</small>
+          <div className="episode-care-level-value">
+            <span>{(currentLevelPeriod || e.carePeriods?.at(-1))?.careLevel || "Not recorded"}</span>
+            {canChangeLevel && (
+              <button
+                type="button"
+                className="episode-care-level-change"
+                onClick={() => modal("care-level")}
+                aria-label={currentLevelPeriod ? "Change care level" : "Record starting care level"}
+              >
+                {currentLevelPeriod ? "Change" : "Record"}
+              </button>
+            )}
+          </div>
         </div>
         <div className="episode-fact episode-completeness">
           <small>Required data</small>
@@ -481,6 +502,11 @@ export default function Person({ id, navigate, openModal }) {
                 </div>
               </div>
             </Panel>
+            <CareLevelSection
+              episode={e}
+              canEdit={canChangeLevel}
+              openModal={() => modal("care-level")}
+            />
             {reviewPackOpen && (
               <Modal
                 title="90-day review pack"

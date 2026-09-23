@@ -39,6 +39,7 @@ import {
   appointmentOutcomeContent,
   appointmentOutcomeError,
 } from "./appointments.js";
+import { carePeriodError, currentCarePeriod, nextDate } from "./carePeriods.js";
 import { K10_SCORING_METHOD } from "./k10.js";
 import { QUALITY_STATUSES, getQualityIssues, validISODate } from "./dataQuality.js";
 
@@ -798,7 +799,7 @@ function longitudinalQualitativeCollections(
       response: "Submitted",
       review: "Reviewed",
       reviewNote:
-        "Sample qualitative response reviewed during the care period.",
+        "Sample qualitative response reviewed during the care episode.",
       reviewActor: "Jess Taylor",
       reviewDate: point.reviewDate,
       assessmentProgress: "Completed",
@@ -2227,7 +2228,7 @@ function prepareIntakes(next) {
         triageChecked: true,
         checkEvidence:
           "Fictional continuing-care fixture; completed intake supplied for the demo.",
-        summary: "Sample intake reviewed before this care period.",
+        summary: "Sample intake reviewed before this care episode.",
         decisionBy: "Jess Taylor",
         decisionAt: ep.start + "T09:00:00",
         assessmentOwner: person.owner,
@@ -2570,6 +2571,62 @@ export function reducer(state, action) {
     });
   };
   switch (action.type) {
+    case "SET_INITIAL_CARE_LEVEL": {
+      if (carePeriodError(e, action, staff, TODAY, DEMO_STAFF.filter((item) => item.role === "Clinician")))
+        return state;
+      const period = {
+        id: uid(),
+        episodeId: e.id,
+        startDate: e.start,
+        endDateExclusive: null,
+        careLevel: action.careLevel,
+        deliveringUnit: action.deliveringUnit.trim(),
+        entryReason: "Starting level recorded",
+        triggeringReviewId: null,
+        authorisingPractitionerId: staff.id,
+        authorisingPractitioner: staff.name,
+        actor: staff.name,
+        timestamp: recordedAt,
+      };
+      e.carePeriods = [period];
+      event("Starting care level recorded", `${action.careLevel} · ${action.deliveringUnit.trim()} · effective ${e.start}`, {
+        date: e.start,
+        effectiveDate: e.start,
+        carePeriodId: period.id,
+        collectionId: null,
+      });
+      break;
+    }
+    case "CHANGE_CARE_LEVEL": {
+      if (carePeriodError(e, action, staff, TODAY, DEMO_STAFF.filter((item) => item.role === "Clinician")))
+        return state;
+      const previous = currentCarePeriod(e);
+      const authoriser = DEMO_STAFF.find((item) => item.id === action.authorisingPractitionerId);
+      previous.endDateExclusive = action.effectiveDate;
+      const period = {
+        id: uid(),
+        episodeId: e.id,
+        startDate: action.effectiveDate,
+        endDateExclusive: null,
+        careLevel: action.careLevel,
+        deliveringUnit: action.deliveringUnit.trim(),
+        previousCareLevel: previous.careLevel,
+        entryReason: action.entryReason,
+        triggeringReviewId: action.triggeringReviewId || null,
+        authorisingPractitionerId: authoriser.id,
+        authorisingPractitioner: authoriser.name,
+        actor: staff.name,
+        timestamp: recordedAt,
+      };
+      e.carePeriods.push(period);
+      event("Care level changed", `${previous.careLevel} to ${action.careLevel} · ${action.entryReason} · effective ${action.effectiveDate}`, {
+        date: action.effectiveDate,
+        effectiveDate: action.effectiveDate,
+        carePeriodId: period.id,
+        collectionId: null,
+      });
+      break;
+    }
     case "ADD_APPOINTMENT": {
       if (e?.status !== "Active" || appointmentError(e, action, TODAY))
         return state;
@@ -3288,9 +3345,14 @@ export function reducer(state, action) {
               action.referralReconciliationDue < TODAY)))
       )
         return state;
+      if (action.status === "Closed" && currentCarePeriod(e) &&
+          action.end < currentCarePeriod(e).startDate)
+        return state;
       e.status = action.status;
       if (action.status === "Closed") {
         e.end = action.end;
+        if (currentCarePeriod(e))
+          currentCarePeriod(e).endDateExclusive = nextDate(action.end);
         e.closureCategory = action.closureCategory;
         e.handoverStatus = action.handoverStatus;
         e.handoverDestination = action.handoverDestination?.trim() || null;
@@ -3335,9 +3397,9 @@ export function reducer(state, action) {
             timestamp: recordedAt,
             actor: staff?.name || "Not recorded",
             title: "Closure reconciliation assigned",
-            detail: `Care period closed; referral remains open. ${referral.nextAction}`,
+            detail: `Care episode closed; referral remains open. ${referral.nextAction}`,
             occurredAt: null,
-            system: "YSCC care-period closure",
+            system: "YSCC care-episode closure",
             externalOwner: referral.externalOwner || "",
             nextAction: referral.nextAction,
             reviewDate: referral.reviewDate,
@@ -3354,7 +3416,7 @@ export function reducer(state, action) {
         }
       });
       event(
-        `Care period ${action.status.toLowerCase()}`,
+        `Care episode ${action.status.toLowerCase()}`,
         `${action.reason} · ${
           action.status === "Closed"
             ? `Closure: ${e.closureCategory}; handover: ${e.handoverStatus}${e.handoverDestination ? ` (${e.handoverDestination})` : ""}${e.receivingResponsiblePerson ? ` · receiving responsibility: ${e.receivingResponsiblePerson}` : ""}; final measures: ${e.finalMeasureStatus}${e.referralReconciliation ? ` · ${e.referralReconciliation.count} unresolved referral${e.referralReconciliation.count === 1 ? "" : "s"} assigned for reconciliation` : ""} · `

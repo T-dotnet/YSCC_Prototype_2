@@ -107,6 +107,9 @@ export default function ActivityTimeline({ episode, person, audit = [] }) {
             </time>
             <div>
               <strong>{entry.title}</strong>
+              {entry.effectiveDate && (
+                <p>Effective {formatDate(entry.effectiveDate)}</p>
+              )}
               {changes.length === 0 ? (
                 <p>{personEventText(person, entry.detail)}</p>
               ) : null}
