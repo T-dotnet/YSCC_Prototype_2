@@ -1,10 +1,12 @@
-import { appointmentDetails } from "./appointments.js";
+import { appointmentDetails, appointmentMatchesCollectionDate } from "./appointments.js";
 import { careEventDetails, careEventType } from "./careEvents.js";
 import { clinicalRecordDetails, clinicalRecordType } from "./clinicalRecords.js";
 
 export const historyDate = (entry) =>
   entry.type === "appointment"
     ? entry.actualDate || entry.plannedDate || entry.date || null
+    : entry.type === "assessment"
+      ? entry.date || entry.due || null
     : entry.type === "clinical-record"
       ? entry.recordDate || entry.date || null
       : entry.eventDate || entry.timestamp || entry.date || null;
@@ -59,9 +61,12 @@ export function historyItem(entry, episode, formatDetail = (value) => value) {
       .filter(([label]) => label !== shownDateLabel && label !== shownTimeLabel && label !== "Attendance")
       .map(([label, value]) => fact(label, value));
     return {
-      subtitle: "Appointment or service contact",
+      subtitle: appointment.contactType || appointment.appointmentType || "Service contact",
       date: historyDate(entry),
-      dateLabel: appointment.actualDate ? "Actual contact" : "Planned contact",
+      dateLabel: appointment.actualDate ? "Actual contact"
+        : appointment.attendance === "Cancelled" ? "Cancelled contact"
+          : appointment.attendance === "Did not attend" ? "Missed contact"
+            : "Planned contact",
       time: appointment.actualTime || appointment.plannedTime,
       primary: primaryLabels.map((label) => details.find((detail) => detail.label === label)).filter(Boolean),
       more: [...details.filter(({ label }) => !primaryLabels.includes(label)), ...metadata],
@@ -79,6 +84,30 @@ export function historyItem(entry, episode, formatDetail = (value) => value) {
       dateLabel: "Record date",
       primary: details.filter(({ label }) => primaryLabels.includes(label)),
       more: [...details.filter(({ label }) => !primaryLabels.includes(label)), ...metadata],
+    };
+  }
+
+  if (entry.type === "assessment") {
+    const collection = episode.collections.find((item) => item.id === entry.collectionId);
+    const appointment = episode.appointments?.find((item) =>
+      item.id === (collection?.submittedAppointmentId || collection?.appointmentId) &&
+      appointmentMatchesCollectionDate(item, collection),
+    );
+    if (collection) return {
+      subtitle: collection.version,
+      date: historyDate(entry),
+      dateLabel: collection.response === "Submitted" && collection.submittedAt
+        ? "Response date" : "Due date",
+      primary: [
+        fact("Response", collection.response),
+        fact("Due date", collection.due),
+        ...(appointment ? [fact("Associated appointment", `${appointment.appointmentType || appointment.contactType || "Service contact"} · ${appointment.actualDate || appointment.plannedDate}`)] : []),
+      ],
+      more: [
+        fact("Collection method", collection.channel || "Not set up"),
+        fact("Assignment", collection.assignment),
+        fact("Review", collection.review),
+      ],
     };
   }
 

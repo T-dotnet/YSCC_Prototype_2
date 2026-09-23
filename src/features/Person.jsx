@@ -10,7 +10,7 @@ import {
   safeReturnTo,
 } from "../workflow";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -26,6 +26,7 @@ import CareEvents from "./CareEvents";
 import Appointments from "./Appointments";
 import ReviewPack from "../components/ReviewPack";
 import RecordItem from "../components/RecordItem";
+import IntakeDetailsModal from "../components/IntakeDetailsModal";
 import Timeline, {
   ChangeLog,
   ClinicalHistory,
@@ -58,78 +59,20 @@ import {
   Avatar,
 } from "../components/UI";
 
-const moreRecordTabs = ["Consent & respondents", "History", "Change log"];
+const hiddenRecordTabs = ["Appointments", "History", "Change log"];
 
 function PersonRecordNavigation({ tabs, value, onChange }) {
-  const [moreOpen, setMoreOpen] = useState(false);
-  const moreRef = useRef(null);
-  const moreButtonRef = useRef(null);
-  const primaryTabs = tabs.filter((item) => !moreRecordTabs.includes(item));
-  const extraTabs = tabs.filter((item) => moreRecordTabs.includes(item));
-  const extraSelected = extraTabs.includes(value);
-
-  useEffect(() => {
-    setMoreOpen(false);
-  }, [value]);
-
-  useEffect(() => {
-    if (!moreOpen) return;
-    const closeOnOutsideClick = (event) => {
-      if (!moreRef.current?.contains(event.target)) setMoreOpen(false);
-    };
-    const closeOnEscape = (event) => {
-      if (event.key !== "Escape") return;
-      setMoreOpen(false);
-      moreButtonRef.current?.focus();
-    };
-    document.addEventListener("pointerdown", closeOnOutsideClick);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("pointerdown", closeOnOutsideClick);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [moreOpen]);
-
   return (
     <div className="person-record-navigation">
       <RecordTabs
         id="person"
         label="Person record"
-        items={primaryTabs}
+        items={tabs.filter((item) =>
+          !hiddenRecordTabs.includes(typeof item === "string" ? item : item.value)
+        )}
         value={value}
         onChange={onChange}
       />
-      <div className="person-record-more" ref={moreRef}>
-        <button
-          ref={moreButtonRef}
-          type="button"
-          className={`person-record-more-trigger${extraSelected ? " selected" : ""}`}
-          aria-label={`More record sections${extraSelected ? `, current: ${value}` : ""}`}
-          aria-expanded={moreOpen}
-          aria-controls={moreOpen ? "person-record-more-options" : undefined}
-          onClick={() => setMoreOpen((open) => !open)}
-        >
-          More <ChevronDown size={15} aria-hidden="true" />
-        </button>
-        {moreOpen && (
-          <div id="person-record-more-options" className="person-record-more-options">
-            {extraTabs.map((item) => (
-              <button
-                key={item}
-                type="button"
-                aria-current={value === item ? "page" : undefined}
-                onClick={() => {
-                  setMoreOpen(false);
-                  moreButtonRef.current?.focus();
-                  onChange(item);
-                }}
-              >
-                {item}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
     </div>
   );
 }
@@ -139,13 +82,13 @@ export default function Person({ id, navigate, openModal }) {
   const p = state.people.find((p) => p.id === id);
   const searchParams = useSearchParams();
   const [reviewPackOpen, setReviewPackOpen] = useState(false);
+  const [intakeDetailsOpen, setIntakeDetailsOpen] = useState(false);
   const allTabs = [
     "Overview",
     "Assessment",
-    { value: "Appointments", label: "Service contacts" },
     { value: "Events", label: "Care events" },
     "Report",
-    "Consent & respondents",
+    { value: "Consent & respondents", label: "Consent" },
     "History",
     "Change log",
   ];
@@ -189,6 +132,7 @@ export default function Person({ id, navigate, openModal }) {
     (["progress", "analysis", "record 2"].includes(searchParams.get("tab"))
       ? "Report"
       : null) ||
+    (searchParams.get("tab") === "appointments" ? "Appointments" : null) ||
     (tabs.map((item) => typeof item === "string" ? item : item.value)
       .find((value) => value.toLowerCase() === searchParams.get("tab"))) ||
     "Overview";
@@ -196,6 +140,7 @@ export default function Person({ id, navigate, openModal }) {
     requestedTab === "Assessment" && !assessmentAvailable
       ? "Overview"
       : requestedTab;
+  const hiddenRecordTab = hiddenRecordTabs.includes(tab);
   const returnTo = safeReturnTo(searchParams.get("returnTo"));
   const returnLabel =
     returnTo.split("?")[0] === "/"
@@ -235,8 +180,14 @@ export default function Person({ id, navigate, openModal }) {
         <div>
           <h1 className="person-name-heading">
             <span>{p.name}</span>
-            <small>Patient</small>
           </h1>
+          <div className="person-heading-identity">
+            <small>Patient</small>
+            {p.archivedAt && <Badge>Archived</Badge>}
+            <TextLink aria-haspopup="dialog" onClick={() => setIntakeDetailsOpen(true)}>
+              More info
+            </TextLink>
+          </div>
           <p>
             {p.id}
             <span>·</span>
@@ -255,6 +206,13 @@ export default function Person({ id, navigate, openModal }) {
           </Button>
         </div>
       </div>
+      {intakeDetailsOpen && (
+        <IntakeDetailsModal
+          person={p}
+          intake={intakeFor(p, e)}
+          onClose={() => setIntakeDetailsOpen(false)}
+        />
+      )}
       <div className="episode-bar">
         <div className="episode-context episode-period">
           {p.episodes.length > 1 ? (
@@ -345,16 +303,16 @@ export default function Person({ id, navigate, openModal }) {
         />
       )}
       <div
-        role={contextualView || moreRecordTabs.includes(tab) ? "region" : "tabpanel"}
+        role={contextualView || hiddenRecordTab ? "region" : "tabpanel"}
         id="person-panel"
         aria-labelledby={
           contextualView
             ? "person-context-heading"
-            : moreRecordTabs.includes(tab)
+            : hiddenRecordTab
               ? undefined
-              : `person-tab-${tabs.filter((item) => !moreRecordTabs.includes(item)).findIndex((item) => (typeof item === "string" ? item : item.value) === tab)}`
+              : `person-tab-${tabs.filter((item) => !hiddenRecordTabs.includes(typeof item === "string" ? item : item.value)).findIndex((item) => (typeof item === "string" ? item : item.value) === tab)}`
         }
-        aria-label={moreRecordTabs.includes(tab) ? tab : undefined}
+        aria-label={hiddenRecordTab ? (tab === "Appointments" ? "Service contacts" : tab) : undefined}
       >
         {!canAssess(p, e) && (
           <Notice tone="amber">
@@ -614,7 +572,9 @@ export default function Person({ id, navigate, openModal }) {
                         <strong>{col.version}</strong>
                         <small>
                           {getInstrument(col.version)?.questions.length || "Version-specific"}{" "}
-                          sample questions · no clinical score
+                          {getInstrument(col.version)?.measureKey
+                            ? "sample coded items · raw score in Report"
+                            : "sample questions · no clinical score"}
                         </small>
                       </span>
                     </>
@@ -672,14 +632,16 @@ export default function Person({ id, navigate, openModal }) {
                           aria-haspopup="dialog"
                           onClick={() =>
                             openModal({
-                              type: "questionnaire-preview",
+                              type: "collection",
                               personId: p.id,
                               episodeId: e.id,
                               collectionId: col.id,
+                              channel: "Clinic tablet",
+                              collectResponse: true,
                             })
                           }
                         >
-                          Preview questionnaire
+                          Collect response
                         </Button>
                       )}
                     </>
@@ -705,6 +667,8 @@ export default function Person({ id, navigate, openModal }) {
         {tab === "Events" && (
           <CareEvents
             episode={e}
+            person={p}
+            audit={state.audit}
             eventId={searchParams.get("event")}
             openModal={(eventModal) =>
               openModal({ ...eventModal, personId: p.id })

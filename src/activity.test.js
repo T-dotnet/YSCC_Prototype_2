@@ -7,7 +7,9 @@ import {
   activityChangeDetails,
   changeLogEntries,
   clinicalHistoryEntries,
+  careEventEntries,
 } from "./activity.js";
+import { historyItem } from "./historyItem.js";
 
 const context = {
   personId: "YS-1024",
@@ -211,8 +213,8 @@ test("Mia's sample record includes an expandable compliance change log entry", (
   assert.deepEqual(entry.changes[0], {
     key: "A-6-everyday-life-four-weeks-channel",
     label: "Everyday life check-in · 4 weeks · Delivery channel",
-    before: "SMS link",
-    after: "Clinic tablet",
+    before: "Clinic tablet",
+    after: "SMS link",
   });
 });
 
@@ -226,6 +228,41 @@ test("Mia's continuous clinical history omits compliance-only changes", () => {
   assert.ok(entries.some((entry) => entry.title === "Group programme added"));
 });
 
+test("Care events projects Jordan's appointment and assessment lists once each", () => {
+  const state = createSeed();
+  const jordan = state.people.find((person) => person.name === "Jordan Ellis");
+  const episode = jordan.episodes[0];
+  episode.clinicalRecords = [{
+    id: "record-in-events-test",
+    type: "clinical-record",
+    recordType: "risk",
+    recordDate: "2026-09-08",
+    title: "Recorded risk status",
+  }];
+  const events = careEventEntries(jordan, episode, state.audit);
+  const history = clinicalHistoryEntries(jordan, episode, state.audit);
+  assert.ok(events.some((entry) => entry.id === "clinical-record-record-in-events-test"));
+  assert.ok(events.some((entry) => entry.id === "E-7-med-adverse"));
+  assert.deepEqual(
+    events.filter((entry) => entry.type === "appointment").map((entry) => entry.id).sort(),
+    episode.appointments.map((appointment) => `appointment-${appointment.id}`).sort(),
+  );
+  assert.deepEqual(
+    events.filter((entry) => entry.type === "assessment").map((entry) => entry.collectionId).sort(),
+    episode.collections.map((collection) => collection.id).sort(),
+  );
+  assert.ok(events.every((entry) => ["appointment", "assessment", "clinical-record"].includes(entry.type) || entry.eventDate));
+  const baseline = events.find((entry) => entry.collectionId === "A-7-life-care-starting-point");
+  assert.equal(baseline.date, episode.collections.find((collection) => collection.id === baseline.collectionId).submittedAt);
+  assert.equal(baseline.appointmentId, "APT-7-baseline");
+  assert.deepEqual(
+    historyItem(baseline, episode).primary.find((fact) => fact.label === "Associated appointment"),
+    { label: "Associated appointment", value: "Initial assessment · 2026-06-16" },
+  );
+  assert.ok(history.some((entry) => entry.type === "appointment"));
+  assert.ok(history.some((entry) => entry.collectionId));
+});
+
 test("Zoe's assessment-rich sample also retains a compliance correction", () => {
   const state = createSeed();
   const zoe = state.people.find((person) => person.name === "Zoe Patel");
@@ -235,7 +272,7 @@ test("Zoe's assessment-rich sample also retains a compliance correction", () => 
   );
   assert.equal(entry.collectionId, "A-3-current");
   assert.equal(entry.changes.length, 2);
-  assert.equal(entry.changes[1].after, "Demo check-in v2.0");
+  assert.equal(entry.changes[1].after, "Your preferences and next steps v2.0");
   assert.ok(
     !clinicalHistoryEntries(zoe, zoeEpisode, state.audit).some(
       (item) => item.id === entry.id,

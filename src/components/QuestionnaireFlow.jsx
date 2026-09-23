@@ -16,10 +16,13 @@ export default function QuestionnaireFlow({
   preview = false,
   headingLevel,
   clinicianEntry = false,
+  submitLabel,
+  completionNote,
+  initialReview = false,
 }) {
   const path = questionnaireState(instrument, answers);
   const [currentId, setCurrentId] = useState(instrument.questions[0].id);
-  const [review, setReview] = useState(false);
+  const [review, setReview] = useState(initialReview);
   const [editing, setEditing] = useState(false);
   const [search, setSearch] = useState("");
   const [missingOnly, setMissingOnly] = useState(false);
@@ -239,6 +242,12 @@ export default function QuestionnaireFlow({
                 ? "These answers will be saved with you as recorder. No separate clinical review is required."
                 : "Your response will be submitted once, then be ready for the care team’s review."}
           </Notice>
+          {path.complete && completionNote && (
+            <div className="questionnaire-next-step">
+              <strong>Next: completion details</strong>
+              <p>{completionNote}</p>
+            </div>
+          )}
           <div className="question-controls">
             <Button
               type="button"
@@ -265,8 +274,13 @@ export default function QuestionnaireFlow({
                 variant="primary"
                 onClick={() => onSubmit(path.answers)}
               >
-                {preview ? "Finish practice" : "Submit response"}
-                <Check size={17} />
+                {submitLabel ||
+                  (preview ? "Finish practice" : "Submit response")}
+                {completionNote ? (
+                  <ArrowRight size={17} />
+                ) : (
+                  <Check size={17} />
+                )}
               </Button>
             )}
           </div>

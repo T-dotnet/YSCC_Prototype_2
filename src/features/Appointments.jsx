@@ -257,8 +257,12 @@ export default function Appointments({ episode, openModal }) {
   );
   const setFilter = (key, value) =>
     setFilters((current) => ({ ...current, [key]: value }));
-  const addAppointment = () =>
-    openModal({ type: "appointment", episodeId: episode.id });
+  const addContact = () =>
+    openModal({
+      type: "care-event",
+      episodeId: episode.id,
+      initialType: "indirect-activity",
+    });
 
   return (
     <div className="stack appointments">
@@ -267,7 +271,7 @@ export default function Appointments({ episode, openModal }) {
           <h2>Service contacts</h2>
           <p>Record planned and actual direct contacts, including attendance.</p>
         </div>
-        <Button variant="primary" disabled={episode.status !== "Active"} onClick={addAppointment}>
+        <Button variant="primary" disabled={episode.status !== "Active"} onClick={addContact}>
           <Plus size={17} aria-hidden="true" /> Add contact
         </Button>
       </div>

@@ -110,6 +110,14 @@ export function timelinePosition(date, start, end) {
   );
 }
 
+export function timelineExtent(entries) {
+  const dates = entries
+    .flatMap((entry) => [entry.date, entry.end])
+    .filter(isRecordedDate)
+    .sort();
+  return { start: dates[0] || null, end: dates.at(-1) || null };
+}
+
 export function careTimelineData(episode) {
   const events = recordedCareEvents(episode);
   const responses = dated(

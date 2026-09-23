@@ -14,6 +14,12 @@ import { formatDate, TODAY } from "../model";
 
 export const TIMELINE_RECORD_TYPES = [
   {
+    value: "appointment",
+    label: "Appointment or service contact",
+    scope: "appointment",
+    description: "A planned appointment or recorded service contact.",
+  },
+  {
     value: "outcome",
     label: "Outcome measure record",
     scope: "structured",
@@ -47,6 +53,13 @@ export const TIMELINE_RECORD_TYPES = [
     scope: "contextual",
     description:
       "A step-up, step-down or other major change in care coordination, support, service or provider.",
+  },
+  {
+    value: "indirect-activity",
+    label: "Indirect service activity",
+    scope: "contextual",
+    description:
+      "Service work completed on behalf of the person without a direct contact.",
   },
   {
     value: "harm",
@@ -87,6 +100,7 @@ export default function CareTimelineEntryForm({
   error,
   onClose,
   onSave,
+  onSelectAppointment,
 }) {
   const isCorrection = Boolean(existingEvent);
   const [entryType, setEntryType] = useState(
@@ -109,7 +123,13 @@ export default function CareTimelineEntryForm({
 
   return (
     <Modal
-      title={isCorrection ? "Correct event" : "Add event"}
+      title={
+        isCorrection
+          ? "Correct event"
+          : entryType === "indirect-activity"
+            ? "Record event"
+            : "Add event"
+      }
       subtitle={`Care period ${episode.number} · ${formatDate(episode.start)}–${episode.end ? formatDate(episode.end) : "present"}`}
       onClose={onClose}
     >
@@ -151,8 +171,9 @@ export default function CareTimelineEntryForm({
             </Notice>
           ) : (
             <Notice>
-              Record contextual events only. This does not replace a safety
-              plan, medication chart or source clinical record.
+              {entryType === "indirect-activity"
+                ? "Record work completed for the person without a direct contact. This is saved to care history."
+                : "Record contextual events only. This does not replace a safety plan, medication chart or source clinical record."}
             </Notice>
           )}
 
@@ -161,10 +182,16 @@ export default function CareTimelineEntryForm({
               <select
                 name="entryType"
                 value={entryType}
-                onChange={(e) => setEntryType(e.target.value)}
+                onChange={(e) => {
+                  if (e.target.value === "appointment") {
+                    onSelectAppointment?.();
+                  } else {
+                    setEntryType(e.target.value);
+                  }
+                }}
                 required
               >
-                {TIMELINE_RECORD_TYPES.map((type) => (
+                {TIMELINE_RECORD_TYPES.filter((type) => !isCorrection || type.scope !== "appointment").map((type) => (
                   <option key={type.value} value={type.value}>
                     {type.label}
                   </option>

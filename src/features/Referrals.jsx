@@ -11,7 +11,6 @@ import {
 } from "../model";
 import { REFERRAL_EVENTS, referralOpen, intakeActionError } from "../intake";
 import {
-  Badge,
   Button,
   Field,
   Modal,
@@ -20,8 +19,9 @@ import {
   StaffPicker,
   ValidatedForm,
 } from "../components/UI";
+import RecordItem from "../components/RecordItem";
 
-export default function Referrals({ person, intake, episode, openModal }) {
+export default function Referrals({ person, intake, episode, openModal, hideEmptyState = false }) {
   const params = useSearchParams();
   const referrals = [...(person.referrals || [])].sort((a, b) =>
     a.id === params.get("referral")
@@ -34,7 +34,7 @@ export default function Referrals({ person, intake, episode, openModal }) {
     <div className="stack">
       <div className="section-toolbar">
         <div>
-          <h2>Onward referrals</h2>
+          <h2>Referrals</h2>
           <p>
             Keep ownership through the receiving service’s response and
             handover.
@@ -59,8 +59,8 @@ export default function Referrals({ person, intake, episode, openModal }) {
         Record events from the agreed service channel. This workspace does not
         send referrals or contact another service.
       </Notice>
-      {!referrals.length && (
-        <Panel title="No onward referrals">
+      {!hideEmptyState && !referrals.length && (
+        <Panel title="No referrals">
           <div className="panel-body">
             <p>
               Add a referral when the agreed next-care plan involves another
@@ -70,123 +70,70 @@ export default function Referrals({ person, intake, episode, openModal }) {
         </Panel>
       )}
       {referrals.map((r) => (
-        <Panel
+        <RecordItem
           key={r.id}
           title={r.destination}
-          action={<Badge>{r.handover}</Badge>}
-          className={
-            r.id === params.get("referral") ? "selected-collection" : ""
-          }
-        >
-          <div className="panel-body stack">
-            <p>{r.purpose}</p>
-            <div className="referral-states">
-              {[
-                ["Preparation", r.preparation],
-                ["Sending", r.transmission],
-                ["Receipt", r.receipt],
-                ["Service decision", r.decision],
-              ].map(([label, value]) => (
-                <div key={label}>
-                  <small>{label}</small>
-                  <strong>{value}</strong>
-                </div>
-              ))}
-            </div>
-            <dl className="metadata">
-              <div>
-                <dt>YSCC follow-up owner</dt>
-                <dd>{r.owner}</dd>
-              </div>
-              <div>
-                <dt>Receiving service responsibility</dt>
-                <dd>{r.receivingResponsibility || "Not confirmed"}</dd>
-              </div>
-              <div>
-                <dt>Receiving responsible person / team</dt>
-                <dd>{r.externalOwner || "Not confirmed"}</dd>
-              </div>
-              {r.handoverConfirmedAt && (
-                <div>
-                  <dt>Handover confirmed</dt>
-                  <dd>{formatTimestamp(r.handoverConfirmedAt)}</dd>
-                </div>
-              )}
-              {r.handoverEvidence && (
-                <div>
-                  <dt>Confirmation evidence</dt>
-                  <dd>{r.handoverEvidence}</dd>
-                </div>
-              )}
-              {r.closureReconciliation && (
-                <div>
-                  <dt>Closure reconciliation</dt>
-                  <dd>
-                    {r.closureReconciliation.action} · {r.closureReconciliation.owner} · due {formatDate(r.closureReconciliation.due)}
-                  </dd>
-                </div>
-              )}
-              <div>
-                <dt>Next action</dt>
-                <dd>{r.nextAction}</dd>
-              </div>
-              <div>
-                <dt>Follow-up date</dt>
-                <dd>{formatDate(r.reviewDate)}</dd>
-              </div>
-              <div>
-                <dt>Sending attempts</dt>
-                <dd>{r.attempts.length}</dd>
-              </div>
-              <div>
-                <dt>Linked care period</dt>
-                <dd>
-                  {r.episodeId
-                    ? person.episodes.find((e) => e.id === r.episodeId)
-                        ?.status || "Retained record"
-                    : "Intake / person"}
-                </dd>
-              </div>
-            </dl>
-            {referralOpen(r) && (
-              <Button
-                onClick={() =>
-                  openModal({
-                    type: "referral-event",
-                    personId: person.id,
-                    referralId: r.id,
-                  })
-                }
-              >
-                Record referral event
-                <ArrowRight size={17} />
-              </Button>
-            )}
-            <details className="setup-disclosure">
-              <summary>Referral history ({r.history.length})</summary>
-              <ol className="intake-history">
-                {r.history.map((h) => (
-                  <li key={h.id}>
-                    <strong>
-                      {h.title}
-                      {h.result ? ` · ${h.result}` : ""}
-                    </strong>
-                    <p>{h.detail}</p>
-                    {h.occurredAt && (
-                      <small>
-                        Occurred {formatTimestamp(h.occurredAt)} · {h.system}
-                      </small>
+          status={r.handover}
+          selected={r.id === params.get("referral")}
+          facts={[
+            { label: "Purpose", value: r.purpose, wide: true },
+            { label: "YSCC follow-up owner", value: r.owner },
+            { label: "Follow-up date", value: formatDate(r.reviewDate) },
+            { label: "Next action", value: r.nextAction, wide: true },
+          ]}
+          secondary={
+            <div className="stack referral-record-details">
+              <details className="setup-disclosure">
+                <summary>Handover and service details</summary>
+                <div className="stack intake-disclosure-body">
+                  <div className="referral-states">
+                    {[
+                      ["Preparation", r.preparation],
+                      ["Sending", r.transmission],
+                      ["Receipt", r.receipt],
+                      ["Service decision", r.decision],
+                    ].map(([label, value]) => (
+                      <div key={label}>
+                        <small>{label}</small>
+                        <strong>{value}</strong>
+                      </div>
+                    ))}
+                  </div>
+                  <dl className="metadata">
+                    <div><dt>Receiving service responsibility</dt><dd>{r.receivingResponsibility || "Not confirmed"}</dd></div>
+                    <div><dt>Receiving responsible person / team</dt><dd>{r.externalOwner || "Not confirmed"}</dd></div>
+                    {r.handoverConfirmedAt && <div><dt>Handover confirmed</dt><dd>{formatTimestamp(r.handoverConfirmedAt)}</dd></div>}
+                    {r.handoverEvidence && <div><dt>Confirmation evidence</dt><dd>{r.handoverEvidence}</dd></div>}
+                    {r.closureReconciliation && (
+                      <div><dt>Closure reconciliation</dt><dd>{r.closureReconciliation.action} · {r.closureReconciliation.owner} · due {formatDate(r.closureReconciliation.due)}</dd></div>
                     )}
-                    <small>
-                      Recorded {formatTimestamp(h.timestamp)} · {h.actor}
-                    </small>
-                    {h.plan && <p>Next-care arrangement: {h.plan}</p>}
-                  </li>
-                ))}
-              </ol>
-            </details>
-          </div>
-        </Panel>
+                    <div><dt>Sending attempts</dt><dd>{r.attempts.length}</dd></div>
+                    <div><dt>Linked care period</dt><dd>{r.episodeId ? person.episodes.find((e) => e.id === r.episodeId)?.status || "Retained record" : "Intake / person"}</dd></div>
+                  </dl>
+                </div>
+              </details>
+              <details className="setup-disclosure">
+                <summary>Referral history ({r.history.length})</summary>
+                <ol className="intake-history">
+                  {r.history.map((h) => (
+                    <li key={h.id}>
+                      <strong>{h.title}{h.result ? ` · ${h.result}` : ""}</strong>
+                      <p>{h.detail}</p>
+                      {h.occurredAt && <small>Occurred {formatTimestamp(h.occurredAt)} · {h.system}</small>}
+                      <small>Recorded {formatTimestamp(h.timestamp)} · {h.actor}</small>
+                      {h.plan && <p>Next-care arrangement: {h.plan}</p>}
+                    </li>
+                  ))}
+                </ol>
+              </details>
+            </div>
+          }
+          actions={referralOpen(r) && (
+            <Button onClick={() => openModal({ type: "referral-event", personId: person.id, referralId: r.id })}>
+              Record referral event <ArrowRight size={17} />
+            </Button>
+          )}
+        />
       ))}
     </div>
   );

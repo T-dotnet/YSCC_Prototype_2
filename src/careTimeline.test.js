@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { careTimelineData, timelinePosition } from "./careTimeline.js";
+import { careTimelineData, timelineExtent, timelinePosition } from "./careTimeline.js";
 
 test("care context timeline keeps significant events together in one lane", () => {
   const timeline = careTimelineData({
@@ -134,6 +134,28 @@ test("timeline positions remain bounded when dates are missing or identical", ()
   assert.equal(timelinePosition("2026-06-01", "2026-06-01", "2026-06-01"), 50);
   assert.equal(timelinePosition(null, "2026-06-01", "2026-06-10"), 0);
   assert.equal(timelinePosition("2026-06-20", "2026-06-01", "2026-06-10"), 100);
+});
+
+test("the plotted range follows visible records and includes the ends of periods", () => {
+  const timeline = careTimelineData({
+    start: "2026-06-15",
+    collections: [{
+      id: "future-review",
+      label: "Future review",
+      response: "Not started",
+      due: "2027-10-13",
+    }],
+    servicePeriods: [{ id: "care", start: "2026-06-15", end: "2026-09-15" }],
+  });
+  assert.equal(timeline.end, "2027-10-13");
+  const plotted = timeline.lanes
+    .filter((lane) => !["responses", "reviews"].includes(lane.id))
+    .flatMap((lane) => lane.entries);
+  assert.deepEqual(timelineExtent(plotted), {
+    start: "2026-06-15",
+    end: "2026-09-15",
+  });
+  assert.equal(timelinePosition("2026-09-15", "2026-06-15", "2026-09-15"), 100);
 });
 
 test("only recorded medication intervals become bars and complete K10 responses appear as dated records", () => {

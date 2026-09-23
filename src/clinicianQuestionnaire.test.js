@@ -1,6 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createSeed, reducer, getTasks, collectionActor } from "./model.js";
+import {
+  createSeed,
+  reducer,
+  getTasks,
+  collectionActor,
+  TODAY,
+} from "./model.js";
 import { createSampleAnswers } from "./sampleQuestionnaires.js";
 
 const context = {
@@ -137,4 +143,114 @@ test("patient delivery still submits with its current attempt and replaces clini
   assert.equal(collection(saved).recorderName, "Kai Thompson");
   assert.equal(collection(saved).recorderId, null);
   assert.equal(collection(saved).review, "Pending");
+});
+
+test("clinician and tablet completion save a confirmed linked appointment outcome with the response", () => {
+  for (const channel of ["Clinician entry", "Clinic tablet"]) {
+    const appointmentId = `APT-completion-${channel}`;
+    const withAppointment = reducer(createSeed(), {
+      type: "ADD_APPOINTMENT",
+      personId: context.personId,
+      episodeId: context.episodeId,
+      id: appointmentId,
+      plannedDate: TODAY,
+      plannedTime: "10:00",
+      plannedDurationMinutes: 60,
+      practitionerService: "Jess Taylor · Northside Centre",
+      deliveryMode: "In person",
+      attendance: "Planned",
+    });
+    const started = begin(withAppointment, {
+      channel,
+      assistance: channel === "Clinic tablet" ? "Independent" : "Transcribed",
+      appointmentId,
+    });
+    const submitAction = {
+      ...submission(started),
+      channel,
+      completionMethod: channel,
+      appointmentOutcome: {
+        appointmentId,
+        attendance: "Attended",
+        recipientType: "Young person",
+        contactType: "Assessment",
+        primaryPractitioner: "Jess Taylor",
+        actualDate: TODAY,
+        actualTime: "10:00",
+        actualDurationMinutes: 60,
+      },
+    };
+    const invalid = reducer(started, {
+      ...submitAction,
+      appointmentOutcome: {
+        ...submitAction.appointmentOutcome,
+        actualDurationMinutes: 0,
+      },
+    });
+    assert.equal(invalid, started);
+    const saved = reducer(started, submitAction);
+    const appointment = saved.people[0].episodes[0].appointments.find(
+      (item) => item.id === appointmentId,
+    );
+    assert.equal(collection(saved).response, "Submitted");
+    assert.equal(collection(saved).submittedAppointmentId, appointmentId);
+    assert.equal(appointment.attendance, "Attended");
+    assert.equal(appointment.actualDate, TODAY);
+    assert.equal(appointment.contactType, "Assessment");
+    assert.equal(
+      collection(saved).attempts.at(-1).methodConfirmedBy,
+      "Jess Taylor",
+    );
+
+    const correctedMethod =
+      channel === "Clinic tablet" ? "Clinician entry" : "Clinic tablet";
+    const corrected = reducer(started, {
+      ...submitAction,
+      completionMethod: correctedMethod,
+    });
+    const correctedCollection = collection(corrected);
+    assert.equal(correctedCollection.channel, correctedMethod);
+    assert.equal(correctedCollection.attempts.at(-1).startedChannel, channel);
+    assert.equal(
+      correctedCollection.recorderName,
+      correctedMethod === "Clinician entry" ? "Jess Taylor" : "Kai Thompson",
+    );
+    assert.equal(
+      correctedCollection.review,
+      correctedMethod === "Clinician entry" ? "Not required" : "Pending",
+    );
+
+    const didNotAttend = reducer(started, {
+      ...submitAction,
+      appointmentOutcome: {
+        appointmentId,
+        attendance: "Did not attend",
+        outcomeNotes: "Contact did not take place",
+      },
+    });
+    assert.equal(collection(didNotAttend).response, "Submitted");
+    assert.equal(
+      didNotAttend.people[0].episodes[0].appointments.find(
+        (item) => item.id === appointmentId,
+      ).attendance,
+      "Did not attend",
+    );
+  }
+});
+
+test("completion confirms the collection method without a linked appointment", () => {
+  const seed = createSeed();
+  seed.people[0].episodes[0].appointments = [];
+  const started = begin(seed);
+  const saved = reducer(started, {
+    ...submission(started),
+    completionMethod: "Clinic tablet",
+  });
+  assert.equal(collection(saved).response, "Submitted");
+  assert.equal(collection(saved).channel, "Clinic tablet");
+  assert.equal(collection(saved).submittedAppointmentId, null);
+  assert.equal(
+    collection(saved).attempts.at(-1).startedChannel,
+    "Clinician entry",
+  );
 });

@@ -31,6 +31,7 @@ test("the overview event summary lists every current type and its latest record"
   assert.deepEqual(
     summary.map(({ value }) => value),
     [
+      "indirect-activity",
       "harm",
       "medication-adverse",
       "housing",

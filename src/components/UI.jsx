@@ -9,6 +9,7 @@ import {
   ChevronRight,
   Check,
   Clock3,
+  LockKeyhole,
 } from "lucide-react";
 import { DEMO_STAFF, initials } from "../model";
 import { badgeTone } from "../badgeTone";
@@ -437,6 +438,7 @@ export function Tabs({
     >
       {items.map((item, index) => {
         const key = typeof item === "string" ? item : item.value;
+        const disabled = typeof item === "object" && item.disabled === true;
         return (
           <button
             key={key}
@@ -445,16 +447,26 @@ export function Tabs({
             id={`${id}-tab-${index}`}
             aria-selected={key === value}
             aria-controls={panelId}
+            aria-disabled={disabled}
+            disabled={disabled}
+            title={typeof item === "object" ? item.title : undefined}
             tabIndex={key === value ? 0 : -1}
             className={`${itemClassName} ${key === value ? `selected ${selectedClassName}` : ""}`.trim()}
             onClick={() => onChange(key)}
             onKeyDown={(event) => {
+              const enabled = items
+                .map((candidate, candidateIndex) =>
+                  typeof candidate === "object" && candidate.disabled
+                    ? -1
+                    : candidateIndex,
+                )
+                .filter((candidateIndex) => candidateIndex !== -1);
+              const position = enabled.indexOf(index);
               let next;
-              if (event.key === "ArrowRight") next = (index + 1) % items.length;
-              if (event.key === "ArrowLeft")
-                next = (index - 1 + items.length) % items.length;
-              if (event.key === "Home") next = 0;
-              if (event.key === "End") next = items.length - 1;
+              if (event.key === "ArrowRight") next = enabled[(position + 1) % enabled.length];
+              if (event.key === "ArrowLeft") next = enabled[(position - 1 + enabled.length) % enabled.length];
+              if (event.key === "Home") next = enabled[0];
+              if (event.key === "End") next = enabled.at(-1);
               if (next === undefined) return;
               event.preventDefault();
               onChange(
@@ -465,6 +477,7 @@ export function Tabs({
               event.currentTarget.parentElement.children[next].focus();
             }}
           >
+            {disabled && <LockKeyhole size={13} aria-hidden="true" />}
             {typeof item === "string" ? item : item.label || item.value}
             {item.count !== undefined && (
               <span className={`${unstyled ? "" : "tab-count"} ${countClassName}`.trim()}>{item.count}</span>

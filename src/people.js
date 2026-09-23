@@ -7,7 +7,11 @@ const openIntake = (intake) =>
   (intakeReady(intake) && !intake.episodeId);
 
 export function peopleInEpisodes(people, status = "All episodes") {
-  return (people || []).flatMap((person) => {
+  return (people || []).filter((person) =>
+    status === "Archived" ? !!person.archivedAt : !person.archivedAt,
+  ).flatMap((person) => {
+    if (status === "Archived")
+      return [{ person, episode: person.episodes?.[0], status: "Archived", label: "Archived person record", detail: "Record retained for review" }];
     const episode =
       status === "Intake"
         ? undefined

@@ -231,15 +231,20 @@ export function appointmentSummary(appointment) {
   return `${planned} · ${appointment.attendance}${actual}${contact ? ` · ${contact}` : ""}${notes ? ` · ${notes}` : ""}`;
 }
 
+export function appointmentMatchesCollectionDate(appointment, collection) {
+  const appointmentDates = [appointment.plannedDate, appointment.actualDate].filter(Boolean);
+  const collectionDates = [collection.due, collection.submittedAt?.slice(0, 10)].filter(Boolean);
+  return appointmentDates.some((date) => collectionDates.includes(date));
+}
+
 export function associatedCollections(appointment, episode) {
   if (!episode || !episode.collections) return [];
   return episode.collections.filter((c) => {
-    const linkedApptId = c.submittedAppointmentId || c.appointmentId;
-    if (linkedApptId === appointment.id) return true;
-    if (c.attempts?.some((attempt) => attempt.appointmentId === appointment.id)) return true;
-    const apptDate = appointment.actualDate || appointment.plannedDate;
-    if (apptDate && (c.due === apptDate || c.submittedAt?.slice(0, 10) === apptDate)) return true;
-    return false;
+    return appointmentMatchesCollectionDate(appointment, c) && (
+      c.submittedAppointmentId === appointment.id ||
+      c.appointmentId === appointment.id ||
+      c.attempts?.some((attempt) => attempt.appointmentId === appointment.id)
+    );
   });
 }
 

@@ -3,6 +3,7 @@ import {
   House,
   Users,
   ChartNoAxesColumnIncreasing,
+  History,
   Settings,
   CircleHelp,
   ChevronLeft,
@@ -22,6 +23,7 @@ const links = [
   ["/", "My work", House],
   ["/people", "People", Users],
   ["/quality", "Data quality", ChartNoAxesColumnIncreasing],
+  ["/change-log", "Change log", History],
   ["/administration", "Administration", Settings],
 ];
 export default function Shell({

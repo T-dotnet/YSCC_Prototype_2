@@ -16,6 +16,30 @@ export const INTAKE_CHECKS = [
   ["supportChecked", "Contact and support arrangements reviewed"],
   ["triageChecked", "Required intake and triage checks resolved"],
 ];
+export const INTAKE_DETAIL_FIELDS = [
+  "legalName", "sourceIdentifiers", "receivedAt", "source", "sourceReference", "reason",
+  "contactMethod", "contactValue", "contactHolder", "safeContact", "permissionReference",
+  "language", "supportNeeds", "supporter", "authority", "nextAction", "reviewDate",
+  "waitingReason", "waitingOn", "communication",
+];
+export function intakeCheckFieldsError(values) {
+  const unchecked = INTAKE_CHECKS.find(([key]) => values?.[key] !== true);
+  if (unchecked) return `Confirm ${unchecked[1].toLowerCase()} before saving intake.`;
+  if (typeof values?.reviewer !== "string" || !values.reviewer.trim())
+    return "Assign a triage reviewer before saving intake.";
+  if (typeof values?.nextAction !== "string" || !values.nextAction.trim())
+    return "Enter the next step before saving intake.";
+  return "";
+}
+export function intakeStepComplete(intake) {
+  if (!intake) return false;
+  if (["Completed", "Closed incomplete"].includes(intake.status)) return true;
+  if (intakeCheckFieldsError(intake)) return false;
+  if ("checksValidatedAt" in intake) return validTime(intake.checksValidatedAt);
+  return intake.history?.some(
+    (event) => event.detail === "Required intake check fields validated and saved.",
+  ) === true;
+}
 export const REFERRAL_EVENTS = [
   "Sending attempt",
   "Verify sending outcome",
@@ -103,6 +127,7 @@ export function newIntake({
     supportChecked: false,
     triageChecked: false,
     checkEvidence: "",
+    checksValidatedAt: "",
     reviewer: owner,
     summary: "",
     assessmentOwner: "",
@@ -154,6 +179,23 @@ export function intakeActionError(state, action, staff) {
     return "";
   }
   if (!p) return "The person record is unavailable.";
+  if (action.type === "UPDATE_INTAKE_DETAILS") {
+    if (!i || p.archivedAt) return "Restore the person and reopen this intake record before editing.";
+    if (action.revision !== i.revision) return "This intake changed. Reopen it before saving.";
+    if (!text(action.reason)) return "Record a reason for this update.";
+    const values = action.values || {};
+    if (!text(values.name)) return "Enter the supplied name.";
+    if (state.people.some((other) => other.id !== p.id &&
+        !other.nameUnknown && other.name.trim().toLowerCase() === values.name.trim().toLowerCase()))
+      return "A matching name exists. Review that record before saving.";
+    if (values.dob && (!validDate(values.dob) || values.dob > "2026-09-15"))
+      return "Check the supplied date of birth.";
+    if (values.receivedAt && !validTime(values.receivedAt))
+      return "Check the received date and time.";
+    if (!validDate(values.reviewDate)) return "Enter a valid next review date.";
+    if (!text(values.nextAction)) return "Enter the next action.";
+    return "";
+  }
   if (
     ["SAVE_INTAKE", "START_ASSESSMENT", "REOPEN_INTAKE"].includes(
       action.type,
@@ -194,6 +236,10 @@ export function intakeActionError(state, action, staff) {
       return "A matching name exists. Resolve the identity match before saving.";
     if (["Completed", "Closed incomplete"].includes(i.status))
       return "This intake is finalised. Its decision and history are retained.";
+    if (action.validatedChecks === true) {
+      const problem = intakeCheckFieldsError(f);
+      if (problem) return problem;
+    }
     if (!INTAKE_STATES.includes(f.status)) return "Choose an intake state.";
     if (
       !text(f.owner) ||
@@ -217,19 +263,19 @@ export function intakeActionError(state, action, staff) {
       if (staff.role !== "Clinician")
         return "The demo Clinician profile records intake decisions.";
       if (f.consentRecorded !== true || !text(f.consentReference))
-        return "Record consent and its source in the Consent & respondents tab before completing intake.";
+        return "Record consent and its source in the intake form before completing intake.";
       if (
         !["Person", "Family respondent"].includes(f.respondentPreference) ||
         (f.respondentPreference === "Family respondent" &&
           !text(f.respondentName))
       )
-        return "Record the initial assessment respondent in the Consent & respondents tab before completing intake.";
+        return "Record the initial assessment respondent in the intake form before completing intake.";
       if (
         !INTAKE_CHECKS.every(([key]) => f[key] === true) ||
         !text(f.checkEvidence) ||
         !text(f.summary)
       )
-        return "Resolve the required checks and record their source and the triage summary.";
+        return "Resolve the required intake checks, then record evidence considered and the outcome summary.";
       if (
         !["Proceed", "Do not proceed"].includes(f.outcome) ||
         !validTime(f.decisionAt)
@@ -362,6 +408,29 @@ export function applyIntakeAction(
       intakes: [intake],
       referrals: [],
     });
+  } else if (action.type === "UPDATE_INTAKE_DETAILS") {
+    const f = action.values;
+    const previous = JSON.parse(JSON.stringify(i));
+    const priorPerson = { name: p.name, dob: p.dob, pronouns: p.pronouns };
+    p.name = f.name.trim();
+    p.nameUnknown = false;
+    p.dob = f.dob || null;
+    p.pronouns = f.pronouns || "Not recorded";
+    for (const key of INTAKE_DETAIL_FIELDS) {
+      if (f[key] !== undefined)
+        i[key] = typeof f[key] === "string" ? f[key].trim() : f[key];
+    }
+    const changes = [
+      ...recordFieldChanges(priorPerson, p, [["name", "Name"], ["dob", "Date of birth"], ["pronouns", "Pronouns"]]),
+      ...recordFieldChanges(previous, i, INTAKE_DETAIL_FIELDS.map((key) => [key, key.replace(/([A-Z])/g, " $1")])),
+    ];
+    if (!changes.length) return state;
+    i.revision += 1;
+    i.history.unshift({
+      ...history("Intake information updated", action.reason.trim()),
+      changes,
+      snapshot: Object.fromEntries(["name", "dob", "pronouns", ...INTAKE_DETAIL_FIELDS].map((key) => [key, key in f ? f[key] : i[key]])),
+    });
   } else if (action.type === "REOPEN_INTAKE") {
     const previous = JSON.parse(JSON.stringify(i));
     i.status = "In progress";
@@ -422,6 +491,14 @@ export function applyIntakeAction(
     for (const key of fields)
       if (f[key] !== undefined)
         i[key] = typeof f[key] === "string" ? f[key].trim() : f[key];
+    if (action.validatedChecks === true) {
+      i.checksValidatedAt = timestamp;
+    } else if (
+      INTAKE_CHECKS.some(([key]) => i[key] !== previous[key]) ||
+      i.reviewer !== previous.reviewer
+    ) {
+      i.checksValidatedAt = "";
+    }
     if (f.displayName !== undefined) {
       p.name = f.displayName.trim() || "Name not yet known";
       p.nameUnknown = !text(f.displayName);
@@ -641,7 +718,7 @@ export function applyIntakeAction(
 }
 
 export function intakeTasks(state, today) {
-  return (state?.people || []).flatMap((p) => [
+  return (state?.people || []).filter((p) => !p.archivedAt).flatMap((p) => [
     ...(p.intakes || [])
       .filter(
         (i) =>

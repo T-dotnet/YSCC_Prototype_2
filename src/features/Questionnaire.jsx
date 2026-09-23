@@ -9,13 +9,14 @@ import {
   LifeBuoy,
 } from "lucide-react";
 import { useStore } from "../store";
-import { displayFamilyName, displayPersonName } from "../model";
+import { displayFamilyName, displayPersonName, formatDate } from "../model";
 import {
   DEMO_INSTRUMENT,
   getInstrument,
   questionnaireState,
 } from "../instruments";
 import QuestionnaireFlow from "../components/QuestionnaireFlow";
+import QuestionnaireAppointmentConfirmation from "../components/QuestionnaireAppointmentConfirmation";
 import { Logo, Button, Success, Modal, Notice } from "../components/UI";
 export default function Questionnaire({ session, navigate, onEnd }) {
   const { state, commit, storageError } = useStore();
@@ -27,10 +28,21 @@ export default function Questionnaire({ session, navigate, onEnd }) {
     [help, setHelp] = useState(false),
     [finished, setFinished] = useState(false),
     [ended, setEnded] = useState(false);
+  const [pendingAnswers, setPendingAnswers] = useState(null);
+  const [returnToReview, setReturnToReview] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const answeredCount = answers.filter(Boolean).length;
   const instrument = session ? getInstrument(c?.version) : DEMO_INSTRUMENT;
+  const linkedAppointmentId =
+    c?.appointmentId || c?.attempts.at(-1)?.appointmentId;
+  const linkedAppointment =
+    c?.channel === "Clinic tablet"
+      ? e?.appointments?.find(
+          (item) =>
+            item.id === linkedAppointmentId && item.attendance === "Planned",
+        )
+      : null;
   const preview = !session,
     unavailable =
       !preview &&
@@ -51,7 +63,7 @@ export default function Questionnaire({ session, navigate, onEnd }) {
   };
   const requestEnd = () =>
     answers.some(Boolean) && !finished ? setConfirmLeave(true) : end();
-  const submit = (finalAnswers) => {
+  const submit = (finalAnswers, confirmation) => {
     if (!questionnaireState(instrument, finalAnswers).complete || unavailable)
       return;
     if (session) {
@@ -59,6 +71,7 @@ export default function Questionnaire({ session, navigate, onEnd }) {
         ...session,
         type: "SUBMIT",
         answers: finalAnswers,
+        ...(confirmation || {}),
       });
       if (result.error) {
         setSubmitError(result.error);
@@ -68,6 +81,14 @@ export default function Questionnaire({ session, navigate, onEnd }) {
     setSubmitError("");
     setFinished(true);
     setStep(4);
+  };
+  const completeQuestions = (finalAnswers) => {
+    if (c?.channel === "Clinic tablet") {
+      setPendingAnswers(finalAnswers);
+      setSubmitError("");
+      return;
+    }
+    submit(finalAnswers);
   };
   useEffect(() => {
     document.querySelector(".questionnaire h1")?.focus();
@@ -237,25 +258,54 @@ export default function Questionnaire({ session, navigate, onEnd }) {
                   These are demonstration questions, not a clinical assessment.
                 </p>
               </>
+            ) : pendingAnswers ? (
+              <QuestionnaireAppointmentConfirmation
+                appointment={linkedAppointment}
+                collection={c}
+                episode={e}
+                error={submitError}
+                onBack={() => {
+                  setReturnToReview(true);
+                  setPendingAnswers(null);
+                  setSubmitError("");
+                }}
+                onConfirm={(confirmation) => submit(pendingAnswers, confirmation)}
+                tablet
+              />
             ) : (
               <QuestionnaireFlow
                 instrument={instrument}
                 respondent={session?.respondent}
                 answers={answers}
                 onChange={setAnswers}
-                onSubmit={submit}
+                onSubmit={completeQuestions}
+                submitLabel={
+                  c?.channel === "Clinic tablet"
+                    ? "Continue to completion details"
+                    : undefined
+                }
+                completionNote={
+                  c?.channel === "Clinic tablet" && linkedAppointment
+                    ? `Next, review the linked appointment on ${formatDate(linkedAppointment.plannedDate)} at ${linkedAppointment.plannedTime}, confirm the collection method and record its outcome. Your answers have not been submitted yet.`
+                    : c?.channel === "Clinic tablet"
+                      ? "Next, confirm whether the answers were completed on a tablet or by a clinician. Your answers have not been submitted yet."
+                      : undefined
+                }
+                initialReview={returnToReview}
                 preview={preview}
                 headingLevel="h1"
               />
             )}
-            <div className="participant-help">
-              <button onClick={() => setHelp(true)}>
-                <LifeBuoy size={18} />
-                Need help or a break?
-              </button>
-              <button onClick={requestEnd}>Leave questionnaire</button>
-            </div>
-            {submitError && (
+            {!pendingAnswers && (
+              <div className="participant-help">
+                <button onClick={() => setHelp(true)}>
+                  <LifeBuoy size={18} />
+                  Need help or a break?
+                </button>
+                <button onClick={requestEnd}>Leave questionnaire</button>
+              </div>
+            )}
+            {submitError && !pendingAnswers && (
               <p className="field-error" role="alert">
                 {submitError}
               </p>

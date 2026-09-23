@@ -9,6 +9,7 @@ import People from "./features/People";
 import Person from "./features/Person";
 import AssessmentReviewRecord from "./features/AssessmentReviewRecord";
 import { Quality, Administration, Help } from "./features/Operations";
+import GlobalChangeLog from "./features/GlobalChangeLog";
 import Questionnaire from "./features/Questionnaire";
 import ConsentRequest from "./features/ConsentRequest";
 import { getQualityIssues } from "./dataQuality";
@@ -99,6 +100,8 @@ export default function App() {
       <Person key={path} id={path.split("/")[2]} {...shared} />
     ) : path === "/quality" ? (
       <Quality {...shared} />
+    ) : path === "/change-log" ? (
+      <GlobalChangeLog {...shared} />
     ) : path === "/administration" ? (
       <Administration {...shared} />
     ) : path === "/help" ? (
@@ -139,6 +142,7 @@ export default function App() {
                     personId: modal.personId,
                     episodeId: modal.episodeId,
                     collectionId: modal.collectionId,
+                    collectResponse: modal.collectResponse,
                   }
                 : null,
             )

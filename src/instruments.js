@@ -91,8 +91,8 @@ const likert = (id, section, title, scale, hint, nonResponseOptions = []) => ({
 // Original, nonclinical sample content. Rules reference stable IDs of earlier
 // questions; array positions are fixed within a pinned version for stored answers.
 export const DEMO_INSTRUMENT = {
-  name: "Demo check-in",
-  version: "Demo check-in v2.0",
+  name: "Your preferences and next steps",
+  version: "Your preferences and next steps v2.0",
   description: "Participation preferences, everyday activities and next steps.",
   respondents: ["Person", "Family respondent"],
   sections: [
@@ -382,6 +382,7 @@ const sampleInstrument = (name, description, sections, questions) => ({
 export const INSTRUMENTS = [
   DEMO_INSTRUMENT,
   LIKERT_INSTRUMENT,
+  ...MEASURE_INSTRUMENTS,
   sampleInstrument(
     "Everyday life",
     "Explore daily routines, enjoyable activities and practical next steps.",
@@ -807,7 +808,8 @@ export const INSTRUMENTS = [
 
 export const getInstrument = (version) =>
   [LEGACY_INSTRUMENT, ...INSTRUMENTS].find(
-    (instrument) => instrument.version === version,
+    (instrument) => instrument.version === version ||
+      (version === "Demo check-in v2.0" && instrument === DEMO_INSTRUMENT),
   ) || null;
 export const questionTitle = (question, respondent) =>
   respondent === "Family respondent" && question.family
@@ -924,3 +926,4 @@ export function describeRule(instrument, rule, respondent) {
   const parent = instrument.questions.find((q) => q.id === rule.questionId);
   return `“${questionTitle(parent, respondent)}” is ${rule.oneOf.map((value) => `“${value}”`).join(" or ")}`;
 }
+import { MEASURE_INSTRUMENTS } from "./measureQuestionnaires.js";

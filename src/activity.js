@@ -292,6 +292,35 @@ export function changeLogEntries(person, episode, audit = []) {
   );
 }
 
+export function globalChangeLogEntries(state) {
+  const seen = new Set();
+  return state.people.flatMap((person) => {
+    const episodes = person.episodes ?? [];
+    const entries = episodes.flatMap((episode) =>
+      changeLogEntries(person, episode, state.audit).map((entry) => ({
+        ...entry,
+        // Show when the change was recorded, rather than a planned contact date.
+        date: entry.timestamp || entry.date,
+        person,
+        episodeId: entry.episodeId || episode.id,
+      })),
+    );
+    // Person-level audit changes can appear in more than one care period.
+    const withoutEpisode = (state.audit ?? [])
+      .filter((entry) => entry.personId === person.id && !entry.episodeId &&
+        activityChangeDetails(entry).length > 0 && !entries.some((item) => item.id === entry.id))
+      .map((entry) => ({ ...entry, date: entry.timestamp || entry.date, person, scope: "Person record" }));
+    return [...entries, ...withoutEpisode].filter((entry) => {
+      const key = `${person.id}:${entry.id}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }).sort((a, b) =>
+    (b.timestamp || b.date || "").localeCompare(a.timestamp || a.date || ""),
+  );
+}
+
 export function clinicalHistoryEntries(person, episode, audit = []) {
   return activityEntries(person, episode, audit).filter(
     (entry) =>
@@ -299,6 +328,30 @@ export function clinicalHistoryEntries(person, episode, audit = []) {
       entry.type === "appointment" ||
       entry.type === "clinical-record",
   ).sort((a, b) =>
+    (historyDate(b) || "").localeCompare(historyDate(a) || "") ||
+    (b.timestamp || "").localeCompare(a.timestamp || ""),
+  );
+}
+
+export function careEventEntries(person, episode, audit = []) {
+  const records = clinicalHistoryEntries(person, episode, audit).filter(
+    (entry) =>
+      entry.type === "appointment" ||
+      entry.type === "clinical-record" ||
+      (entry.eventDate &&
+        ["ADD_CARE_EVENT", "CORRECT_CARE_EVENT"].includes(entry.actionType)),
+  );
+  const assessments = (episode.collections ?? []).map((collection) => ({
+    ...collection,
+    id: `assessment-${collection.id}`,
+    type: "assessment",
+    collectionId: collection.id,
+    date: collection.response === "Submitted" && collection.submittedAt
+      ? collection.submittedAt
+      : collection.due,
+    title: collection.label,
+  }));
+  return [...records, ...assessments].sort((a, b) =>
     (historyDate(b) || "").localeCompare(historyDate(a) || "") ||
     (b.timestamp || "").localeCompare(a.timestamp || ""),
   );

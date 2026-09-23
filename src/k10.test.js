@@ -11,7 +11,7 @@ test("fictional full-report person has independent dated courses, goals and repr
   assert.equal(jordan.fixtureLabel, "Fictional full-report example");
   assert.equal(
     episode.collections.filter((item) => item.response === "Submitted").length,
-    8,
+    23,
   );
   assert.equal(episode.medicationCourses.length, 2);
   assert.equal(episode.goalMilestones.length, 3);

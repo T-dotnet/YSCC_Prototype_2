@@ -7,7 +7,7 @@ import {
   TODAY,
 } from "./model.js";
 
-// Opening setup never delivers anything; its confirmation remains a separate step.
+// Opening setup never delivers anything; its primary action saves the attempt.
 export function collectionSetupLabel(collection) {
   if (collection.link === "Expired") return "Replace expired link";
   if (

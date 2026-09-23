@@ -68,7 +68,7 @@ export default function Worklist({ navigate, openModal }) {
   const [alertPage, setAlertPage] = useState(1);
 
   const qualityIssues = getQualityIssues(state, TODAY).filter(
-    (issue) => !["Resolved", "Closed"].includes(issue.status)
+    (issue) => !["Resolved", "Closed"].includes(issue.status) && !issue.person?.archivedAt
   );
 
   const dqAlerts = qualityIssues.map((issue) => ({
@@ -84,7 +84,7 @@ export default function Worklist({ navigate, openModal }) {
     date: issue.detectedAt ? issue.detectedAt.slice(0, 10) : TODAY,
   }));
 
-  const appointmentOverdueAlerts = (state.people || []).flatMap((person) =>
+  const appointmentOverdueAlerts = (state.people || []).filter((person) => !person.archivedAt).flatMap((person) =>
     (person.episodes || [])
       .filter((e) => e.status === "Active")
       .flatMap((episode) =>

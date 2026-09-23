@@ -233,75 +233,23 @@ function Goals() {
   );
 }
 
-function LineChart({ outcome = false }) {
-  const lines = outcome
-    ? [
-        [
-          "K10",
-          "var(--muted)",
-          [
-            [0, 80],
-            [3, 66],
-            [6, 55],
-            [9, 44],
-            [12, 36],
-            [15, 31],
-            [18, 27],
-          ],
-        ],
-        [
-          "Wellbeing",
-          "var(--teal)",
-          [
-            [0, 38],
-            [3, 42],
-            [6, 47],
-            [9, 56],
-            [12, 64],
-            [15, 69],
-            [18, 74],
-          ],
-        ],
-        [
-          "K5",
-          "#805d9b",
-          [
-            [0, 44],
-            [9, 56],
-            [18, 72],
-          ],
-        ],
-      ]
-    : [
-        [
-          "Activity",
-          "var(--teal)",
-          [
-            [0, 22],
-            [3, 31],
-            [6, 39],
-            [9, 55],
-            [12, 70],
-            [15, 74],
-            [18, 78],
-          ],
-        ],
-      ];
+function LineChart() {
+  const lines = [[
+    "Activity",
+    "var(--teal)",
+    [[0, 22], [3, 31], [6, 39], [9, 55], [12, 70], [15, 74], [18, 78]],
+  ]];
   return (
     <ChartCard
-      title={outcome ? "K10 / outcome measures" : "Activity rating over time"}
-      description={
-        outcome
-          ? "Separate instruments retain their own interpretation and scoring direction."
-          : "The line shows the trajectory between recorded activity assessments."
-      }
+      title="Activity rating over time"
+      description="The line shows the trajectory between recorded activity assessments."
     >
       <div className="record-two-line-wrap">
         <svg
           viewBox="0 0 100 100"
           preserveAspectRatio="none"
           role="img"
-          aria-label={outcome ? "K10, K5 and wellbeing trajectories" : "Activity rating trajectory"}
+          aria-label="Activity rating trajectory"
         >
           {[25, 50, 75].map((y) => (
             <line key={y} x1="0" x2="100" y1={y} y2={y} />
@@ -334,16 +282,6 @@ function LineChart({ outcome = false }) {
         )}
       </div>
       {axis({ fullWidth: true })}
-      {outcome && (
-        <div className="record-two-legend">
-          {lines.map(([label, colour]) => (
-            <span key={label}>
-              <i style={{ background: colour }} />
-              {label}
-            </span>
-          ))}
-        </div>
-      )}
     </ChartCard>
   );
 }
@@ -368,6 +306,11 @@ const statusLabel = (status) =>
   status === "Complete" ? "Completed" : status || "Not recorded";
 
 function trendPosition(record, records) {
+  const first = Date.parse(`${records[0]?.date}T12:00:00Z`);
+  const last = Date.parse(`${records.at(-1)?.date}T12:00:00Z`);
+  const current = Date.parse(`${record.date}T12:00:00Z`);
+  if (Number.isFinite(first) && Number.isFinite(last) && Number.isFinite(current) && last > first)
+    return ((current - first) / (last - first)) * 100;
   const index = records.findIndex((item) => item.id === record.id);
   return records.length < 2 ? 50 : (index / (records.length - 1)) * 100;
 }
@@ -772,7 +715,7 @@ function OutcomeComparison({ measures, inModal = false }) {
   );
 }
 
-function OutcomeMeasurePanel({ measure }) {
+function OutcomeMeasurePanel({ measure, onShowResponses }) {
   const completed = measure.records.filter(isCompletedScore);
   const [minimum, maximum] = measure.scoreRange || [0, 100];
   const span = Math.max(maximum - minimum, 1);
@@ -830,7 +773,13 @@ function OutcomeMeasurePanel({ measure }) {
               />
             ))}
           </div>
-          {axis({ fullWidth: true })}
+          <div className="record-two-axis record-two-axis-full" aria-hidden="true">
+            {completed.filter((_, index) => index === 0 || index === completed.length - 1).map((record) => (
+              <span key={record.id} style={{ left: `${trendPosition(record, completed)}%` }}>
+                {formatDate(record.date)}
+              </span>
+            ))}
+          </div>
           <p className="record-two-line-summary">
             {completed
               .map((record) => `${formatDate(record.date)} · ${record.value}`)
@@ -841,6 +790,16 @@ function OutcomeMeasurePanel({ measure }) {
         <p className="record-two-line-empty">
           No completed score is recorded for this measure.
         </p>
+      )}
+      {measure.recordable && measure.records.some((record) => record.sourceCollectionId) && (
+        <button
+          type="button"
+          className="outcome-source-link"
+          onClick={() => onShowResponses(measure.key)}
+        >
+          Response list
+          <ArrowRight size={15} aria-hidden="true" />
+        </button>
       )}
     </ChartCard>
   );
@@ -858,7 +817,7 @@ function outcomeMeasuresFor(episode) {
   return measures;
 }
 
-function OutcomeMeasureCards({ episode }) {
+function OutcomeMeasureCards({ episode, onShowResponses }) {
   const measures = outcomeMeasuresFor(episode);
   const cardMeasures = measures.filter((measure) =>
     OUTCOME_CARD_KEYS.includes(measure.key),
@@ -871,9 +830,76 @@ function OutcomeMeasureCards({ episode }) {
         <OutcomeMeasurePanel
             key={measure.key}
             measure={measure}
+            onShowResponses={onShowResponses}
           />
       ))}
     </>
+  );
+}
+
+function OutcomeScoreSummary({ episode, onShowResponses }) {
+  const measures = outcomeMeasuresFor(episode).filter((measure) =>
+    ["k10-plus", "k5"].includes(measure.key),
+  );
+  if (!measures.length) return null;
+  return (
+    <ChartCard
+      title="K10+ and K5 scores"
+      description="Dated raw scores from the linked sample responses. Each measure keeps its own scale."
+      className="record-two-measure-panel"
+    >
+      {measures.map((measure) => (
+        <div key={measure.key} className="record-two-measure-sources">
+          <strong>{measure.displayName} · {measure.scoreRange?.join("–")}</strong>
+          <span className="record-two-line-summary">
+            {measure.records.filter(isCompletedScore).map((record) =>
+              `${formatDate(record.date)} · ${record.value}`,
+            ).join(" · ")}
+          </span>
+          <button
+            type="button"
+            className="outcome-source-link"
+            onClick={() => onShowResponses(measure.key)}
+          >
+            Response list
+            <ArrowRight size={15} aria-hidden="true" />
+          </button>
+        </div>
+      ))}
+    </ChartCard>
+  );
+}
+
+function ResponseListModal({ measure, onClose, onOpenAssessment }) {
+  return (
+    <Modal
+      title={`${measure.displayName} responses`}
+      subtitle="Select a dated response to open its assessment record."
+      onClose={onClose}
+    >
+      <ol className="outcome-response-list">
+        {measure.records.map((record) => (
+          <li key={record.id}>
+            <span>
+              <strong>{formatDate(record.date)}</strong>
+              <small>{isCompletedScore(record) ? `Score ${record.value}` : record.status}</small>
+            </span>
+            {record.sourceCollectionId ? (
+              <button
+                type="button"
+                className="outcome-source-link"
+                onClick={() => onOpenAssessment(record)}
+              >
+                Open response
+                <ExternalLink size={15} aria-hidden="true" />
+              </button>
+            ) : (
+              <span className="muted">No linked response</span>
+            )}
+          </li>
+        ))}
+      </ol>
+    </Modal>
   );
 }
 
@@ -936,8 +962,25 @@ function Risk() {
 
 export default function RecordTwo({ person, episode, navigate }) {
   const isFixture = Boolean(person.fixtureLabel);
+  const hasOutcomeMeasures = episode.reportOutcomeMeasures?.some(
+    (measure) => measure.records?.length,
+  );
   const [careTimelineVisible, setCareTimelineVisible] = useState(true);
   const [compareMeasuresOpen, setCompareMeasuresOpen] = useState(false);
+  const [responseListKey, setResponseListKey] = useState(null);
+  const responseListMeasure = outcomeMeasuresFor(episode).find(
+    (measure) => measure.key === responseListKey,
+  );
+  const openMeasureSource = (record) => {
+    if (!record.sourceCollectionId) return;
+    setResponseListKey(null);
+    const params = new URLSearchParams({
+      tab: "assessment",
+      episode: episode.id,
+      collection: record.sourceCollectionId,
+    });
+    navigate(`/people/${person.id}?${params}`, { scroll: false });
+  };
   return (
     <div className="stack record-two">
       <div className="section-toolbar">
@@ -945,7 +988,7 @@ export default function RecordTwo({ person, episode, navigate }) {
           <h2>Report</h2>
           <p>Longitudinal care record</p>
         </div>
-        {isFixture && (
+        {hasOutcomeMeasures && (
           <Button variant="secondary" onClick={() => setCompareMeasuresOpen(true)}>
             Compare measures
           </Button>
@@ -965,8 +1008,8 @@ export default function RecordTwo({ person, episode, navigate }) {
             <Periods />
             <Goals />
             <LineChart />
-            <LineChart outcome />
-            <OutcomeMeasureCards episode={episode} />
+            <OutcomeScoreSummary episode={episode} onShowResponses={setResponseListKey} />
+            <OutcomeMeasureCards episode={episode} onShowResponses={setResponseListKey} />
             <Risk />
             <Periods medication />
           </>
@@ -979,11 +1022,15 @@ export default function RecordTwo({ person, episode, navigate }) {
               isVisible={careTimelineVisible}
               onToggle={() => setCareTimelineVisible((visible) => !visible)}
             />
-            <div className="record-two-empty record-two-empty-wide">
-              Structured observations, care periods, goals, activity ratings,
-              outcome measures, risk reviews and medication courses are needed
-              before this report can draw additional longitudinal graphs.
-            </div>
+            <OutcomeScoreSummary episode={episode} onShowResponses={setResponseListKey} />
+            <OutcomeMeasureCards episode={episode} onShowResponses={setResponseListKey} />
+            {!hasOutcomeMeasures && (
+              <div className="record-two-empty record-two-empty-wide">
+                Structured observations, care periods, goals, activity ratings,
+                outcome measures, risk reviews and medication courses are needed
+                before this report can draw additional longitudinal graphs.
+              </div>
+            )}
           </>
         )}
       </div>
@@ -991,6 +1038,13 @@ export default function RecordTwo({ person, episode, navigate }) {
         <CompareMeasuresModal
           episode={episode}
           onClose={() => setCompareMeasuresOpen(false)}
+        />
+      )}
+      {responseListMeasure && (
+        <ResponseListModal
+          measure={responseListMeasure}
+          onClose={() => setResponseListKey(null)}
+          onOpenAssessment={openMeasureSource}
         />
       )}
     </div>

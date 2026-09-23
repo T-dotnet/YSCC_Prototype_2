@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { X } from "lucide-react";
-import { careTimelineData, timelinePosition } from "../careTimeline";
+import { careTimelineData, timelineExtent, timelinePosition } from "../careTimeline";
 import { k10Series, K10_SCORING_METHOD, K10_METHOD_URL } from "../k10";
 import { recordedCareEvents } from "../careEvents";
 import { collectionActor, formatDate } from "../model";
@@ -354,6 +354,8 @@ function SharedTimeline({
   const k10Points = k10Series(episode).points;
   const k10Entries =
     timeline.lanes.find((lane) => lane.id === "k10")?.entries || [];
+  const plottedEntries = [...allLanes.flatMap((lane) => lane.entries), ...k10Entries];
+  const plotRange = timelineExtent(plottedEntries);
   const [activeGroup, setActiveGroup] = useState("all");
   const [selectedId, setSelectedId] = useState(null);
   const visibleLanes = allLanes.filter(
@@ -373,7 +375,7 @@ function SharedTimeline({
     setSelectedId((currentId) => (currentId === entryId ? null : entryId));
   };
   const dismissDetail = () => setSelectedId(null);
-  const ticks = timelineTicks(timeline.start, timeline.end);
+  const ticks = timelineTicks(plotRange.start, plotRange.end);
   const filters = [
     ["all", "All", "All tracks"],
     ["care", "Care", "Care and medication"],
@@ -391,8 +393,8 @@ function SharedTimeline({
         <div>
           <h2 id="longitudinal-timeline-heading">Care timeline</h2>
           <p>
-            {timeline.start && timeline.end
-              ? `${formatDate(timeline.start)} to ${formatDate(timeline.end)}`
+            {plotRange.start && plotRange.end
+              ? `${formatDate(plotRange.start)} to ${formatDate(plotRange.end)}`
               : "Care episode timeline"}
           </p>
         </div>
@@ -488,16 +490,16 @@ function SharedTimeline({
                       {lane.entries.map((entry) => {
                         const position = timelinePosition(
                           entry.date,
-                          timeline.start,
-                          timeline.end,
+                          plotRange.start,
+                          plotRange.end,
                         );
                         const width = entry.end
                           ? Math.max(
                               1,
                               timelinePosition(
                                 entry.end,
-                                timeline.start,
-                                timeline.end,
+                                plotRange.start,
+                                plotRange.end,
                               ) - position,
                             )
                           : null;
@@ -538,7 +540,7 @@ function SharedTimeline({
                   person={person}
                   episode={episode}
                   points={k10Points}
-                  timeline={timeline}
+                  timeline={plotRange}
                   selected={selected}
                   onSelect={toggleSelected}
                   onClose={dismissDetail}
@@ -715,10 +717,11 @@ function CareAndMedicationChart({ timeline }) {
   const medication =
     timeline.lanes.find((lane) => lane.id === "medication")?.entries || [];
   const rows = [...care, ...medication];
+  const plotRange = timelineExtent(rows);
   const hasCourses = medication.some(
     (entry) => entry.kind === "medication-duration",
   );
-  const ticks = timelineTicks(timeline.start, timeline.end);
+  const ticks = timelineTicks(plotRange.start, plotRange.end);
   return (
     <section
       className="longitudinal-panel"
@@ -752,13 +755,13 @@ function CareAndMedicationChart({ timeline }) {
           {rows.map((entry) => {
             const position = timelinePosition(
               entry.date,
-              timeline.start,
-              timeline.end,
+              plotRange.start,
+              plotRange.end,
             );
             const width = entry.end
               ? Math.max(
                   1,
-                  timelinePosition(entry.end, timeline.start, timeline.end) -
+                  timelinePosition(entry.end, plotRange.start, plotRange.end) -
                     position,
                 )
               : null;

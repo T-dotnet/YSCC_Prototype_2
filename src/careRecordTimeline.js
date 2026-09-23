@@ -34,7 +34,10 @@ export function careRecordTimelineEntries(episode) {
       typeLabel: "Appointment or service contact",
       date: appointmentDate(appointment),
       time: appointment.actualTime || appointment.plannedTime || null,
-      dateLabel: appointment.actualDate ? "Actual contact" : "Planned contact",
+      dateLabel: appointment.actualDate ? "Actual contact"
+        : appointment.attendance === "Cancelled" ? "Cancelled contact"
+          : appointment.attendance === "Did not attend" ? "Missed contact"
+            : "Planned contact",
       title: appointmentTitle(appointment),
       detail: appointment.practitionerService,
       details: appointmentDetails(appointment, episode),

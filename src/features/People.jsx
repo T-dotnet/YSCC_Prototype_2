@@ -33,7 +33,7 @@ export default function People({ navigate, openModal }) {
   const view = useQueueView();
   const query = view.params.get("q") || "";
   const { sort: sortConfig, toggleSort } = useQueueSort({ key: "priority", direction: "asc" });
-  const status = ["Active", "Paused", "Closed", "Intake"].includes(
+  const status = ["Active", "Paused", "Closed", "Intake", "Archived"].includes(
     view.params.get("status"),
   )
     ? view.params.get("status")
@@ -136,7 +136,7 @@ export default function People({ navigate, openModal }) {
           <div className="toolbar-search-and-count">
             <SearchInput value={query} onChange={setQuery} />
             <span className="toolbar-count" aria-live="polite">
-              Showing {people.length} of {state.people.filter(p => !HIDDEN_FROM_PEOPLE_LIST.has(p.name)).length}
+              Showing {people.length} of {state.people.filter(p => (status === "Archived" ? !!p.archivedAt : !p.archivedAt) && !HIDDEN_FROM_PEOPLE_LIST.has(p.name)).length}
             </span>
           </div>
           <div className="people-toolbar-filters">
@@ -145,7 +145,7 @@ export default function People({ navigate, openModal }) {
               value={status}
               onChange={(e) => setStatus(e.target.value)}
             >
-              {["All episodes", "Intake", "Active", "Paused", "Closed"].map(
+              {["All episodes", "Intake", "Active", "Paused", "Closed", "Archived"].map(
                 (s) => (
                   <option key={s}>{s}</option>
                 ),

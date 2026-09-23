@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { activityEntries, changeLogEntries } from "./activity.js";
 import { appointmentDetails } from "./appointments.js";
+import { historyItem } from "./historyItem.js";
 import {
   createSeed,
   practitionerServiceOptions,
@@ -176,6 +177,51 @@ test("a planned contact can be updated once with an attendance outcome", () => {
   );
 });
 
+test("cancelling an assessment-day appointment preserves its record and does not link a new session to it", () => {
+  const appointmentId = "APT-assessment-day-test";
+  const added = reducer(createSeed(), {
+    ...plannedContact,
+    id: appointmentId,
+    plannedDate: TODAY,
+  });
+  const edited = reducer(added, {
+    ...context,
+    type: "UPDATE_APPOINTMENT",
+    appointmentId,
+    plannedTime: "11:30",
+    plannedDurationMinutes: 45,
+    deliveryMode: "Video",
+  });
+  const cancelled = reducer(edited, {
+    ...context,
+    type: "RECORD_APPOINTMENT_OUTCOME",
+    appointmentId,
+    attendance: "Cancelled",
+    outcomeNotes: "Rescheduled with the family.",
+  });
+  const appointment = cancelled.people[0].episodes[0].appointments.find(
+    (item) => item.id === appointmentId,
+  );
+  assert.equal(appointment.plannedTime, "11:30");
+  assert.equal(appointment.plannedDurationMinutes, 45);
+  assert.equal(appointment.deliveryMode, "Video");
+  assert.equal(appointment.attendance, "Cancelled");
+  assert.equal(appointment.outcomeNotes, "Rescheduled with the family.");
+
+  const delivered = reducer(cancelled, {
+    ...context,
+    type: "DELIVER",
+    channel: "Clinic tablet",
+    respondent: "Person",
+    assistance: "Independent",
+  });
+  const collection = delivered.people[0].episodes[0].collections.find(
+    (item) => item.id === context.collectionId,
+  );
+  assert.notEqual(collection.appointmentId, appointmentId);
+  assert.equal(collection.attempts.at(-1).appointmentId, collection.appointmentId);
+});
+
 test("an appointment outcome must be current and within the active care period", () => {
   const plannedState = reducer(createSeed(), plannedContact);
   const appointment = plannedState.people[0].episodes[0].appointments[0];
@@ -224,9 +270,56 @@ test("saved mock data gains Jordan's complete appointment fixture once", () => {
   const migrated = upgradeSampleData(saved);
   const migratedJordan = migrated.people.find((person) => person.id === "YS-1034");
   assert.deepEqual(saved, before);
-  assert.equal(migrated.sampleRevision, 23);
+  assert.equal(migrated.sampleRevision, 28);
   assert.equal(migratedJordan.episodes[0].appointments.length, 9);
   assert.equal(upgradeSampleData(migrated), migrated);
+});
+
+test("saved Jordan fixture corrects copied appointment notes without replacing other details", () => {
+  const saved = createSeed();
+  const jordan = saved.people.find((person) => person.id === "YS-1034");
+  const appointments = jordan.episodes[0].appointments;
+  appointments.find((item) => item.id === "APT-7-eight-weeks").outcomeNotes =
+    "8-week questionnaire reviewed with Mia; agreed continuation of support plan.";
+  appointments.find((item) => item.id === "APT-7-twelve-weeks").notes =
+    "12-week review and longitudinal assessment battery completion.";
+  appointments.find((item) => item.id === "APT-7-attended").notes = "Keep this local note.";
+  const episode = jordan.episodes[0];
+  const adverse = episode.events.find((item) => item.id === "E-7-med-adverse");
+  Object.assign(adverse, {
+    title: "Medication adverse event recorded",
+    detail: "Fictional demo record of medication adverse event recorded.",
+    date: "2026-08-17",
+    eventDate: "2026-08-17",
+    timestamp: "2026-08-17T09:00:00Z",
+    fields: undefined,
+  });
+  episode.servicePeriods.find((item) => item.id === "SP-7-group").end = "2026-08-28";
+  saved.sampleRevision = 25;
+
+  const migrated = upgradeSampleData(saved);
+  const updated = migrated.people.find((person) => person.id === "YS-1034").episodes[0].appointments;
+  assert.match(updated.find((item) => item.id === "APT-7-eight-weeks").outcomeNotes, /Jordan/);
+  assert.match(updated.find((item) => item.id === "APT-7-twelve-weeks").notes, /clinic tablet check-ins/);
+  assert.equal(updated.find((item) => item.id === "APT-7-attended").notes, "Keep this local note.");
+  const migratedEpisode = migrated.people.find((person) => person.id === "YS-1034").episodes[0];
+  assert.equal(migratedEpisode.events.find((item) => item.id === "E-7-med-adverse").eventDate, "2026-08-24");
+  assert.equal(migratedEpisode.servicePeriods.find((item) => item.id === "SP-7-group").end, "2026-09-12");
+  assert.equal(upgradeSampleData(migrated), migrated);
+});
+
+test("Jordan's fictional events follow the recorded medication and service periods", () => {
+  const episode = createSeed().people.find((person) => person.id === "YS-1034").episodes[0];
+  const adverse = episode.events.find((item) => item.id === "E-7-med-adverse");
+  const course = episode.medicationCourses.find((item) => item.id === "MC-7-b");
+  const group = episode.servicePeriods.find((item) => item.id === "SP-7-group");
+  const missed = episode.appointments.find((item) => item.id === "APT-7-dna");
+  const phone = episode.appointments.find((item) => item.id === "APT-7-attended");
+  assert.ok(course.start <= adverse.eventDate && adverse.eventDate <= course.end);
+  assert.ok(group.start <= missed.plannedDate && missed.plannedDate <= group.end);
+  assert.match(adverse.detail, /causation was not established/);
+  assert.equal(phone.clinicalSummary.riskIndicator, "No risk assessment recorded in this contact");
+  assert.match(phone.outcomeNotes, /23 Sep review/);
 });
 
 test("delivery attempts in seeded data are linked to appointments with valid status", () => {
@@ -302,4 +395,25 @@ test("appointment details include associated assignments if any", () => {
   const appt = ep.appointments[0];
   const details = appointmentDetails(appt, ep);
   assert.ok(details.some(([label, value]) => label.includes("Associated assignment") && value.includes(ep.collections[0].label)));
+});
+
+test("same-day assessments are associated only when their appointment is recorded", () => {
+  const state = createSeed();
+  const jordan = state.people.find((person) => person.name === "Jordan Ellis");
+  const episode = jordan.episodes[0];
+  const cancelled = episode.appointments.find((item) => item.id === "APT-7-cancelled");
+  const planned = episode.appointments.find((item) => item.id === "APT-7-overdue-plan");
+  const completed = episode.appointments.find((item) => item.id === "APT-7-twelve-weeks");
+  assert.ok(!appointmentDetails(cancelled, episode).some(([label]) => label.startsWith("Associated assignment")));
+  assert.ok(!appointmentDetails(planned, episode).some(([label]) => label.startsWith("Associated assignment")));
+  const linked = appointmentDetails(completed, episode).find(([label]) => label === "Associated assignment");
+  assert.match(linked[1], /Life and care check-in · 12 weeks/);
+  assert.doesNotMatch(linked[1], /Everyday life check-in/);
+  assert.doesNotMatch(linked[1], /Kessler 10\+/);
+  const history = activityEntries(jordan, episode, state.audit);
+  const assessment = historyItem(history.find((item) => item.id === "appointment-APT-7-baseline"), episode);
+  const cancellation = historyItem(history.find((item) => item.id === "appointment-APT-7-cancelled"), episode);
+  assert.equal(assessment.subtitle, "Initial assessment");
+  assert.equal(cancellation.subtitle, "Community support contact");
+  assert.equal(cancellation.dateLabel, "Cancelled contact");
 });

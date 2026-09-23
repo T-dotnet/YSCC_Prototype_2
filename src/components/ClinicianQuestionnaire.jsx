@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { useStore } from "../store";
 import { canAssess } from "../intake";
-import { collectionActor, currentStaff } from "../model";
+import { collectionActor, currentStaff, formatDate } from "../model";
 import { getInstrument } from "../instruments";
 import { Modal, Button, Notice, Success } from "./UI";
 import QuestionnaireFlow from "./QuestionnaireFlow";
+import QuestionnaireAppointmentConfirmation from "./QuestionnaireAppointmentConfirmation";
 import DiscardChanges from "./DiscardChanges";
 
 export default function ClinicianQuestionnaire({
@@ -18,12 +19,19 @@ export default function ClinicianQuestionnaire({
   const [discard, setDiscard] = useState(false);
   const [finished, setFinished] = useState(false);
   const [error, setError] = useState("");
+  const [pendingAnswers, setPendingAnswers] = useState(null);
+  const [returnToReview, setReturnToReview] = useState(false);
   // Pin this form to the attempt that opened it. Reissued sessions cannot
   // silently submit answers against a different respondent or recorder.
   const [attemptId] = useState(collection.attempts.at(-1)?.id);
   const c = collection;
   const staff = currentStaff(state);
   const instrument = getInstrument(c.version);
+  const linkedAppointmentId =
+    c.appointmentId || c.attempts.at(-1)?.appointmentId;
+  const linkedAppointment = episode.appointments?.find(
+    (item) => item.id === linkedAppointmentId && item.attendance === "Planned",
+  );
   const available =
     canAssess(person, episode) &&
     episode.status === "Active" &&
@@ -49,7 +57,7 @@ export default function ClinicianQuestionnaire({
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
 
-  const submit = (finalAnswers) => {
+  const submit = (finalAnswers, confirmation) => {
     if (!available) return;
     const result = commit({
       type: "SUBMIT",
@@ -59,6 +67,7 @@ export default function ClinicianQuestionnaire({
       channel: "Clinician entry",
       attemptId,
       answers: finalAnswers,
+      ...(confirmation || {}),
     });
     if (result.error) {
       setError(result.error);
@@ -68,13 +77,19 @@ export default function ClinicianQuestionnaire({
     setFinished(true);
     setAnswers([]);
   };
+  const completeQuestions = (finalAnswers) => {
+    setPendingAnswers(finalAnswers);
+    setError("");
+  };
 
   return (
     <Modal
       title={
         finished
           ? "Questionnaire submitted"
-          : "Complete questionnaire as clinician"
+          : pendingAnswers
+            ? "Completion details"
+            : "Complete questionnaire as clinician"
       }
       subtitle={`${person.name} · ${c.label} · ${c.version}`}
       onClose={requestClose}
@@ -86,39 +101,45 @@ export default function ClinicianQuestionnaire({
             title="Response saved"
             action={
               <Button variant="primary" onClick={onClose}>
-                  Back to record
+                Back to record
               </Button>
             }
           >
-            {respondent}’s answers were recorded by {c.recorderName}. No
-            separate clinical review is required.
+            {respondent}’s answers were recorded by {c.recorderName}.{" "}
+            {c.review === "Not required"
+              ? "No separate clinical review is required."
+              : "Clinical review is pending."}
           </Success>
         ) : (
           <>
-            <section
-              className="setup-summary"
-              aria-label="Answer source and recorder"
-            >
-              <dl className="metadata">
-                <div>
-                  <dt>Answers supplied by</dt>
-                  <dd>{respondent}</dd>
-                </div>
-                <div>
-                  <dt>Recorded by</dt>
-                  <dd>{c.recorderName} · Clinician</dd>
-                </div>
-                <div>
-                  <dt>Completion method</dt>
-                  <dd>{c.assistance}</dd>
-                </div>
-              </dl>
-            </section>
-            <Notice>
-              Enter {respondent}’s answers using the questionnaire wording
-              below. Review them before submitting. Unsaved answers are cleared
-              when you leave or refresh.
-            </Notice>
+            {!pendingAnswers && (
+              <section
+                className="setup-summary"
+                aria-label="Answer source and recorder"
+              >
+                <dl className="metadata">
+                  <div>
+                    <dt>Answers supplied by</dt>
+                    <dd>{respondent}</dd>
+                  </div>
+                  <div>
+                    <dt>Recorded by</dt>
+                    <dd>{c.recorderName} · Clinician</dd>
+                  </div>
+                  <div>
+                    <dt>Completion method</dt>
+                    <dd>{c.assistance}</dd>
+                  </div>
+                </dl>
+              </section>
+            )}
+            {!pendingAnswers && (
+              <Notice>
+                Enter {respondent}’s answers using the questionnaire wording
+                below. Review them before submitting. Unsaved answers are
+                cleared when you leave or refresh.
+              </Notice>
+            )}
             {!available ? (
               <Notice tone="amber">
                 This collection is no longer available for clinician completion.
@@ -126,21 +147,43 @@ export default function ClinicianQuestionnaire({
               </Notice>
             ) : (
               <div hidden={discard}>
-                <QuestionnaireFlow
-                  instrument={instrument}
-                  respondent={c.respondent}
-                  answers={answers}
-                  onChange={(value) => {
-                    setAnswers(value);
-                    setError("");
-                  }}
-                  onSubmit={submit}
-                  headingLevel="h3"
-                  clinicianEntry
-                />
+                {pendingAnswers ? (
+                  <QuestionnaireAppointmentConfirmation
+                    appointment={linkedAppointment}
+                    collection={c}
+                    episode={episode}
+                    error={error}
+                    onBack={() => {
+                      setReturnToReview(true);
+                      setPendingAnswers(null);
+                      setError("");
+                    }}
+                    onConfirm={(confirmation) => submit(pendingAnswers, confirmation)}
+                  />
+                ) : (
+                  <QuestionnaireFlow
+                    instrument={instrument}
+                    respondent={c.respondent}
+                    answers={answers}
+                    onChange={(value) => {
+                      setAnswers(value);
+                      setError("");
+                    }}
+                    onSubmit={completeQuestions}
+                    submitLabel="Continue to completion details"
+                    completionNote={
+                      linkedAppointment
+                        ? `Next, review the linked appointment on ${formatDate(linkedAppointment.plannedDate)} at ${linkedAppointment.plannedTime}, confirm the collection method and record its outcome. Your answers have not been submitted yet.`
+                        : "Next, confirm whether the answers were completed on a tablet or by a clinician. Your answers have not been submitted yet."
+                    }
+                    initialReview={returnToReview}
+                    headingLevel="h3"
+                    clinicianEntry
+                  />
+                )}
               </div>
             )}
-            {error && (
+            {error && !pendingAnswers && (
               <p className="field-error" role="alert">
                 {error}
               </p>
@@ -148,17 +191,11 @@ export default function ClinicianQuestionnaire({
           </>
         )}
       </div>
-      {discard ? (
+      {discard && (
         <DiscardChanges
           onKeepEditing={() => setDiscard(false)}
           onDiscard={onClose}
         />
-      ) : (
-        !finished && (
-          <div className="modal-footer">
-            <Button onClick={requestClose}>Cancel</Button>
-          </div>
-        )
       )}
     </Modal>
   );

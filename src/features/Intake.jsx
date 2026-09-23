@@ -1,8 +1,5 @@
 import { useState } from "react";
-import {
-  ArrowLeft,
-  ClipboardList,
-} from "lucide-react";
+import { ArrowLeft, ChevronDown } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useStore } from "../store";
 import {
@@ -14,8 +11,9 @@ import {
   displayPersonName,
 } from "../model";
 import {
-  INTAKE_STATES,
   INTAKE_CHECKS,
+  intakeCheckFieldsError,
+  intakeStepComplete,
   intakeReady,
   intakeActionError,
 } from "../intake";
@@ -29,7 +27,6 @@ import {
   Notice,
   Panel,
   StaffPicker,
-  Tabs,
   ValidatedForm,
 } from "../components/UI";
 import Referrals from "./Referrals";
@@ -177,9 +174,8 @@ export function RegisterPerson({ onClose, navigate, notify }) {
   );
 }
 
-export function IntakeHistory({ intake }) {
-  return (
-    <Panel title="Intake history">
+export function IntakeHistory({ intake, bare = false }) {
+  const entries = (
       <ol className="intake-history">
         {intake.history.map((event) => (
           <li key={event.id}>
@@ -230,7 +226,15 @@ export function IntakeHistory({ intake }) {
           </li>
         ))}
       </ol>
-    </Panel>
+  );
+  return bare ? entries : (
+    <details className="collection-details-accordion intake-history-accordion">
+      <summary>
+        <span>Intake history</span>
+        <ChevronDown size={18} aria-hidden="true" />
+      </summary>
+      {entries}
+    </details>
   );
 }
 
@@ -243,17 +247,45 @@ export function IntakePanel({ person, intake, navigate }) {
       ...intake,
       displayName: person.nameUnknown ? "" : person.name,
       dob: person.dob || "",
-      changeReason: "",
+      respondentName: intake.respondentName || person.family || "",
+    },
+  );
+  const [outcomeDraft, setOutcomeDraft, _clearOutcomeDraft, outcomeDraftError] = useDraft(
+    `intake-outcome:${intake.id}`,
+    {
+      outcome: "",
+      decisionAt: "",
+      summary: intake.summary || "",
+      checkEvidence: intake.checkEvidence || "",
+      assessmentOwner: intake.assessmentOwner || "",
     },
   );
   const [error, setError] = useState(""),
-    [saveMessage, setSaveMessage] = useState(""),
-    [due, setDue] = useState(TODAY);
+    [saveMessage, setSaveMessage] = useState("");
   const finalised = ["Completed", "Closed incomplete"].includes(intake.status);
   const change = (key, value) => {
+    setError("");
     setSaveMessage("");
     setDraft((d) => ({ ...d, [key]: value }));
   };
+  const changeContactMethod = (contactMethod) => {
+    setError("");
+    setSaveMessage("");
+    setDraft((current) => contactMethod === current.contactMethod ? current : ({
+      ...current,
+      contactMethod,
+      contactValue: "",
+      contactHolder: "",
+    }));
+  };
+  const directContact = ["Phone", "Email", "SMS"].includes(draft.contactMethod);
+  const supporterContact = draft.contactMethod === "Through a supporter";
+  const staffContact = draft.contactMethod === "Staff-assisted / in person";
+  const noSuitableContact = draft.contactMethod === "No suitable contact";
+  const legacyContact = ![
+    "Not yet discussed", "Phone", "Email", "SMS", "Through a supporter",
+    "Staff-assisted / in person", "No suitable contact",
+  ].includes(draft.contactMethod);
   const field = (
     key,
     label,
@@ -289,7 +321,7 @@ export function IntakePanel({ person, intake, navigate }) {
       )}
     </Field>
   );
-  const submit = (action) => {
+  const submit = (action, successMessage) => {
     const full = {
       ...action,
       personId: person.id,
@@ -299,12 +331,12 @@ export function IntakePanel({ person, intake, navigate }) {
     const problem = intakeActionError(state, full, staff);
     if (problem) {
       setError(problem);
-      return;
+      return false;
     }
     const result = commit(full);
     if (result.error) {
       setError(result.error);
-      return;
+      return false;
     }
     setError("");
     if (action.type === "REOPEN_INTAKE") {
@@ -317,130 +349,148 @@ export function IntakePanel({ person, intake, navigate }) {
           ...reopenedIntake,
           displayName: reopenedPerson.nameUnknown ? "" : reopenedPerson.name,
           dob: reopenedPerson.dob || "",
-          changeReason: "",
         });
       }
       setSaveMessage("Intake reopened. Update it before completing intake again.");
     }
     if (action.type === "SAVE_INTAKE") {
-      setSaveMessage("Intake saved. This update is recorded in intake history.");
+      const savedPerson = result.state.people.find((p) => p.id === person.id);
+      const savedIntake = savedPerson?.intakes.find((i) => i.id === intake.id);
+      if (savedPerson && savedIntake) {
+        setDraft({
+          ...savedIntake,
+          displayName: savedPerson.nameUnknown ? "" : savedPerson.name,
+          dob: savedPerson.dob || "",
+        });
+      }
+      setSaveMessage(successMessage || "Intake saved. This update is recorded.");
     }
-    if (action.type === "START_ASSESSMENT")
-      navigate(`/people/${person.id}?tab=assessment`);
+    return true;
+  };
+  const changeOutcome = (key, value) => {
+    setError("");
+    setSaveMessage("");
+    setOutcomeDraft((current) => ({ ...current, [key]: value }));
+  };
+  const recordOutcome = () => {
+    if (!intakeStepComplete(intake)) {
+      setError("Save the required intake checks before recording an outcome.");
+      return;
+    }
+    if (!outcomeDraft.outcome) {
+      setError("Choose an intake outcome.");
+      return;
+    }
+    const checkProblem = intakeCheckFieldsError(draft);
+    if (checkProblem) return setError(checkProblem);
+    const closedIncomplete = outcomeDraft.outcome === "Closed incomplete";
+    const saved = submit({
+      type: "SAVE_INTAKE",
+      validatedChecks: true,
+      values: {
+        ...intake,
+        ...draft,
+        ...outcomeDraft,
+        status: closedIncomplete ? "Closed incomplete" : "Completed",
+        outcome: closedIncomplete ? "" : outcomeDraft.outcome,
+        decisionAt: closedIncomplete ? "" : outcomeDraft.decisionAt,
+        changeReason: `Intake outcome recorded: ${outcomeDraft.outcome}.`,
+      },
+    });
+    if (saved) {
+      setOutcomeDraft({
+        outcome: "",
+        decisionAt: "",
+        summary: "",
+        checkEvidence: "",
+        assessmentOwner: "",
+      });
+    }
+  };
+  const saveIntake = (validateChecks) => {
+    if (validateChecks) {
+      const problem = intakeCheckFieldsError(draft);
+      if (problem) return setError(problem);
+    }
+    submit({
+      type: "SAVE_INTAKE",
+      validatedChecks: validateChecks,
+      values: {
+        ...draft,
+        status: intake.status,
+        owner: intake.owner,
+        reviewDate: intake.reviewDate,
+        waitingReason: intake.waitingReason,
+        waitingOn: intake.waitingOn,
+        communication: intake.communication,
+        summary: intake.summary,
+        checkEvidence: intake.checkEvidence,
+        outcome: intake.outcome,
+        decisionAt: intake.decisionAt,
+        assessmentOwner: intake.assessmentOwner,
+        changeReason: validateChecks
+          ? "Required intake checks and entered details saved."
+          : "Intake draft saved.",
+      },
+    }, validateChecks
+      ? "Required intake checks and entered details saved. The intake state is unchanged."
+      : "Draft saved. The intake state is unchanged.");
   };
   if (finalised)
     return (
       <div className="stack">
-        <Panel
-          title={
-            intakeReady(intake)
-              ? "Intake complete · proceed to assessment"
-              : intake.status === "Closed incomplete"
-                ? "Intake closed incomplete"
-                : "Intake complete · do not proceed"
-          }
-          action={<Badge>{intake.status}</Badge>}
-        >
-          <div className="panel-body stack">
-            <p>{intake.summary || intake.waitingReason}</p>
-            <dl className="metadata">
-              <div>
-                <dt>Intake decision</dt>
-                <dd>{intake.outcome || "No completed decision"}</dd>
-              </div>
-              <div>
-                <dt>Recorded by</dt>
-                <dd>{intake.decisionBy || intake.history[0]?.actor}</dd>
-              </div>
-              <div>
-                <dt>Decision time</dt>
-                <dd>
-                  {intake.decisionAt
-                    ? formatTimestamp(intake.decisionAt)
-                    : "Not applicable"}
-                </dd>
-              </div>
-              <div>
-                <dt>Next step</dt>
-                <dd>{intake.nextAction}</dd>
-              </div>
-              <div>
-                <dt>Owner</dt>
-                <dd>
-                  {intakeReady(intake) ? intake.assessmentOwner : intake.owner}
-                </dd>
-              </div>
-              <div>
-                <dt>Review date</dt>
-                <dd>{formatDate(intake.reviewDate)}</dd>
-              </div>
-            </dl>
-            {intakeReady(intake) ? (
-              intake.episodeId ? (
-                <Button
-                  variant="primary"
-                  onClick={() =>
-                    navigate(
-                      `/people/${person.id}?episode=${intake.episodeId}&tab=assessment`,
-                    )
-                  }
-                >
-                  Open assessment plan
-                </Button>
-              ) : (
-                <ValidatedForm
-                  className="stack"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    submit({ type: "START_ASSESSMENT", due });
-                  }}
-                >
-                  <Notice>
-                    Waiting for assessment · {intake.assessmentOwner} owns the
-                    next step. The intake decision does not record clinical
-                    admission.
-                  </Notice>
-                  <Field label="Initial assessment due date">
-                    <input
-                      type="date"
-                      min={TODAY}
-                      required
-                      value={due}
-                      onChange={(e) => setDue(e.target.value)}
-                    />
-                  </Field>
-                  <Button type="submit" variant="primary">
-                    Create assessment plan
-                  </Button>
-                </ValidatedForm>
-              )
-            ) : (
-              <Notice>
-                The next-care plan and onward referrals remain available.
-                Assessment cannot start from this intake outcome.
-              </Notice>
-            )}
-            {intake.status === "Completed" &&
-              !intake.episodeId &&
-              !person.episodes.length && (
-                <div className="stack">
-                  <Button onClick={() => submit({ type: "REOPEN_INTAKE" })}>
-                    Reopen intake
-                  </Button>
-                  <p className="muted">
-                    Return to intake and triage before creating an assessment
-                    plan. The completed decision remains in intake history.
-                  </p>
-                </div>
-              )}
-            {error && (
-              <p role="alert" className="field-error">
-                {error}
-              </p>
-            )}
+        <div className="section-toolbar">
+          <div>
+            <h2>Intake information</h2>
+            <p>Review the saved referral, contact details and required checks.</p>
           </div>
-        </Panel>
-        <IntakeHistory intake={intake} />
+          <Badge>{intake.status}</Badge>
+        </div>
+        <div className="intake-sections">
+          <Panel title="Saved intake">
+            <div className="panel-body stack intake-detail-body">
+              <dl className="metadata">
+                <div><dt>Preferred / supplied name</dt><dd>{person.name || "Not recorded"}</dd></div>
+                <div><dt>Contact received</dt><dd>{intake.receivedAt ? formatTimestamp(intake.receivedAt) : "Not recorded"}</dd></div>
+                <div><dt>Source / referring service</dt><dd>{intake.source || "Not recorded"}</dd></div>
+                <div><dt>Reason for contact</dt><dd>{intake.reason || "Not recorded"}</dd></div>
+                <div><dt>Safe contact method</dt><dd>{intake.contactMethod || "Not recorded"}</dd></div>
+                <div><dt>Safe contact restrictions</dt><dd>{intake.safeContact || "Not recorded"}</dd></div>
+                <div><dt>Consent for assessment participation</dt><dd>{intake.consentRecorded ? "Recorded" : "Not recorded"}</dd></div>
+                {intake.consentReference && <div><dt>Consent source / reference</dt><dd>{intake.consentReference}</dd></div>}
+                <div><dt>Initial assessment respondent</dt><dd>{intake.respondentPreference || "Not recorded"}</dd></div>
+                {intake.respondentPreference === "Family respondent" && <div><dt>Family respondent name</dt><dd>{intake.respondentName || "Not recorded"}</dd></div>}
+              </dl>
+            </div>
+          </Panel>
+          <Panel title="Required intake checks">
+            <div className="panel-body stack intake-detail-body">
+              {INTAKE_CHECKS.map(([key, label]) => (
+                <p key={key}>{intake[key] ? "✓" : "○"} {label}</p>
+              ))}
+              <dl className="metadata">
+                <div><dt>Assigned triage reviewer</dt><dd>{intake.reviewer || "Not recorded"}</dd></div>
+                <div><dt>Next step</dt><dd>{intake.nextAction}</dd></div>
+                <div><dt>Outcome</dt><dd>{intake.outcome || "Closed incomplete"}</dd></div>
+                <div><dt>Outcome summary and next-care plan</dt><dd>{intake.summary || "Not recorded"}</dd></div>
+                {intake.checkEvidence && <div><dt>Evidence considered</dt><dd>{intake.checkEvidence}</dd></div>}
+                <div><dt>Recorded by</dt><dd>{intake.decisionBy || intake.history[0]?.actor || "Not recorded"}</dd></div>
+                <div><dt>Decision time</dt><dd>{intake.decisionAt ? formatTimestamp(intake.decisionAt) : "Not recorded"}</dd></div>
+                {intake.outcome === "Proceed" && <div><dt>Receiving assessment owner</dt><dd>{intake.assessmentOwner}</dd></div>}
+              </dl>
+              {intake.status === "Completed" && !intake.episodeId && !person.episodes.length && (
+                <Button onClick={() => submit({ type: "REOPEN_INTAKE" })}>Reopen intake</Button>
+              )}
+              {intakeReady(intake) && intake.episodeId && (
+                <Button variant="primary" onClick={() => navigate(`/people/${person.id}?episode=${intake.episodeId}&tab=assessment`)}>Open assessment plan</Button>
+              )}
+              {error && <p className="field-error" role="alert">{error}</p>}
+            </div>
+          </Panel>
+        </div>
+        {intakeReady(intake) && !intake.episodeId && (
+          <IntakeAssessmentPanel person={person} intake={intake} navigate={navigate} />
+        )}
       </div>
     );
   return (
@@ -448,27 +498,17 @@ export function IntakePanel({ person, intake, navigate }) {
       className="stack intake-form"
       onSubmit={(e) => {
         e.preventDefault();
-        submit({ type: "SAVE_INTAKE", values: draft });
+        if (intakeStepComplete(intake) && outcomeDraft.outcome) recordOutcome();
+        else saveIntake(true);
       }}
     >
-      <div className="intake-intro">
-        <ClipboardList size={24} />
-        <div>
-          <h2>Complete intake</h2>
-          <p>
-            Gather the information, resolve the checks and record the next care
-            step.
-          </p>
-        </div>
-        <Badge>{intake.status}</Badge>
-      </div>
       {draftError && (
         <Notice tone="amber">
           This browser cannot keep an intake draft. Keep this page open until
           your changes are saved.
         </Notice>
       )}
-      <div className="intake-columns">
+      <div className="intake-sections">
         <div className="stack">
           <Panel title="Registration & referral origin">
             <div className="panel-body stack">
@@ -508,12 +548,14 @@ export function IntakePanel({ person, intake, navigate }) {
               <Field label="Safe contact method">
                 <select
                   value={draft.contactMethod}
-                  onChange={(e) => change("contactMethod", e.target.value)}
+                  onChange={(e) => changeContactMethod(e.target.value)}
                 >
+                  {legacyContact && <option value={draft.contactMethod}>{draft.contactMethod}</option>}
                   {[
                     "Not yet discussed",
                     "Phone",
                     "Email",
+                    "SMS",
                     "Through a supporter",
                     "Staff-assisted / in person",
                     "No suitable contact",
@@ -522,13 +564,39 @@ export function IntakePanel({ person, intake, navigate }) {
                   ))}
                 </select>
               </Field>
-              <div className="form-grid">
-                {field("contactValue", "Contact details (if available)")}
-                {field("contactHolder", "Whose contact is this?")}
-              </div>
-              {field(
+              {(directContact || legacyContact) && (
+                <div className="form-grid">
+                  {field("contactValue", draft.contactMethod === "Email" ? "Email address" : draft.contactMethod === "SMS" ? "Mobile number for SMS" : draft.contactMethod === "Phone" ? "Phone number" : "Contact details", {
+                    type: draft.contactMethod === "Email" ? "email" : ["Phone", "SMS"].includes(draft.contactMethod) ? "tel" : "text",
+                  })}
+                  <Field label="Whose contact is this?">
+                    <select
+                      value={draft.contactHolder || ""}
+                      onChange={(event) => change("contactHolder", event.target.value)}
+                    >
+                      <option value="">Choose contact holder</option>
+                      {["Person", "Parent / carer", "Family member", "Supporter", "Service / staff"].map((holder) => (
+                        <option key={holder} value={holder}>{holder}</option>
+                      ))}
+                      {draft.contactHolder && !["Person", "Parent / carer", "Family member", "Supporter", "Service / staff"].includes(draft.contactHolder) && (
+                        <option value={draft.contactHolder}>{draft.contactHolder}</option>
+                      )}
+                    </select>
+                  </Field>
+                </div>
+              )}
+              {supporterContact && (
+                <>
+                  {field("supporter", "Supporter and relationship")}
+                  {field("contactValue", "Supporter contact details", { type: "tel" })}
+                  {field("authority", "Verified authority / outstanding check", {
+                    hint: "A relationship alone does not establish authority.",
+                  })}
+                </>
+              )}
+              {(directContact || legacyContact || supporterContact || staffContact || noSuitableContact) && field(
                 "safeContact",
-                "Safe contact restrictions / alternative staff route",
+                staffContact ? "Staff contact route / location" : noSuitableContact ? "Reason no contact route is suitable / alternative staff route" : "Safe contact instructions or restrictions",
                 { multiline: true },
               )}
               {field("permissionReference", "Permission source / reference")}
@@ -541,21 +609,67 @@ export function IntakePanel({ person, intake, navigate }) {
                     "Interpreter, accessibility or assistance needs",
                     { multiline: true },
                   )}
-                  {field(
-                    "supporter",
-                    "Supporter and relationship (if relevant)",
-                  )}
-                  {field(
-                    "authority",
-                    "Verified authority / outstanding check",
-                    {
-                      hint: "A relationship alone does not establish authority.",
-                    },
-                  )}
+                  {!supporterContact && field("supporter", "Supporter and relationship (if relevant)")}
+                  {!supporterContact && field("authority", "Verified authority / outstanding check", {
+                    hint: "A relationship alone does not establish authority.",
+                  })}
                 </div>
               </details>
             </div>
           </Panel>
+          <Panel title="Consent for assessment participation">
+            <div className="panel-body stack intake-detail-body">
+              {intakeStepComplete(intake) ? (
+                  <>
+                    <label className="check-field">
+                      <input
+                        type="checkbox"
+                        checked={draft.consentRecorded === true}
+                        onChange={(event) => change("consentRecorded", event.target.checked)}
+                      />
+                      Consent for assessment participation has been recorded
+                    </label>
+                    <Field
+                      label="Consent source / reference"
+                      hint="For example, approved form reference or recorded discussion."
+                    >
+                      <textarea
+                        rows={2}
+                        value={draft.consentReference || ""}
+                        required={draft.consentRecorded === true}
+                        onChange={(event) => change("consentReference", event.target.value)}
+                      />
+                    </Field>
+                    <h3 className="intake-respondent-heading">Initial assessment respondent</h3>
+                    <Field label="Who will complete the initial assessment?">
+                      <select
+                        value={draft.respondentPreference || "Person"}
+                        onChange={(event) => change("respondentPreference", event.target.value)}
+                      >
+                        <option value="Person">Person</option>
+                        <option value="Family respondent">Family respondent</option>
+                      </select>
+                    </Field>
+                    {draft.respondentPreference === "Family respondent" && (
+                      <Field
+                        label="Family respondent name"
+                        hint="This identifies their own contribution; it does not establish authority."
+                      >
+                        <input
+                          value={draft.respondentName || ""}
+                          required
+                          onChange={(event) => change("respondentName", event.target.value)}
+                        />
+                      </Field>
+                    )}
+                  </>
+              ) : (
+                <Notice tone="amber">Save intake to unlock consent and respondent details.</Notice>
+              )}
+            </div>
+          </Panel>
+        </div>
+        <div className="stack">
           <Panel title="Required intake checks">
             <div className="panel-body stack">
               <p className="muted">
@@ -567,249 +681,172 @@ export function IntakePanel({ person, intake, navigate }) {
                   <input
                     type="checkbox"
                     checked={draft[key] === true}
-                    required={draft.status === "Completed"}
                     onChange={(e) => change(key, e.target.checked)}
                   />
                   {label}
                 </label>
               ))}
-              {field("checkEvidence", "Source and outcome of the checks", {
-                multiline: true,
-                required: draft.status === "Completed",
-              })}
               {field("reviewer", "Assigned triage reviewer", { staff: true })}
-              {field("summary", "Triage summary / exit reason", {
-                multiline: true,
-                required:
-                  draft.status === "Completed" ||
-                  draft.status === "Closed incomplete",
-              })}
-            </div>
-          </Panel>
-        </div>
-        <div className="stack">
-          <Panel title="Ownership & next step">
-            <div className="panel-body stack">
-              <Field label="Intake state">
-                <select
-                  value={draft.status}
-                  onChange={(e) => change("status", e.target.value)}
-                >
-                  {INTAKE_STATES.map((v) => (
-                    <option key={v}>{v}</option>
-                  ))}
-                </select>
-              </Field>
-              {field("owner", "YSCC intake owner", {
-                required: true,
-                staff: true,
-              })}
-              {field("nextAction", "Next action", {
-                multiline: true,
-                required: true,
-              })}
-              {field("reviewDate", "Next review date", {
-                type: "date",
-                required: true,
-              })}
-              {["Awaiting information", "Awaiting triage", "Waiting"].includes(
-                draft.status,
-              ) && (
-                <>
-                  {field(
-                    "waitingReason",
-                    "Waiting reason / missing information",
-                    { multiline: true, required: true },
-                  )}
-                  {field("waitingOn", "Who owns the outstanding step?", {
-                    required: true,
-                  })}
-                </>
-              )}
-              {field("communication", "Next step communicated / pending", {
-                multiline: true,
-              })}
-              {draft.status === "Completed" && (
-                <div className="stack intake-decision">
-                  <h3>Record intake outcome</h3>
-                  <Field label="Intake outcome">
-                    <select
-                      value={draft.outcome || ""}
-                      required
-                      onChange={(e) => change("outcome", e.target.value)}
-                    >
-                      <option value="">Select an outcome</option>
-                      <option>Proceed</option>
-                      <option>Do not proceed</option>
-                    </select>
-                  </Field>
-                  {field("decisionAt", "Actual decision time", {
-                    type: "datetime-local",
-                    required: true,
-                  })}
-                  {draft.outcome === "Proceed" &&
-                    field("assessmentOwner", "Receiving assessment owner", {
-                      required: true,
-                      staff: true,
-                    })}
-                  <p className="muted">
-                    Decision recorded as {staff?.name} · {staff?.role}.
-                    Finalised decisions remain in history.
-                  </p>
-                </div>
-              )}
-              {field("changeReason", "Reason for this update", {
-                multiline: true,
-                required: true,
-              })}
+              {field("nextAction", "Next step", { multiline: true })}
               {error && (
                 <p className="field-error" role="alert">
                   {error}
                 </p>
               )}
               {saveMessage && <p className="form-save-success">{saveMessage}</p>}
-              <Button type="submit" variant="primary">
-                {draft.status === "Completed"
-                  ? "Complete intake"
-                  : draft.status === "Closed incomplete"
-                    ? "Close intake incomplete"
-                    : "Save intake"}
-              </Button>
-              <p className="muted">
-                Partial information can be saved. Required unresolved checks
-                prevent completion.
-              </p>
+              <div className="stack intake-outcome-step">
+                <h3>Intake outcome</h3>
+                {!intakeStepComplete(intake) && (
+                  <p className="muted">Save the required intake checks before recording an outcome.</p>
+                )}
+                {outcomeDraftError && (
+                  <Notice tone="amber">This browser cannot keep an outcome draft. Keep this page open until the outcome is recorded.</Notice>
+                )}
+                <Field label="Outcome">
+                  <select
+                    value={outcomeDraft.outcome || ""}
+                    disabled={!intakeStepComplete(intake)}
+                    onChange={(event) => changeOutcome("outcome", event.target.value)}
+                  >
+                    <option value="">Choose outcome</option>
+                    <option value="Proceed">Proceed to assessment</option>
+                    <option value="Do not proceed">Do not proceed to assessment</option>
+                    <option value="Closed incomplete">Close intake incomplete</option>
+                  </select>
+                </Field>
+                {outcomeDraft.outcome && outcomeDraft.outcome !== "Closed incomplete" && (
+                  <>
+                    <Field label="Decision date and time">
+                      <input type="datetime-local" value={outcomeDraft.decisionAt || ""} onChange={(event) => changeOutcome("decisionAt", event.target.value)} />
+                    </Field>
+                    <Field label="Evidence considered" hint="Summarise the sources used to resolve the required intake checks.">
+                      <textarea rows={2} value={outcomeDraft.checkEvidence || ""} onChange={(event) => changeOutcome("checkEvidence", event.target.value)} />
+                    </Field>
+                  </>
+                )}
+                {outcomeDraft.outcome && (
+                  <Field label="Outcome summary and next-care plan">
+                    <textarea rows={3} value={outcomeDraft.summary || ""} onChange={(event) => changeOutcome("summary", event.target.value)} />
+                  </Field>
+                )}
+                {outcomeDraft.outcome === "Proceed" && (
+                  <Field label="Receiving assessment owner">
+                    <StaffPicker value={outcomeDraft.assessmentOwner || ""} onChange={(value) => changeOutcome("assessmentOwner", value)} />
+                  </Field>
+                )}
+              </div>
+              <div className="intake-save-actions">
+                <p className="muted">
+                  {intakeStepComplete(intake) && outcomeDraft.outcome
+                    ? "Recording an outcome completes this intake and saves the decision."
+                    : "Save intake checks the required fields before saving."}
+                </p>
+                <div className="intake-save-buttons">
+                  <Button type="button" onClick={() => saveIntake(false)}>Save draft</Button>
+                  <Button type="submit" variant="primary">
+                    {intakeStepComplete(intake) && outcomeDraft.outcome ? "Record outcome" : "Save intake"}
+                  </Button>
+                </div>
+              </div>
             </div>
           </Panel>
           <Notice>
-            Support and onward referrals remain available while intake is
+            Support and referrals remain available while intake is
             pending. Use the agreed service support route when someone needs
             help.
           </Notice>
         </div>
       </div>
-      <IntakeHistory intake={intake} />
     </ValidatedForm>
   );
 }
 
-function ConsentRespondentsPanel({ person, intake }) {
-  const { state, commit } = useStore(),
-    staff = currentStaff(state);
-  const [draft, setDraft] = useState(() => ({
-    ...intake,
-    consentRecorded: intake.consentRecorded === true,
-    consentReference: intake.consentReference || "",
-    respondentPreference: intake.respondentPreference || "Person",
-    respondentName: intake.respondentName || person.family || "",
-    changeReason: "",
-  }));
+function IntakeAssessmentPanel({ person, intake, navigate }) {
+  const { state, commit } = useStore();
+  const [due, setDue] = useState(TODAY);
   const [error, setError] = useState("");
-  const [saveMessage, setSaveMessage] = useState("");
-  const change = (key, value) => {
-    setError("");
-    setSaveMessage("");
-    setDraft((current) => ({ ...current, [key]: value }));
-  };
-  const save = (event) => {
+  const ready = intakeReady(intake);
+  const startAssessment = (event) => {
     event.preventDefault();
     const action = {
-      type: "SAVE_INTAKE",
+      type: "START_ASSESSMENT",
       personId: person.id,
       intakeId: intake.id,
       revision: intake.revision,
-      values: draft,
+      due,
     };
-    const problem = intakeActionError(state, action, staff);
+    const problem = intakeActionError(state, action, currentStaff(state));
     if (problem) return setError(problem);
     const result = commit(action);
     if (result.error) return setError(result.error);
-    setSaveMessage("Consent and respondent details saved in intake history.");
+    navigate(`/people/${person.id}?tab=assessment`);
   };
+
   return (
-    <ValidatedForm className="stack" onSubmit={save}>
-      <Panel title="Consent for assessment participation">
-        <div className="panel-body stack">
-          <Notice>
-            Record the approved consent source before completing intake. This
-            is a prototype record, not the consent policy itself.
-          </Notice>
-          <label className="check-field">
-            <input
-              type="checkbox"
-              checked={draft.consentRecorded}
-              onChange={(event) => change("consentRecorded", event.target.checked)}
-            />
-            Consent for assessment participation has been recorded
-          </label>
-          <Field
-            label="Consent source / reference"
-            hint="For example, approved form reference or recorded discussion."
-          >
-            <textarea
-              rows={2}
-              value={draft.consentReference}
-              required={draft.consentRecorded}
-              onChange={(event) => change("consentReference", event.target.value)}
-            />
-          </Field>
-          <p className="muted">
-            Consent is required to complete intake. A decision remains
-            purpose-specific and can be reviewed later.
-          </p>
+    <div className="stack">
+      <div className="section-toolbar">
+        <div>
+          <h2>Assessment & collection plan</h2>
+          <p>Initial assessment follows the recorded intake decision.</p>
         </div>
-      </Panel>
-      <Panel title="Initial assessment respondent">
+      </div>
+      <Panel title="Initial assessment" action={<Badge>{ready ? "Ready to plan" : "Waiting for intake"}</Badge>}>
         <div className="panel-body stack">
-          <Field label="Who will complete the initial assessment?">
-            <select
-              value={draft.respondentPreference}
-              onChange={(event) => change("respondentPreference", event.target.value)}
-            >
-              <option value="Person">Person</option>
-              <option value="Family respondent">Family respondent</option>
-            </select>
-          </Field>
-          {draft.respondentPreference === "Family respondent" && (
-            <Field
-              label="Family respondent name"
-              hint="This identifies their own contribution; it does not establish authority."
-            >
-              <input
-                value={draft.respondentName}
-                required
-                onChange={(event) => change("respondentName", event.target.value)}
-              />
-            </Field>
+          <dl className="metadata">
+            <div><dt>Intake decision</dt><dd>{intake.outcome || "Pending"}</dd></div>
+            <div><dt>Receiving assessment owner</dt><dd>{intake.assessmentOwner || "Not assigned"}</dd></div>
+            <div><dt>Respondent</dt><dd>{intake.respondentPreference || "Not recorded"}</dd></div>
+          </dl>
+          {ready ? (
+            intake.episodeId ? (
+              <Button
+                variant="primary"
+                onClick={() => navigate(`/people/${person.id}?episode=${intake.episodeId}&tab=assessment`)}
+              >
+                Open assessment plan
+              </Button>
+            ) : (
+              <ValidatedForm className="stack" onSubmit={startAssessment}>
+                <Notice>
+                  {intake.assessmentOwner} owns the next step. Creating the plan
+                  starts the assessment record; the intake decision remains in history.
+                </Notice>
+                <Field label="Initial assessment due date">
+                  <input
+                    type="date"
+                    min={TODAY}
+                    required
+                    value={due}
+                    onChange={(event) => setDue(event.target.value)}
+                  />
+                </Field>
+                {error && <p role="alert" className="field-error">{error}</p>}
+                <Button type="submit" variant="primary">Create assessment plan</Button>
+              </ValidatedForm>
+            )
+          ) : (
+            <Notice tone="amber">
+              {intake.status === "Closed incomplete" || intake.outcome === "Do not proceed"
+                ? "This intake decision does not proceed to assessment. Review the next-care plan in Intake."
+                : "Complete intake with a proceed decision and receiving assessment owner before planning assessment."}
+            </Notice>
           )}
         </div>
       </Panel>
-      <Panel title="Save this update">
-        <div className="panel-body stack">
-          <Field label="Reason for this update">
-            <textarea
-              rows={2}
-              value={draft.changeReason}
-              required
-              onChange={(event) => change("changeReason", event.target.value)}
-            />
-          </Field>
-          {error && <p className="field-error" role="alert">{error}</p>}
-          {saveMessage && <p className="form-save-success">{saveMessage}</p>}
-          <Button type="submit" variant="primary">Save consent & respondents</Button>
-        </div>
-      </Panel>
-    </ValidatedForm>
+    </div>
   );
 }
 
 export default function IntakeWorkspace({ person, navigate, openModal }) {
   const params = useSearchParams(),
     intake = person.intakes[0];
-  const tabs = ["Intake", "Consent & respondents", "Referrals", "History"];
-  const tab =
-    tabs.find((t) => t.toLowerCase() === params.get("tab")) || "Intake";
   const returnTo = safeReturnTo(params.get("returnTo"));
+  const lastUpdatedAt = [
+    intake.createdAt,
+    ...(intake.history || []).map((entry) => entry.timestamp),
+  ]
+    .filter((timestamp) => timestamp && Number.isFinite(Date.parse(timestamp)))
+    .sort((a, b) => Date.parse(b) - Date.parse(a))[0];
   return (
     <>
       <button className="back-link" onClick={() => navigate(returnTo)}>
@@ -818,7 +855,7 @@ export default function IntakeWorkspace({ person, navigate, openModal }) {
       </button>
       <div className="person-heading">
         <div>
-          <h1>{displayPersonName(person)}</h1>
+          <h1>{person.name || "Name not recorded"}</h1>
           <p>
             {person.id}
             <span>·</span>
@@ -833,48 +870,22 @@ export default function IntakeWorkspace({ person, navigate, openModal }) {
           <small>Owner · {intake.owner}</small>
         </div>
         <div>
-          <small>Next review</small>
-          <span>{formatDate(intake.reviewDate)}</span>
+          <small>Last updated</small>
+          <span>{lastUpdatedAt ? formatDate(lastUpdatedAt.slice(0, 10)) : "Not recorded"}</span>
         </div>
         <div>
           <small>Next action</small>
           <span>{intake.nextAction}</span>
         </div>
       </div>
-      <Tabs
-        id="intake-workspace"
-        label="Person record"
-        items={tabs}
-        value={tab}
-        onChange={(value) => {
-          const next = new URLSearchParams(params);
-          next.set("tab", value.toLowerCase());
-          navigate(`/people/${person.id}?${next}`, { scroll: false });
-        }}
-      />
-      <div
-        role="tabpanel"
-        id="intake-workspace-panel"
-        aria-labelledby={`intake-workspace-tab-${tabs.indexOf(tab)}`}
-      >
-        {tab === "Intake" && (
-          <IntakePanel
-            person={person}
-            intake={intake}
-            navigate={navigate}
-          />
-        )}
-        {tab === "Consent & respondents" && (
-          <ConsentRespondentsPanel
-            key={intake.revision}
-            person={person}
-            intake={intake}
-          />
-        )}
-        {tab === "Referrals" && (
-          <Referrals person={person} intake={intake} openModal={openModal} />
-        )}
-        {tab === "History" && <IntakeHistory intake={intake} />}
+      <div className="person-content-surface">
+        <div id="intake-workspace-panel" className="stack intake-workspace-sections">
+          <IntakePanel person={person} intake={intake} navigate={navigate} />
+          <section className="intake-referrals-container" aria-label="Referrals">
+            <Referrals person={person} intake={intake} openModal={openModal} hideEmptyState />
+          </section>
+          <IntakeHistory intake={intake} />
+        </div>
       </div>
     </>
   );

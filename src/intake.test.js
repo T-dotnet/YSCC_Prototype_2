@@ -11,6 +11,8 @@ import {
   canAssess,
   intakeReady,
   intakeActionError,
+  intakeCheckFieldsError,
+  intakeStepComplete,
   INTAKE_CHECKS,
 } from "./intake.js";
 import { ownedTasks, taskHref } from "./workflow.js";
@@ -25,6 +27,23 @@ const registration = {
 };
 const registered = () => reducer(createSeed(), registration);
 const person = (s) => s.people.at(-1);
+test("River's sample intake summary is current without replacing edited values", () => {
+  const seeded = createSeed();
+  const river = seeded.people.find((item) => item.id === "YS-1031").intakes[0];
+  assert.equal(river.nextAction, "Agree a safe contact route with River and record the intake outcome");
+  assert.equal(river.reviewDate, "2026-09-24");
+
+  const saved = structuredClone(seeded);
+  const savedRiver = saved.people.find((item) => item.id === "YS-1031").intakes[0];
+  savedRiver.nextAction = "Confirm identity and contact arrangements";
+  savedRiver.reviewDate = TODAY;
+  const migrated = upgradeSampleData(saved);
+  assert.equal(migrated.people.find((item) => item.id === "YS-1031").intakes[0].nextAction, river.nextAction);
+  assert.equal(upgradeSampleData(migrated), migrated);
+
+  savedRiver.nextAction = "Call the family on Thursday";
+  assert.equal(upgradeSampleData(saved).people.find((item) => item.id === "YS-1031").intakes[0].nextAction, "Call the family on Thursday");
+});
 const save = (s, values = {}) =>
   reducer(s, {
     type: "SAVE_INTAKE",
@@ -37,6 +56,28 @@ const save = (s, values = {}) =>
       ...values,
     },
   });
+test("Consent and Outcome unlock only after required intake checks are validated and saved", () => {
+  const received = registered();
+  assert.equal(intakeStepComplete(person(received).intakes[0]), false);
+  const checked = save(received, {
+    ...Object.fromEntries(INTAKE_CHECKS.map(([key]) => [key, true])),
+  });
+  assert.equal(intakeStepComplete(person(checked).intakes[0]), false);
+  const validated = reducer(checked, {
+    type: "SAVE_INTAKE",
+    personId: person(checked).id,
+    intakeId: person(checked).intakes[0].id,
+    revision: person(checked).intakes[0].revision,
+    validatedChecks: true,
+    values: {
+      ...person(checked).intakes[0],
+      changeReason: "Required intake check fields validated and saved.",
+    },
+  });
+  assert.equal(intakeStepComplete(person(validated).intakes[0]), true);
+  const changed = save(validated, { triageChecked: false });
+  assert.equal(intakeStepComplete(person(changed).intakes[0]), false);
+});
 const complete = (s, outcome = "Proceed") =>
   save(s, {
     status: "Completed",
@@ -138,6 +179,44 @@ test("AC-24: partial save works; required checks, waiting ownership and non-proc
   const stopped = complete(s, "Do not proceed");
   assert.equal(start(stopped), stopped);
   assert.equal(person(stopped).intakes[0].outcome, "Do not proceed");
+});
+test("Save intake checks all required check fields while drafts can remain partial", () => {
+  const incomplete = { reviewer: "" };
+  assert.match(intakeCheckFieldsError(incomplete), /identity and matching reviewed/);
+  const checked = Object.fromEntries(INTAKE_CHECKS.map(([key]) => [key, true]));
+  assert.match(intakeCheckFieldsError({ ...checked, reviewer: "" }), /triage reviewer/);
+  assert.match(intakeCheckFieldsError({ ...checked, reviewer: "Jess Taylor", nextAction: "" }), /next step/);
+  assert.equal(intakeCheckFieldsError({ ...checked, reviewer: "Jess Taylor", nextAction: "Follow up with River" }), "");
+  const draft = save(registered(), { ...incomplete, changeReason: "Intake draft saved." });
+  assert.equal(person(draft).intakes[0].status, "Received");
+  const updated = save(draft, { nextAction: "Confirm referral details" });
+  assert.equal(person(updated).intakes[0].nextAction, "Confirm referral details");
+});
+test("Save intake records consent and respondent details with the required checks", () => {
+  const state = registered();
+  const intake = person(state).intakes[0];
+  const saved = reducer(state, {
+    type: "SAVE_INTAKE",
+    personId: person(state).id,
+    intakeId: intake.id,
+    revision: intake.revision,
+    validatedChecks: true,
+    values: {
+      ...intake,
+      ...Object.fromEntries(INTAKE_CHECKS.map(([key]) => [key, true])),
+      consentRecorded: true,
+      consentReference: "Recorded discussion reference",
+      respondentPreference: "Family respondent",
+      respondentName: "Alex's parent",
+      changeReason: "Required intake checks and consent details saved.",
+    },
+  });
+  const recorded = person(saved).intakes[0];
+  assert.equal(recorded.consentReference, "Recorded discussion reference");
+  assert.equal(recorded.respondentName, "Alex's parent");
+  assert.equal(person(saved).consent, "Recorded");
+  assert.equal(intakeStepComplete(recorded), true);
+  assert.equal(recorded.history[0].detail, "Required intake checks and consent details saved.");
 });
 test("consent and an initial respondent are required before intake can complete", () => {
   const s = registered();
@@ -451,4 +530,33 @@ test("Information arriving during intake updates unknown identity and retains it
   assert.equal(person(next).intakes[0].history[0].priorIdentity.dob, "Unknown");
   assert.equal(save(next, { displayName: "Kai Thompson" }), next);
   assert.equal(save(next, { dob: "2026-02-31" }), next);
+});
+
+test("intake detail edits require a reason and preserve the completed decision", () => {
+  const saved = complete(registered());
+  const original = person(saved).intakes[0];
+  const action = {
+    type: "UPDATE_INTAKE_DETAILS",
+    personId: person(saved).id,
+    intakeId: original.id,
+    revision: original.revision,
+    reason: "Updated safe contact details after a call",
+    values: {
+      ...original,
+      name: person(saved).name,
+      dob: person(saved).dob,
+      pronouns: person(saved).pronouns,
+      contactMethod: "Phone via nominated supporter",
+    },
+  };
+  assert.equal(reducer(saved, { ...action, reason: "" }), saved);
+  const updated = reducer(saved, action);
+  const intake = person(updated).intakes[0];
+  assert.equal(intake.contactMethod, "Phone via nominated supporter");
+  assert.equal(intake.status, original.status);
+  assert.equal(intake.outcome, original.outcome);
+  assert.equal(intake.decisionAt, original.decisionAt);
+  assert.equal(intake.revision, original.revision + 1);
+  assert.equal(intake.history[0].detail, action.reason);
+  assert.equal(reducer(updated, action), updated);
 });

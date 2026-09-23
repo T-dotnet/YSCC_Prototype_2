@@ -1,5 +1,11 @@
 export const CARE_EVENT_TYPES = [
   {
+    value: "indirect-activity",
+    label: "Indirect service activity",
+    description:
+      "Record service work completed on behalf of the person without a direct contact.",
+  },
+  {
     value: "harm",
     label: "Harm to self or others",
     description:
@@ -33,7 +39,7 @@ export const CARE_EVENT_TYPES = [
 export const SYSTEM_EVENT_TYPES = [
   {
     value: "inpatient",
-    label: "Inpatient admission",
+    label: "Inpatient care change",
     description:
       "A contextual record of an admission, discharge or known inpatient change, generated automatically upon successful intake.",
   },

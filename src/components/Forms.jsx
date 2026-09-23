@@ -38,7 +38,6 @@ import {
   Select,
   Badge,
   StaffPicker,
-  Success,
   ValidatedForm,
 } from "./UI";
 import CollectionDetails from "./CollectionDetails";
@@ -75,7 +74,6 @@ export default function Forms({
       modal.collectionDraft?.assistance ||
         (modal.channel === "Clinician entry" ? "Transcribed" : "Independent"),
     ),
-    [done, setDone] = useState(false),
     [name, setName] = useState(""),
     [episodeAction, setEpisodeAction] = useState("Paused"),
     [previewOpen, setPreviewOpen] = useState(false);
@@ -89,6 +87,9 @@ export default function Forms({
   );
   const [appointmentDeliveryMode, setAppointmentDeliveryMode] =
     useState("In person");
+  const [editingTodayAppt, setEditingTodayAppt] = useState(false);
+  const [cancellingTodayAppt, setCancellingTodayAppt] = useState(false);
+  const [cancellationReason, setCancellationReason] = useState("");
   const [planDue, setPlanDue] = useState(TODAY);
   const [planChannel, setPlanChannel] = useState("SMS link");
   const [planRespondent, setPlanRespondent] = useState("Person");
@@ -105,11 +106,9 @@ export default function Forms({
     useState("In person");
   const [editingExistingAppt, setEditingExistingAppt] = useState(false);
   const [formError, setFormError] = useState("");
-  const [collectionConfirmed, setCollectionConfirmed] = useState(false);
-  const [collectionAttempted, setCollectionAttempted] = useState(false);
   const [handoverStatus, setHandoverStatus] = useState("Not applicable");
   const [resolution, setResolution] = useState("Confirmed unchanged");
-  const [collectionType, setCollectionType] = useState("Follow-up review");
+  const [collectionType, setCollectionType] = useState("Instrument check-in");
   const [instrumentVersion, setInstrumentVersion] = useState(
     DEMO_INSTRUMENT.version,
   );
@@ -144,7 +143,9 @@ export default function Forms({
     e = p?.episodes.find((e) => e.id === modal.episodeId),
     c = e?.collections.find((c) => c.id === modal.collectionId);
   const existingAppointmentToday = (e?.appointments || []).find(
-    (a) => a.plannedDate === TODAY || a.actualDate === TODAY,
+    (a) =>
+      (a.plannedDate === TODAY || a.actualDate === TODAY) &&
+      !["Cancelled", "Did not attend"].includes(a.attendance),
   );
   const existingAppointmentOnPlanDue = (e?.appointments || []).find(
     (a) => a.plannedDate === planDue || a.actualDate === planDue,
@@ -220,8 +221,14 @@ export default function Forms({
             ? "contextual"
             : "structured"
         }
+        initialType={modal.initialType}
         error={formError}
         onClose={onClose}
+        onSelectAppointment={() => openModal({
+          type: "appointment",
+          personId: modal.personId,
+          episodeId: modal.episodeId,
+        })}
         onSave={(action) =>
           save(
             action,
@@ -412,8 +419,11 @@ export default function Forms({
           onSubmit={(ev) => {
             ev.preventDefault();
             const values = formValues(ev);
-            const label =
-              collectionType === "Custom" ? values.label : collectionType;
+            const label = collectionType === "Custom"
+              ? values.label
+              : collectionType === "Instrument check-in"
+                ? `${selectedInstrument?.name || "Assessment"} · follow-up check-in`
+                : collectionType;
             const dueDate = planDue || values.due;
             let linkedAppointmentId =
               existingAppointmentOnPlanDue?.id || null;
@@ -503,7 +513,7 @@ export default function Forms({
                 value={collectionType}
                 onChange={(event) => setCollectionType(event.target.value)}
               >
-                <option>Follow-up review</option>
+                <option>Instrument check-in</option>
                 <option>90-day review</option>
                 <option>Custom</option>
               </select>
@@ -1007,526 +1017,569 @@ export default function Forms({
     return (
       <Modal
         title={
-          done
-            ? "Collection is ready"
+          modal.collectResponse
+            ? "Collect response"
             : channel === "Clinician entry"
-              ? "Complete as clinician"
-              : collectionSetupLabel(c)
+            ? "Complete as clinician"
+            : collectionSetupLabel(c)
         }
         subtitle={`${displayPersonName(p)} · ${c.label}`}
         onClose={onClose}
       >
-        {done ? (
-          <div className="form-body">
-            <Success
-              title={
-                channel === "SMS link"
-                  ? "Sample link prepared"
-                  : "Sample session ready"
-              }
-              action={
-                <Button
-                  variant="primary"
-                  onClick={() => {
-                    startQuestionnaire({
-                      ...modal,
-                      channel,
-                      respondent,
-                      assistance,
-                      attemptId: c.attempts.at(-1)?.id,
-                    });
-                    onClose();
-                  }}
-                >
-                  Open sample questionnaire
-                  <ArrowRight size={18} />
-                </Button>
-              }
-            >
-              This simulated {channel.toLowerCase()} attempt is recorded against
-              the existing assignment. No message has been sent.
-            </Success>
-            <Notice>
-              Submitting the sample questionnaire will update this record. The
-              clinical review is not required for clinician entry or supported
-              tablet completion.
-            </Notice>
-          </div>
-        ) : (
-          <ValidatedForm
-            noValidate
-
-            onSubmit={(ev) => {
-              ev.preventDefault();
-              if (!allowed) return;
-              setCollectionAttempted(true);
-              if (!collectionConfirmed) {
-                const control = ev.currentTarget.elements.namedItem(
-                  "collection-confirmed",
-                );
-                requestAnimationFrame(() => {
-                  control?.focus();
-                  control
-                    ?.closest("label")
-                    ?.scrollIntoView({ block: "center" });
-                });
-                return;
-              }
-              let linkedAppointmentId = existingAppointmentToday?.id || null;
-              if (
-                channel !== "SMS link" &&
-                createAppointment &&
-                !existingAppointmentToday
-              ) {
-                const generatedApptId = uid();
-                const apptResult = commit({
-                  type: "ADD_APPOINTMENT",
-                  id: generatedApptId,
-                  personId: p.id,
-                  episodeId: e.id,
-                  plannedDate: TODAY,
-                  plannedTime: appointmentTime,
-                  plannedDurationMinutes: Number(appointmentDuration) || 60,
-                  practitionerService: appointmentPractitioner,
-                  deliveryMode: appointmentDeliveryMode,
-                  attendance: "Planned",
-                  notes: `Associated appointment on day of assessment (${c.label} · ${channel})`,
-                });
-                if (apptResult.error) {
-                  setFormError(apptResult.error);
-                  return;
-                }
-                linkedAppointmentId = generatedApptId;
-              }
-              const result = commit({
-                ...modal,
-                type: "DELIVER",
-                channel,
-                respondent,
-                assistance,
-                appointmentId: linkedAppointmentId,
+        <ValidatedForm
+          noValidate
+          onSubmit={(ev) => {
+            ev.preventDefault();
+            if (!allowed) return;
+            let linkedAppointmentId = existingAppointmentToday?.id || null;
+            if (
+              channel !== "SMS link" &&
+              createAppointment &&
+              !existingAppointmentToday
+            ) {
+              const generatedApptId = uid();
+              const apptResult = commit({
+                type: "ADD_APPOINTMENT",
+                id: generatedApptId,
+                personId: p.id,
+                episodeId: e.id,
+                plannedDate: TODAY,
+                plannedTime: appointmentTime,
+                plannedDurationMinutes: Number(appointmentDuration) || 60,
+                practitionerService: appointmentPractitioner,
+                deliveryMode: appointmentDeliveryMode,
+                attendance: "Planned",
+                notes: `Associated appointment on day of assessment (${c.label} · ${channel})`,
               });
-              if (result.error) {
-                setFormError(result.error);
+              if (apptResult.error) {
+                setFormError(apptResult.error);
                 return;
               }
-              if (channel === "Clinician entry") {
-                openModal({
-                  personId: p.id,
-                  episodeId: e.id,
-                  collectionId: c.id,
-                  type: "clinician-questionnaire",
-                });
-                return;
-              }
-              setDone(true);
-            }}
-          >
-            <div className="form-body">
-              <div className="context-line">
-                <span>{c.version}</span>
-                <Badge>
-                  {c.link === "Expired" ? "Previous link expired" : c.response}
-                </Badge>
-              </div>
-              {!allowed && (
-                <Notice tone="amber">
-                  <strong>Collection needs attention</strong>
-                  <ul>
-                    {blockers.map((blocker) => (
-                      <li key={blocker}>{blocker}</li>
-                    ))}
-                  </ul>
-                  {(p.consent !== "Recorded" || p.contact !== "Suitable") && (
-                    <button
-                      type="button"
-                      className="inline-link"
-                      onClick={() =>
-                        openModal({
-                          ...modal,
-                          type: "consent",
-                          returnToCollection: true,
-                          returnToDetails: false,
-                          collectionDraft: { channel, respondent, assistance },
-                        })
-                      }
-                    >
-                      Update participation & contact
-                    </button>
-                  )}
-                </Notice>
-              )}
-              <Field label="Who is supplying the answers?">
-                <select
-                  value={respondent}
-                  onChange={(ev) => {
-                    setRespondent(ev.target.value);
-                    setCollectionConfirmed(false);
-                  }}
-                >
-                  <option value="Person">{displayPersonName(p)}</option>
-                  {p.family &&
-                    getInstrument(c.version)?.respondents.includes(
-                      "Family respondent",
-                    ) && (
-                      <option value="Family respondent">
-                        {displayFamilyName(p)}
-                      </option>
-                    )}
-                </select>
-              </Field>
-              <fieldset className="channel-options">
-                <legend>How will the response be collected?</legend>
-                {[
-                  ["SMS link", "Account-free sample link", MessageSquare],
-                  ["Clinic tablet", "In-person device handover", Tablet],
-                  [
-                    "Clinician entry",
-                    "Complete the questionnaire in your workspace",
-                    ClipboardPen,
-                  ],
-                ].map(([label, description, Icon]) => (
-                  <label
-                    className={`channel ${channel === label ? "chosen" : ""}`}
-                    key={label}
-                  >
-                    <input
-                      type="radio"
-                      name="channel"
-                      value={label}
-                      checked={channel === label}
-                      disabled={
-                        label === "Clinician entry" &&
-                        staff?.role !== "Clinician"
-                      }
-                      onChange={() => {
-                        setChannel(label);
-                        setCollectionConfirmed(false);
-                        setAssistance(
-                          label === "Clinician entry"
-                            ? "Transcribed"
-                            : "Independent",
-                        );
-                      }}
-                    />
-                    <Icon size={23} />
-                    <span>
-                      <strong>{label}</strong>
-                      <small>{description}</small>
-                    </span>
-                    <span className="radio-dot" />
-                  </label>
-                ))}
-              </fieldset>
-              <Field label="Assistance">
-                <select
-                  value={assistance}
-                  onChange={(ev) => {
-                    setAssistance(ev.target.value);
-                    setCollectionConfirmed(false);
-                  }}
-                >
-                  {(channel === "Clinician entry"
-                    ? ["Transcribed", "Joint completion"]
-                    : ["Independent", "Supported"]
-                  ).map((a) => (
-                    <option key={a}>{a}</option>
+              linkedAppointmentId = generatedApptId;
+            }
+            const result = commit({
+              ...modal,
+              type: "DELIVER",
+              channel,
+              respondent,
+              assistance,
+              appointmentId: linkedAppointmentId,
+            });
+            if (result.error) {
+              setFormError(result.error);
+              return;
+            }
+            if (channel === "Clinician entry") {
+              openModal({
+                personId: p.id,
+                episodeId: e.id,
+                collectionId: c.id,
+                type: "clinician-questionnaire",
+              });
+              return;
+            }
+            const savedCollection = result.state.people
+              .find((person) => person.id === p.id)
+              ?.episodes.find((episode) => episode.id === e.id)
+              ?.collections.find((collection) => collection.id === c.id);
+            openModal(null);
+            startQuestionnaire({
+              ...modal,
+              channel,
+              respondent,
+              assistance,
+              attemptId: savedCollection?.attempts.at(-1)?.id,
+            });
+          }}
+        >
+          <div className="form-body">
+            <div className="context-line">
+              <span>{c.version}</span>
+              <Badge>
+                {c.link === "Expired" ? "Previous link expired" : c.response}
+              </Badge>
+            </div>
+            {!allowed && (
+              <Notice tone="amber">
+                <strong>Collection needs attention</strong>
+                <ul>
+                  {blockers.map((blocker) => (
+                    <li key={blocker}>{blocker}</li>
                   ))}
-                </select>
-              </Field>
-              {channel !== "SMS link" &&
-                (existingAppointmentToday ? (
-                  <div
-                    style={{
-                      background: "var(--surface-subtle, #f8fafc)",
-                      border: "1px solid var(--border, #e2e8f0)",
-                      borderRadius: "8px",
-                      padding: "12px 16px",
-                      margin: "16px 0",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "12px",
-                    }}
+                </ul>
+                {(p.consent !== "Recorded" || p.contact !== "Suitable") && (
+                  <button
+                    type="button"
+                    className="inline-link"
+                    onClick={() =>
+                      openModal({
+                        ...modal,
+                        type: "consent",
+                        returnToCollection: true,
+                        returnToDetails: false,
+                        collectionDraft: { channel, respondent, assistance },
+                      })
+                    }
                   >
-                    <Calendar
-                      size={20}
-                      style={{ color: "#2563eb", flexShrink: 0 }}
-                    />
-                    <div>
-                      <div
-                        style={{
-                          fontWeight: 600,
-                          fontSize: "0.9rem",
-                          color: "#1e293b",
+                    Update participation & contact
+                  </button>
+                )}
+              </Notice>
+            )}
+            <Field label="Who is supplying the answers?">
+              <select
+                value={respondent}
+                onChange={(ev) => setRespondent(ev.target.value)}
+              >
+                <option value="Person">{displayPersonName(p)}</option>
+                {p.family &&
+                  getInstrument(c.version)?.respondents.includes(
+                    "Family respondent",
+                  ) && (
+                    <option value="Family respondent">
+                      {displayFamilyName(p)}
+                    </option>
+                  )}
+              </select>
+            </Field>
+            <fieldset className="channel-options">
+              <legend>How will the response be collected?</legend>
+              {[
+                ["SMS link", "Account-free sample link", MessageSquare],
+                ["Clinic tablet", "In-person device handover", Tablet],
+                [
+                  "Clinician entry",
+                  "Complete the questionnaire in your workspace",
+                  ClipboardPen,
+                ],
+              ].map(([label, description, Icon]) => (
+                <label
+                  className={`channel ${channel === label ? "chosen" : ""}`}
+                  key={label}
+                >
+                  <input
+                    type="radio"
+                    name="channel"
+                    value={label}
+                    checked={channel === label}
+                    disabled={
+                      label === "Clinician entry" &&
+                      staff?.role !== "Clinician"
+                    }
+                    onChange={() => {
+                      setChannel(label);
+                      setAssistance(
+                        label === "Clinician entry"
+                          ? "Transcribed"
+                          : "Independent",
+                      );
+                    }}
+                  />
+                  <Icon size={23} />
+                  <span>
+                    <strong>{label}</strong>
+                    <small>{description}</small>
+                  </span>
+                  <span className="radio-dot" />
+                </label>
+              ))}
+            </fieldset>
+            <Field label="Assistance">
+              <select
+                value={assistance}
+                onChange={(ev) => setAssistance(ev.target.value)}
+              >
+                {(channel === "Clinician entry"
+                  ? ["Transcribed", "Joint completion"]
+                  : ["Independent", "Supported"]
+                ).map((a) => (
+                  <option key={a}>{a}</option>
+                ))}
+              </select>
+            </Field>
+            {channel !== "SMS link" &&
+              (existingAppointmentToday ? (
+                <section
+                  style={{
+                    background: "var(--surface-subtle, #f8fafc)",
+                    border: "1px solid var(--border, #e2e8f0)",
+                    borderRadius: "8px",
+                    padding: "12px 16px",
+                    margin: "16px 0",
+                  }}
+                  aria-label="Associated appointment on assessment day"
+                >
+                  <div className="appointment-association-heading">
+                    <div className="appointment-association-summary">
+                      <Calendar
+                        size={20}
+                        style={{ color: "#2563eb", flexShrink: 0 }}
+                        aria-hidden="true"
+                      />
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "#1e293b" }}>
+                          Associated appointment on assessment day
+                        </div>
+                        <div style={{ fontSize: "0.85rem", color: "#64748b", marginTop: "2px" }}>
+                          {formatDate(TODAY)} at{" "}
+                          {existingAppointmentToday.plannedTime ||
+                            existingAppointmentToday.actualTime}{" "}
+                          · {existingAppointmentToday.deliveryMode} ·{" "}
+                          {existingAppointmentToday.practitionerService} (
+                          {existingAppointmentToday.attendance})
+                        </div>
+                      </div>
+                    </div>
+                    <div className="appointment-association-actions">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="appointment-edit-action"
+                        onClick={() => {
+                          if (!editingTodayAppt) {
+                            setAppointmentTime(existingAppointmentToday.plannedTime || "10:00");
+                            setAppointmentDuration(String(existingAppointmentToday.plannedDurationMinutes || 60));
+                            setAppointmentPractitioner(existingAppointmentToday.practitionerService || "");
+                            setAppointmentDeliveryMode(existingAppointmentToday.deliveryMode || "In person");
+                          }
+                          setEditingTodayAppt(!editingTodayAppt);
+                          setCancellingTodayAppt(false);
+                          setFormError("");
                         }}
                       >
-                        Associated appointment on assessment day
-                      </div>
-                      <div
-                        style={{
-                          fontSize: "0.85rem",
-                          color: "#64748b",
-                          marginTop: "2px",
-                        }}
-                      >
-                        {formatDate(TODAY)} at{" "}
-                        {existingAppointmentToday.plannedTime ||
-                          existingAppointmentToday.actualTime}{" "}
-                        · {existingAppointmentToday.deliveryMode} ·{" "}
-                        {existingAppointmentToday.practitionerService} (
-                        {existingAppointmentToday.attendance})
-                      </div>
+                        {editingTodayAppt ? "Discard changes" : "Edit appointment"}
+                      </Button>
+                      {existingAppointmentToday.attendance === "Planned" && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="appointment-cancel-action"
+                          onClick={() => {
+                            setCancellingTodayAppt(!cancellingTodayAppt);
+                            setEditingTodayAppt(false);
+                            setFormError("");
+                          }}
+                        >
+                          Cancel appointment
+                        </Button>
+                      )}
                     </div>
                   </div>
-                ) : (
-                  <section
-                    style={{
-                      background: "var(--surface-subtle, #f8fafc)",
-                      border: "1px solid var(--border, #cbd5e1)",
-                      borderRadius: "8px",
-                      padding: "14px 16px",
-                      margin: "16px 0",
-                    }}
-                    aria-label="Associated appointment on assessment day"
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "flex-start",
-                        justifyContent: "space-between",
-                        gap: "12px",
-                        marginBottom: createAppointment ? "12px" : 0,
-                      }}
-                    >
-                      <div>
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "6px",
-                          }}
-                        >
-                          <Calendar size={18} style={{ color: "#2563eb" }} />
-                          <strong
-                            style={{ fontSize: "0.92rem", color: "#0f172a" }}
-                          >
-                            Day-of-assessment appointment
-                          </strong>
-                        </div>
-                        <p
-                          style={{
-                            margin: "4px 0 0 0",
-                            fontSize: "0.83rem",
-                            color: "#64748b",
-                          }}
-                        >
-                          Non-SMS assessments require an in-person or clinician
-                          contact record on the day of assessment (
-                          {formatDate(TODAY)}).
-                        </p>
-                      </div>
-                      <label
-                        style={{
-                          margin: 0,
-                          whiteSpace: "nowrap",
-                          cursor: "pointer",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "6px",
-                          fontSize: "0.85rem",
-                          fontWeight: 600,
-                          color: "#0f172a",
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={createAppointment}
-                          onChange={(ev) =>
-                            setCreateAppointment(ev.target.checked)
-                          }
-                        />
-                        <span>Create appointment</span>
-                      </label>
-                    </div>
-
-                    {createAppointment && (
-                      <div
-                        className="form-grid"
-                        style={{
-                          marginTop: "12px",
-                          paddingTop: "12px",
-                          borderTop: "1px solid #e2e8f0",
-                        }}
-                      >
+                  {editingTodayAppt && (
+                    <div className="appointment-association-editor">
+                      <div className="form-grid">
                         <Field label="Planned time">
-                          <input
-                            type="time"
-                            value={appointmentTime}
-                            onChange={(ev) =>
-                              setAppointmentTime(ev.target.value)
-                            }
-                            required
-                          />
+                          <input type="time" value={appointmentTime} onChange={(ev) => setAppointmentTime(ev.target.value)} required />
                         </Field>
                         <Field label="Duration (min)">
-                          <input
-                            type="number"
-                            min="1"
-                            max="600"
-                            value={appointmentDuration}
-                            onChange={(ev) =>
-                              setAppointmentDuration(ev.target.value)
-                            }
-                            required
-                          />
+                          <input type="number" min="1" max="600" value={appointmentDuration} onChange={(ev) => setAppointmentDuration(ev.target.value)} required />
                         </Field>
                         <Field label="Practitioner or service">
-                          <select
-                            value={appointmentPractitioner}
-                            onChange={(ev) =>
-                              setAppointmentPractitioner(ev.target.value)
-                            }
-                            required
-                          >
-                            {practitionerServiceOptions(state.people).map(
-                              (opt) => (
-                                <option key={opt} value={opt}>
-                                  {opt}
-                                </option>
-                              ),
-                            )}
+                          <select value={appointmentPractitioner} onChange={(ev) => setAppointmentPractitioner(ev.target.value)} required>
+                            {practitionerServiceOptions(state.people).map((opt) => (
+                              <option key={opt} value={opt}>{opt}</option>
+                            ))}
                           </select>
                         </Field>
                         <Field label="Delivery mode">
-                          <select
-                            value={appointmentDeliveryMode}
-                            onChange={(ev) =>
-                              setAppointmentDeliveryMode(ev.target.value)
-                            }
-                            required
-                          >
+                          <select value={appointmentDeliveryMode} onChange={(ev) => setAppointmentDeliveryMode(ev.target.value)} required>
                             {APPOINTMENT_DELIVERY_MODES.map((mode) => (
-                              <option key={mode} value={mode}>
-                                {mode}
-                              </option>
+                              <option key={mode} value={mode}>{mode}</option>
                             ))}
                           </select>
                         </Field>
                       </div>
-                    )}
-                  </section>
-                ))}
-              <section className="setup-summary" aria-label="Collection checks">
-                <h3>Check this collection</h3>
-                <dl className="metadata">
-                  <div>
-                    <dt>Answering</dt>
-                    <dd>
-                      {respondent === "Family respondent"
-                        ? displayFamilyName(p)
-                        : displayPersonName(p)}
-                      {respondent === "Family respondent"
-                        ? " · own family contribution"
-                        : " · own answers"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>
-                      {channel === "SMS link"
-                        ? "SMS destination"
-                        : "Collection setting"}
-                    </dt>
-                    <dd>
-                      {channel === "SMS link"
-                        ? "No phone number connected · sample link only"
-                        : channel === "Clinic tablet"
-                          ? "Shared clinic device · staff handover"
-                          : `${staff?.name} records the respondent’s answers`}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Assistance</dt>
-                    <dd>{assistance}</dd>
-                  </div>
-                  <div>
-                    <dt>Participation / contact</dt>
-                    <dd>
-                      {p.consent} / {p.contact}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Source</dt>
-                    <dd>
-                      {p.participationRecord?.source ||
-                        "Source not recorded · illustrative sample settings"}
-                    </dd>
-                  </div>
-                </dl>
-              </section>
-              {channel === "SMS link" && (
-                <details className="setup-disclosure">
-                  <summary>Preview sample message</summary>
-                  <p className="message-preview">
-                    Your care team at Northside Centre invites you to complete a
-                    short check-in. Open your request to see what it involves
-                    and how to get help.
-                    <br />
-                    <br />
-                    [Sample questionnaire link]
-                  </p>
-                  <p className="muted">
-                    Preview only. No message will be sent.
-                  </p>
-                </details>
-              )}
-              <Notice>
-                {respondent === "Family respondent"
-                  ? `${displayFamilyName(p)} provides their own contribution. This does not establish guardian authority.`
-                  : `${displayPersonName(p)} can answer this sample check-in by SMS link, clinic tablet, or with staff recording the answers.`}
-              </Notice>
-              <label className="check-field">
-                <input
-                  type="checkbox"
-                  name="collection-confirmed"
-                  required
-                  disabled={!allowed}
-                  checked={collectionConfirmed}
-                  onChange={(ev) => setCollectionConfirmed(ev.target.checked)}
-                  aria-invalid={
-                    (collectionAttempted && !collectionConfirmed) || undefined
-                  }
-                  aria-describedby={
-                    collectionAttempted && !collectionConfirmed
-                      ? "collection-confirm-error"
-                      : undefined
-                  }
-                />
-                <span>
-                  I have checked the sample respondent, participation settings,
-                  and collection method shown above.
-                </span>
-              </label>
-              {collectionAttempted && !collectionConfirmed && (
-                <p
-                  id="collection-confirm-error"
-                  className="field-error"
-                  role="alert"
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="primary"
+                        onClick={() => {
+                          const duration = Number(appointmentDuration);
+                          if (!appointmentTime || !Number.isInteger(duration) || duration < 1 || duration > 600 || !appointmentPractitioner || !appointmentDeliveryMode) {
+                            setFormError("Complete the appointment details before saving.");
+                            return;
+                          }
+                          const result = commit({
+                            type: "UPDATE_APPOINTMENT",
+                            personId: p.id,
+                            episodeId: e.id,
+                            appointmentId: existingAppointmentToday.id,
+                            plannedTime: appointmentTime,
+                            plannedDurationMinutes: duration,
+                            practitionerService: appointmentPractitioner,
+                            deliveryMode: appointmentDeliveryMode,
+                          });
+                          if (result.error) {
+                            setFormError(result.error);
+                            return;
+                          }
+                          setEditingTodayAppt(false);
+                          setFormError("");
+                          notify("Associated appointment updated.");
+                        }}
+                      >
+                        Save appointment changes
+                      </Button>
+                    </div>
+                  )}
+                  {cancellingTodayAppt && (
+                    <div className="appointment-association-editor">
+                      <p className="muted">This marks the appointment as cancelled and keeps its record in service contacts.</p>
+                      <Field label="Cancellation reason (optional)">
+                        <textarea value={cancellationReason} onChange={(ev) => setCancellationReason(ev.target.value)} rows="2" />
+                      </Field>
+                      <div className="appointment-association-actions">
+                        <Button type="button" size="sm" onClick={() => setCancellingTodayAppt(false)}>Keep appointment</Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="danger"
+                          className="appointment-cancel-confirm"
+                          onClick={() => {
+                            const result = commit({
+                              type: "RECORD_APPOINTMENT_OUTCOME",
+                              personId: p.id,
+                              episodeId: e.id,
+                              appointmentId: existingAppointmentToday.id,
+                              attendance: "Cancelled",
+                              outcomeNotes: cancellationReason,
+                            });
+                            if (result.error) {
+                              setFormError(result.error);
+                              return;
+                            }
+                            setCancellingTodayAppt(false);
+                            setCreateAppointment(false);
+                            setCancellationReason("");
+                            setFormError("");
+                            notify("Associated appointment cancelled.");
+                          }}
+                        >
+                          Confirm cancellation
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                  {formError && (editingTodayAppt || cancellingTodayAppt) && (
+                    <p className="field-error" role="alert">{formError}</p>
+                  )}
+                </section>
+              ) : (
+                <section
+                  style={{
+                    background: "var(--surface-subtle, #f8fafc)",
+                    border: "1px solid var(--border, #cbd5e1)",
+                    borderRadius: "8px",
+                    padding: "14px 16px",
+                    margin: "16px 0",
+                  }}
+                  aria-label="Associated appointment on assessment day"
                 >
-                  Check the respondent, participation settings and method, then
-                  tick the confirmation to continue.
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      justifyContent: "space-between",
+                      gap: "12px",
+                      marginBottom: createAppointment ? "12px" : 0,
+                    }}
+                  >
+                    <div>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                        }}
+                      >
+                        <Calendar size={18} style={{ color: "#2563eb" }} />
+                        <strong
+                          style={{ fontSize: "0.92rem", color: "#0f172a" }}
+                        >
+                          Day-of-assessment appointment
+                        </strong>
+                      </div>
+                      <p
+                        style={{
+                          margin: "4px 0 0 0",
+                          fontSize: "0.83rem",
+                          color: "#64748b",
+                        }}
+                      >
+                        Non-SMS assessments require an in-person or clinician
+                        contact record on the day of assessment (
+                        {formatDate(TODAY)}).
+                      </p>
+                    </div>
+                    <label
+                      style={{
+                        margin: 0,
+                        whiteSpace: "nowrap",
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        fontSize: "0.85rem",
+                        fontWeight: 600,
+                        color: "#0f172a",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={createAppointment}
+                        onChange={(ev) =>
+                          setCreateAppointment(ev.target.checked)
+                        }
+                      />
+                      <span>Create appointment</span>
+                    </label>
+                  </div>
+
+                  {createAppointment && (
+                    <div
+                      className="form-grid"
+                      style={{
+                        marginTop: "12px",
+                        paddingTop: "12px",
+                        borderTop: "1px solid #e2e8f0",
+                      }}
+                    >
+                      <Field label="Planned time">
+                        <input
+                          type="time"
+                          value={appointmentTime}
+                          onChange={(ev) =>
+                            setAppointmentTime(ev.target.value)
+                          }
+                          required
+                        />
+                      </Field>
+                      <Field label="Duration (min)">
+                        <input
+                          type="number"
+                          min="1"
+                          max="600"
+                          value={appointmentDuration}
+                          onChange={(ev) =>
+                            setAppointmentDuration(ev.target.value)
+                          }
+                          required
+                        />
+                      </Field>
+                      <Field label="Practitioner or service">
+                        <select
+                          value={appointmentPractitioner}
+                          onChange={(ev) =>
+                            setAppointmentPractitioner(ev.target.value)
+                          }
+                          required
+                        >
+                          {practitionerServiceOptions(state.people).map(
+                            (opt) => (
+                              <option key={opt} value={opt}>
+                                {opt}
+                              </option>
+                            ),
+                          )}
+                        </select>
+                      </Field>
+                      <Field label="Delivery mode">
+                        <select
+                          value={appointmentDeliveryMode}
+                          onChange={(ev) =>
+                            setAppointmentDeliveryMode(ev.target.value)
+                          }
+                          required
+                        >
+                          {APPOINTMENT_DELIVERY_MODES.map((mode) => (
+                            <option key={mode} value={mode}>
+                              {mode}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                    </div>
+                  )}
+                </section>
+              ))}
+            <section className="setup-summary" aria-label="Collection checks">
+              <h3>Check this collection</h3>
+              <dl className="metadata">
+                <div>
+                  <dt>Answering</dt>
+                  <dd>
+                    {respondent === "Family respondent"
+                      ? displayFamilyName(p)
+                      : displayPersonName(p)}
+                    {respondent === "Family respondent"
+                      ? " · own family contribution"
+                      : " · own answers"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>
+                    {channel === "SMS link"
+                      ? "SMS destination"
+                      : "Collection setting"}
+                  </dt>
+                  <dd>
+                    {channel === "SMS link"
+                      ? "No phone number connected · sample link only"
+                      : channel === "Clinic tablet"
+                        ? "Shared clinic device · staff handover"
+                        : `${staff?.name} records the respondent’s answers`}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Assistance</dt>
+                  <dd>{assistance}</dd>
+                </div>
+                <div>
+                  <dt>Participation / contact</dt>
+                  <dd>
+                    {p.consent} / {p.contact}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Source</dt>
+                  <dd>
+                    {p.participationRecord?.source ||
+                      "Source not recorded · illustrative sample settings"}
+                  </dd>
+                </div>
+              </dl>
+            </section>
+            {channel === "SMS link" && (
+              <details className="setup-disclosure">
+                <summary>Preview sample message</summary>
+                <p className="message-preview">
+                  Your care team at Northside Centre invites you to complete a
+                  short check-in. Open your request to see what it involves
+                  and how to get help.
+                  <br />
+                  <br />
+                  [Sample questionnaire link]
                 </p>
-              )}
-            </div>
-            {footer(
-              channel === "SMS link"
-                ? "Prepare sample link"
-                : channel === "Clinician entry"
-                  ? "Begin questionnaire"
-                  : "Start sample session",
-              !allowed,
+                <p className="muted">
+                  Preview only. No message will be sent.
+                </p>
+              </details>
             )}
-          </ValidatedForm>
-        )}
+            <Notice>
+              {respondent === "Family respondent"
+                ? `${displayFamilyName(p)} provides their own contribution. This does not establish guardian authority.`
+                : `${displayPersonName(p)} can answer this sample check-in by SMS link, clinic tablet, or with staff recording the answers.`}
+            </Notice>
+          </div>
+          {footer(
+            channel === "Clinician entry"
+              ? "Begin questionnaire"
+              : "Open questionnaire",
+            !allowed,
+          )}
+        </ValidatedForm>
       </Modal>
     );
   }

@@ -20,6 +20,7 @@ import {
   questionnaireState,
 } from "./instruments.js";
 import { careRecordTimelineEntries } from "./careRecordTimeline.js";
+import { peopleInEpisodes } from "./people.js";
 const ctx = {
   personId: "YS-1024",
   episodeId: "EP-1024-01",
@@ -49,6 +50,32 @@ test("seed worklist counts represent actual open collection and review work", ()
   assert.equal(tasks.length, 9);
   assert.equal(tasks.filter((t) => t.status === "Overdue").length, 2);
   assert.equal(tasks.filter((t) => t.status === "Ready for review").length, 2);
+});
+test("archiving a person hides active work while retaining a restorable record", () => {
+  const seed = createSeed();
+  const jordan = seed.people.find((person) => person.id === "YS-1034");
+  const originalIntakes = structuredClone(jordan.intakes);
+  const originalEpisodes = structuredClone(jordan.episodes);
+  const archived = reducer(seed, {
+    type: "ARCHIVE_PERSON",
+    personId: jordan.id,
+    reason: "Remove this sample record from active work",
+  });
+  const archivedJordan = archived.people.find((person) => person.id === jordan.id);
+  assert.ok(archivedJordan.archivedAt);
+  assert.equal(peopleInEpisodes(archived.people).some((row) => row.person.id === jordan.id), false);
+  assert.equal(peopleInEpisodes(archived.people, "Archived").some((row) => row.person.id === jordan.id), true);
+  assert.equal(getTasks(archived).some((task) => task.person.id === jordan.id), false);
+  assert.deepEqual(archivedJordan.intakes, originalIntakes);
+  assert.deepEqual(archivedJordan.episodes, originalEpisodes);
+  const restored = reducer(archived, {
+    type: "RESTORE_PERSON",
+    personId: jordan.id,
+    reason: "Return this sample record to active work",
+  });
+  assert.equal(restored.people.find((person) => person.id === jordan.id).archivedAt, null);
+  assert.equal(peopleInEpisodes(restored.people).some((row) => row.person.id === jordan.id), true);
+  assert.equal(restored.audit[0].title, "Person restored");
 });
 test("Zoe has distinct current and closed care periods without adding historical work to the queue", () => {
   const seed = createSeed();
@@ -80,12 +107,117 @@ test("older mock data is replaced once with the refreshed branching scenarios", 
   const updated = upgradeSampleData(old);
   assert.deepEqual(old, before);
   assert.equal(updated.people[0].name, "Kai Thompson");
-  assert.equal(updated.sampleRevision, 23);
+  assert.equal(updated.sampleRevision, 28);
   assert.equal(
     updated.audit.some((item) => item.id === "old-edit"),
     false,
   );
   assert.equal(upgradeSampleData(updated), updated);
+});
+test("saved v2 check-in responses keep their answers under the clearer name", () => {
+  const saved = createSeed();
+  const original = saved.people[0].episodes[0].collections[0];
+  const answers = structuredClone(original.answers);
+  original.version = "Demo check-in v2.0";
+
+  const upgraded = upgradeSampleData(saved);
+  const restored = upgraded.people[0].episodes[0].collections[0];
+  assert.equal(restored.version, VERSION);
+  assert.deepEqual(restored.answers, answers);
+  assert.equal(getInstrument("Demo check-in v2.0")?.version, VERSION);
+});
+test("Jordan's generic saved follow-ups gain instrument-specific labels", () => {
+  const saved = createSeed();
+  const jordan = saved.people.find((person) => person.id === "YS-1034");
+  const episode = jordan.episodes[0];
+  episode.collections.push({
+    id: "A-jordan-follow-up",
+    label: "Follow-up review",
+    version: VERSION,
+    due: "2026-09-24",
+    channel: "Clinic tablet",
+    appointmentId: "APT-jordan-follow-up",
+    attempts: [],
+  });
+  episode.appointments.push({
+    id: "APT-jordan-follow-up",
+    notes: "Associated appointment for follow-up assessment (Follow-up review · Clinic tablet)",
+  });
+  const upgraded = upgradeSampleData(saved);
+  const updatedEpisode = upgraded.people.find((person) => person.id === "YS-1034").episodes[0];
+  assert.equal(updatedEpisode.collections.at(-1).label, "Your preferences and next steps · follow-up check-in");
+  assert.equal(updatedEpisode.appointments.at(-1).notes,
+    "Associated appointment for follow-up assessment (Your preferences and next steps · follow-up check-in · Clinic tablet)");
+  assert.equal(episode.collections.at(-1).label, "Follow-up review");
+  assert.equal(upgradeSampleData(upgraded), upgraded);
+});
+test("Jordan's saved follow-ups do not retain an appointment from another date", () => {
+  const saved = createSeed();
+  const episode = saved.people.find((person) => person.id === "YS-1034").episodes[0];
+  episode.collections.push({
+    id: "A-jordan-future",
+    label: "Your preferences and next steps · follow-up check-in",
+    version: VERSION,
+    due: "2026-09-24",
+    appointmentId: "APT-7-baseline",
+    response: "Not started",
+    attempts: [],
+  });
+  const upgraded = upgradeSampleData(saved);
+  const updated = upgraded.people.find((person) => person.id === "YS-1034").episodes[0].collections.at(-1);
+  assert.equal(updated.appointmentId, null);
+  assert.equal(saved.people.find((person) => person.id === "YS-1034").episodes[0].collections.at(-1).appointmentId, "APT-7-baseline");
+});
+test("Jordan's saved 13 Oct 2027 outlier is removed without disturbing other follow-ups", () => {
+  const saved = createSeed();
+  const episode = saved.people.find((person) => person.id === "YS-1034").episodes[0];
+  episode.collections.push({
+    id: "A-jordan-2027-outlier",
+    label: "Your preferences and next steps · follow-up check-in",
+    due: "2027-10-13",
+    response: "Not started",
+    attempts: [],
+  });
+  episode.collections.push({
+    id: "A-jordan-september-follow-up",
+    label: "Your preferences and next steps · follow-up check-in",
+    due: "2026-09-24",
+    response: "Not started",
+    attempts: [],
+  });
+  episode.events.push({ id: "E-jordan-2027-outlier", collectionId: "A-jordan-2027-outlier" });
+  saved.audit.push({ id: "H-jordan-2027-outlier", collectionId: "A-jordan-2027-outlier" });
+  const upgraded = upgradeSampleData(saved);
+  const updatedEpisode = upgraded.people.find((person) => person.id === "YS-1034").episodes[0];
+  assert.equal(updatedEpisode.collections.some((item) => item.id === "A-jordan-2027-outlier"), false);
+  assert.equal(updatedEpisode.collections.some((item) => item.id === "A-jordan-september-follow-up"), true);
+  assert.equal(updatedEpisode.events.some((item) => item.id === "E-jordan-2027-outlier"), false);
+  assert.equal(upgraded.audit.some((item) => item.id === "H-jordan-2027-outlier"), false);
+  assert.equal(episode.collections.some((item) => item.id === "A-jordan-2027-outlier"), true);
+  assert.equal(upgradeSampleData(upgraded), upgraded);
+});
+
+test("Jordan's unstarted 15 Sep follow-up is removed without touching submitted or later work", () => {
+  const saved = createSeed();
+  const episode = saved.people.find((person) => person.id === "YS-1034").episodes[0];
+  const label = "Your preferences and next steps · follow-up check-in";
+  episode.collections.push(
+    { id: "A-jordan-remove-sep15", label, due: "2026-09-15", assignment: "Active", response: "Not started", attempts: [] },
+    { id: "A-jordan-submitted-sep15", label, due: "2026-09-15", assignment: "Fulfilled", response: "Submitted", attempts: [] },
+    { id: "A-jordan-keep-sep24", label, due: "2026-09-24", assignment: "Active", response: "Not started", attempts: [] },
+  );
+  episode.events.push({ id: "E-jordan-remove-sep15", collectionId: "A-jordan-remove-sep15" });
+  saved.audit.push({ id: "H-jordan-remove-sep15", collectionId: "A-jordan-remove-sep15" });
+
+  const upgraded = upgradeSampleData(saved);
+  const updatedEpisode = upgraded.people.find((person) => person.id === "YS-1034").episodes[0];
+  assert.equal(updatedEpisode.collections.some((item) => item.id === "A-jordan-remove-sep15"), false);
+  assert.ok(updatedEpisode.collections.some((item) => item.id === "A-jordan-submitted-sep15"));
+  assert.ok(updatedEpisode.collections.some((item) => item.id === "A-jordan-keep-sep24"));
+  assert.equal(updatedEpisode.events.some((item) => item.id === "E-jordan-remove-sep15"), false);
+  assert.equal(upgraded.audit.some((item) => item.id === "H-jordan-remove-sep15"), false);
+  assert.ok(episode.collections.some((item) => item.id === "A-jordan-remove-sep15"));
+  assert.equal(upgradeSampleData(upgraded), upgraded);
 });
 test("saved mock inpatient admission is moved to the oldest event", () => {
   const saved = createSeed();
@@ -107,7 +239,64 @@ test("saved mock inpatient admission is moved to the oldest event", () => {
   assert.equal(admission.eventDate, "2026-08-30");
   assert.equal(eventEntries.at(-1).sourceId, "E-7-inpatient");
   assert.equal(eventEntries.at(-1).date, "2026-06-15");
-  assert.equal(migrated.sampleRevision, 23);
+  assert.equal(migrated.sampleRevision, 28);
+});
+
+test("fictional care stories keep independent assessment, contact and context records distinct", () => {
+  const state = createSeed();
+  const jordan = state.people.find((person) => person.id === "YS-1034");
+  const episode = jordan.episodes[0];
+  const independent = episode.collections.find((item) =>
+    item.id === "A-7-everyday-life-twelve-weeks",
+  );
+  const inPerson = episode.collections.find((item) =>
+    item.id === "A-7-life-care-twelve-weeks",
+  );
+  const appointment = episode.appointments.find((item) => item.id === "APT-7-twelve-weeks");
+  assert.equal(independent.channel, "SMS link");
+  assert.equal(independent.appointmentId, null);
+  assert.equal(independent.attempts[0].appointmentId, undefined);
+  assert.equal(inPerson.appointmentId, appointment.id);
+  assert.equal(appointment.attendance, "Attended");
+  const timeline = careRecordTimelineEntries(episode);
+  assert.equal(timeline.filter((entry) => entry.sourceId === appointment.id).length, 1);
+  assert.ok(timeline.some((entry) =>
+    entry.sourceType === "contextual-event" && entry.title === "Inpatient discharge handover received",
+  ));
+  const kai = state.people.find((person) => person.id === "YS-1024");
+  const kaiTimeline = careRecordTimelineEntries(kai.episodes[0]);
+  assert.ok(kaiTimeline.some((entry) =>
+    entry.sourceType === "contextual-event" && entry.title === "School timetable changed",
+  ));
+});
+
+test("saved fictional scenarios upgrade without changing an edited contact", () => {
+  const saved = createSeed();
+  const episode = saved.people.find((person) => person.id === "YS-1034").episodes[0];
+  const independent = episode.collections.find((item) =>
+    item.id === "A-7-everyday-life-twelve-weeks",
+  );
+  independent.channel = "Clinic tablet";
+  independent.appointmentId = "APT-7-twelve-weeks";
+  independent.submittedAppointmentId = "APT-7-twelve-weeks";
+  Object.assign(independent.attempts[0], {
+    channel: "Clinic tablet",
+    appointmentId: "APT-7-twelve-weeks",
+    status: "Session started (sample)",
+  });
+  episode.appointments.find((item) => item.id === "APT-7-attended").notes = "Staff entered note";
+  saved.people.find((person) => person.id === "YS-1024").episodes[0].events = [];
+  saved.sampleRevision = 26;
+  const upgraded = upgradeSampleData(saved);
+  const updatedEpisode = upgraded.people.find((person) => person.id === "YS-1034").episodes[0];
+  const updated = updatedEpisode.collections.find((item) => item.id === independent.id);
+  assert.equal(updated.channel, "SMS link");
+  assert.equal(updated.appointmentId, null);
+  assert.equal(updatedEpisode.appointments.find((item) => item.id === "APT-7-attended").notes, "Staff entered note");
+  assert.ok(upgraded.people.find((person) => person.id === "YS-1024").episodes[0].events.some(
+    (item) => item.id === "E-0-context",
+  ));
+  assert.equal(upgradeSampleData(upgraded), upgraded);
 });
 test("a follow-up adds a pinned collection in the existing episode and preserves baseline answers", () => {
   const seed = createSeed();
@@ -686,7 +875,7 @@ test("revision four mock data gains longitudinal Likert responses once", () => {
     (person) => person.name === "Mia Robinson",
   );
   assert.deepEqual(saved, before);
-  assert.equal(migrated.sampleRevision, 23);
+  assert.equal(migrated.sampleRevision, 28);
   assert.equal(
     migratedMia.episodes[0].collections.filter(
       (collection) => collection.version === LIKERT_INSTRUMENT.version,
