@@ -36,7 +36,7 @@ export default function Shell({
   const staff = currentStaff(state);
   const isInternalPage = path.startsWith("/people/");
   const [mobile, setMobile] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [activeSearchIndex, setActiveSearchIndex] = useState(-1);

@@ -13030,6 +13030,12 @@ h6 {
   container: people-panel / inline-size;
 }
 
+@container people-panel (max-width: 860px) {
+  .people-table-scroll {
+    padding-top: var(--space-3);
+  }
+}
+
 @container (max-width: 860px) {
   .table-scroll:has(> .responsive-queue-table) {
     overflow: visible;
@@ -13290,9 +13296,9 @@ h6 {
     display: none;
   }
 
-  .main:has(.person-heading) .episode-status {
+  .main:has(.person-heading) .episode-bar > div.episode-status {
     position: absolute;
-    top: 14px;
+    top: 0;
     right: 16px;
     padding: 0;
     border: 0;
@@ -13333,5 +13339,16 @@ h6 {
 
   .main:has(.person-heading) .person-record-navigation {
     margin-bottom: 20px;
+  }
+}
+
+@media (max-width: 340px) {
+  .breadcrumb > span:nth-child(3),
+  .breadcrumb > span:nth-child(4) {
+    display: none;
+  }
+
+  .breadcrumb > span:last-child {
+    white-space: nowrap;
   }
 }
