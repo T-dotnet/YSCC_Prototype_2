@@ -259,15 +259,6 @@ function intakeFieldErrors(draft, outcomeDraft, mode, modelError) {
         errors.respondentName = "Enter the family respondent's name.";
     }
     if (!outcomeDraft.outcome) errors.outcome = "Choose an intake outcome.";
-    if (outcomeDraft.outcome !== "Closed incomplete") {
-      if (!outcomeDraft.decisionAt || !Number.isFinite(Date.parse(outcomeDraft.decisionAt)))
-        errors.decisionAt = "Enter the decision date and time.";
-      if (!outcomeDraft.checkEvidence?.trim())
-        errors.checkEvidence = "Summarise the evidence considered.";
-    }
-    if (!outcomeDraft.summary?.trim()) errors.summary = "Enter the outcome summary and next-care plan.";
-    if (outcomeDraft.outcome === "Proceed" && !outcomeDraft.assessmentOwner?.trim())
-      errors.assessmentOwner = "Choose the receiving assessment owner.";
   }
   if (modelError.includes("matching name exists")) errors.displayName = "A matching name exists. Check the identity before saving.";
   if (modelError.includes("supplied date of birth")) errors.dob = "Enter a valid date of birth.";
@@ -289,13 +280,7 @@ export function IntakePanel({ person, intake, navigate }) {
   );
   const [outcomeDraft, setOutcomeDraft, _clearOutcomeDraft, outcomeDraftError] = useDraft(
     `intake-outcome:${intake.id}`,
-    {
-      outcome: "",
-      decisionAt: "",
-      summary: intake.summary || "",
-      checkEvidence: intake.checkEvidence || "",
-      assessmentOwner: intake.assessmentOwner || "",
-    },
+    { outcome: "" },
   );
   const [error, setError] = useState(""),
     [saveMessage, setSaveMessage] = useState("");
@@ -434,21 +419,15 @@ export function IntakePanel({ person, intake, navigate }) {
       values: {
         ...intake,
         ...draft,
-        ...outcomeDraft,
         status: closedIncomplete ? "Closed incomplete" : "Completed",
         outcome: closedIncomplete ? "" : outcomeDraft.outcome,
-        decisionAt: closedIncomplete ? "" : outcomeDraft.decisionAt,
+        decisionAt: closedIncomplete ? "" : new Date().toISOString(),
+        assessmentOwner: outcomeDraft.outcome === "Proceed" ? intake.owner : "",
         changeReason: `Intake outcome recorded: ${outcomeDraft.outcome}.`,
       },
     });
     if (saved) {
-      setOutcomeDraft({
-        outcome: "",
-        decisionAt: "",
-        summary: "",
-        checkEvidence: "",
-        assessmentOwner: "",
-      });
+      setOutcomeDraft({ outcome: "" });
     }
   };
   const saveIntake = (validateChecks) => {
@@ -517,11 +496,7 @@ export function IntakePanel({ person, intake, navigate }) {
                 <div><dt>Assigned triage reviewer</dt><dd>{intake.reviewer || "Not recorded"}</dd></div>
                 <div><dt>Next step</dt><dd>{intake.nextAction}</dd></div>
                 <div><dt>Outcome</dt><dd>{intake.outcome || "Closed incomplete"}</dd></div>
-                <div><dt>Outcome summary and next-care plan</dt><dd>{intake.summary || "Not recorded"}</dd></div>
-                {intake.checkEvidence && <div><dt>Evidence considered</dt><dd>{intake.checkEvidence}</dd></div>}
                 <div><dt>Recorded by</dt><dd>{intake.decisionBy || intake.history[0]?.actor || "Not recorded"}</dd></div>
-                <div><dt>Decision time</dt><dd>{intake.decisionAt ? formatTimestamp(intake.decisionAt) : "Not recorded"}</dd></div>
-                {intake.outcome === "Proceed" && <div><dt>Receiving assessment owner</dt><dd>{intake.assessmentOwner}</dd></div>}
               </dl>
               {intake.status === "Completed" && !intake.episodeId && !person.episodes.length && (
                 <Button onClick={() => submit({ type: "REOPEN_INTAKE" })}>Reopen intake</Button>
@@ -771,26 +746,6 @@ export function IntakePanel({ person, intake, navigate }) {
                     <option value="Closed incomplete">Close intake incomplete</option>
                   </select>
                 </Field>
-                {outcomeDraft.outcome && outcomeDraft.outcome !== "Closed incomplete" && (
-                  <>
-                    <Field label="Decision date and time" error={validationErrors.decisionAt}>
-                      <input type="datetime-local" value={outcomeDraft.decisionAt || ""} aria-invalid={Boolean(validationErrors.decisionAt) || undefined} onChange={(event) => changeOutcome("decisionAt", event.target.value)} />
-                    </Field>
-                    <Field label="Evidence considered" hint="Summarise the sources used to resolve the required intake checks." error={validationErrors.checkEvidence}>
-                      <textarea rows={2} value={outcomeDraft.checkEvidence || ""} aria-invalid={Boolean(validationErrors.checkEvidence) || undefined} onChange={(event) => changeOutcome("checkEvidence", event.target.value)} />
-                    </Field>
-                  </>
-                )}
-                {outcomeDraft.outcome && (
-                  <Field label="Outcome summary and next-care plan" error={validationErrors.summary}>
-                    <textarea rows={3} value={outcomeDraft.summary || ""} aria-invalid={Boolean(validationErrors.summary) || undefined} onChange={(event) => changeOutcome("summary", event.target.value)} />
-                  </Field>
-                )}
-                {outcomeDraft.outcome === "Proceed" && (
-                  <Field label="Receiving assessment owner" error={validationErrors.assessmentOwner}>
-                    <StaffPicker value={outcomeDraft.assessmentOwner || ""} invalid={Boolean(validationErrors.assessmentOwner)} onChange={(value) => changeOutcome("assessmentOwner", value)} />
-                  </Field>
-                )}
               </div>
               <div className="intake-save-actions">
                 <p className="muted">

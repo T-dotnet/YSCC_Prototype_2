@@ -257,8 +257,6 @@ export function intakeActionError(state, action, staff) {
       (!text(f.waitingReason) || !text(f.waitingOn))
     )
       return "Record why intake is waiting and who owns the outstanding step.";
-    if (f.status === "Closed incomplete" && !text(f.summary))
-      return "Record why intake ended and retain its next-care plan.";
     if (f.status === "Completed") {
       if (staff.role !== "Clinician")
         return "The demo Clinician profile records intake decisions.";
@@ -270,19 +268,15 @@ export function intakeActionError(state, action, staff) {
           !text(f.respondentName))
       )
         return "Record the initial assessment respondent in the intake form before completing intake.";
-      if (
-        !INTAKE_CHECKS.every(([key]) => f[key] === true) ||
-        !text(f.checkEvidence) ||
-        !text(f.summary)
-      )
-        return "Resolve the required intake checks, then record evidence considered and the outcome summary.";
+      if (!INTAKE_CHECKS.every(([key]) => f[key] === true))
+        return "Resolve the required intake checks before recording an outcome.";
       if (
         !["Proceed", "Do not proceed"].includes(f.outcome) ||
         !validTime(f.decisionAt)
       )
-        return "Record the intake outcome and actual decision time.";
+        return "The intake outcome needs a valid recorded decision time. Retry the action.";
       if (f.outcome === "Proceed" && !text(f.assessmentOwner))
-        return "Assign the receiving assessment owner.";
+        return "Assign an intake owner before proceeding to assessment.";
     }
     return "";
   }

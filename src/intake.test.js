@@ -91,6 +91,27 @@ const complete = (s, outcome = "Proceed") =>
     decisionAt: "2026-09-15T10:00",
     assessmentOwner: "Jess Taylor",
   });
+test("intake outcome saves without the hidden narrative and evidence fields", () => {
+  const received = registered();
+  const completed = save(received, {
+    status: "Completed",
+    outcome: "Proceed",
+    consentRecorded: true,
+    consentReference: "Demo consent record",
+    respondentPreference: "Person",
+    ...Object.fromEntries(INTAKE_CHECKS.map(([key]) => [key, true])),
+    checkEvidence: "",
+    summary: "",
+    decisionAt: "2026-09-15T10:00:00.000Z",
+    assessmentOwner: "Jess Taylor",
+  });
+  assert.notEqual(completed, received);
+  assert.equal(intakeReady(person(completed).intakes[0]), true);
+
+  const closed = save(received, { status: "Closed incomplete", summary: "" });
+  assert.notEqual(closed, received);
+  assert.equal(person(closed).intakes[0].status, "Closed incomplete");
+});
 const start = (s) =>
   reducer(s, {
     type: "START_ASSESSMENT",
