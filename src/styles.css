@@ -6244,6 +6244,30 @@ dialog {
 .field-required-hint {
   display: none;
 }
+.field.has-error :is(input, select, textarea) {
+  border-color: #c94b43;
+  background: #fff8f7;
+  box-shadow: 0 0 0 1px #c94b43;
+}
+.field > .field-inline-error {
+  color: #a13232;
+}
+.intake-check-control.has-error {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid #c94b43;
+  border-radius: var(--control-radius);
+  background: #fff8f7;
+}
+.intake-check-control.has-error .check-field input {
+  accent-color: #c94b43;
+  outline: 1px solid #c94b43;
+}
+.intake-check-error {
+  display: block;
+  margin: var(--space-2) 0 0 28px;
+  color: #a13232;
+  font-size: 12px;
+}
 form.has-validation-errors .field:has(:invalid) > .field-required-hint {
   display: block;
   color: #a13232;

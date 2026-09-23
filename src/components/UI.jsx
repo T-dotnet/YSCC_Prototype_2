@@ -172,12 +172,13 @@ export function Select({ label, children, className = "", ...props }) {
     </div>
   );
 }
-export function Field({ label, hint, children }) {
+export function Field({ label, hint, error, children }) {
   return (
-    <label className="field">
+    <label className={`field ${error ? "has-error" : ""}`}>
       <span>{label}</span>
       {children}
       {hint && <small>{hint}</small>}
+      {error && <small className="field-inline-error" aria-live="polite">{error}</small>}
       <small className="field-required-hint" aria-live="polite">
         This field is required.
       </small>
@@ -190,6 +191,7 @@ export function StaffPicker({
   defaultValue = "",
   onChange,
   required = false,
+  invalid = false,
   placeholder = "Choose team member",
 }) {
   const controlled = value !== undefined;
@@ -202,6 +204,7 @@ export function StaffPicker({
       name={name}
       value={selectedValue}
       required={required}
+      aria-invalid={invalid || undefined}
       onChange={(event) => {
         if (!controlled) setInternalValue(event.target.value);
         onChange?.(event.target.value);

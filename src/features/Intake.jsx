@@ -238,6 +238,43 @@ export function IntakeHistory({ intake, bare = false }) {
   );
 }
 
+function intakeFieldErrors(draft, outcomeDraft, mode, modelError) {
+  const errors = {};
+  if (mode) {
+    for (const [key] of INTAKE_CHECKS) {
+      if (draft[key] !== true) errors[key] = "Confirm this check before saving intake.";
+    }
+    if (!draft.reviewer?.trim()) errors.reviewer = "Choose a triage reviewer.";
+    if (!draft.nextAction?.trim()) errors.nextAction = "Enter the next step.";
+  }
+  if (mode === "outcome") {
+    if (!draft.consentRecorded && outcomeDraft.outcome !== "Closed incomplete")
+      errors.consentRecorded = "Record consent before completing intake.";
+    if (!draft.consentReference?.trim() && outcomeDraft.outcome !== "Closed incomplete")
+      errors.consentReference = "Enter the consent source or reference.";
+    if (outcomeDraft.outcome !== "Closed incomplete") {
+      if (!["Person", "Family respondent"].includes(draft.respondentPreference))
+        errors.respondentPreference = "Choose who will complete the initial assessment.";
+      if (draft.respondentPreference === "Family respondent" && !draft.respondentName?.trim())
+        errors.respondentName = "Enter the family respondent's name.";
+    }
+    if (!outcomeDraft.outcome) errors.outcome = "Choose an intake outcome.";
+    if (outcomeDraft.outcome !== "Closed incomplete") {
+      if (!outcomeDraft.decisionAt || !Number.isFinite(Date.parse(outcomeDraft.decisionAt)))
+        errors.decisionAt = "Enter the decision date and time.";
+      if (!outcomeDraft.checkEvidence?.trim())
+        errors.checkEvidence = "Summarise the evidence considered.";
+    }
+    if (!outcomeDraft.summary?.trim()) errors.summary = "Enter the outcome summary and next-care plan.";
+    if (outcomeDraft.outcome === "Proceed" && !outcomeDraft.assessmentOwner?.trim())
+      errors.assessmentOwner = "Choose the receiving assessment owner.";
+  }
+  if (modelError.includes("matching name exists")) errors.displayName = "A matching name exists. Check the identity before saving.";
+  if (modelError.includes("supplied date of birth")) errors.dob = "Enter a valid date of birth.";
+  if (modelError.includes("received date and time")) errors.receivedAt = "Enter a valid received date and time.";
+  return errors;
+}
+
 export function IntakePanel({ person, intake, navigate }) {
   const { state, commit } = useStore(),
     staff = currentStaff(state);
@@ -262,6 +299,8 @@ export function IntakePanel({ person, intake, navigate }) {
   );
   const [error, setError] = useState(""),
     [saveMessage, setSaveMessage] = useState("");
+  const [validationMode, setValidationMode] = useState("");
+  const validationErrors = intakeFieldErrors(draft, outcomeDraft, validationMode, error);
   const finalised = ["Completed", "Closed incomplete"].includes(intake.status);
   const change = (key, value) => {
     setError("");
@@ -297,18 +336,20 @@ export function IntakePanel({ person, intake, navigate }) {
       staff = false,
     } = {},
   ) => (
-    <Field label={label} hint={hint}>
+    <Field label={label} hint={hint} error={validationErrors[key]}>
       {staff ? (
         <StaffPicker
           value={draft[key] || ""}
           onChange={(value) => change(key, value)}
           required={required}
+          invalid={Boolean(validationErrors[key])}
         />
       ) : multiline ? (
         <textarea
           rows={2}
           value={draft[key] || ""}
           required={required}
+          aria-invalid={Boolean(validationErrors[key]) || undefined}
           onChange={(e) => change(key, e.target.value)}
         />
       ) : (
@@ -316,6 +357,7 @@ export function IntakePanel({ person, intake, navigate }) {
           type={type}
           value={draft[key] || ""}
           required={required}
+          aria-invalid={Boolean(validationErrors[key]) || undefined}
           onChange={(e) => change(key, e.target.value)}
         />
       )}
@@ -339,6 +381,7 @@ export function IntakePanel({ person, intake, navigate }) {
       return false;
     }
     setError("");
+    setValidationMode("");
     if (action.type === "REOPEN_INTAKE") {
       const reopenedPerson = result.state.people.find((p) => p.id === person.id);
       const reopenedIntake = reopenedPerson?.intakes.find(
@@ -373,6 +416,7 @@ export function IntakePanel({ person, intake, navigate }) {
     setOutcomeDraft((current) => ({ ...current, [key]: value }));
   };
   const recordOutcome = () => {
+    setValidationMode("outcome");
     if (!intakeStepComplete(intake)) {
       setError("Save the required intake checks before recording an outcome.");
       return;
@@ -408,6 +452,7 @@ export function IntakePanel({ person, intake, navigate }) {
     }
   };
   const saveIntake = (validateChecks) => {
+    setValidationMode(validateChecks ? "checks" : "");
     if (validateChecks) {
       const problem = intakeCheckFieldsError(draft);
       if (problem) return setError(problem);
@@ -621,29 +666,35 @@ export function IntakePanel({ person, intake, navigate }) {
             <div className="panel-body stack intake-detail-body">
               {intakeStepComplete(intake) ? (
                   <>
-                    <label className="check-field">
-                      <input
-                        type="checkbox"
-                        checked={draft.consentRecorded === true}
-                        onChange={(event) => change("consentRecorded", event.target.checked)}
-                      />
-                      Consent for assessment participation has been recorded
-                    </label>
+                    <div className={`intake-check-control ${validationErrors.consentRecorded ? "has-error" : ""}`}>
+                      <label className="check-field">
+                        <input
+                          type="checkbox"
+                          checked={draft.consentRecorded === true}
+                          aria-invalid={Boolean(validationErrors.consentRecorded) || undefined}
+                          onChange={(event) => change("consentRecorded", event.target.checked)}
+                        />
+                        Consent for assessment participation has been recorded
+                      </label>
+                      {validationErrors.consentRecorded && <small className="intake-check-error">{validationErrors.consentRecorded}</small>}
+                    </div>
                     <Field
                       label="Consent source / reference"
                       hint="For example, approved form reference or recorded discussion."
+                      error={validationErrors.consentReference}
                     >
                       <textarea
                         rows={2}
                         value={draft.consentReference || ""}
-                        required={draft.consentRecorded === true}
+                        aria-invalid={Boolean(validationErrors.consentReference) || undefined}
                         onChange={(event) => change("consentReference", event.target.value)}
                       />
                     </Field>
                     <h3 className="intake-respondent-heading">Initial assessment respondent</h3>
-                    <Field label="Who will complete the initial assessment?">
+                    <Field label="Who will complete the initial assessment?" error={validationErrors.respondentPreference}>
                       <select
                         value={draft.respondentPreference || "Person"}
+                        aria-invalid={Boolean(validationErrors.respondentPreference) || undefined}
                         onChange={(event) => change("respondentPreference", event.target.value)}
                       >
                         <option value="Person">Person</option>
@@ -654,10 +705,11 @@ export function IntakePanel({ person, intake, navigate }) {
                       <Field
                         label="Family respondent name"
                         hint="This identifies their own contribution; it does not establish authority."
+                        error={validationErrors.respondentName}
                       >
                         <input
                           value={draft.respondentName || ""}
-                          required
+                          aria-invalid={Boolean(validationErrors.respondentName) || undefined}
                           onChange={(event) => change("respondentName", event.target.value)}
                         />
                       </Field>
@@ -677,14 +729,18 @@ export function IntakePanel({ person, intake, navigate }) {
                 checks; this workspace makes no clinical triage decision.
               </p>
               {INTAKE_CHECKS.map(([key, label]) => (
-                <label className="check-field" key={key}>
-                  <input
-                    type="checkbox"
-                    checked={draft[key] === true}
-                    onChange={(e) => change(key, e.target.checked)}
-                  />
-                  {label}
-                </label>
+                <div className={`intake-check-control ${validationErrors[key] ? "has-error" : ""}`} key={key}>
+                  <label className="check-field">
+                    <input
+                      type="checkbox"
+                      checked={draft[key] === true}
+                      aria-invalid={Boolean(validationErrors[key]) || undefined}
+                      onChange={(e) => change(key, e.target.checked)}
+                    />
+                    {label}
+                  </label>
+                  {validationErrors[key] && <small className="intake-check-error">{validationErrors[key]}</small>}
+                </div>
               ))}
               {field("reviewer", "Assigned triage reviewer", { staff: true })}
               {field("nextAction", "Next step", { multiline: true })}
@@ -702,10 +758,11 @@ export function IntakePanel({ person, intake, navigate }) {
                 {outcomeDraftError && (
                   <Notice tone="amber">This browser cannot keep an outcome draft. Keep this page open until the outcome is recorded.</Notice>
                 )}
-                <Field label="Outcome">
+                <Field label="Outcome" error={validationErrors.outcome}>
                   <select
                     value={outcomeDraft.outcome || ""}
                     disabled={!intakeStepComplete(intake)}
+                    aria-invalid={Boolean(validationErrors.outcome) || undefined}
                     onChange={(event) => changeOutcome("outcome", event.target.value)}
                   >
                     <option value="">Choose outcome</option>
@@ -716,22 +773,22 @@ export function IntakePanel({ person, intake, navigate }) {
                 </Field>
                 {outcomeDraft.outcome && outcomeDraft.outcome !== "Closed incomplete" && (
                   <>
-                    <Field label="Decision date and time">
-                      <input type="datetime-local" value={outcomeDraft.decisionAt || ""} onChange={(event) => changeOutcome("decisionAt", event.target.value)} />
+                    <Field label="Decision date and time" error={validationErrors.decisionAt}>
+                      <input type="datetime-local" value={outcomeDraft.decisionAt || ""} aria-invalid={Boolean(validationErrors.decisionAt) || undefined} onChange={(event) => changeOutcome("decisionAt", event.target.value)} />
                     </Field>
-                    <Field label="Evidence considered" hint="Summarise the sources used to resolve the required intake checks.">
-                      <textarea rows={2} value={outcomeDraft.checkEvidence || ""} onChange={(event) => changeOutcome("checkEvidence", event.target.value)} />
+                    <Field label="Evidence considered" hint="Summarise the sources used to resolve the required intake checks." error={validationErrors.checkEvidence}>
+                      <textarea rows={2} value={outcomeDraft.checkEvidence || ""} aria-invalid={Boolean(validationErrors.checkEvidence) || undefined} onChange={(event) => changeOutcome("checkEvidence", event.target.value)} />
                     </Field>
                   </>
                 )}
                 {outcomeDraft.outcome && (
-                  <Field label="Outcome summary and next-care plan">
-                    <textarea rows={3} value={outcomeDraft.summary || ""} onChange={(event) => changeOutcome("summary", event.target.value)} />
+                  <Field label="Outcome summary and next-care plan" error={validationErrors.summary}>
+                    <textarea rows={3} value={outcomeDraft.summary || ""} aria-invalid={Boolean(validationErrors.summary) || undefined} onChange={(event) => changeOutcome("summary", event.target.value)} />
                   </Field>
                 )}
                 {outcomeDraft.outcome === "Proceed" && (
-                  <Field label="Receiving assessment owner">
-                    <StaffPicker value={outcomeDraft.assessmentOwner || ""} onChange={(value) => changeOutcome("assessmentOwner", value)} />
+                  <Field label="Receiving assessment owner" error={validationErrors.assessmentOwner}>
+                    <StaffPicker value={outcomeDraft.assessmentOwner || ""} invalid={Boolean(validationErrors.assessmentOwner)} onChange={(value) => changeOutcome("assessmentOwner", value)} />
                   </Field>
                 )}
               </div>
