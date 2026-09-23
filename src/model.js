@@ -2590,7 +2590,7 @@ export function reducer(state, action) {
         (item) => item.id === action.appointmentId,
       );
       if (appointmentOutcomeError(e, appointment, action, TODAY)) return state;
-      Object.assign(appointment, appointmentOutcomeContent(action), {
+      Object.assign(appointment, appointmentOutcomeContent(action, appointment), {
         outcomeRecordedAt: recordedAt,
         outcomeRecordedBy: staff?.name || "Not recorded",
         outcomeRecordedById: staff?.id || null,

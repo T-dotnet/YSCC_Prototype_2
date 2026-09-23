@@ -11,6 +11,7 @@ import {
   appointmentDetails,
   appointmentIsOverdue,
   appointmentRecordDate,
+  appointmentTitle,
   APPOINTMENT_ATTENDANCE,
 } from "../appointments";
 import { formatDate, formatTimestamp, TODAY } from "../model";
@@ -44,6 +45,14 @@ const matchesFilters = (appointment, filters) => {
   const recordDate = appointmentRecordDate(appointment);
   const searchable = [
     appointment.practitionerService,
+    appointment.contactType,
+    appointment.recipientType,
+    appointment.relatedPersonName,
+    appointment.primaryPractitioner,
+    ...(appointment.additionalPractitioners || []),
+    appointment.venue,
+    appointment.servicingUnit,
+    appointment.deliveringUnit,
     appointment.deliveryMode,
     appointment.attendance,
     appointment.notes,
@@ -89,7 +98,7 @@ function AppointmentCard({ appointment, episode, openModal }) {
   const overdue = appointmentIsOverdue(appointment, TODAY);
   const when = appointmentWhen(appointment);
   const status = overdue ? "Overdue" : appointment.attendance;
-  const appointmentType = appointment.appointmentType || "Service contact";
+  const appointmentType = appointment.contactType || appointment.appointmentType || "Service contact";
   const recordOutcome = () =>
     openModal({
       type: "appointment-outcome",
@@ -101,11 +110,7 @@ function AppointmentCard({ appointment, episode, openModal }) {
 
   return (
     <RecordItem
-      title={
-        appointment.attendance === "Planned"
-          ? "Planned appointment"
-          : `Appointment ${appointment.attendance.toLocaleLowerCase()}`
-      }
+      title={appointmentTitle(appointment)}
       subtitle={appointmentType}
       status={status}
       headingLevel={4}
@@ -123,6 +128,9 @@ function AppointmentCard({ appointment, episode, openModal }) {
       facts={[
         { label: "Delivery", value: displayDeliveryMode(appointment.deliveryMode) },
         { label: "Clinician or service", value: appointment.practitionerService },
+        ...(appointment.recipientType ? [{ label: "Recipient", value: appointment.relatedPersonName || appointment.recipientType }] : []),
+        ...(appointment.primaryPractitioner ? [{ label: "Primary practitioner", value: appointment.primaryPractitioner }] : []),
+        ...(appointment.venue ? [{ label: "Venue", value: <><MapPin size={14} aria-hidden="true" /> {appointment.venue}</> }] : []),
         ...(appointment.location
           ? [{ label: "Location", value: <><MapPin size={14} aria-hidden="true" /> {appointment.location}</> }]
           : []),
@@ -256,14 +264,10 @@ export default function Appointments({ episode, openModal }) {
     <div className="stack appointments">
       <div className="section-toolbar">
         <div>
-          <h2>Appointments & service contacts</h2>
-          <p>Plan contacts first, then record what happened.</p>
+          <h2>Service contacts</h2>
+          <p>Record planned and actual direct contacts, including attendance.</p>
         </div>
-        <Button
-          variant="primary"
-          disabled={episode.status !== "Active"}
-          onClick={addAppointment}
-        >
+        <Button variant="primary" disabled={episode.status !== "Active"} onClick={addAppointment}>
           <Plus size={17} aria-hidden="true" /> Add contact
         </Button>
       </div>
@@ -275,7 +279,7 @@ export default function Appointments({ episode, openModal }) {
         >
           <summary
             className="care-timeline-filter-heading"
-            aria-label="Show appointment filters"
+            aria-label="Show service contact filters"
           >
             <div>
               <Filter size={18} aria-hidden="true" />
@@ -296,7 +300,7 @@ export default function Appointments({ episode, openModal }) {
               <SearchInput
                 value={filters.query}
                 onChange={(value) => setFilter("query", value)}
-                placeholder="Search services, status or notes"
+                placeholder="Search services, contact type, people or status"
               />
               <label className="care-timeline-date">
                 <span>From</span>
@@ -357,7 +361,7 @@ export default function Appointments({ episode, openModal }) {
       )}
 
       {appointments.length === 0 ? (
-        <Empty title="No appointments or service contacts recorded">
+        <Empty title="No service contacts recorded">
           Add a planned, attended, cancelled or did-not-attend contact. It will
           also appear in this care period’s History and change log.
         </Empty>

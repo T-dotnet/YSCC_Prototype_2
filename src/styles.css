@@ -4046,6 +4046,9 @@ td:last-child {
 .appointment-more-detail .appointment-recorded {
   margin-top: var(--space-4);
 }
+.appointment-reporting-fields {
+  margin-top: var(--space-4);
+}
 .appointment-outcome-plan {
   display: grid;
   gap: var(--space-3);

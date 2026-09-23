@@ -237,6 +237,7 @@ export default function Forms({
       <AppointmentForm
         episode={e}
         people={state.people}
+        person={p}
         error={formError}
         onClose={onClose}
         onSave={(action) =>
@@ -253,6 +254,7 @@ export default function Forms({
       <AppointmentOutcomeForm
         episode={e}
         appointment={appointment}
+        person={p}
         error={formError}
         onClose={onClose}
         onSave={(action) =>

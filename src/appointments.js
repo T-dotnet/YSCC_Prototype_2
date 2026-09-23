@@ -13,6 +13,19 @@ export const APPOINTMENT_DELIVERY_MODES = [
   "Other",
 ];
 
+// Candidate prototype values. The approved program and PMHC-MDS mappings are still pending.
+export const CONTACT_RECIPIENTS = ["Young person", "Related person"];
+export const CONTACT_TYPES = [
+  "Assessment", "Care review", "Family work", "Group", "Functional recovery",
+  "Physical health", "Peer work", "Other direct contact",
+];
+export const CONTACT_VENUES = [
+  "Clinic", "Home", "School", "Community", "Outreach", "On Country",
+  "Telehealth", "Other",
+];
+export const CONTACT_PARTICIPANTS = ["Individual", "Group", "With family"];
+export const CONTACT_YES_NO = ["Yes", "No"];
+
 const validDate = (value) =>
   /^\d{4}-\d{2}-\d{2}$/.test(value || "") &&
   Number.isFinite(new Date(`${value}T12:00:00`).getTime()) &&
@@ -31,6 +44,34 @@ const validDuration = (value) =>
 const withinCarePeriod = (episode, date, today) =>
   date >= episode.start &&
   date <= (episode.end && episode.end < today ? episode.end : today);
+
+const validContact = (action, prior = {}) => {
+  const value = (key) => key in action ? action[key] : prior[key];
+  const recipient = value("recipientType");
+  const contactType = value("contactType");
+  const primary = value("primaryPractitioner");
+  if (!CONTACT_RECIPIENTS.includes(recipient))
+    return "Choose who received the direct contact.";
+  if (recipient === "Related person" && !value("relatedPersonName")?.trim())
+    return "Enter the related person's name.";
+  if (!CONTACT_TYPES.includes(contactType))
+    return "Choose a direct contact type.";
+  if (!primary?.trim())
+    return "Enter the primary practitioner for the attended contact.";
+  for (const [key, values, label] of [
+    ["venue", CONTACT_VENUES, "venue"],
+    ["participants", CONTACT_PARTICIPANTS, "participants"],
+    ["interpreter", CONTACT_YES_NO, "interpreter use"],
+    ["copayment", CONTACT_YES_NO, "co-payment"],
+    ["finalContact", CONTACT_YES_NO, "final-contact status"],
+  ]) {
+    const selected = value(key);
+    if (selected && !values.includes(selected)) return `Choose a valid ${label}.`;
+  }
+  if (value("postcode") && !/^\d{4}$/.test(value("postcode")))
+    return "Enter a four-digit contact postcode.";
+  return null;
+};
 
 export function appointmentError(episode, action, today) {
   if (!episode) return "The selected care period is unavailable.";
@@ -55,6 +96,8 @@ export function appointmentError(episode, action, today) {
   if (duplicate)
     return "A contact with the same planned date, time and practitioner or service already exists. Check the existing record before adding another.";
   if (action.attendance !== "Attended") return null;
+  const contactError = validContact(action);
+  if (contactError) return contactError;
   if (!validDate(action.actualDate) || !validTime(action.actualTime))
     return "Enter the actual contact date and time.";
   if (!withinCarePeriod(episode, action.actualDate, today))
@@ -74,6 +117,8 @@ export function appointmentOutcomeError(episode, appointment, action, today) {
   if (!APPOINTMENT_ATTENDANCE.includes(action.attendance) || action.attendance === "Planned")
     return "Choose an attended, cancelled or did-not-attend outcome.";
   if (action.attendance !== "Attended") return null;
+  const contactError = validContact(action, appointment);
+  if (contactError) return contactError;
   if (!validDate(action.actualDate) || !validTime(action.actualTime))
     return "Enter the actual contact date and time.";
   if (!withinCarePeriod(episode, action.actualDate, today))
@@ -84,6 +129,29 @@ export function appointmentOutcomeError(episode, appointment, action, today) {
 }
 
 const clean = (value) => value?.trim() || null;
+const names = (value) =>
+  (Array.isArray(value) ? value : value?.split(",") || [])
+    .map((name) => name.trim()).filter(Boolean);
+
+export function contactAttributes(action) {
+  return {
+    recipientType: clean(action.recipientType),
+    relatedPersonName: action.recipientType === "Related person" ? clean(action.relatedPersonName) : null,
+    contactType: clean(action.contactType),
+    venue: clean(action.venue),
+    participants: clean(action.participants),
+    postcode: clean(action.postcode),
+    registeredUnit: clean(action.registeredUnit),
+    servicingUnit: clean(action.servicingUnit),
+    deliveringUnit: clean(action.deliveringUnit),
+    primaryPractitioner: clean(action.primaryPractitioner),
+    additionalPractitioners: names(action.additionalPractitioners),
+    interpreter: clean(action.interpreter),
+    copayment: clean(action.copayment),
+    fundingSource: clean(action.fundingSource),
+    finalContact: clean(action.finalContact),
+  };
+}
 
 export function appointmentContent(action) {
   const actual =
@@ -106,11 +174,12 @@ export function appointmentContent(action) {
     deliveryMode: action.deliveryMode,
     attendance: action.attendance,
     notes: clean(action.notes),
+    ...contactAttributes(action),
     ...actual,
   };
 }
 
-export function appointmentOutcomeContent(action) {
+export function appointmentOutcomeContent(action, appointment) {
   const actual =
     action.attendance === "Attended"
       ? {
@@ -126,9 +195,11 @@ export function appointmentOutcomeContent(action) {
   return {
     attendance: action.attendance,
     outcomeNotes: clean(action.outcomeNotes),
+    ...contactAttributes({ ...appointment, ...action }),
     ...actual,
   };
 }
+
 
 export function appointmentRecordDate(appointment) {
   return appointment.attendance === "Attended" && appointment.actualDate
@@ -141,9 +212,10 @@ export function appointmentIsOverdue(appointment, today) {
 }
 
 export function appointmentTitle(appointment) {
+  const noun = appointment.contactType ? "Service contact" : "Appointment";
   return appointment.attendance === "Planned"
-    ? "Appointment planned"
-    : `Appointment ${appointment.attendance.toLowerCase()}`;
+    ? `Planned ${noun.toLowerCase()}`
+    : `${noun} ${appointment.attendance.toLowerCase()}`;
 }
 
 export function appointmentSummary(appointment) {
@@ -154,7 +226,9 @@ export function appointmentSummary(appointment) {
   const notes = [appointment.notes, appointment.outcomeNotes]
     .filter(Boolean)
     .join(" · ");
-  return `${planned} · ${appointment.attendance}${actual}${notes ? ` · ${notes}` : ""}`;
+  const contact = [appointment.contactType, appointment.recipientType, appointment.relatedPersonName]
+    .filter(Boolean).join(" · ");
+  return `${planned} · ${appointment.attendance}${actual}${contact ? ` · ${contact}` : ""}${notes ? ` · ${notes}` : ""}`;
 }
 
 export function associatedCollections(appointment, episode) {
@@ -178,6 +252,21 @@ export function appointmentDetails(appointment, episode) {
     ["Practitioner or service", appointment.practitionerService],
     ["Delivery mode", appointment.deliveryMode],
     ["Attendance", appointment.attendance],
+    ["Direct contact type", appointment.contactType],
+    ["Recipient", appointment.recipientType],
+    ["Related person", appointment.relatedPersonName],
+    ["Venue", appointment.venue],
+    ["Participants", appointment.participants],
+    ["Contact postcode", appointment.postcode],
+    ["Registered unit", appointment.registeredUnit],
+    ["Servicing unit", appointment.servicingUnit],
+    ["Delivering unit", appointment.deliveringUnit],
+    ["Primary practitioner", appointment.primaryPractitioner],
+    ["Other practitioners", appointment.additionalPractitioners?.join(", ")],
+    ["Interpreter used", appointment.interpreter],
+    ["Co-payment", appointment.copayment],
+    ["Funding source", appointment.fundingSource],
+    ["Final contact", appointment.finalContact],
     ["Actual date", appointment.actualDate],
     ["Actual time", appointment.actualTime],
     ["Actual duration", appointment.actualDurationMinutes && `${appointment.actualDurationMinutes} min`],
@@ -201,6 +290,21 @@ export function appointmentChanges(appointment) {
     ["practitionerService", "Practitioner or service", appointment.practitionerService],
     ["deliveryMode", "Delivery mode", appointment.deliveryMode],
     ["attendance", "Attendance", appointment.attendance],
+    ["contactType", "Direct contact type", appointment.contactType],
+    ["recipientType", "Recipient", appointment.recipientType],
+    ["relatedPersonName", "Related person", appointment.relatedPersonName],
+    ["venue", "Venue", appointment.venue],
+    ["participants", "Participants", appointment.participants],
+    ["postcode", "Contact postcode", appointment.postcode],
+    ["registeredUnit", "Registered unit", appointment.registeredUnit],
+    ["servicingUnit", "Servicing unit", appointment.servicingUnit],
+    ["deliveringUnit", "Delivering unit", appointment.deliveringUnit],
+    ["primaryPractitioner", "Primary practitioner", appointment.primaryPractitioner],
+    ["additionalPractitioners", "Other practitioners", appointment.additionalPractitioners?.join(", ")],
+    ["interpreter", "Interpreter used", appointment.interpreter],
+    ["copayment", "Co-payment", appointment.copayment],
+    ["fundingSource", "Funding source", appointment.fundingSource],
+    ["finalContact", "Final contact", appointment.finalContact],
     ["actualDate", "Actual date", appointment.actualDate],
     ["actualTime", "Actual time", appointment.actualTime],
     ["actualDurationMinutes", "Actual duration", appointment.actualDurationMinutes && `${appointment.actualDurationMinutes} min`],

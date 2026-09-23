@@ -5,6 +5,7 @@ import {
   APPOINTMENT_DELIVERY_MODES,
 } from "../appointments";
 import { formatDate, practitionerServiceOptions, TODAY } from "../model";
+import ContactFields from "./ContactFields";
 
 const formValues = (event) =>
   Object.fromEntries(new FormData(event.currentTarget));
@@ -12,6 +13,7 @@ const formValues = (event) =>
 export default function AppointmentForm({
   episode,
   people,
+  person,
   error,
   onClose,
   onSave,
@@ -90,6 +92,7 @@ export default function AppointmentForm({
               </select>
             </Field>
           </div>
+          <ContactFields attended={attendance === "Attended"} person={person} />
           {attendance === "Attended" && (
             <div className="appointment-actual-fields">
               <h3>Actual contact</h3>

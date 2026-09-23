@@ -78,7 +78,7 @@ export default function CareEvents({ episode, openModal, eventId }) {
     <div className="stack care-events">
       <div className="section-toolbar">
         <div>
-          <h2>Events</h2>
+          <h2>Care events</h2>
           <p>Structured records and contextual events for this care period.</p>
         </div>
         <div className="button-row">
@@ -168,7 +168,7 @@ export default function CareEvents({ episode, openModal, eventId }) {
           )}
         </Empty>
       ) : (
-        <ol className="record-timeline" aria-label="Events and structured records">
+        <ol className="record-timeline" aria-label="Care events and structured records">
           {visibleEntries.map((entry) => {
             const isSelected =
               entry.sourceType === "contextual-event" && entry.sourceId === eventId;

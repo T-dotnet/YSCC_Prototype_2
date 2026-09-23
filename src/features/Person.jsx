@@ -142,8 +142,8 @@ export default function Person({ id, navigate, openModal }) {
   const allTabs = [
     "Overview",
     "Assessment",
-    "Appointments",
-    "Events",
+    { value: "Appointments", label: "Service contacts" },
+    { value: "Events", label: "Care events" },
     "Report",
     "Consent & respondents",
     "History",
@@ -189,7 +189,8 @@ export default function Person({ id, navigate, openModal }) {
     (["progress", "analysis", "record 2"].includes(searchParams.get("tab"))
       ? "Report"
       : null) ||
-    tabs.find((t) => t.toLowerCase() === searchParams.get("tab")) ||
+    (tabs.map((item) => typeof item === "string" ? item : item.value)
+      .find((value) => value.toLowerCase() === searchParams.get("tab"))) ||
     "Overview";
   const tab =
     requestedTab === "Assessment" && !assessmentAvailable
@@ -351,7 +352,7 @@ export default function Person({ id, navigate, openModal }) {
             ? "person-context-heading"
             : moreRecordTabs.includes(tab)
               ? undefined
-              : `person-tab-${tabs.filter((item) => !moreRecordTabs.includes(item)).indexOf(tab)}`
+              : `person-tab-${tabs.filter((item) => !moreRecordTabs.includes(item)).findIndex((item) => (typeof item === "string" ? item : item.value) === tab)}`
         }
         aria-label={moreRecordTabs.includes(tab) ? tab : undefined}
       >
@@ -512,10 +513,10 @@ export default function Person({ id, navigate, openModal }) {
                 <Timeline episode={e} person={p} audit={state.audit} />
               </Panel>
               <Panel
-                title="Events"
+                title="Care events"
                 action={
                   <TextLink onClick={() => setTab("Events")}>
-                    View all events
+                    View all care events
                   </TextLink>
                 }
               >

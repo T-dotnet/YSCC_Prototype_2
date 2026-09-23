@@ -2,12 +2,14 @@ import { useState } from "react";
 import { Field, Modal, Notice, Button, ValidatedForm } from "./UI";
 import { APPOINTMENT_ATTENDANCE } from "../appointments";
 import { formatDate, TODAY } from "../model";
+import ContactFields from "./ContactFields";
 
 const formValues = (event) => Object.fromEntries(new FormData(event.currentTarget));
 
 export default function AppointmentOutcomeForm({
   episode,
   appointment,
+  person,
   error,
   onClose,
   onSave,
@@ -64,6 +66,7 @@ export default function AppointmentOutcomeForm({
               )}
             </select>
           </Field>
+          <ContactFields appointment={appointment} attended={attendance === "Attended"} person={person} />
           {attendance === "Attended" && (
             <div className="appointment-actual-fields">
               <h3>Actual contact</h3>

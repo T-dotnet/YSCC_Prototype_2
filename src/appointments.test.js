@@ -28,6 +28,21 @@ const attendedContact = {
   actualDate: TODAY,
   actualTime: "09:10",
   actualDurationMinutes: "45",
+  recipientType: "Related person",
+  relatedPersonName: "Deb Thompson",
+  contactType: "Family work",
+  primaryPractitioner: "Jess Taylor",
+  additionalPractitioners: "Alex Lee, Sam Chen",
+  participants: "With family",
+  venue: "Community",
+  postcode: "3000",
+  registeredUnit: "Northside Centre",
+  servicingUnit: "Northside Centre",
+  deliveringUnit: "Outreach pod",
+  interpreter: "Yes",
+  copayment: "No",
+  fundingSource: "YSCC",
+  finalContact: "No",
   notes: "Sample local appointment record.",
 };
 
@@ -52,6 +67,13 @@ test("an attended appointment retains planned and actual contact details", () =>
   assert.equal(appointment.actualTime, "09:10");
   assert.equal(appointment.actualDurationMinutes, 45);
   assert.equal(appointment.attendance, "Attended");
+  assert.equal(appointment.recipientType, "Related person");
+  assert.equal(appointment.relatedPersonName, "Deb Thompson");
+  assert.equal(appointment.contactType, "Family work");
+  assert.equal(appointment.primaryPractitioner, "Jess Taylor");
+  assert.deepEqual(appointment.additionalPractitioners, ["Alex Lee", "Sam Chen"]);
+  assert.equal(appointment.deliveringUnit, "Outreach pod");
+  assert.equal(appointment.interpreter, "Yes");
   assert.equal(appointment.actor, "Jess Taylor");
   assert.deepEqual(next.people[0].episodes[0].collections, state.people[0].episodes[0].collections);
 });
@@ -82,7 +104,7 @@ test("appointment records appear in care-period history and change log", () => {
   const episode = person.episodes[0];
   const history = activityEntries(person, episode, next.audit);
   const appointment = history.find((entry) => entry.type === "appointment");
-  assert.equal(appointment.title, "Appointment attended");
+  assert.equal(appointment.title, "Service contact attended");
   assert.match(appointment.detail, /Jess Taylor · Northside Centre/);
   assert.equal(appointment.scope, "Appointment or service contact");
   const changes = changeLogEntries(person, episode, next.audit).find(
@@ -90,6 +112,8 @@ test("appointment records appear in care-period history and change log", () => {
   );
   assert.ok(changes.changes.some((change) => change.label === "Attendance"));
   assert.ok(changes.changes.some((change) => change.label === "Actual duration"));
+  assert.ok(changes.changes.some((change) => change.label === "Recipient"));
+  assert.ok(changes.changes.some((change) => change.label === "Primary practitioner"));
 });
 
 test("appointment records reject invalid actual contacts and closed care periods", () => {
@@ -105,6 +129,8 @@ test("appointment records reject invalid actual contacts and closed care periods
   const closed = structuredClone(state);
   closed.people[0].episodes[0].status = "Closed";
   assert.equal(reducer(closed, attendedContact), closed);
+  assert.equal(reducer(state, { ...attendedContact, primaryPractitioner: "" }), state);
+  assert.equal(reducer(state, { ...attendedContact, relatedPersonName: "" }), state);
 });
 
 test("appointment records reject a duplicate planned date, time and service", () => {
@@ -123,12 +149,20 @@ test("a planned contact can be updated once with an attendance outcome", () => {
     actualDate: TODAY,
     actualTime: "09:15",
     actualDurationMinutes: "50",
+    recipientType: "Young person",
+    contactType: "Care review",
+    primaryPractitioner: "Jess Taylor",
+    participants: "Individual",
+    venue: "Clinic",
+    finalContact: "No",
     outcomeNotes: "Completed planned contact.",
   });
   const updated = next.people[0].episodes[0].appointments[0];
   assert.equal(updated.id, appointment.id);
   assert.equal(updated.attendance, "Attended");
   assert.equal(updated.actualDurationMinutes, 50);
+  assert.equal(updated.contactType, "Care review");
+  assert.equal(updated.primaryPractitioner, "Jess Taylor");
   assert.equal(updated.outcomeNotes, "Completed planned contact.");
   assert.ok(updated.outcomeRecordedAt);
   assert.equal(
