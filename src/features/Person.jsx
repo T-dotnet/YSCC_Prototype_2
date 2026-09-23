@@ -820,8 +820,8 @@ export default function Person({ id, navigate, openModal }) {
               <div>
                 <h2>Change log</h2>
                 <p>
-                  Field-level record of who changed what in this care episode. Expand an
-                  entry to view the before and after values.
+                  Field-level record of who changed what in this care episode. Use Show more
+                  to view the before and after values.
                 </p>
               </div>
             </div>

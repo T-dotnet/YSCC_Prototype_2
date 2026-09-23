@@ -9,6 +9,7 @@ export default function RecordItem({
   selected = false,
   headingLevel = 3,
   className = "",
+  id,
   lead,
   facts = [],
   secondary,
@@ -22,7 +23,7 @@ export default function RecordItem({
         <Heading>{title}</Heading>
         {subtitle && <small>{subtitle}</small>}
       </span>
-      <Badge>{status}</Badge>
+      {status && <Badge>{status}</Badge>}
     </>
   );
   const classes = `record-item${selected ? " selected-collection" : ""}${className ? ` ${className}` : ""}`;
@@ -32,8 +33,8 @@ export default function RecordItem({
         {lead && <div className="record-item-lead">{lead}</div>}
         {facts.length > 0 && (
           <dl className="record-item-facts">
-            {facts.map(({ label, value }) => (
-              <div key={label}>
+            {facts.map(({ label, value, wide }) => (
+              <div key={label} className={wide ? "record-item-fact-wide" : undefined}>
                 <dt>{label}</dt>
                 <dd>{value}</dd>
               </div>
@@ -52,7 +53,7 @@ export default function RecordItem({
   );
 
   return collapsible ? (
-    <details className={classes}>
+    <details className={classes} id={id}>
       <summary className="record-item-heading">
         {heading}
         <ChevronDown size={18} aria-hidden="true" />
@@ -60,7 +61,7 @@ export default function RecordItem({
       {content}
     </details>
   ) : (
-    <article className={classes}>
+    <article className={classes} id={id}>
       <div className="record-item-heading">{heading}</div>
       {content}
     </article>

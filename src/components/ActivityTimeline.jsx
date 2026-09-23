@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Filter, ChevronDown } from "lucide-react";
+import { Filter, ChevronDown, Clock3 } from "lucide-react";
 import {
   activityEntries,
   activityChangeDetails,
@@ -7,7 +7,9 @@ import {
   clinicalHistoryEntries,
 } from "../activity";
 import { formatDate, personEventText } from "../model";
+import { appointmentDetails } from "../appointments";
 import { SearchInput, Select, Button, Empty } from "./UI";
+import RecordItem from "./RecordItem";
 
 const displayValue = (value) =>
   value === true
@@ -52,6 +54,31 @@ const displayDate = (value) =>
 
 const actorLabel = (entry) =>
   `${entry.actor || "Editor not recorded"}${entry.role ? ` · ${entry.role}` : ""}`;
+
+function TimelineDate({ timestamp, date }) {
+  const parts = timestamp ? timelineTimestamp(timestamp) : null;
+  return (
+    <time className="record-timeline-date" dateTime={timestamp || date || undefined}>
+      {parts ? parts.date : displayDate(date)}
+      <small>
+        {parts ? (
+          <>{parts.time}{parts.zone && <><br />{parts.zone}</>}</>
+        ) : "Exact time not recorded"}
+      </small>
+    </time>
+  );
+}
+
+const historyKind = (entry) =>
+  entry.type === "appointment"
+    ? "Appointment"
+    : entry.type === "clinical-record"
+      ? "Clinical record"
+      : entry.collectionId
+        ? "Assessment"
+        : entry.eventDate
+          ? "Event"
+          : entry.scope || "Care history";
 
 function EventList({ entries, person, label }) {
   if (!entries.length)
@@ -114,52 +141,47 @@ function ContinuousHistory({ entries, episode, person }) {
   if (!entries.length)
     return <p className="history-empty">No clinical activity has been recorded.</p>;
   return (
-    <ol className="timeline activity-history clinical-continuous-timeline" aria-label="Continuous clinical history">
+    <ol className="record-timeline clinical-continuous-timeline" aria-label="Continuous clinical history">
       {entries.map((entry) => {
         const entryTimestamp =
           entry.timestamp || (entry.date?.includes("T") ? entry.date : null);
-        const timestampParts = entryTimestamp
-          ? timelineTimestamp(entryTimestamp)
+        const appointment = entry.type === "appointment"
+          ? episode.appointments?.find((item) => `appointment-${item.id}` === entry.id)
           : null;
         const details = [
           ...(entry.collectionId && collections.get(entry.collectionId)
             ? [["Assessment", collections.get(entry.collectionId)]]
             : []),
-          ...(entry.detail
+          ...(appointment
+            ? appointmentDetails(appointment, episode).map(([label, value]) => [
+                label,
+                label.toLowerCase().includes("date") ? formatDate(value) : value,
+              ])
+            : []),
+          ...(!appointment && entry.detail
             ? [["Details", personEventText(person, entry.detail)]]
             : []),
           ...(entry.actor ? [["Recorded by", actorLabel(entry)]] : []),
           ...(entry.scope ? [["Scope", entry.scope]] : []),
           ...(entry.eventDate ? [["Event date", formatDate(entry.eventDate)]] : []),
-          ...(!entryTimestamp ? [["Time", "Exact time not recorded"]] : []),
         ];
         return (
-          <li key={entry.id}>
-            <span className="timeline-dot" />
-            <time dateTime={entryTimestamp || entry.date || undefined}>
-              {timestampParts ? (
-                <>
-                  <strong>{timestampParts.date}</strong>
-                  <span>{timestampParts.time}</span>
-                  {timestampParts.zone && <small>{timestampParts.zone}</small>}
-                </>
-              ) : (
-                <strong>{displayDate(entry.date)}</strong>
-              )}
-            </time>
-            <div>
-              <strong>{entry.title || "Recorded event"}</strong>
-              {details.length > 0 && (
-                <dl className="activity-entry-details">
-                  {details.map(([label, value]) => (
-                    <div key={label}>
-                      <dt>{label}</dt>
-                      <dd>{value}</dd>
-                    </div>
-                  ))}
-                </dl>
-              )}
-            </div>
+          <li className="record-timeline-entry" key={entry.id}>
+            <TimelineDate timestamp={entryTimestamp} date={entry.date} />
+            <span className="record-timeline-icon" aria-hidden="true">
+              <Clock3 size={22} />
+            </span>
+            <RecordItem
+              title={entry.title || "Recorded event"}
+              subtitle={historyKind(entry)}
+              className="record-item-compact"
+              facts={details.map(([label, value]) => ({
+                label,
+                value,
+                wide: ["Details", "Notes", "Outcome notes"].includes(label) ||
+                  label.startsWith("Associated assignment"),
+              }))}
+            />
           </li>
         );
       })}
@@ -433,47 +455,34 @@ export function ChangeLog({ episode, person, audit = [] }) {
       </details>
 
       {visibleEntries.length ? (
-        <ol className="timeline activity-history" aria-label="Field change log">
+        <ol className="record-timeline" aria-label="Field change log">
           {visibleEntries.map((entry) => {
             const changes = activityChangeDetails(entry);
             const entryTimestamp =
               entry.timestamp || (entry.date?.includes("T") ? entry.date : null);
-            const timestampParts = entryTimestamp
-              ? timelineTimestamp(entryTimestamp)
-              : null;
             const details = [
               ["Changed by", actorLabel(entry)],
               ...(entry.scope ? [["Scope", entry.scope]] : []),
               ...(entry.reason ? [["Reason", entry.reason]] : []),
               ...(entry.source ? [["Source", entry.source]] : []),
-              ...(!entryTimestamp ? [["Time", "Exact time not recorded"]] : []),
             ];
             return (
-              <li key={entry.id}>
-                <span className="timeline-dot" />
-                <time dateTime={entryTimestamp || entry.date || undefined}>
-                  {timestampParts ? (
-                    <>
-                      <strong>{timestampParts.date}</strong>
-                      <span>{timestampParts.time}</span>
-                      {timestampParts.zone && <small>{timestampParts.zone}</small>}
-                    </>
-                  ) : (
-                    <strong>{displayDate(entry.date)}</strong>
-                  )}
-                </time>
-                <div>
-                  <strong>{entry.title}</strong>
-                  <dl className="activity-entry-details">
-                    {details.map(([label, value]) => (
-                      <div key={label}>
-                        <dt>{label}</dt>
-                        <dd>{value}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                  <details className="activity-change-details">
-                    <summary>Show more · {changes.length} changes</summary>
+              <li className="record-timeline-entry" key={entry.id}>
+                <TimelineDate timestamp={entryTimestamp} date={entry.date} />
+                <span className="record-timeline-icon" aria-hidden="true">
+                  <Clock3 size={22} />
+                </span>
+                <RecordItem
+                  title={entry.title}
+                  subtitle={`${changes.length} ${changes.length === 1 ? "change" : "changes"}`}
+                  className="record-item-compact"
+                  facts={details.map(([label, value]) => ({
+                    label,
+                    value,
+                    wide: label === "Reason" || label === "Source",
+                  }))}
+                  secondary={<details className="activity-change-details">
+                    <summary>Show more · {changes.length} {changes.length === 1 ? "change" : "changes"}</summary>
                     {changes.map((change) => (
                       <section key={change.key}>
                         <h3>{change.label}</h3>
@@ -490,7 +499,8 @@ export function ChangeLog({ episode, person, audit = [] }) {
                       </section>
                     ))}
                   </details>
-                </div>
+                  }
+                />
               </li>
             );
           })}

@@ -19,6 +19,7 @@ import {
 } from "../careRecordTimeline";
 import { formatDate, formatTimestamp } from "../model";
 import { Button, Empty, SearchInput, Select } from "../components/UI";
+import RecordItem from "../components/RecordItem";
 
 const CONTEXTUAL_EVENT_ICONS = {
   harm: ShieldAlert,
@@ -45,15 +46,12 @@ const EMPTY_FILTERS = {
   query: "",
 };
 
-const scopeLabel = (scope) =>
-  scope === "structured" ? "Structured record" : "Contextual event";
-
 function TimelineIcon({ entry }) {
   const Icon =
     entry.scope === "contextual"
       ? CONTEXTUAL_EVENT_ICONS[entry.type] || ClipboardList
       : STRUCTURED_RECORD_ICONS[entry.type] || Stethoscope;
-  return <Icon size={17} />;
+  return <Icon size={22} aria-hidden="true" />;
 }
 
 export default function CareEvents({ episode, openModal, eventId }) {
@@ -170,80 +168,58 @@ export default function CareEvents({ episode, openModal, eventId }) {
           )}
         </Empty>
       ) : (
-        <ol className="care-event-timeline" aria-label="Events and structured records">
+        <ol className="record-timeline" aria-label="Events and structured records">
           {visibleEntries.map((entry) => {
             const isSelected =
               entry.sourceType === "contextual-event" && entry.sourceId === eventId;
             return (
-              <li key={entry.id}>
-                <time dateTime={entry.date || undefined}>
+              <li className="record-timeline-entry" key={entry.id}>
+                <time className="record-timeline-date" dateTime={entry.date || undefined}>
                   {formatDate(entry.date)}
                   <small>{entry.dateLabel}</small>
                 </time>
-                <span className="care-event-marker" aria-hidden="true">
+                <span className="record-timeline-icon" aria-hidden="true">
                   <TimelineIcon entry={entry} />
                 </span>
-                <details
-                  className={`care-event-accordion ${isSelected ? "care-event-selected" : ""}`}
+                <RecordItem
                   id={`${entry.sourceType}-${entry.sourceId}`}
-                  open={isSelected || undefined}
-                >
-                  <summary className="care-event-summary">
-                    <div className="care-event-summary-text">
-                      <span className="care-event-type">
-                        {scopeLabel(entry.scope)} · {entry.typeLabel}
-                      </span>
-                      <h3>{entry.title}</h3>
-                    </div>
-                    <ChevronDown size={18} className="care-event-chevron" aria-hidden="true" />
-                  </summary>
-                  <article className="care-event-card-body">
-                    {entry.detail && (
-                      <p className="care-timeline-detail">{entry.detail}</p>
-                    )}
-                    {entry.details.length > 0 && (
-                      <dl>
-                        {entry.details.map(([label, value]) => (
-                          <div key={label}>
-                            <dt>{label}</dt>
-                            <dd>
-                              {label.toLowerCase().includes("date")
-                                ? formatDate(value)
-                                : value}
-                            </dd>
-                          </div>
-                        ))}
-                      </dl>
-                    )}
-                    {entry.item.correctedEventId && (
-                      <p className="care-event-correction">
-                        This is an append-only correction of an earlier event.
-                      </p>
-                    )}
-                    <footer>
-                      <span>
-                        Recorded by {entry.actor || "Staff member"}
-                        {entry.role ? ` · ${entry.role}` : ""}
-                        {entry.timestamp ? ` · ${formatTimestamp(entry.timestamp)}` : ""}
-                      </span>
-                      {entry.sourceType === "contextual-event" && (
-                        <Button
-                          variant="secondary"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openModal({
-                              type: "correct-care-event",
-                              episodeId: episode.id,
-                              eventId: entry.sourceId,
-                            });
-                          }}
-                        >
-                          Correct event
-                        </Button>
-                      )}
-                    </footer>
-                  </article>
-                </details>
+                  title={entry.title}
+                  subtitle={entry.typeLabel}
+                  status={entry.scope === "structured" ? "Structured record" : undefined}
+                  className={`record-item-compact${isSelected ? " care-event-selected" : ""}`}
+                  facts={[
+                    ...entry.details.map(([label, value]) => ({
+                      label,
+                      value: label.toLowerCase().includes("date") ? formatDate(value) : value,
+                      wide: /detail|description|note|reason/i.test(label),
+                    })),
+                    ...(entry.detail ? [{ label: "Details", value: entry.detail, wide: true }] : []),
+                  ]}
+                  secondary={entry.item.correctedEventId && (
+                    <p className="care-event-correction">
+                      This is an append-only correction of an earlier event.
+                    </p>
+                  )}
+                  note={
+                    <>
+                      Recorded by {entry.actor || "Staff member"}
+                      {entry.role ? ` · ${entry.role}` : ""}
+                      {entry.timestamp ? ` · ${formatTimestamp(entry.timestamp)}` : ""}
+                    </>
+                  }
+                  actions={entry.sourceType === "contextual-event" && (
+                    <Button
+                      variant="secondary"
+                      onClick={() => openModal({
+                        type: "correct-care-event",
+                        episodeId: episode.id,
+                        eventId: entry.sourceId,
+                      })}
+                    >
+                      Correct event
+                    </Button>
+                  )}
+                />
               </li>
             );
           })}
