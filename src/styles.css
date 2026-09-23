@@ -13195,3 +13195,143 @@ h6 {
     grid-area: 5 / 1 / 6 / -1;
   }
 }
+
+/* Keep validation results close to the search field on narrow panels. */
+.quality-filter-toggle {
+  display: none;
+}
+
+.quality-filter-fields {
+  display: contents;
+}
+
+.quality-filter-fields > .select-wrap {
+  flex: 1 1 150px;
+  min-width: 140px;
+}
+
+.quality-filter-fields > .select-wrap select {
+  width: 100%;
+}
+
+@container quality-queue (max-width: 860px) {
+  .quality-filter-fields > .select-wrap {
+    min-width: 0;
+  }
+}
+
+@container quality-queue (max-width: 520px) {
+  .quality-filter-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 44px;
+    padding: 9px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--ink);
+    background: var(--surface);
+    font-size: var(--text-sm);
+    font-weight: 600;
+  }
+
+  .quality-filter-toggle > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .quality-filter-toggle[aria-expanded="true"] > svg {
+    transform: rotate(180deg);
+  }
+
+  .quality-filter-fields {
+    display: none;
+  }
+
+  .quality-filter-fields.open {
+    display: grid;
+    gap: var(--space-3);
+  }
+}
+
+@media (max-width: 700px) {
+  .main:has(.person-heading) > .back-link {
+    margin-bottom: 12px;
+  }
+
+  .main:has(.person-heading) > .person-heading {
+    margin-bottom: 16px;
+  }
+
+  .main:has(.person-heading) .episode-bar {
+    position: relative;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    padding: 14px 16px;
+  }
+
+  .main:has(.person-heading) .episode-period {
+    grid-column: 1 / -1;
+    padding-right: 0;
+  }
+
+  .main:has(.person-heading) .episode-period > label,
+  .main:has(.person-heading) .episode-period > small:first-child {
+    padding-right: 72px;
+  }
+
+  .main:has(.person-heading) .episode-period .select-wrap {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .main:has(.person-heading) .episode-period > small:last-child:not(:first-child) {
+    display: none;
+  }
+
+  .main:has(.person-heading) .episode-status {
+    position: absolute;
+    top: 14px;
+    right: 16px;
+    padding: 0;
+    border: 0;
+  }
+
+  .main:has(.person-heading) .episode-bar > .episode-owner,
+  .main:has(.person-heading) .episode-bar > .episode-location {
+    grid-row: 2;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 4px;
+    min-width: 0;
+    padding: 10px 0 0;
+    border-left: 0;
+  }
+
+  .main:has(.person-heading) .episode-bar > .episode-owner {
+    grid-column: 1;
+  }
+
+  .main:has(.person-heading) .episode-bar > .episode-location {
+    grid-column: 2;
+  }
+
+  .main:has(.person-heading) .episode-bar > .episode-completeness {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0 0;
+    border-left: 0;
+  }
+
+  .main:has(.person-heading) .episode-bar small {
+    font-size: var(--type-metadata);
+  }
+
+  .main:has(.person-heading) .person-record-navigation {
+    margin-bottom: 20px;
+  }
+}

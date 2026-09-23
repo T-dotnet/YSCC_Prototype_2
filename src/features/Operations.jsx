@@ -1,5 +1,5 @@
 import useQueueView from "../useQueueView";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { INSTRUMENTS } from "../instruments";
 import {
   Plus,
@@ -139,6 +139,10 @@ export function Quality({ openModal, navigate }) {
     clinicians: [...new Set(issues.map((issue) => issue.owner))],
     periods: [...new Set(issues.map((issue) => issue.submissionPeriod))],
   };
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
+  const activeFilterCount = Object.entries(filters).filter(
+    ([key, value]) => value !== EMPTY_FILTERS[key],
+  ).length;
   return (
     <>
       <PageHeading
@@ -147,7 +151,7 @@ export function Quality({ openModal, navigate }) {
         meta="Sample PMHC-MDS rule set · Northside Centre · 15 September 2026"
       />
       <Panel
-        title="Validation issue queue"
+        title="Validation issues"
         action={<Badge>{unresolved.length} unresolved</Badge>}
         className="quality-queue"
       >
@@ -162,60 +166,78 @@ export function Quality({ openModal, navigate }) {
               Showing {visibleIssues.length} of {issues.length}
             </span>
           </div>
-          <Select
-            label="Organisation filter"
-            value={filters.organisation}
-            onChange={(event) =>
-              setFilter("organisation", event.target.value)
-            }
+          <button
+            type="button"
+            className="quality-filter-toggle"
+            aria-expanded={filtersExpanded}
+            aria-controls="quality-filter-fields"
+            onClick={() => setFiltersExpanded((expanded) => !expanded)}
           >
-            <option>All organisations</option>
-            {filterOptions.organisations.map((value) => (
-              <option key={value}>{value}</option>
-            ))}
-          </Select>
-          <Select
-            label="Clinician filter"
-            value={filters.clinician}
-            onChange={(event) => setFilter("clinician", event.target.value)}
+            <span>
+              <Filter size={16} aria-hidden="true" />
+              Filters{activeFilterCount ? ` (${activeFilterCount})` : ""}
+            </span>
+            <ChevronDown size={16} aria-hidden="true" />
+          </button>
+          <div
+            id="quality-filter-fields"
+            className={`quality-filter-fields${filtersExpanded ? " open" : ""}`}
           >
-            <option>All clinicians</option>
-            {filterOptions.clinicians.map((value) => (
-              <option key={value}>{value}</option>
-            ))}
-          </Select>
-          <Select
-            label="Status filter"
-            value={filters.status}
-            onChange={(event) => setFilter("status", event.target.value)}
-          >
-            <option>All statuses</option>
-            {QUALITY_STATUSES.map((value) => (
-              <option key={value}>{value}</option>
-            ))}
-          </Select>
-          <Select
-            label="Severity filter"
-            value={filters.severity}
-            onChange={(event) => setFilter("severity", event.target.value)}
-          >
-            <option>All severities</option>
-            {QUALITY_SEVERITIES.map((value) => (
-              <option key={value}>{value}</option>
-            ))}
-          </Select>
-          <Select
-            label="Submission period filter"
-            value={filters.submissionPeriod}
-            onChange={(event) =>
-              setFilter("submissionPeriod", event.target.value)
-            }
-          >
-            <option>All submission periods</option>
-            {filterOptions.periods.map((value) => (
-              <option key={value}>{value}</option>
-            ))}
-          </Select>
+            <Select
+              label="Organisation filter"
+              value={filters.organisation}
+              onChange={(event) =>
+                setFilter("organisation", event.target.value)
+              }
+            >
+              <option>All organisations</option>
+              {filterOptions.organisations.map((value) => (
+                <option key={value}>{value}</option>
+              ))}
+            </Select>
+            <Select
+              label="Clinician filter"
+              value={filters.clinician}
+              onChange={(event) => setFilter("clinician", event.target.value)}
+            >
+              <option>All clinicians</option>
+              {filterOptions.clinicians.map((value) => (
+                <option key={value}>{value}</option>
+              ))}
+            </Select>
+            <Select
+              label="Status filter"
+              value={filters.status}
+              onChange={(event) => setFilter("status", event.target.value)}
+            >
+              <option>All statuses</option>
+              {QUALITY_STATUSES.map((value) => (
+                <option key={value}>{value}</option>
+              ))}
+            </Select>
+            <Select
+              label="Severity filter"
+              value={filters.severity}
+              onChange={(event) => setFilter("severity", event.target.value)}
+            >
+              <option>All severities</option>
+              {QUALITY_SEVERITIES.map((value) => (
+                <option key={value}>{value}</option>
+              ))}
+            </Select>
+            <Select
+              label="Submission period filter"
+              value={filters.submissionPeriod}
+              onChange={(event) =>
+                setFilter("submissionPeriod", event.target.value)
+              }
+            >
+              <option>All submission periods</option>
+              {filterOptions.periods.map((value) => (
+                <option key={value}>{value}</option>
+              ))}
+            </Select>
+          </div>
         </div>
         <ActiveFilters
           items={[
