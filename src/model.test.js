@@ -77,6 +77,35 @@ test("archiving a person hides active work while retaining a restorable record",
   assert.equal(peopleInEpisodes(restored.people).some((row) => row.person.id === jordan.id), true);
   assert.equal(restored.audit[0].title, "Person restored");
 });
+test("person tags can be added and removed without duplicate labels", () => {
+  const seed = createSeed();
+  const personId = "YS-1025";
+  const tagged = reducer(seed, { type: "ADD_PERSON_TAG", personId, tag: " Follow-up needed " });
+  assert.deepEqual(tagged.people.find((person) => person.id === personId).tags, ["Follow-up needed"]);
+  assert.equal(tagged.audit[0].title, "Person tag added");
+  assert.equal(reducer(tagged, { type: "ADD_PERSON_TAG", personId, tag: "follow-up needed" }), tagged);
+  assert.equal(reducer(tagged, { type: "ADD_PERSON_TAG", personId, tag: "Custom label" }), tagged);
+  const removed = reducer(tagged, { type: "REMOVE_PERSON_TAG", personId, tag: "Follow-up needed" });
+  assert.deepEqual(removed.people.find((person) => person.id === personId).tags, []);
+  assert.equal(removed.audit[0].title, "Person tag removed");
+});
+test("sample tags match each fixture and preserve saved tag choices", () => {
+  const seed = createSeed();
+  const tagsFor = (state, id) => state.people.find((person) => person.id === id).tags;
+  assert.deepEqual(tagsFor(seed, "YS-1034"), ["Care coordination", "Follow-up needed"]);
+  assert.deepEqual(tagsFor(seed, "YS-1031"), ["Contact support"]);
+  assert.deepEqual(tagsFor(seed, "YS-1028"), ["Contact support"]);
+
+  const saved = structuredClone(seed);
+  delete saved.people.find((person) => person.id === "YS-1034").tags;
+  saved.people.find((person) => person.id === "YS-1031").tags = [];
+  saved.people.find((person) => person.id === "YS-1028").tags = ["Review requested"];
+  const upgraded = upgradeSampleData(saved);
+  assert.deepEqual(tagsFor(upgraded, "YS-1034"), ["Care coordination", "Follow-up needed"]);
+  assert.deepEqual(tagsFor(upgraded, "YS-1031"), []);
+  assert.deepEqual(tagsFor(upgraded, "YS-1028"), ["Review requested"]);
+  assert.equal(upgradeSampleData(upgraded), upgraded);
+});
 test("Zoe has distinct current and closed care periods without adding historical work to the queue", () => {
   const seed = createSeed();
   const zoe = seed.people.find((p) => p.id === "YS-1027");

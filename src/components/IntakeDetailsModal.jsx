@@ -180,6 +180,14 @@ export default function IntakeDetailsModal({ person, intake, onClose }) {
             </div>
             {person.archivedAt && <p className="intake-archived-note">Archived {timestamp(person.archivedAt)} by {recorded(person.archivedBy)}. The care record is retained.</p>}
             {notice && <p className="form-save-success" role="status">{notice}</p>}
+            <section className="intake-details-section" aria-label="Person tags">
+              <h3>Tags</h3>
+              {(person.tags || []).length ? (
+                <div className="person-heading-tags">
+                  {person.tags.map((tag) => <span className="person-tag" key={tag}>{tag}</span>)}
+                </div>
+              ) : <p className="muted">No tags added.</p>}
+            </section>
             <IntakeSection title="Registration and referral origin" rows={[
               ["Preferred or supplied name", person.name],
               ["Supplied legal name", intake?.legalName],

@@ -15,6 +15,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Plus,
+  X,
   ChevronDown,
   FileText,
   CheckCircle2,
@@ -42,6 +43,7 @@ import {
   currentStaff,
   noClinicalReviewRequired,
   TODAY,
+  PERSON_TAG_OPTIONS,
 } from "../model";
 import { recordCompleteness } from "../dataQuality";
 import {
@@ -78,11 +80,14 @@ function PersonRecordNavigation({ tabs, value, onChange }) {
 }
 
 export default function Person({ id, navigate, openModal }) {
-  const { state } = useStore();
+  const { state, commit } = useStore();
   const p = state.people.find((p) => p.id === id);
   const searchParams = useSearchParams();
   const [reviewPackOpen, setReviewPackOpen] = useState(false);
   const [intakeDetailsOpen, setIntakeDetailsOpen] = useState(false);
+  const [tagEditorOpen, setTagEditorOpen] = useState(false);
+  const [selectedTag, setSelectedTag] = useState("");
+  const [tagError, setTagError] = useState("");
   const allTabs = [
     "Overview",
     "Assessment",
@@ -178,22 +183,50 @@ export default function Person({ id, navigate, openModal }) {
       </button>
       <div className="person-heading">
         <div>
-          <h1 className="person-name-heading">
-            <span>{p.name}</span>
-          </h1>
+          <div className="person-heading-title-row">
+            <h1 className="person-name-heading"><span>{p.name}</span></h1>
+            <div className="person-heading-tags" aria-label="Person tags">
+              {(p.tags || []).map((tag) => (
+                <span className="person-tag" key={tag}>
+                  {tag}
+                  {!p.archivedAt && (
+                    <button
+                      className="person-tag-remove"
+                      type="button"
+                      aria-label={`Remove ${tag} tag`}
+                      onClick={() => {
+                        const result = commit({ type: "REMOVE_PERSON_TAG", personId: p.id, tag });
+                        if (result.error) {
+                          setTagError(result.error);
+                          setTagEditorOpen(true);
+                        }
+                      }}
+                    >
+                      <X size={11} aria-hidden="true" />
+                    </button>
+                  )}
+                </span>
+              ))}
+              {!p.archivedAt && (
+                <button className="person-tag-add" type="button" aria-label="Add person tag" aria-haspopup="dialog" onClick={() => { setTagError(""); setTagEditorOpen(true); }}>
+                  <Plus size={14} aria-hidden="true" />
+                </button>
+              )}
+            </div>
+          </div>
           <div className="person-heading-identity">
             <small>Patient</small>
             {p.archivedAt && <Badge>Archived</Badge>}
-            <TextLink aria-haspopup="dialog" onClick={() => setIntakeDetailsOpen(true)}>
-              More info
-            </TextLink>
           </div>
-          <p>
+          <p className="person-heading-details">
             {p.id}
             <span>·</span>
             {p.dob ? `${age(p.dob)} years` : "Date of birth unknown"}
             <span>·</span>
             {p.pronouns}
+            <TextLink aria-haspopup="dialog" onClick={() => setIntakeDetailsOpen(true)}>
+              More info
+            </TextLink>
           </p>
         </div>
         <div className="actions">
@@ -212,6 +245,44 @@ export default function Person({ id, navigate, openModal }) {
           intake={intakeFor(p, e)}
           onClose={() => setIntakeDetailsOpen(false)}
         />
+      )}
+      {tagEditorOpen && (
+        <Modal title="Person tags" subtitle="Add short labels to help identify this record." onClose={() => setTagEditorOpen(false)}>
+          <form onSubmit={(event) => {
+            event.preventDefault();
+            const tag = selectedTag;
+            if (!tag) return setTagError("Choose a tag.");
+            if ((p.tags || []).some((item) => item.toLowerCase() === tag.toLowerCase())) return setTagError("This tag is already on the record.");
+            if ((p.tags || []).length >= 8) return setTagError("A person can have up to eight tags.");
+            const result = commit({ type: "ADD_PERSON_TAG", personId: p.id, tag });
+            if (result.error) return setTagError(result.error);
+            setSelectedTag("");
+            setTagError("");
+          }}>
+            <div className="form-body">
+              <label className={`field${tagError ? " has-error" : ""}`}>
+                <span>Tag</span>
+                <select value={selectedTag} aria-invalid={Boolean(tagError) || undefined} onChange={(event) => { setSelectedTag(event.target.value); setTagError(""); }} autoFocus>
+                  <option value="">Choose a tag</option>
+                  {PERSON_TAG_OPTIONS.filter((tag) => !(p.tags || []).includes(tag)).map((tag) => <option key={tag} value={tag}>{tag}</option>)}
+                </select>
+              </label>
+              {tagError && <p className="field-error" role="alert">{tagError}</p>}
+              <div className="person-tag-editor-list">
+                {(p.tags || []).map((tag) => (
+                  <div className="person-tag-editor-item" key={tag}>
+                    <span className="person-tag">{tag}</span>
+                    <button type="button" className="text-link" aria-label={`Remove ${tag} tag`} onClick={() => {
+                      const result = commit({ type: "REMOVE_PERSON_TAG", personId: p.id, tag });
+                      if (result.error) setTagError(result.error);
+                    }}>Remove</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="modal-footer person-tag-editor-actions"><Button type="button" onClick={() => setTagEditorOpen(false)}>Close</Button><Button type="submit" variant="primary">Add tag</Button></div>
+          </form>
+        </Modal>
       )}
       <div className="episode-bar">
         <div className="episode-context episode-period">

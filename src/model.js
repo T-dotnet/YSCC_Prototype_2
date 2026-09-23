@@ -43,10 +43,19 @@ import {
   appointmentOutcomeContent,
   appointmentOutcomeError,
 } from "./appointments.js";
+
 import { K10_SCORING_METHOD } from "./k10.js";
 import { MEASURE_INSTRUMENTS, sampleMeasureTotal } from "./measureQuestionnaires.js";
 import { QUALITY_STATUSES, getQualityIssues, validISODate } from "./dataQuality.js";
 
+export const PERSON_TAG_OPTIONS = [
+  "Follow-up needed",
+  "Care coordination",
+  "Referral pending",
+  "Contact support",
+  "Interpreter needed",
+  "Review requested",
+];
 export const TODAY = "2026-09-15";
 export const VERSION = DEMO_INSTRUMENT.version;
 export const STORAGE_KEY = "yscc-prototype-v1";
@@ -216,6 +225,27 @@ const seeds = [
     "Not sent",
   ],
 ];
+
+const samplePersonTags = {
+  "YS-1028": { name: "Oliver James", tags: ["Contact support"] },
+  "YS-1031": { name: "River Morgan", tags: ["Contact support"] },
+  "YS-1034": { name: "Jordan Ellis", tags: ["Care coordination", "Follow-up needed"] },
+};
+
+function withSamplePersonTags(state) {
+  const missing = state.people.filter((person) => {
+    const fixture = samplePersonTags[person.id];
+    return fixture && person.name === fixture.name && person.tags === undefined;
+  });
+  if (!missing.length) return state;
+  const next = structuredClone(state);
+  for (const person of next.people) {
+    const fixture = samplePersonTags[person.id];
+    if (fixture && person.name === fixture.name && person.tags === undefined)
+      person.tags = [...fixture.tags];
+  }
+  return next;
+}
 
 export function sampleAppointmentsForSeed(seedIndex) {
   switch (seedIndex) {
@@ -1827,7 +1857,7 @@ export function upgradeSampleData(state) {
     }
   }
   if (state.sampleRevision < 28 || !state.sampleRevision)
-    return improveRiverIntakeSummary(removeJordanSep15UnstartedFollowUp(removeJordanOutlierFollowUp(improveJordanFollowUpLabels(prepareQualityState(prepareSeed(JSON.parse(JSON.stringify(state))))))));
+    return withSamplePersonTags(improveRiverIntakeSummary(removeJordanSep15UnstartedFollowUp(removeJordanOutlierFollowUp(improveJordanFollowUpLabels(prepareQualityState(prepareSeed(JSON.parse(JSON.stringify(state)))))))));
   const jordanFixture = state.people.find(
     (person) => person.id === "YS-1034" && person.fixtureLabel === "Fictional full-report example",
   );
@@ -1843,7 +1873,7 @@ export function upgradeSampleData(state) {
   state = state.qualityRevision === 1
     ? state
     : prepareQualityState(JSON.parse(JSON.stringify(state)));
-  return improveRiverIntakeSummary(removeJordanSep15UnstartedFollowUp(removeJordanOutlierFollowUp(improveJordanFollowUpLabels(state))));
+  return withSamplePersonTags(improveRiverIntakeSummary(removeJordanSep15UnstartedFollowUp(removeJordanOutlierFollowUp(improveJordanFollowUpLabels(state)))));
 }
 
 function addFictionalProgressReport(episode, { eventId, timestamp, content }) {
@@ -2771,7 +2801,7 @@ function prepareIntakes(next) {
 }
 
 export function createSeed() {
-  return prepareQualityState(prepareSeed({
+  return withSamplePersonTags(prepareQualityState(prepareSeed({
     schema: 1,
     terminologyRevision: 1,
     people: [
@@ -2940,7 +2970,7 @@ export function createSeed() {
     ],
     qualityIssueWorkflow: {},
     audit: [],
-  }));
+  })));
 }
 
 export function collectionStatus(c) {
@@ -3078,6 +3108,36 @@ export function reducer(state, action) {
     });
   };
   switch (action.type) {
+    case "ADD_PERSON_TAG":
+    case "REMOVE_PERSON_TAG": {
+      if (!p || !staff || p.archivedAt) return state;
+      const tag = typeof action.tag === "string" ? action.tag.trim() : "";
+      const before = Array.isArray(p.tags) ? p.tags : [];
+      const matching = before.find((item) => item.toLowerCase() === tag.toLowerCase());
+      if (!tag) return state;
+      if (action.type === "ADD_PERSON_TAG") {
+        if (!PERSON_TAG_OPTIONS.includes(tag)) return state;
+        if (matching || before.length >= 8) return state;
+        p.tags = [...before, tag];
+      } else {
+        if (!matching) return state;
+        p.tags = before.filter((item) => item !== matching);
+      }
+      next.audit.unshift({
+        id: uid(),
+        type: "person-tags",
+        timestamp: recordedAt,
+        date: recordedAt.slice(0, 10),
+        personId: p.id,
+        title: action.type === "ADD_PERSON_TAG" ? "Person tag added" : "Person tag removed",
+        detail: matching || tag,
+        actor: staff.name,
+        actorId: staff.id,
+        role: staff.role,
+        changes: [{ key: "tags", label: "Tags", before: before.join(", "), after: p.tags.join(", ") }],
+      });
+      break;
+    }
     case "ARCHIVE_PERSON":
     case "RESTORE_PERSON": {
       if (!p || !staff || !action.reason?.trim() ||
