@@ -189,7 +189,7 @@ function AppointmentSection({
   appointments,
   episode,
   openModal,
-  defaultOpen = false,
+  defaultOpen = true,
 }) {
   if (appointments.length === 0) return null;
   const headingId = `${title.replaceAll(" ", "-").toLocaleLowerCase()}-heading`;
@@ -376,7 +376,6 @@ export default function Appointments({ episode, openModal }) {
             appointments={overdue}
             episode={episode}
             openModal={openModal}
-            defaultOpen
           />
           <AppointmentSection
             title="Upcoming planned contacts"
