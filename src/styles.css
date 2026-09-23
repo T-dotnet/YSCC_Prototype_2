@@ -2972,13 +2972,7 @@ td:last-child {
   line-height: 1.35;
   letter-spacing: 0;
 }
-.person-heading-identity {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 2px;
-}
-.person-heading-identity small {
+.person-heading-role {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.45;

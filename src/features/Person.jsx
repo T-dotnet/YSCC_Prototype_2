@@ -219,16 +219,15 @@ export default function Person({ id, navigate, openModal }) {
               )}
             </div>
           </div>
-          <div className="person-heading-identity">
-            <small>Patient</small>
-            {p.archivedAt && <Badge>Archived</Badge>}
-          </div>
           <p className="person-heading-details">
+            <small className="person-heading-role">Patient</small>
+            <span>·</span>
             {p.id}
             <span>·</span>
             {p.dob ? `${age(p.dob)} years` : "Date of birth unknown"}
             <span>·</span>
             {p.pronouns}
+            {p.archivedAt && <Badge>Archived</Badge>}
             <TextLink aria-haspopup="dialog" onClick={() => setIntakeDetailsOpen(true)}>
               More info
             </TextLink>
