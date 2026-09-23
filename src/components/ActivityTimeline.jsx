@@ -165,6 +165,24 @@ function ContinuousHistory({ entries, episode, person }) {
           ...(entry.scope ? [["Scope", entry.scope]] : []),
           ...(entry.eventDate ? [["Event date", formatDate(entry.eventDate)]] : []),
         ];
+        const showMore = details.length > 4;
+        const keyLabels = appointment
+          ? appointment.attendance === "Attended"
+            ? ["Actual date", "Actual time", "Practitioner or service"]
+            : ["Planned date", "Planned time", "Practitioner or service"]
+          : details.slice(0, 3).map(([label]) => label);
+        const visibleDetails = showMore
+          ? details.filter(([label]) => keyLabels.includes(label))
+          : details;
+        const moreDetails = showMore
+          ? details.filter(([label]) => !keyLabels.includes(label))
+          : [];
+        const toFact = ([label, value]) => ({
+          label,
+          value,
+          wide: ["Details", "Notes", "Outcome notes"].includes(label) ||
+            label.startsWith("Associated assignment"),
+        });
         return (
           <li className="record-timeline-entry" key={entry.id}>
             <TimelineDate timestamp={entryTimestamp} date={entry.date} />
@@ -175,12 +193,23 @@ function ContinuousHistory({ entries, episode, person }) {
               title={entry.title || "Recorded event"}
               subtitle={historyKind(entry)}
               className="record-item-compact"
-              facts={details.map(([label, value]) => ({
-                label,
-                value,
-                wide: ["Details", "Notes", "Outcome notes"].includes(label) ||
-                  label.startsWith("Associated assignment"),
-              }))}
+              facts={visibleDetails.map(toFact)}
+              secondary={moreDetails.length > 0 && (
+                <details className="appointment-more-detail history-more-details">
+                  <summary>
+                    <span className="history-more-closed">Show more · {moreDetails.length} details</span>
+                    <span className="history-more-open">Show less</span>
+                  </summary>
+                  <dl className="record-item-facts">
+                    {moreDetails.map(([label, value]) => (
+                      <div key={label} className={toFact([label, value]).wide ? "record-item-fact-wide" : undefined}>
+                        <dt>{label}</dt>
+                        <dd>{value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </details>
+              )}
             />
           </li>
         );

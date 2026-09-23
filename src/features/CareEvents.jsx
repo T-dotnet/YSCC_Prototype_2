@@ -194,19 +194,19 @@ export default function CareEvents({ episode, openModal, eventId }) {
                       wide: /detail|description|note|reason/i.test(label),
                     })),
                     ...(entry.detail ? [{ label: "Details", value: entry.detail, wide: true }] : []),
+                    {
+                      label: "Recorded by",
+                      value: `${entry.actor || "Staff member"}${entry.role ? ` · ${entry.role}` : ""}`,
+                    },
+                    ...(entry.timestamp
+                      ? [{ label: "Recorded at", value: formatTimestamp(entry.timestamp) }]
+                      : []),
                   ]}
                   secondary={entry.item.correctedEventId && (
                     <p className="care-event-correction">
                       This is an append-only correction of an earlier event.
                     </p>
                   )}
-                  note={
-                    <>
-                      Recorded by {entry.actor || "Staff member"}
-                      {entry.role ? ` · ${entry.role}` : ""}
-                      {entry.timestamp ? ` · ${formatTimestamp(entry.timestamp)}` : ""}
-                    </>
-                  }
                   actions={entry.sourceType === "contextual-event" && (
                     <Button
                       variant="secondary"
