@@ -3135,6 +3135,24 @@ td:last-child {
   color: #16a34a;
   flex-shrink: 0;
 }
+.episode-required-issues {
+  max-width: 260px;
+  color: #a33324;
+  font-size: 12px;
+}
+.episode-required-issues strong {
+  font-weight: 700;
+}
+.episode-required-issues ul {
+  max-height: 160px;
+  overflow: auto;
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: var(--ink);
+}
+.episode-required-issues li + li {
+  margin-top: 6px;
+}
 .person-tabs {
   margin-bottom: var(--space-6);
   gap: var(--space-6);
@@ -3383,6 +3401,8 @@ td:last-child {
   margin: 0 0 8px;
 }
 .overview-assessment-details {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
   padding-left: 32px;
   border-left: 1px solid var(--line);
@@ -3397,6 +3417,10 @@ td:last-child {
 .overview-assessment-details .notice {
   margin-top: 16px;
   font-size: 12px;
+}
+.assessment-preview-action {
+  margin-top: auto;
+  padding-top: 16px;
 }
 @media (max-width: 960px) {
   .topbar-search {

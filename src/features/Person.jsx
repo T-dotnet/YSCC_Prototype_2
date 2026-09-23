@@ -46,7 +46,7 @@ import {
   TODAY,
   PERSON_TAG_OPTIONS,
 } from "../model";
-import { recordCompleteness } from "../dataQuality";
+import { getQualityIssues, recordCompleteness } from "../dataQuality";
 import {
   Button,
   Badge,
@@ -175,6 +175,8 @@ export default function Person({ id, navigate, openModal }) {
     (noClinicalReviewRequired(c) ||
       (c.review === "Reviewed" && !c.needsReview));
   const completeness = recordCompleteness(p, TODAY);
+  const requiredDataIssues = getQualityIssues(state, TODAY).filter((issue) =>
+    issue.personId === p.id && !["Resolved", "Closed"].includes(issue.status));
   const currentLevelPeriod = currentCarePeriod(e);
   const canChangeLevel = e.status === "Active" && currentStaff(state)?.role === "Clinician" &&
     (!currentLevelPeriod || nextDate(currentLevelPeriod.startDate) <= TODAY);
@@ -364,9 +366,9 @@ export default function Person({ id, navigate, openModal }) {
             type="button"
             className="episode-bar-completeness-link"
             onClick={() => navigate("/quality")}
-            aria-label={`Open data quality. ${completeness.requiredPercentage}% of required fields complete.`}
+            aria-label={`Open data quality. ${completeness.requiredPercentage}% of required fields complete. ${requiredDataIssues.length} unresolved data ${requiredDataIssues.length === 1 ? "issue" : "issues"}.`}
           >
-            {completeness.requiredPercentage === 100 && (
+            {completeness.requiredPercentage === 100 && requiredDataIssues.length === 0 && (
               <CheckCircle2
                 size={15}
                 aria-hidden="true"
@@ -375,6 +377,16 @@ export default function Person({ id, navigate, openModal }) {
             )}
             <span>{completeness.requiredPercentage}%</span>
           </button>
+          {requiredDataIssues.length > 0 && (
+            <div className="episode-required-issues">
+              <strong>{requiredDataIssues.length} {requiredDataIssues.length === 1 ? "data issue" : "data issues"}</strong>
+              <ul>
+                {requiredDataIssues.map((issue) => (
+                  <li key={issue.id}>{issue.title || issue.type || "Data issue"}</li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       </div>
       <div className="person-content-surface">
@@ -475,12 +487,6 @@ export default function Person({ id, navigate, openModal }) {
                       >
                         {nextStep.primary.label}
                       </Button>
-                      <TextLink
-                        aria-haspopup="dialog"
-                        onClick={() => modal("questionnaire-preview")}
-                      >
-                        Preview questionnaire
-                      </TextLink>
                     </div>
                   </section>
                   <section
@@ -520,6 +526,14 @@ export default function Person({ id, navigate, openModal }) {
                             : "A submitted response still needs clinical review."}
                       </Notice>
                     )}
+                    <div className="assessment-preview-action">
+                      <TextLink
+                        aria-haspopup="dialog"
+                        onClick={() => modal("questionnaire-preview")}
+                      >
+                        Preview questionnaire
+                      </TextLink>
+                    </div>
                   </section>
                 </div>
               </div>
