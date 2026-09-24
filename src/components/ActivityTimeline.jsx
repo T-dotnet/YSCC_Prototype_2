@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { Fragment, useState, useMemo, useEffect } from "react";
 import {
   ArrowRightLeft,
   Building2,
@@ -186,9 +186,10 @@ export default function ActivityTimeline({ episode, person, audit = [] }) {
 function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordAppointmentOutcome, onCollectAssessmentResponse, canCollectAssessment, selectedEventId, careEventsOnly, showCategories = false }) {
   if (!entries.length)
     return <p className="history-empty">{careEventsOnly ? "No care events or structured records have been recorded." : "No clinical activity has been recorded."}</p>;
+  const firstPastIndex = showCategories ? entries.findIndex((entry) => (historyDate(entry) || "").slice(0, 10) <= TODAY) : -1;
   return (
     <ol className="record-timeline clinical-continuous-timeline" aria-label={careEventsOnly ? "Care events and structured records" : "Continuous clinical history"}>
-      {entries.map((entry) => {
+      {entries.map((entry, index) => {
         const item = historyItem(entry, episode, (value) => personEventText(person, value));
         const category = historyCategory(entry);
         const categoryDisplay = showCategories ? EVENT_CATEGORY_DISPLAY[category] : null;
@@ -228,7 +229,13 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordA
             label.startsWith("Associated assignment"),
         });
         return (
-          <li className="record-timeline-entry" data-category={categoryDisplay ? category : undefined} key={entry.id}>
+          <Fragment key={entry.id}>
+            {index === firstPastIndex && firstPastIndex > 0 && (
+              <li className="care-timeline-divider" aria-label="Past and today's events begin below">
+                <span>Past &amp; today</span><span className="care-timeline-divider-line" aria-hidden="true" />
+              </li>
+            )}
+          <li className="record-timeline-entry" data-category={categoryDisplay ? category : undefined}>
             {categoryDisplay ? (
               <div className="record-timeline-meta">
                 <span className="record-timeline-category">{categoryDisplay.label}</span>
@@ -290,6 +297,7 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordA
               ))}
             />
           </li>
+          </Fragment>
         );
       })}
     </ol>

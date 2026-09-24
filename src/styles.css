@@ -9545,6 +9545,21 @@ form.has-validation-errors .check-field:has(:invalid) {
   border-color: var(--teal);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--teal) 14%, transparent);
 }
+.care-events .record-timeline > .care-timeline-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 5px 0 22px;
+  color: var(--muted-light);
+  font-size: 0.8rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.care-timeline-divider-line {
+  flex: 1;
+  height: 1px;
+  background: #d7e2de;
+}
 @media (max-width: 700px) {
   .record-timeline > .record-timeline-entry {
     grid-template-columns: 30px minmax(0, 1fr);
