@@ -3446,6 +3446,14 @@ td:last-child {
   height: 100%;
   margin-bottom: 0;
 }
+.overview-assessment {
+  display: flex;
+  flex-direction: column;
+}
+.overview-assessment > .panel-body {
+  display: flex;
+  flex: 1;
+}
 .overview-top-row .care-level-current {
   grid-template-columns: 1fr;
   gap: 16px;
@@ -3471,7 +3479,7 @@ td:last-child {
   display: flex;
   flex: 1;
   flex-direction: column;
-  padding: 16px 20px;
+  padding: 16px 20px 19px;
 }
 .care-level-current {
   display: grid;
@@ -3597,8 +3605,17 @@ td:last-child {
 }
 .overview-assessment-layout {
   display: grid;
+  flex: 1;
   grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
   gap: 32px;
+}
+.overview-assessment .next-step {
+  display: flex;
+  flex-direction: column;
+}
+.overview-assessment .next-step .actions {
+  margin-top: auto;
+  padding-top: 16px;
 }
 .overview-assessment .next-step-label {
   color: var(--muted);
