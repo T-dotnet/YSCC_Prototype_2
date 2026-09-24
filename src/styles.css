@@ -9576,9 +9576,9 @@ form.has-validation-errors .check-field:has(:invalid) {
   align-items: center;
   gap: 12px;
   padding: 5px 0 22px;
-  color: var(--muted-light);
+  color: var(--muted);
   font-size: 0.8rem;
-  font-weight: 500;
+  font-weight: 700;
   white-space: nowrap;
 }
 .care-timeline-divider-line {
