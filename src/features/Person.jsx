@@ -6,7 +6,6 @@ import { latestCareEventsByType } from "../careEvents";
 import {
   currentCollection,
   compareCollections,
-  isOutstanding,
   safeReturnTo,
 } from "../workflow";
 import { useSearchParams } from "next/navigation";
@@ -17,7 +16,6 @@ import {
   Plus,
   X,
   ChevronDown,
-  FileText,
   CheckCircle2,
   FileCheck2,
   CalendarClock,
@@ -27,6 +25,7 @@ import RecordTwo from "./RecordTwo";
 import CareEvents from "./CareEvents";
 import Appointments from "./Appointments";
 import RecordItem from "../components/RecordItem";
+import AssessmentCollectionCard from "../components/AssessmentCollectionCard";
 import IntakeDetailsModal from "../components/IntakeDetailsModal";
 import CareLevelSection from "../components/CareLevelSection";
 import ListFilterBar from "../components/ListFilterBar";
@@ -35,13 +34,13 @@ import Timeline, {
   ChangeLog,
   ClinicalHistory,
 } from "../components/ActivityTimeline";
-import { getInstrument } from "../instruments";
+import { assessmentType, assessmentTypeGroups, linkedAssessmentScore } from "../assessmentGroups";
+import { responseDate } from "../progress";
 import {
   age,
   formatDate,
   collectionStatus,
   clinicalReviewStatus,
-  collectionActorIdentity,
   formatTimestamp,
   currentStaff,
   noClinicalReviewRequired,
@@ -96,6 +95,8 @@ export default function Person({ id, navigate, openModal }) {
   const [assessmentFilter, setAssessmentFilter] = useState("all");
   const [assessmentQuery, setAssessmentQuery] = useState("");
   const [assessmentMethod, setAssessmentMethod] = useState("all");
+  const [groupAssessmentsByType, setGroupAssessmentsByType] = useState(true);
+  const [expandedAssessmentTypes, setExpandedAssessmentTypes] = useState([]);
   const [consentFilter, setConsentFilter] = useState("all");
   const [consentQuery, setConsentQuery] = useState("");
   const [consentChannel, setConsentChannel] = useState("all");
@@ -192,6 +193,31 @@ export default function Person({ id, navigate, openModal }) {
     (assessmentMethod === "all" || (col.channel || "Not set up") === assessmentMethod) &&
     `${col.label} ${col.version} ${col.assignment} ${col.response} ${collectionStatus(col)}`
       .toLowerCase().includes(assessmentQuery.trim().toLowerCase()),
+  );
+  const groupedAssessments = assessmentTypeGroups(e, visibleCollections);
+  const renderAssessmentCard = (collection, inTimeline = false) => (
+    <AssessmentCollectionCard
+      key={collection.id}
+      collection={collection}
+      person={p}
+      selectedId={searchParams.get("collection")}
+      inTimeline={inTimeline}
+      onViewDetails={(item) => openModal({
+        type: "collection-details",
+        personId: p.id,
+        episodeId: e.id,
+        collectionId: item.id,
+      })}
+      onReview={openReview}
+      onCollect={(item) => openModal({
+        type: "collection",
+        personId: p.id,
+        episodeId: e.id,
+        collectionId: item.id,
+        channel: item.closureKind ? "SMS link" : "Clinic tablet",
+        collectResponse: true,
+      })}
+    />
   );
   const consentStatuses = [...new Set(consentRequests.map((request) => request.status))];
   const consentItems = ["all", ...consentStatuses].map((value) => ({
@@ -722,6 +748,7 @@ export default function Person({ id, navigate, openModal }) {
             )}
             <ListFilterBar
               id="assessment-status"
+              className="assessment-filter-bar"
               label="Assessment status"
               items={assessmentItems}
               value={assessmentFilter}
@@ -734,6 +761,23 @@ export default function Person({ id, navigate, openModal }) {
               noun="assessments"
               activeAdvancedCount={Number(assessmentMethod !== "all")}
               onClear={() => { setAssessmentFilter("all"); setAssessmentQuery(""); setAssessmentMethod("all"); }}
+              resultAction={
+                <label className="assessment-group-toggle">
+                  <input
+                    type="checkbox"
+                    role="switch"
+                    checked={groupAssessmentsByType}
+                    onChange={(event) => {
+                      const grouped = event.target.checked;
+                      const selected = e.collections.find((item) => item.id === searchParams.get("collection"));
+                      setGroupAssessmentsByType(grouped);
+                      setExpandedAssessmentTypes(grouped && selected ? [assessmentType(selected).key] : []);
+                    }}
+                  />
+                  <span className="assessment-group-toggle-track" aria-hidden="true" />
+                  <span className="assessment-group-toggle-copy">Group by assessment type</span>
+                </label>
+              }
               advanced={
                 <Select label="Collection method" value={assessmentMethod} onChange={(event) => setAssessmentMethod(event.target.value)}>
                   <option value="all">All methods</option>
@@ -743,109 +787,73 @@ export default function Person({ id, navigate, openModal }) {
                 </Select>
               }
             />
-            {visibleCollections.map((col) => {
-              const isPrior =
-                !isOutstanding(col) &&
-                col.id !== searchParams.get("collection");
-              const respondent = collectionActorIdentity(p, col, "respondent");
-              return (
-                <RecordItem
-                  key={col.id}
-                  title={col.label}
-                  subtitle={isPrior ? `${formatDate(col.due)} · ${col.version}` : undefined}
-                  status={collectionStatus(col)}
-                  collapsible={isPrior}
-                  selected={col.id === searchParams.get("collection")}
-                  lead={
-                    <>
-                      <span className="record-item-lead-icon"><FileText size={22} /></span>
-                      <span>
-                        <strong>{col.version}</strong>
-                        <small>
-                          {getInstrument(col.version)?.questions.length || "Version-specific"}{" "}
-                          {getInstrument(col.version)?.measureKey
-                            ? "sample coded items · raw score in Report"
-                            : "sample questions · no clinical score"}
-                        </small>
-                      </span>
-                    </>
-                  }
-                  facts={[
-                    {
-                      label: "Respondent",
-                      value: <PersonIdentity name={respondent.name} descriptor={respondent.role} />,
-                    },
-                    { label: "Due date", value: formatDate(col.due) },
-                    { label: "Collection method", value: col.channel || "Not set up" },
-                  ]}
-                  secondary={
-                    <div className="record-item-statuses">
-                      <span>Assignment <Badge>{col.assignment}</Badge></span>
-                      <span>Response <Badge>{col.response}</Badge></span>
-                      <span>Review <Badge>{clinicalReviewStatus(col)}</Badge></span>
-                    </div>
-                  }
-                  note={
-                    col.readOnly
-                      ? "Historical assessment · view only · version retained"
-                      : col.closureKind && col.attempts.length > 0 &&
-                    col.attempts.every((attempt) => attempt.status === "Prepared (sample; not sent)")
-                      ? "Sample link prepared · no SMS sent · version pinned at assignment"
-                      : <>
-                          {col.attempts.length} delivery{" "}
-                          {col.attempts.length === 1 ? "attempt" : "attempts"} · version pinned at assignment
-                        </>
-                  }
-                  actions={
-                    <>
-                      <TextLink
-                        aria-haspopup="dialog"
-                        onClick={() =>
-                          openModal({
-                            type: "collection-details",
-                            personId: p.id,
-                            episodeId: e.id,
-                            collectionId: col.id,
-                          })
-                        }
-                      >
-                        View details
-                      </TextLink>
-                      {col.response === "Submitted" &&
-                        (!noClinicalReviewRequired(col) ||
-                          collectionStatus(col) === "Completed") && (
-                          <Button variant="secondary" onClick={() => openReview(col)}>
-                            {col.needsReview
-                              ? "Review updated answers"
-                              : col.review === "Reviewed" || collectionStatus(col) === "Completed"
-                                ? "Review recorded"
-                                : "Review responses"}
-                          </Button>
-                        )}
-                      {col.response !== "Submitted" && (
-                        <Button
-                          variant="secondary"
-                          disabled={!col.due}
-                          aria-haspopup="dialog"
-                          onClick={() =>
-                            openModal({
-                              type: "collection",
-                              personId: p.id,
-                              episodeId: e.id,
-                              collectionId: col.id,
-                              channel: col.closureKind ? "SMS link" : "Clinic tablet",
-                              collectResponse: true,
-                            })
-                          }
+            <div className="assessment-list" id="assessment-list">
+              {groupAssessmentsByType
+                ? groupedAssessments.map((group, index) => {
+                    const expanded = expandedAssessmentTypes.includes(group.key);
+                    const historyId = `assessment-type-history-${index}`;
+                    return (
+                      <article className="assessment-type-card" key={group.key}>
+                        <header className="assessment-type-card-heading">
+                          <div>
+                            <span className="assessment-type-kicker">Assessment type</span>
+                            <h3>{group.name}</h3>
+                            <p>{group.collections.length} assessment{group.collections.length === 1 ? "" : "s"} in this episode</p>
+                          </div>
+                          <Badge>{group.lastDone ? collectionStatus(group.lastDone) : "No response yet"}</Badge>
+                        </header>
+                        <div className="assessment-type-card-summary">
+                          <div>
+                            <small>Last submitted</small>
+                            <strong>{group.lastDone ? formatDate(responseDate(group.lastDone)) : "No dated response"}</strong>
+                            <span>{group.lastDone?.label || "No submitted response with a recorded date"}</span>
+                          </div>
+                          <div>
+                            <small>Raw score</small>
+                            <strong>
+                              {group.score !== null
+                                ? `${group.score}${group.scoreRange ? ` / ${group.scoreRange[1]}` : ""}`
+                                : group.measureKey
+                                  ? group.lastDone ? "Unavailable" : "Awaiting response"
+                                  : "Not scored"}
+                            </strong>
+                            <span>{group.measureKey ? "Linked sample measure result" : "This questionnaire has no clinical score"}</span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          className="assessment-type-history-toggle"
+                          aria-expanded={expanded}
+                          aria-controls={historyId}
+                          onClick={() => setExpandedAssessmentTypes((current) =>
+                            expanded ? current.filter((key) => key !== group.key) : [...current, group.key])}
                         >
-                          Collect response
-                        </Button>
-                      )}
-                    </>
-                  }
-                />
-              );
-            })}
+                          <span>{expanded ? "Hide full timeline" : "Show full timeline"} · {group.collections.length} assessment{group.collections.length === 1 ? "" : "s"}</span>
+                          <ChevronDown size={18} aria-hidden="true" />
+                        </button>
+                        <div id={historyId} className="assessment-type-history" hidden={!expanded}>
+                          <p>All assessments of this type in care episode {e.number}, including records outside the current filters.</p>
+                          <ol className="assessment-type-timeline">
+                            {group.collections.map((col) => {
+                              const date = responseDate(col) || col.due;
+                              const score = linkedAssessmentScore(e, col);
+                              return (
+                                <li key={col.id}>
+                                  <div className="assessment-type-timeline-meta">
+                                    <span>{col.response === "Submitted" ? "Submitted" : "Due"} {formatDate(date)}</span>
+                                    {score && <span>Raw score {score.value}{score.range ? ` / ${score.range[1]}` : ""}</span>}
+                                  </div>
+                                  {renderAssessmentCard(col, true)}
+                                </li>
+                              );
+                            })}
+                          </ol>
+                        </div>
+                      </article>
+                    );
+                  })
+                : visibleCollections.map((col) => renderAssessmentCard(col))}
+            </div>
             {!visibleCollections.length && <Empty title="No assessments match these filters">Try another search or filter.</Empty>}
             <Notice>
               Sample instrument and collection rules. Clinical content,

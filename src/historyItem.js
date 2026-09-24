@@ -51,8 +51,10 @@ const linkedAppointmentIds = (collection) => new Set([
 export function associatedCareItems(entry, episode) {
   if (entry.type === "appointment") {
     const appointmentId = entry.id?.replace(/^appointment-/, "");
+    const appointment = episode.appointments?.find((item) => item.id === appointmentId);
     return (episode.collections || [])
-      .filter((collection) => linkedAppointmentIds(collection).has(appointmentId))
+      .filter((collection) => appointment && linkedAppointmentIds(collection).has(appointmentId) &&
+        appointmentMatchesCollectionDate(appointment, collection))
       .map((collection) => ({
         id: collection.id,
         type: "Assessment",
@@ -68,7 +70,8 @@ export function associatedCareItems(entry, episode) {
     if (!collection) return [];
     const appointmentIds = linkedAppointmentIds(collection);
     return (episode.appointments || [])
-      .filter((appointment) => appointmentIds.has(appointment.id))
+      .filter((appointment) => appointmentIds.has(appointment.id) &&
+        appointmentMatchesCollectionDate(appointment, collection))
       .map((appointment) => ({
         id: appointment.id,
         type: "Appointment",

@@ -356,7 +356,8 @@ function withSampleCareLevels(state) {
   return next;
 }
 
-const withSampleFixtures = (state) => withSampleCareLevels(withSamplePersonTags(state));
+const withSampleFixtures = (state) =>
+  repairJordanAssessmentAppointments(withSampleCareLevels(withSamplePersonTags(state)));
 
 export function sampleAppointmentsForSeed(seedIndex) {
   switch (seedIndex) {
@@ -1640,6 +1641,50 @@ function createMockFullReportPerson() {
     },
   ];
   return person;
+}
+
+function repairJordanAssessmentAppointments(state) {
+  if (state.jordanAssessmentAppointmentRevision === 1) return state;
+  const jordan = state.people.find((person) =>
+    person.id === "YS-1034" && person.fixtureLabel === "Fictional full-report example",
+  );
+  const episode = jordan?.episodes.find((item) => item.id === "EP-1034-01");
+  if (!episode) return state;
+  const next = structuredClone(state);
+  const updated = next.people.find((person) => person.id === jordan.id)
+    .episodes.find((item) => item.id === episode.id);
+  const fixtureAppointments = createMockFullReportPerson().episodes[0].appointments;
+  updated.appointments ??= [];
+  for (const collection of updated.collections ?? []) {
+    const match = /^A-7-(?:life-care|everyday-life)-(starting-point|four-weeks|eight-weeks|twelve-weeks)$/.exec(collection.id);
+    if (!match) continue;
+    if (collection.channel === "SMS link") {
+      collection.appointmentId = null;
+      collection.submittedAppointmentId = null;
+      for (const attempt of collection.attempts ?? []) {
+        if (attempt.channel === "SMS link") delete attempt.appointmentId;
+      }
+      continue;
+    }
+    if (!["Clinic tablet", "Clinician entry"].includes(collection.channel)) continue;
+    const expectedId = samplePointAppointmentId(collection.id, match[1]);
+    const fixtureAppointment = fixtureAppointments.find((item) => item.id === expectedId);
+    if (fixtureAppointment && appointmentMatchesCollectionDate(fixtureAppointment, collection) &&
+        !updated.appointments.some((item) => item.id === expectedId))
+      updated.appointments.push(structuredClone(fixtureAppointment));
+    const appointment = updated.appointments.find((item) =>
+      item.id === expectedId && item.attendance === "Attended" &&
+      appointmentMatchesCollectionDate(item, collection));
+    if (!appointment) continue;
+    collection.appointmentId = appointment.id;
+    if (collection.response === "Submitted") collection.submittedAppointmentId = appointment.id;
+    for (const attempt of collection.attempts ?? []) {
+      if (["Clinic tablet", "Clinician entry"].includes(attempt.channel))
+        attempt.appointmentId = appointment.id;
+    }
+  }
+  next.jordanAssessmentAppointmentRevision = 1;
+  return next;
 }
 
 function createMockIntakePerson() {

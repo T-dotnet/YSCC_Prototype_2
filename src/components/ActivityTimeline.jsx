@@ -210,6 +210,17 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordA
         const moreFacts = showCategories && appointment
           ? item.more.filter(({ label }) => !label.startsWith("Associated assignment"))
           : item.more;
+        const associatedList = associatedItems.length > 0 && (
+          <ul className="history-associated-list">
+            {associatedItems.map((associated) => (
+              <li key={`${associated.type}-${associated.id}`}>
+                <span className="history-associated-type">{associated.type}</span>
+                <strong>{associated.title}</strong>
+                <small>{[associated.subtitle, associated.date && `${associated.dateLabel} ${formatDate(associated.date)}`].filter(Boolean).join(" · ")}</small>
+              </li>
+            ))}
+          </ul>
+        );
         const datedAction = showCategories && episode.status === "Active"
           ? appointment?.attendance === "Planned" && onRecordAppointmentOutcome
             ? <Button variant="secondary" aria-haspopup="dialog" onClick={() => onRecordAppointmentOutcome(appointment.id)}>Record outcome</Button>
@@ -260,18 +271,17 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordA
               secondary={(associatedItems.length > 0 || moreFacts.length > 0) && (
                 <>
                   {associatedItems.length > 0 && (
-                    <details className="appointment-more-detail history-associated-details">
-                      <summary>Associated items · {associatedItems.length}</summary>
-                      <ul className="history-associated-list">
-                        {associatedItems.map((associated) => (
-                          <li key={`${associated.type}-${associated.id}`}>
-                            <span className="history-associated-type">{associated.type}</span>
-                            <strong>{associated.title}</strong>
-                            <small>{[associated.subtitle, associated.date && `${associated.dateLabel} ${formatDate(associated.date)}`].filter(Boolean).join(" · ")}</small>
-                          </li>
-                        ))}
-                      </ul>
-                    </details>
+                    appointment ? (
+                      <details className="appointment-more-detail history-associated-details">
+                        <summary>Linked {associatedItems.length === 1 ? "assessment" : "assessments"} · {associatedItems.length}</summary>
+                        {associatedList}
+                      </details>
+                    ) : (
+                      <details className="appointment-more-detail history-associated-details">
+                        <summary>Associated items · {associatedItems.length}</summary>
+                        {associatedList}
+                      </details>
+                    )
                   )}
                   {moreFacts.length > 0 && (
                     <details className="appointment-more-detail history-more-details">

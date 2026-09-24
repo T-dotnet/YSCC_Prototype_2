@@ -18,6 +18,7 @@ export default function ListFilterBar({
   advanced,
   activeAdvancedCount = 0,
   onClear,
+  resultAction,
   className = "",
 }) {
   const [open, setOpen] = useState(false);
@@ -57,6 +58,7 @@ export default function ListFilterBar({
         {shown !== total && onClear && (
           <button type="button" className="filter-count-clear" onClick={onClear}>Clear filters</button>
         )}
+        {resultAction && <span className="filter-result-action">{resultAction}</span>}
       </p>
     </div>
   );

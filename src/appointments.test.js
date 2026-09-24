@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { activityEntries, careEventEntries, changeLogEntries } from "./activity.js";
-import { appointmentDetails } from "./appointments.js";
-import { historyItem } from "./historyItem.js";
+import { appointmentDetails, appointmentMatchesCollectionDate } from "./appointments.js";
+import { associatedCareItems, historyItem } from "./historyItem.js";
 import { DEMO_INSTRUMENT, INITIAL_ASSESSMENT_INSTRUMENT } from "./instruments.js";
 import {
   createSeed,
@@ -388,6 +388,74 @@ test("Jordan's fictional events follow the recorded medication and service perio
   assert.match(adverse.detail, /causation was not established/);
   assert.equal(phone.clinicalSummary.riskIndicator, "No risk assessment recorded in this contact");
   assert.match(phone.outcomeNotes, /23 Sep review/);
+});
+
+test("Jordan's non-SMS sample assessments have attended, same-date appointments in Care events", () => {
+  const jordan = createSeed().people.find((person) => person.id === "YS-1034");
+  const episode = jordan.episodes[0];
+  const entries = careEventEntries(jordan, episode);
+  for (const collection of episode.collections) {
+    const assessment = entries.find((entry) => entry.id === `assessment-${collection.id}`);
+    const linked = associatedCareItems(assessment, episode);
+    if (collection.channel === "SMS link") {
+      assert.deepEqual(linked, [], `${collection.id} is an independent SMS assessment`);
+      continue;
+    }
+    assert.equal(linked.length, 1, `${collection.id} needs one appointment`);
+    const appointment = episode.appointments.find((item) => item.id === linked[0].id);
+    assert.equal(appointment.attendance, "Attended");
+    assert.ok(appointmentMatchesCollectionDate(appointment, collection));
+    assert.equal(collection.appointmentId, appointment.id);
+    assert.equal(collection.submittedAppointmentId, appointment.id);
+    assert.equal(collection.attempts[0].appointmentId, appointment.id);
+  }
+  const review = entries.find((entry) => entry.id === "appointment-APT-7-twelve-weeks");
+  assert.deepEqual(associatedCareItems(review, episode).map((item) => item.title),
+    ["Life and care check-in · 12 weeks"]);
+  assert.ok(entries.some((entry) => entry.id === "E-7-housing"));
+  assert.deepEqual(associatedCareItems(entries.find((entry) => entry.id === "E-7-housing"), episode), []);
+});
+
+test("saved Jordan sample links are repaired without changing custom assessments", () => {
+  const saved = createSeed();
+  delete saved.jordanAssessmentAppointmentRevision;
+  const episode = saved.people.find((person) => person.id === "YS-1034").episodes[0];
+  const clinic = episode.collections.find((item) => item.id === "A-7-life-care-eight-weeks");
+  clinic.appointmentId = null;
+  clinic.submittedAppointmentId = null;
+  delete clinic.attempts[0].appointmentId;
+  episode.appointments = episode.appointments.filter((item) => item.id !== "APT-7-eight-weeks");
+  const sms = episode.collections.find((item) => item.id === "A-7-everyday-life-four-weeks");
+  sms.appointmentId = "APT-7-four-weeks";
+  sms.submittedAppointmentId = "APT-7-four-weeks";
+  sms.attempts[0].appointmentId = "APT-7-four-weeks";
+  episode.collections.push({
+    id: "A-custom", label: "Custom assessment", due: "2026-08-11",
+    channel: "Clinic tablet", appointmentId: null, attempts: [],
+  });
+
+  const upgraded = upgradeSampleData(saved);
+  const repaired = upgraded.people.find((person) => person.id === "YS-1034").episodes[0];
+  assert.equal(repaired.collections.find((item) => item.id === clinic.id).appointmentId, "APT-7-eight-weeks");
+  assert.equal(repaired.collections.find((item) => item.id === clinic.id).attempts[0].appointmentId, "APT-7-eight-weeks");
+  assert.equal(repaired.appointments.filter((item) => item.id === "APT-7-eight-weeks").length, 1);
+  assert.equal(repaired.collections.find((item) => item.id === sms.id).appointmentId, null);
+  assert.equal(repaired.collections.find((item) => item.id === sms.id).attempts[0].appointmentId, undefined);
+  assert.equal(repaired.collections.find((item) => item.id === "A-custom").appointmentId, null);
+  assert.equal(clinic.appointmentId, null);
+  assert.equal(upgradeSampleData(upgraded), upgraded);
+});
+
+test("Care events hide an association whose dates no longer match", () => {
+  const jordan = createSeed().people.find((person) => person.id === "YS-1034");
+  const episode = jordan.episodes[0];
+  const collection = episode.collections.find((item) => item.id === "A-7-life-care-eight-weeks");
+  collection.due = "2026-09-20";
+  collection.submittedAt = "2026-09-20";
+  const entries = careEventEntries(jordan, episode);
+  assert.deepEqual(associatedCareItems(entries.find((item) => item.id === `assessment-${collection.id}`), episode), []);
+  assert.ok(!associatedCareItems(entries.find((item) => item.id === "appointment-APT-7-eight-weeks"), episode)
+    .some((item) => item.id === collection.id));
 });
 
 test("delivery attempts in seeded data are linked to appointments with valid status", () => {
