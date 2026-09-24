@@ -53,8 +53,8 @@ export function carePeriodError(episode, action, staff, today, clinicians) {
   }
   if (action.type !== "CHANGE_CARE_LEVEL" || !current)
     return "Record the starting care level before changing it.";
-  if (action.programStream && action.programStream !== episode.programStream)
-    return "A level change must stay in this episode's program stream.";
+  if (!PROGRAM_STREAMS.includes(action.programStream))
+    return "Choose a program stream for the new care episode.";
   const periods = episode.carePeriods;
   if (periods.at(-1) !== current ||
       periods.filter((period) => !period.endDateExclusive).length !== 1 ||
@@ -64,12 +64,16 @@ export function carePeriodError(episode, action, staff, today, clinicians) {
       action.effectiveDate <= current.startDate || action.effectiveDate > today ||
       (episode.end && action.effectiveDate > episode.end))
     return "Choose a date after the current level began and within this episode.";
-  if (action.careLevel === current.careLevel)
-    return "Choose a different care level.";
+  if (action.careLevel === current.careLevel && action.programStream === episode.programStream)
+    return "Change the program stream, care level, or both.";
   if (!validDate(action.assessmentDue) || action.assessmentDue < today)
     return "Choose an initial assessment due date for the new episode.";
   if (!CARE_LEVEL_REASONS.includes(action.entryReason))
     return "Choose a reason for the level change.";
+  if (!action.closureReason?.trim())
+    return "Record the closure reason for this care episode.";
+  if (!["Transferred or handed over", "Care ended early", "Other or not yet classified"].includes(action.closureCategory))
+    return "Choose a closure category.";
   if (!clinicians.some((clinician) => clinician.id === action.authorisingPractitionerId))
     return "Choose the authorising clinician.";
   if (action.triggeringReviewId &&

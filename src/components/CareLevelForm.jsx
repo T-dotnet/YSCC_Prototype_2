@@ -9,7 +9,7 @@ export default function CareLevelForm({ episode, clinicians, error, onClose, onS
   const reviewedCollections = (episode.collections || []).filter((item) => item.review === "Reviewed");
   return (
     <Modal
-      title={initial ? "Record program stream and starting level" : "Change care level"}
+      title={initial ? "Record program stream and starting level" : "Edit stream & care level"}
       subtitle={`Care episode ${episode.number} · ${formatDate(episode.start)}–${episode.end ? formatDate(episode.end) : "present"}`}
       onClose={onClose}
     >
@@ -23,11 +23,11 @@ export default function CareLevelForm({ episode, clinicians, error, onClose, onS
         <div className="form-body care-level-form">
           <Notice>{initial
             ? "Record the program stream and starting level for this episode."
-            : "The level change starts a new care episode and plans its initial assessment. Earlier records remain in the current episode."}</Notice>
+            : "Changing the program stream or care level closes this episode, assigns its closure assessment and care experience feedback, and starts a new episode with an initial assessment."}</Notice>
           {initial ? (
             <p>Confirm the level in effect from the episode start, {formatDate(episode.start)}. No earlier level will be inferred.</p>
           ) : (
-            <p>Current level: <strong>{current.careLevel}</strong> since {formatDate(current.startDate)}. The change closes this care episode and starts a new numbered episode on the effective date. Existing assessments and contacts stay with this episode.</p>
+            <p>Current stream: <strong>{episode.programStream || "Not recorded"}</strong>. Current level: <strong>{current.careLevel}</strong> since {formatDate(current.startDate)}. The current episode closes on the day before the effective date. Its existing records and closure assessment stay linked to it.</p>
           )}
           <div className="form-grid">
             {initial && !episode.programStream && (
@@ -38,7 +38,14 @@ export default function CareLevelForm({ episode, clinicians, error, onClose, onS
                 </select>
               </Field>
             )}
-            {episode.programStream && <p>Program stream: <strong>{episode.programStream}</strong></p>}
+            {!initial && (
+              <Field label="New program stream">
+                <select name="programStream" defaultValue={episode.programStream || ""} required>
+                  <option value="" disabled>Choose stream</option>
+                  {PROGRAM_STREAMS.map((stream) => <option key={stream} value={stream}>{stream}</option>)}
+                </select>
+              </Field>
+            )}
             {!initial && (
               <Field label="Effective date">
                 <input name="effectiveDate" type="date" min={nextDate(current.startDate)} max={TODAY} defaultValue={TODAY} required />
@@ -60,6 +67,17 @@ export default function CareLevelForm({ episode, clinicians, error, onClose, onS
                     <option value="">Choose reason</option>
                     {CARE_LEVEL_REASONS.map((reason) => <option key={reason}>{reason}</option>)}
                   </select>
+                </Field>
+                <Field label="Closure category">
+                  <select name="closureCategory" defaultValue="" required>
+                    <option value="" disabled>Choose a category</option>
+                    <option>Transferred or handed over</option>
+                    <option>Care ended early</option>
+                    <option>Other or not yet classified</option>
+                  </select>
+                </Field>
+                <Field label="Closure reason and summary">
+                  <textarea name="closureReason" rows={3} required placeholder="Record why this episode is ending and what changed." />
                 </Field>
                 <Field label="Authorising clinician">
                   <select name="authorisingPractitionerId" defaultValue="" required>

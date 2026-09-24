@@ -3567,7 +3567,7 @@ export function reducer(state, action) {
         startDate: action.effectiveDate,
         endDateExclusive: null,
         careLevel: action.careLevel,
-        programStream: e.programStream,
+        programStream: action.programStream,
         deliveringUnit: action.deliveringUnit.trim(),
         previousCareLevel: previous.careLevel,
         entryReason: action.entryReason,
@@ -3579,16 +3579,36 @@ export function reducer(state, action) {
       };
       e.status = "Closed";
       e.end = previousDate(action.effectiveDate);
-      e.reason = `Care level changed from ${previous.careLevel} to ${action.careLevel}.`;
+      e.closureCategory = action.closureCategory;
+      e.reason = action.closureReason.trim();
+      e.handoverStatus = "Not applicable";
+      e.finalMeasureStatus = "Outstanding";
       e.nextEpisodeId = newEpisodeId;
       e.nextCareStep = `Continued in care episode ${newEpisodeNumber} at ${action.careLevel} level.`;
-      event("Care episode ended for level change", `${previous.careLevel} to ${action.careLevel} · ${action.entryReason} · next episode ${newEpisodeNumber} starts ${action.effectiveDate}`, {
+      e.collections.forEach((collection) => {
+        if (collection.response !== "Submitted") {
+          collection.assignment = "Cancelled";
+          collection.link = "Revoked";
+        }
+      });
+      const closureAssignments = closureCollections(p, e);
+      e.collections.push(...closureAssignments);
+      for (const assignment of closureAssignments) {
+        event(
+          "Closure questionnaire assigned",
+          `${assignment.label} · ${p.name} · due ${formatDate(assignment.due)} · ${assignment.link === "Active" ? "sample link prepared, not sent" : "contact settings need review before link preparation"}`,
+          { collectionId: assignment.id },
+        );
+      }
+      event("Care episode closed for stream or level change", `${e.programStream} stream · ${previous.careLevel} to ${action.careLevel} · closure assessment and care experience feedback assigned · next episode ${newEpisodeNumber} starts ${action.effectiveDate}`, {
         actionType: "END_CARE_EPISODE_FOR_LEVEL_CHANGE",
         date: action.effectiveDate,
         effectiveDate: action.effectiveDate,
         carePeriodId: previous.id,
         fromCareLevel: previous.careLevel,
         toCareLevel: action.careLevel,
+        fromProgramStream: e.programStream,
+        toProgramStream: action.programStream,
         entryReason: action.entryReason,
         nextEpisodeId: newEpisodeId,
         nextEpisodeNumber: newEpisodeNumber,
@@ -3599,7 +3619,7 @@ export function reducer(state, action) {
         number: newEpisodeNumber,
         status: "Active",
         start: action.effectiveDate,
-        programStream: e.programStream,
+        programStream: action.programStream,
         disposition: "Continued care",
         owner: e.owner || p.owner,
         intakeId: linkedIntake?.id || null,
@@ -3628,7 +3648,7 @@ export function reducer(state, action) {
           effectiveDate: action.effectiveDate,
           timestamp: recordedAt,
           title: "Care episode started after level change",
-          detail: `${e.programStream} stream · ${action.careLevel} level · initial assessment due ${action.assessmentDue}`,
+          detail: `${action.programStream} stream · ${action.careLevel} level · initial assessment due ${action.assessmentDue}`,
           actionType: "CHANGE_CARE_LEVEL",
           personId: p.id,
           episodeId: newEpisodeId,

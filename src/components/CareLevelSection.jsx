@@ -11,11 +11,6 @@ export default function CareLevelSection({ episode, canEdit, openModal }) {
     <Panel
       title="Program stream & care level"
       className="care-level-panel"
-      action={canEdit && (
-        <Button variant="secondary" onClick={() => openModal({ type: "care-level", episodeId: episode.id })}>
-          {active ? "Change level" : "Record starting level"}
-        </Button>
-      )}
     >
       <div className="panel-body">
         <div className="care-level-current">
@@ -49,6 +44,13 @@ export default function CareLevelSection({ episode, canEdit, openModal }) {
               })}
             </ol>
           </details>
+        )}
+        {canEdit && (
+          <div className="care-level-edit-action">
+            <Button variant="secondary" onClick={() => openModal({ type: "care-level", episodeId: episode.id })}>
+              {active ? "Edit stream & care level" : "Record starting level"}
+            </Button>
+          </div>
         )}
       </div>
     </Panel>

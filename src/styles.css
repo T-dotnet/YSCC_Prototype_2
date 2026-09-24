@@ -3431,6 +3431,8 @@ td:last-child {
 }
 .care-level-panel {
   margin-bottom: 18px;
+  display: flex;
+  flex-direction: column;
 }
 .overview-top-row {
   display: grid;
@@ -3466,6 +3468,9 @@ td:last-child {
   font-size: var(--text-title);
 }
 .care-level-panel .panel-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
   padding: 16px 20px;
 }
 .care-level-current {
@@ -3517,6 +3522,10 @@ td:last-child {
   cursor: pointer;
   font-size: 13px;
   font-weight: 700;
+}
+.care-level-edit-action {
+  margin-top: auto;
+  padding-top: 16px;
 }
 .care-level-history ol {
   display: grid;

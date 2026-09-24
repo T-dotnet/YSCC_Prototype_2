@@ -246,6 +246,7 @@ export default function Person({ id, navigate, openModal }) {
   const currentLevelPeriod = currentCarePeriod(e);
   const canChangeLevel = e.status === "Active" && currentStaff(state)?.role === "Clinician" &&
     (!currentLevelPeriod || nextDate(currentLevelPeriod.startDate) <= TODAY);
+  const canEditCareProfile = e.status === "Active" && currentStaff(state)?.role === "Clinician";
   return (
     <>
       <button className="back-link" onClick={() => navigate(returnTo)}>
@@ -615,8 +616,8 @@ export default function Person({ id, navigate, openModal }) {
             </Panel>
             <CareLevelSection
               episode={e}
-              canEdit={canChangeLevel}
-              openModal={() => modal("care-level")}
+              canEdit={canEditCareProfile}
+              openModal={(request) => modal(request.type)}
             />
             </div>
             <div className="person-grid">
