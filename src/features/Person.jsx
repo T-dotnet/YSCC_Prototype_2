@@ -438,9 +438,9 @@ export default function Person({ id, navigate, openModal }) {
                 type="button"
                 className="episode-care-level-change"
                 onClick={() => modal("care-level")}
-                aria-label={currentLevelPeriod ? "Change care level" : "Record starting care level"}
+                aria-label={currentLevelPeriod ? "Edit stream and care level" : "Record starting care level"}
               >
-                {currentLevelPeriod ? "Change" : "Record"}
+                {currentLevelPeriod ? "Edit stream & care level" : "Record"}
               </button>
             )}
           </div>
