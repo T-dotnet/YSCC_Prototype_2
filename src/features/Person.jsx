@@ -594,13 +594,11 @@ export default function Person({ id, navigate, openModal }) {
                         <dd>{c.version}</dd>
                       </div>
                     </dl>
-                    {c.response === "Submitted" && (
+                    {c.response === "Submitted" && (!reviewed || noClinicalReviewRequired(c)) && (
                       <Notice>
                         {noClinicalReviewRequired(c)
                           ? "The response is complete; no separate clinical review is required."
-                          : reviewed
-                            ? "The response and its clinical review are retained separately."
-                            : "A submitted response still needs clinical review."}
+                          : "A submitted response still needs clinical review."}
                       </Notice>
                     )}
                     <div className="assessment-preview-action">
