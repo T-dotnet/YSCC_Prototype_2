@@ -9537,6 +9537,15 @@ form.has-validation-errors .check-field:has(:invalid) {
   font-size: 19px;
   line-height: 1.3;
 }
+.assessment-type-card-summary .assessment-score-change {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 700;
+}
+.assessment-score-change.up { color: #267347; }
+.assessment-score-change.down { color: #b63e2b; }
+.assessment-score-change.same { color: var(--muted); }
 .assessment-type-history-toggle {
   display: flex;
   align-items: center;

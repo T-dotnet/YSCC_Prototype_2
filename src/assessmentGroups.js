@@ -48,6 +48,14 @@ export function assessmentTypeGroups(episode, visibleCollections) {
         b.id.localeCompare(a.id),
       )[0] || null;
     const linkedScore = lastDone ? linkedAssessmentScore(episode, lastDone) : null;
+    const previousScore = linkedScore
+      ? collections
+        .filter((collection) =>
+          collection.id !== lastDone.id && collection.response === "Submitted" &&
+          responseDate(collection) && responseDate(collection) < responseDate(lastDone))
+        .map((collection) => linkedAssessmentScore(episode, collection))
+        .find(Boolean)
+      : null;
 
     return {
       ...group,
@@ -56,6 +64,7 @@ export function assessmentTypeGroups(episode, visibleCollections) {
       lastDone,
       score: linkedScore?.value ?? null,
       scoreRange: linkedScore?.range || null,
+      scoreChange: previousScore ? linkedScore.value - previousScore.value : null,
     };
   });
 }

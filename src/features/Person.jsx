@@ -13,6 +13,8 @@ import { useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
+  ArrowUp,
+  ArrowDown,
   Plus,
   X,
   ChevronDown,
@@ -817,7 +819,18 @@ export default function Person({ id, navigate, openModal }) {
                                   ? group.lastDone ? "Unavailable" : "Awaiting response"
                                   : "Not scored"}
                             </strong>
-                            <span>{group.measureKey ? "Linked sample measure result" : "This questionnaire has no clinical score"}</span>
+                            {group.scoreChange !== null ? (
+                              <span
+                                className={`assessment-score-change ${group.scoreChange > 0 ? "up" : group.scoreChange < 0 ? "down" : "same"}`}
+                                title="Numerical score change only; no clinical interpretation"
+                              >
+                                {group.scoreChange > 0 ? <ArrowUp size={15} aria-hidden="true" />
+                                  : group.scoreChange < 0 ? <ArrowDown size={15} aria-hidden="true" /> : null}
+                                {group.scoreChange > 0 ? `+${group.scoreChange}` : group.scoreChange} vs previous raw score
+                              </span>
+                            ) : (
+                              <span>{group.measureKey ? "Linked sample measure result" : "This questionnaire has no clinical score"}</span>
+                            )}
                           </div>
                         </div>
                         <button
