@@ -2240,6 +2240,10 @@ small {
 .worklist-main-panel {
   container: worklist-panel / inline-size;
 }
+.worklist-main-panel .desktop-worklist,
+.people-panel .people-table-scroll {
+  padding-inline: var(--panel-padding);
+}
 .alerts-intro {
   margin: 0;
   padding: 0 var(--panel-padding) var(--space-3);
@@ -3898,6 +3902,9 @@ td:last-child {
 .clinical-history,
 .change-log {
   min-width: 0;
+}
+.global-change-log-panel .global-change-log {
+  padding: var(--space-4) var(--panel-padding) var(--panel-padding);
 }
 .clinical-history > .care-timeline-filters,
 .change-log > .care-timeline-filters {
