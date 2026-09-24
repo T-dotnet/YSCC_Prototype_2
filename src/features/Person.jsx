@@ -817,6 +817,10 @@ export default function Person({ id, navigate, openModal }) {
                     const expanded = expandedAssessmentTypes === null || expandedAssessmentTypes.includes(group.key);
                     const historyId = `assessment-type-history-${index}`;
                     const submittedDate = responseDate(group.lastDone);
+                    const nextDue = group.collections
+                      .filter((col) => col.due >= TODAY && col.response !== "Submitted" &&
+                        !["Paused", "Cancelled"].includes(col.assignment))
+                      .sort((a, b) => a.due.localeCompare(b.due) || a.id.localeCompare(b.id))[0];
                     return (
                       <article className="assessment-type-card" key={group.key}>
                         <header className="assessment-type-card-heading">
@@ -855,6 +859,12 @@ export default function Person({ id, navigate, openModal }) {
                               <span>{group.measureKey ? "Linked sample measure result" : "This questionnaire has no clinical score"}</span>
                             )}
                           </div>
+                          {nextDue && (
+                            <p className="assessment-type-next-due">
+                              <CalendarClock size={16} aria-hidden="true" />
+                              <span>Next due: <time dateTime={nextDue.due}>{formatDate(nextDue.due)}</time> · {nextDue.label}</span>
+                            </p>
+                          )}
                         </div>
                         <button
                           type="button"

@@ -9575,6 +9575,26 @@ form.has-validation-errors .check-field:has(:invalid) {
   font-size: 19px;
   line-height: 1.3;
 }
+.assessment-type-next-due {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  grid-column: 1 / -1;
+  margin: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.assessment-type-next-due svg {
+  flex: 0 0 auto;
+  color: var(--teal);
+}
+.assessment-type-next-due time {
+  color: var(--ink);
+  font-weight: 700;
+}
 .assessment-type-card-summary .assessment-score-change {
   display: inline-flex;
   align-items: center;
