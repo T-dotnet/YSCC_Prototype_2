@@ -14,22 +14,30 @@ import { Badge, Button, PersonIdentity, TextLink } from "./UI";
 export default function AssessmentCollectionCard({
   collection: col,
   person,
+  score,
   selectedId,
   onViewDetails,
   onReview,
   onCollect,
   inTimeline = false,
+  initiallyExpanded = inTimeline,
+  headingLevel = inTimeline ? 4 : 3,
 }) {
   const isPrior = !isOutstanding(col) && col.id !== selectedId;
   const respondent = collectionActorIdentity(person, col, "respondent");
+  const instrument = getInstrument(col.version);
+  const scoreLabel = score
+    ? `Raw score: ${score.value}${score.range ? ` / ${score.range[1]}` : ""}`
+    : col.response === "Submitted" ? "Raw score unavailable" : "Raw score awaiting response";
   return (
     <RecordItem
       title={col.label}
       subtitle={inTimeline || isPrior ? `${formatDate(col.due)} · ${col.version}` : undefined}
       status={collectionStatus(col)}
-      collapsible={!inTimeline && isPrior}
+      collapsible={inTimeline || isPrior}
+      initiallyExpanded={initiallyExpanded}
       selected={col.id === selectedId}
-      headingLevel={inTimeline ? 4 : 3}
+      headingLevel={headingLevel}
       className={inTimeline ? "record-item-compact assessment-timeline-item" : ""}
       lead={
         <>
@@ -37,9 +45,9 @@ export default function AssessmentCollectionCard({
           <span>
             <strong>{col.version}</strong>
             <small>
-              {getInstrument(col.version)?.questions.length || "Version-specific"}{" "}
-              {getInstrument(col.version)?.measureKey
-                ? "sample coded items · raw score in Report"
+              {instrument?.questions.length || "Version-specific"}{" "}
+              {instrument?.measureKey
+                ? `sample coded items · ${scoreLabel}`
                 : "sample questions · no clinical score"}
             </small>
           </span>

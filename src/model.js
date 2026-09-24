@@ -357,7 +357,9 @@ function withSampleCareLevels(state) {
 }
 
 const withSampleFixtures = (state) =>
-  repairJordanAssessmentAppointments(withSampleCareLevels(withSamplePersonTags(state)));
+  ensureJordanFutureAssessment(
+    repairJordanAssessmentAppointments(withSampleCareLevels(withSamplePersonTags(state))),
+  );
 
 export function sampleAppointmentsForSeed(seedIndex) {
   switch (seedIndex) {
@@ -1641,6 +1643,34 @@ function createMockFullReportPerson() {
     },
   ];
   return person;
+}
+
+function ensureJordanFutureAssessment(state) {
+  const episode = state.people.find((person) =>
+    person.id === "YS-1034" && person.fixtureLabel === "Fictional full-report example",
+  )?.episodes.find((item) => item.id === "EP-1034-01");
+  const id = "A-7-life-care-sixteen-weeks";
+  if (!episode || episode.collections.some((item) => item.id === id)) return state;
+  const next = structuredClone(state);
+  next.people.find((person) => person.id === "YS-1034")
+    .episodes.find((item) => item.id === "EP-1034-01")
+    .collections.push({
+      id,
+      label: "Life and care check-in · 16 weeks",
+      due: "2026-10-06",
+      version: LIKERT_INSTRUMENT.version,
+      assignment: "Planned",
+      response: "Not started",
+      review: "Pending",
+      link: "Not sent",
+      appointmentId: null,
+      attempts: [],
+      answers: [],
+      respondent: "Person",
+      recorder: "Person",
+      assistance: "Independent",
+    });
+  return next;
 }
 
 function repairJordanAssessmentAppointments(state) {

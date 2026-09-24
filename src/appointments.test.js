@@ -397,6 +397,10 @@ test("Jordan's non-SMS sample assessments have attended, same-date appointments 
   for (const collection of episode.collections) {
     const assessment = entries.find((entry) => entry.id === `assessment-${collection.id}`);
     const linked = associatedCareItems(assessment, episode);
+    if (collection.response !== "Submitted") {
+      assert.deepEqual(linked, [], `${collection.id} has no completed contact yet`);
+      continue;
+    }
     if (collection.channel === "SMS link") {
       assert.deepEqual(linked, [], `${collection.id} is an independent SMS assessment`);
       continue;

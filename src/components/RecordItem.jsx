@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from "react";
 import { ChevronDown } from "lucide-react";
 import { Badge } from "./UI";
 
@@ -6,6 +7,7 @@ export default function RecordItem({
   subtitle,
   status,
   collapsible = false,
+  initiallyExpanded = false,
   selected = false,
   headingLevel = 3,
   className = "",
@@ -16,6 +18,10 @@ export default function RecordItem({
   note,
   actions,
 }) {
+  const detailsRef = useRef(null);
+  useLayoutEffect(() => {
+    if (initiallyExpanded && detailsRef.current) detailsRef.current.open = true;
+  }, [initiallyExpanded]);
   const Heading = `h${headingLevel}`;
   const heading = (
     <>
@@ -53,7 +59,7 @@ export default function RecordItem({
   );
 
   return collapsible ? (
-    <details className={classes} id={id}>
+    <details className={classes} id={id} ref={detailsRef}>
       <summary className="record-item-heading">
         {heading}
         <ChevronDown size={18} aria-hidden="true" />

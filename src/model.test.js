@@ -49,7 +49,8 @@ const submit = (s) =>
   });
 test("seed worklist counts represent actual open collection and review work", () => {
   const tasks = getTasks(createSeed());
-  assert.equal(tasks.length, 11);
+  assert.equal(tasks.length, 12);
+  assert.ok(tasks.some((task) => task.collection?.id === "A-7-life-care-sixteen-weeks"));
   assert.equal(tasks.filter((task) => task.person.id === "YS-DEMO-CLOSE").length, 2);
   assert.equal(tasks.filter((t) => t.status === "Overdue").length, 2);
   assert.equal(tasks.filter((t) => t.status === "Ready for review").length, 2);

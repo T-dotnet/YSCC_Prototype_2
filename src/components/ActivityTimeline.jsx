@@ -1,4 +1,4 @@
-import { Fragment, useState, useMemo, useEffect } from "react";
+import { Fragment, useState, useMemo, useEffect, useRef } from "react";
 import {
   ArrowRightLeft,
   Building2,
@@ -26,6 +26,7 @@ import { associatedCareItems, historyCategory, HISTORY_CATEGORIES, historyDate, 
 import { SearchInput, Select, Button, Empty, FilterTabs } from "./UI";
 import RecordItem from "./RecordItem";
 import ListFilterBar from "./ListFilterBar";
+import TimelineExpandAll from "./TimelineExpandAll";
 
 const displayValue = (value) =>
   value === true
@@ -260,6 +261,8 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordA
             </span>
             <RecordItem
               id={isCareEvent ? `contextual-event-${entry.id}` : undefined}
+              collapsible
+              initiallyExpanded
               title={completedCollection ? `${completedCollection.label} questionnaire completed` : entry.title || "Recorded event"}
               subtitle={item.subtitle}
               status={collection ? collectionStatus(collection)
@@ -331,6 +334,7 @@ export function ClinicalHistory({
   selectedEventId,
 }) {
   const entries = providedEntries ?? clinicalHistoryEntries(person, episode, audit);
+  const timelineRef = useRef(null);
 
   const [filters, setFilters] = useState({
     type: "all",
@@ -424,7 +428,7 @@ export function ClinicalHistory({
   );
 
   return (
-    <div className="clinical-history">
+    <div className="clinical-history" id="clinical-history-timeline" ref={timelineRef}>
       {quickFilters ? (
         <div className="care-event-filter-bar">
           <FilterTabs
@@ -488,6 +492,9 @@ export function ClinicalHistory({
             {visibleEntries.length !== entries.length && (
               <button type="button" className="filter-count-clear" onClick={resetFilters}>Clear filters</button>
             )}
+            <span className="filter-result-action">
+              <TimelineExpandAll containerRef={timelineRef} containerId="clinical-history-timeline" itemCount={visibleEntries.length} />
+            </span>
           </p>
         </div>
       ) : (
@@ -553,6 +560,11 @@ export function ClinicalHistory({
         </div>
       </details>
       )}
+      {!quickFilters && (
+        <div className="timeline-control-row">
+          <TimelineExpandAll containerRef={timelineRef} containerId="clinical-history-timeline" itemCount={visibleEntries.length} />
+        </div>
+      )}
       {quickFilters ? (
         <div id="care-event-results" role="tabpanel" aria-labelledby={`care-event-filter-tab-${quickItems.findIndex((item) => item.value === filters.type)}`}>
           {results}
@@ -564,6 +576,7 @@ export function ClinicalHistory({
 
 export function ChangeLog({ episode, person, audit = [], entries: suppliedEntries, navigate }) {
   const entries = suppliedEntries ?? changeLogEntries(person, episode, audit);
+  const timelineRef = useRef(null);
   const isGlobal = suppliedEntries !== undefined;
   const missingValue = "__not_recorded__";
   const clearFilters = () => setFilters({
@@ -666,7 +679,7 @@ export function ChangeLog({ episode, person, audit = [], entries: suppliedEntrie
     .filter((value) => value !== "all").length + Number(Boolean(filters.startDate)) + Number(Boolean(filters.endDate));
 
   return (
-    <div className={`change-log${isGlobal ? " global-change-log" : ""}`}>
+    <div className={`change-log${isGlobal ? " global-change-log" : ""}`} id="change-log-timeline" ref={timelineRef}>
       <ListFilterBar
         id={isGlobal ? "global-change-scope" : "person-change-scope"}
         label="Change scope"
@@ -681,6 +694,7 @@ export function ChangeLog({ episode, person, audit = [], entries: suppliedEntrie
         noun="changes"
         activeAdvancedCount={advancedFilterCount}
         onClear={clearFilters}
+        resultAction={<TimelineExpandAll containerRef={timelineRef} containerId="change-log-timeline" itemCount={visibleEntries.length} />}
         advanced={<>
           {isGlobal && <>
             <div className="care-timeline-type">
@@ -753,6 +767,8 @@ export function ChangeLog({ episode, person, audit = [], entries: suppliedEntrie
                   <Clock3 size={22} />
                 </span>
                 <RecordItem
+                  collapsible
+                  initiallyExpanded
                   title={entry.title}
                   subtitle={`${changes.length} ${changes.length === 1 ? "change" : "changes"}`}
                   className="record-item-compact"

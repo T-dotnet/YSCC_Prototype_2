@@ -4481,11 +4481,11 @@ td:last-child {
   }
   .care-event-results-count {
     grid-column: 1 / -1;
-    grid-row: 2;
+    grid-row: 3;
   }
   .care-event-advanced-filters {
     grid-column: 1 / -1;
-    grid-row: 3;
+    grid-row: 2;
   }
 }
 @media (max-width: 700px) {
@@ -9428,6 +9428,44 @@ form.has-validation-errors .check-field:has(:invalid) {
 .assessment-filter-bar {
   margin-bottom: 0;
 }
+.assessment-result-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 12px 10px;
+}
+.timeline-expand-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 0;
+  color: var(--teal);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.timeline-expand-all:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.timeline-expand-all:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--teal) 30%, transparent);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+.timeline-expand-all:disabled {
+  color: var(--muted);
+  cursor: default;
+  text-decoration: none;
+}
+.timeline-control-row {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
 .assessment-group-toggle {
   display: inline-flex;
   position: relative;
@@ -9698,6 +9736,28 @@ form.has-validation-errors .check-field:has(:invalid) {
   width: 1px;
   background: #d7e2de;
 }
+.assessment-chronology {
+  padding-top: 2px;
+}
+.assessment-chronology .record-timeline-date {
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  padding-top: 10px;
+}
+.assessment-chronology .record-timeline-icon {
+  border-color: #c2cbe8;
+  background: #edf0fa;
+  color: var(--orygen-indigo);
+}
+@media (min-width: 701px) {
+  .record-timeline.assessment-chronology > .record-timeline-entry {
+    grid-template-columns: 126px 38px minmax(0, 1fr);
+  }
+  .record-timeline.assessment-chronology > .record-timeline-entry:not(:last-child)::before {
+    left: 156px;
+  }
+}
 @media (min-width: 701px) {
   .care-events .record-timeline > .record-timeline-entry {
     grid-template-columns: 184px 38px minmax(0, 1fr);
@@ -9801,7 +9861,8 @@ form.has-validation-errors .check-field:has(:invalid) {
   border-color: var(--teal);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--teal) 14%, transparent);
 }
-.care-events .record-timeline > .care-timeline-divider {
+.care-events .record-timeline > .care-timeline-divider,
+.assessment-chronology > .care-timeline-divider {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -9817,6 +9878,12 @@ form.has-validation-errors .check-field:has(:invalid) {
   background: #d7e2de;
 }
 @media (max-width: 700px) {
+  .assessment-chronology .record-timeline-date {
+    display: flex;
+    align-content: center;
+    align-items: center;
+    padding-top: 0;
+  }
   .record-timeline > .record-timeline-entry {
     grid-template-columns: 30px minmax(0, 1fr);
     column-gap: 10px;

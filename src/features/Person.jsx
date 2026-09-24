@@ -9,7 +9,7 @@ import {
   safeReturnTo,
 } from "../workflow";
 import { useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { Fragment, useRef, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -31,13 +31,15 @@ import AssessmentCollectionCard from "../components/AssessmentCollectionCard";
 import IntakeDetailsModal from "../components/IntakeDetailsModal";
 import CareLevelSection from "../components/CareLevelSection";
 import ListFilterBar from "../components/ListFilterBar";
+import TimelineExpandAll from "../components/TimelineExpandAll";
 import { currentCarePeriod, nextDate } from "../carePeriods";
 import Timeline, {
   ChangeLog,
   ClinicalHistory,
 } from "../components/ActivityTimeline";
-import { assessmentType, assessmentTypeGroups, linkedAssessmentScore } from "../assessmentGroups";
+import { assessmentTypeGroups, linkedAssessmentScore } from "../assessmentGroups";
 import { responseDate } from "../progress";
+import { daysAgoLabel } from "../relativeDate";
 import {
   age,
   formatDate,
@@ -99,6 +101,7 @@ export default function Person({ id, navigate, openModal }) {
   const [assessmentMethod, setAssessmentMethod] = useState("all");
   const [groupAssessmentsByType, setGroupAssessmentsByType] = useState(true);
   const [expandedAssessmentTypes, setExpandedAssessmentTypes] = useState([]);
+  const assessmentListRef = useRef(null);
   const [consentFilter, setConsentFilter] = useState("all");
   const [consentQuery, setConsentQuery] = useState("");
   const [consentChannel, setConsentChannel] = useState("all");
@@ -196,14 +199,24 @@ export default function Person({ id, navigate, openModal }) {
     `${col.label} ${col.version} ${col.assignment} ${col.response} ${collectionStatus(col)}`
       .toLowerCase().includes(assessmentQuery.trim().toLowerCase()),
   );
+  const chronologicalCollections = [...visibleCollections].sort((a, b) =>
+    (responseDate(b) || b.due || "").localeCompare(responseDate(a) || a.due || "") ||
+    a.id.localeCompare(b.id),
+  );
+  const firstPastAssessmentIndex = chronologicalCollections.findIndex((col) =>
+    (responseDate(col) || col.due || "") <= TODAY,
+  );
   const groupedAssessments = assessmentTypeGroups(e, visibleCollections);
-  const renderAssessmentCard = (collection, inTimeline = false) => (
+  const renderAssessmentCard = (collection, inTimeline = false, headingLevel = 4, initiallyExpanded = inTimeline) => (
     <AssessmentCollectionCard
       key={collection.id}
       collection={collection}
       person={p}
+      score={linkedAssessmentScore(e, collection)}
       selectedId={searchParams.get("collection")}
       inTimeline={inTimeline}
+      initiallyExpanded={initiallyExpanded}
+      headingLevel={inTimeline ? headingLevel : 3}
       onViewDetails={(item) => openModal({
         type: "collection-details",
         personId: p.id,
@@ -764,21 +777,30 @@ export default function Person({ id, navigate, openModal }) {
               activeAdvancedCount={Number(assessmentMethod !== "all")}
               onClear={() => { setAssessmentFilter("all"); setAssessmentQuery(""); setAssessmentMethod("all"); }}
               resultAction={
-                <label className="assessment-group-toggle">
-                  <input
-                    type="checkbox"
-                    role="switch"
-                    checked={groupAssessmentsByType}
-                    onChange={(event) => {
-                      const grouped = event.target.checked;
-                      const selected = e.collections.find((item) => item.id === searchParams.get("collection"));
-                      setGroupAssessmentsByType(grouped);
-                      setExpandedAssessmentTypes(grouped && selected ? [assessmentType(selected).key] : []);
-                    }}
+                <span className="assessment-result-actions">
+                  <label className="assessment-group-toggle">
+                    <input
+                      type="checkbox"
+                      role="switch"
+                      checked={groupAssessmentsByType}
+                      onChange={(event) => {
+                        const grouped = event.target.checked;
+                        setGroupAssessmentsByType(grouped);
+                        setExpandedAssessmentTypes([]);
+                      }}
+                    />
+                    <span className="assessment-group-toggle-track" aria-hidden="true" />
+                    <span className="assessment-group-toggle-copy">Group by assessment type</span>
+                  </label>
+                  <TimelineExpandAll
+                    containerRef={assessmentListRef}
+                    containerId="assessment-list"
+                    itemCount={visibleCollections.length}
+                    groupsExpanded={!groupAssessmentsByType || groupedAssessments.every((group) =>
+                      expandedAssessmentTypes === null || expandedAssessmentTypes.includes(group.key))}
+                    onToggleAll={groupAssessmentsByType ? (expand) => setExpandedAssessmentTypes(expand ? null : []) : undefined}
                   />
-                  <span className="assessment-group-toggle-track" aria-hidden="true" />
-                  <span className="assessment-group-toggle-copy">Group by assessment type</span>
-                </label>
+                </span>
               }
               advanced={
                 <Select label="Collection method" value={assessmentMethod} onChange={(event) => setAssessmentMethod(event.target.value)}>
@@ -789,11 +811,12 @@ export default function Person({ id, navigate, openModal }) {
                 </Select>
               }
             />
-            <div className="assessment-list" id="assessment-list">
+            <div className="assessment-list" id="assessment-list" ref={assessmentListRef}>
               {groupAssessmentsByType
                 ? groupedAssessments.map((group, index) => {
-                    const expanded = expandedAssessmentTypes.includes(group.key);
+                    const expanded = expandedAssessmentTypes === null || expandedAssessmentTypes.includes(group.key);
                     const historyId = `assessment-type-history-${index}`;
+                    const submittedDate = responseDate(group.lastDone);
                     return (
                       <article className="assessment-type-card" key={group.key}>
                         <header className="assessment-type-card-heading">
@@ -807,8 +830,8 @@ export default function Person({ id, navigate, openModal }) {
                         <div className="assessment-type-card-summary">
                           <div>
                             <small>Last submitted</small>
-                            <strong>{group.lastDone ? formatDate(responseDate(group.lastDone)) : "No dated response"}</strong>
-                            <span>{group.lastDone?.label || "No submitted response with a recorded date"}</span>
+                            <strong>{submittedDate ? <time dateTime={submittedDate}>{daysAgoLabel(submittedDate)}</time> : "No dated response"}</strong>
+                            <span>{submittedDate ? `${formatDate(submittedDate)} · ${group.lastDone.label}` : "No submitted response with a recorded date"}</span>
                           </div>
                           <div>
                             <small>Raw score</small>
@@ -838,8 +861,10 @@ export default function Person({ id, navigate, openModal }) {
                           className="assessment-type-history-toggle"
                           aria-expanded={expanded}
                           aria-controls={historyId}
-                          onClick={() => setExpandedAssessmentTypes((current) =>
-                            expanded ? current.filter((key) => key !== group.key) : [...current, group.key])}
+                          onClick={() => setExpandedAssessmentTypes((current) => {
+                            const active = current ?? groupedAssessments.map((item) => item.key);
+                            return expanded ? active.filter((key) => key !== group.key) : [...active, group.key];
+                          })}
                         >
                           <span>{expanded ? "Hide full timeline" : "Show full timeline"} · {group.collections.length} assessment{group.collections.length === 1 ? "" : "s"}</span>
                           <ChevronDown size={18} aria-hidden="true" />
@@ -856,7 +881,7 @@ export default function Person({ id, navigate, openModal }) {
                                     <span>{col.response === "Submitted" ? "Submitted" : "Due"} {formatDate(date)}</span>
                                     {score && <span>Raw score {score.value}{score.range ? ` / ${score.range[1]}` : ""}</span>}
                                   </div>
-                                  {renderAssessmentCard(col, true)}
+                                  {renderAssessmentCard(col, true, 4, false)}
                                 </li>
                               );
                             })}
@@ -865,7 +890,33 @@ export default function Person({ id, navigate, openModal }) {
                       </article>
                     );
                   })
-                : visibleCollections.map((col) => renderAssessmentCard(col))}
+                : (
+                  <ol className="record-timeline assessment-chronology" aria-label="Assessments in date order">
+                    {chronologicalCollections.map((col, index) => {
+                      const submittedDate = responseDate(col);
+                      const date = submittedDate || col.due;
+                      return (
+                        <Fragment key={col.id}>
+                          {index === firstPastAssessmentIndex && firstPastAssessmentIndex > 0 && (
+                            <li className="care-timeline-divider" aria-label="Past and today's assessments begin below">
+                              <span>Past &amp; today</span><span className="care-timeline-divider-line" aria-hidden="true" />
+                            </li>
+                          )}
+                          <li className="record-timeline-entry">
+                            <time className="record-timeline-date" dateTime={date || undefined}>
+                              <span className="record-timeline-date-label">{submittedDate ? "Submitted" : date ? "Due" : "Date not set"}</span>
+                              {date && <strong className="record-timeline-when">{formatDate(date)}</strong>}
+                            </time>
+                            <span className="record-timeline-icon" aria-hidden="true">
+                              {submittedDate ? <FileCheck2 size={22} /> : <CalendarClock size={22} />}
+                            </span>
+                            {renderAssessmentCard(col, true, 3)}
+                          </li>
+                        </Fragment>
+                      );
+                    })}
+                  </ol>
+                )}
             </div>
             {!visibleCollections.length && <Empty title="No assessments match these filters">Try another search or filter.</Empty>}
             <Notice>
