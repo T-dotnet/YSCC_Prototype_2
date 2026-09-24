@@ -1,9 +1,11 @@
-import { appointmentDetails, appointmentMatchesCollectionDate } from "./appointments.js";
+import { appointmentDetails, appointmentMatchesCollectionDate, appointmentTitle } from "./appointments.js";
 import { careEventDetails, careEventType } from "./careEvents.js";
 import { clinicalRecordDetails, clinicalRecordType } from "./clinicalRecords.js";
 
+const CARE_LEVEL_ACTIONS = ["SET_INITIAL_CARE_LEVEL", "CHANGE_CARE_LEVEL", "END_CARE_EPISODE_FOR_LEVEL_CHANGE"];
+
 export const historyDate = (entry) =>
-  ["SET_INITIAL_CARE_LEVEL", "CHANGE_CARE_LEVEL"].includes(entry.actionType)
+  CARE_LEVEL_ACTIONS.includes(entry.actionType)
     ? entry.effectiveDate || entry.date || null
     : entry.type === "appointment"
     ? entry.actualDate || entry.plannedDate || entry.date || null
@@ -14,7 +16,7 @@ export const historyDate = (entry) =>
       : entry.eventDate || entry.timestamp || entry.date || null;
 
 export const historyCategory = (entry) =>
-  ["SET_INITIAL_CARE_LEVEL", "CHANGE_CARE_LEVEL"].includes(entry.actionType)
+  CARE_LEVEL_ACTIONS.includes(entry.actionType)
     ? "care-level"
     : entry.type === "appointment" ? "appointment"
     : entry.type === "clinical-record" ? "clinical-record"
@@ -39,6 +41,45 @@ export const HISTORY_CATEGORIES = {
 
 const fact = (label, value) => ({ label, value });
 const populated = ([, value]) => value !== null && value !== undefined && value !== "";
+
+const linkedAppointmentIds = (collection) => new Set([
+  collection.appointmentId,
+  collection.submittedAppointmentId,
+  ...(collection.attempts || []).map((attempt) => attempt.appointmentId),
+].filter(Boolean));
+
+export function associatedCareItems(entry, episode) {
+  if (entry.type === "appointment") {
+    const appointmentId = entry.id?.replace(/^appointment-/, "");
+    return (episode.collections || [])
+      .filter((collection) => linkedAppointmentIds(collection).has(appointmentId))
+      .map((collection) => ({
+        id: collection.id,
+        type: "Assessment",
+        title: collection.label,
+        subtitle: collection.version,
+        date: collection.response === "Submitted" && collection.submittedAt
+          ? collection.submittedAt.slice(0, 10) : collection.due,
+        dateLabel: collection.response === "Submitted" && collection.submittedAt ? "Response" : "Due",
+      }));
+  }
+  if (entry.type === "assessment") {
+    const collection = episode.collections?.find((item) => item.id === entry.collectionId);
+    if (!collection) return [];
+    const appointmentIds = linkedAppointmentIds(collection);
+    return (episode.appointments || [])
+      .filter((appointment) => appointmentIds.has(appointment.id))
+      .map((appointment) => ({
+        id: appointment.id,
+        type: "Appointment",
+        title: appointmentTitle(appointment),
+        subtitle: appointment.contactType || appointment.appointmentType || appointment.practitionerService,
+        date: appointment.actualDate || appointment.plannedDate,
+        dateLabel: appointment.actualDate ? "Actual" : "Planned",
+      }));
+  }
+  return [];
+}
 
 export function historyItem(entry, episode, formatDetail = (value) => value) {
   const appointment = entry.type === "appointment"
@@ -137,6 +178,20 @@ export function historyItem(entry, episode, formatDetail = (value) => value) {
         ...details.filter(({ label }) => !primaryLabels.includes(label) && (primary.length || label !== "Notes")),
         ...metadata,
       ],
+    };
+  }
+
+  if (entry.actionType === "END_CARE_EPISODE_FOR_LEVEL_CHANGE") {
+    return {
+      subtitle: "Care episode transition",
+      date: historyDate(entry),
+      dateLabel: "Effective",
+      primary: [
+        fact("From level", entry.fromCareLevel),
+        fact("New level", entry.toCareLevel),
+        fact("Next care episode", entry.nextEpisodeNumber),
+      ],
+      more: [fact("Reason", entry.entryReason || episode.reason), ...metadata],
     };
   }
 

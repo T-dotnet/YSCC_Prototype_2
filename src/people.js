@@ -28,6 +28,13 @@ export function peopleInEpisodes(people, status = "All episodes") {
   });
 }
 
+export function peopleForList(people, status = "All episodes", query = "") {
+  const search = query.trim().toLowerCase();
+  return peopleInEpisodes(people, status).filter(({ person }) =>
+    `${person.name} ${person.id}`.toLowerCase().includes(search),
+  );
+}
+
 export function personStatus(person, episode) {
   if (!episode) {
     const intake = person.intakes?.find(openIntake) || person.intakes?.[0];
@@ -48,7 +55,9 @@ export function personStatus(person, episode) {
     return {
       status: episode.status,
       label: `${episode.status} care episode`,
-      detail: episode.nextCareStep || "No active assessment tasks",
+      detail: episode.status === "Completed"
+        ? "Closure assessment and care experience feedback complete"
+        : episode.nextCareStep || "No active assessment tasks",
     };
   }
   if (!canAssess(person, episode)) {

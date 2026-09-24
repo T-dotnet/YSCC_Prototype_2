@@ -107,16 +107,14 @@ export default function CareTimelineEntryForm({
     existingEvent?.eventType ||
       existingEvent?.recordType ||
       initialType ||
-      "outcome",
+      "",
   );
   const [measureKey, setMeasureKey] = useState(configuredMeasures()[0].key);
   const [outcomeStatus, setOutcomeStatus] = useState("");
 
   const latestDate = episode.end && episode.end < TODAY ? episode.end : TODAY;
-  const selectedType =
-    TIMELINE_RECORD_TYPES.find((type) => type.value === entryType) ||
-    TIMELINE_RECORD_TYPES[0];
-  const isStructured = selectedType.scope === "structured";
+  const selectedType = TIMELINE_RECORD_TYPES.find((type) => type.value === entryType);
+  const isStructured = selectedType?.scope === "structured";
   const selectedMeasure = configuredMeasures().find(
     (measure) => measure.key === measureKey,
   );
@@ -136,6 +134,7 @@ export default function CareTimelineEntryForm({
       <ValidatedForm
         onSubmit={(formEvent) => {
           formEvent.preventDefault();
+          if (!selectedType) return;
           const values = formValues(formEvent);
           if (isStructured) {
             onSave({
@@ -163,7 +162,9 @@ export default function CareTimelineEntryForm({
         }}
       >
         <div className="form-body care-event-form">
-          {isStructured ? (
+          {!selectedType ? (
+            <Notice>Choose a record type to see the fields for this event.</Notice>
+          ) : isStructured ? (
             <Notice>
               Candidate PMHC-MDS-aligned data structure only. It does not submit
               data, score measures, generate a safety plan or make a clinical
@@ -191,6 +192,7 @@ export default function CareTimelineEntryForm({
                 }}
                 required
               >
+                <option value="" disabled>Choose record type</option>
                 {TIMELINE_RECORD_TYPES.filter((type) => !isCorrection || type.scope !== "appointment").map((type) => (
                   <option key={type.value} value={type.value}>
                     {type.label}
@@ -199,7 +201,7 @@ export default function CareTimelineEntryForm({
               </select>
             </Field>
 
-            {isStructured ? (
+            {selectedType && (isStructured ? (
               <Field
                 label="Record date"
                 hint="The date recorded by the source."
@@ -227,9 +229,10 @@ export default function CareTimelineEntryForm({
                   required
                 />
               </Field>
-            )}
+            ))}
           </div>
 
+          {selectedType && <>
           <p className="event-type-description">{selectedType.description}</p>
 
           <div className="care-event-fields">
@@ -461,6 +464,7 @@ export default function CareTimelineEntryForm({
               </Field>
             )}
           </div>
+          </>}
         </div>
 
         <div className="modal-footer">
@@ -472,9 +476,11 @@ export default function CareTimelineEntryForm({
           <Button type="button" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit" variant="primary">
+          <Button type="submit" variant="primary" disabled={!selectedType}>
             {isCorrection
               ? "Add correction"
+              : !selectedType
+                ? "Add event"
               : isStructured
                 ? "Add structured record"
                 : "Add contextual event"}

@@ -4,15 +4,15 @@ import { Plus, ChevronRight, CircleAlert, CheckCircle2 } from "lucide-react";
 import { useStore } from "../store";
 import { age, formatDate, TODAY } from "../model";
 import { getQualityIssues, recordCompleteness } from "../dataQuality";
-import { comparePeople, peopleInEpisodes } from "../people";
+import { comparePeople, peopleForList } from "../people";
 import { sortQueueRows } from "../queueSort";
 import { ActiveFilters, SortableHeader, useQueueSort } from "../components/QueueControls";
 import { QueueCell, QueueRow } from "../components/QueueRow";
+import ListFilterBar from "../components/ListFilterBar";
 import {
   PageHeading,
   Button,
   Panel,
-  SearchInput,
   Select,
   Badge,
   Empty,
@@ -20,20 +20,13 @@ import {
 } from "../components/UI";
 
 const PAGE_SIZE = 6;
-const HIDDEN_FROM_PEOPLE_LIST = new Set([
-  "Oliver James",
-  "Zoe Patel",
-  "Jordan Lee",
-  "Noah Williams",
-]);
-const PEOPLE_LIST_PRIORITY = new Map([["Mia Robinson", 0]]);
 
 export default function People({ navigate, openModal }) {
   const { state } = useStore();
   const view = useQueueView();
   const query = view.params.get("q") || "";
   const { sort: sortConfig, toggleSort } = useQueueSort({ key: "priority", direction: "asc" });
-  const status = ["Active", "Paused", "Closed", "Intake", "Archived"].includes(
+  const status = ["Active", "Paused", "Closed", "Completed", "Intake", "Archived"].includes(
     view.params.get("status"),
   )
     ? view.params.get("status")
@@ -60,17 +53,10 @@ export default function People({ navigate, openModal }) {
   const qualityIssues = useMemo(() => getQualityIssues(state, TODAY), [state]);
 
   const rows = useMemo(() => {
-    let result = peopleInEpisodes(state.people, status)
-      .filter(
-        ({ person }) =>
-          !HIDDEN_FROM_PEOPLE_LIST.has(person.name) &&
-          `${person.name} ${person.id}`
-            .toLowerCase()
-            .includes(query.toLowerCase()),
-      );
+    let result = peopleForList(state.people, status, query);
 
     return sortQueueRows(result, sortConfig, {
-      priority: (row) => PEOPLE_LIST_PRIORITY.get(row.person.name) ?? 1,
+      priority: () => 0,
       name: (row) => row.person.name,
       status: (row) => row.status,
       completeness: (row) => recordCompleteness(row.person, TODAY).requiredPercentage,
@@ -89,6 +75,12 @@ export default function People({ navigate, openModal }) {
     (row) =>
       assessmentStatus === "All statuses" || row.status === assessmentStatus,
   );
+  const episodeFilters = ["All episodes", "Intake", "Active", "Paused", "Closed", "Completed", "Archived"];
+  const episodeFilterItems = episodeFilters.map((value) => ({
+    value,
+    label: value === "All episodes" ? "All" : value,
+    count: peopleForList(state.people, value).length,
+  }));
   const pageCount = Math.max(1, Math.ceil(people.length / PAGE_SIZE));
   const requestedPage = Number(view.params.get("page"));
   const page = Math.min(
@@ -132,25 +124,21 @@ export default function People({ navigate, openModal }) {
         title="People at Northside Centre"
         action={<span className="muted">{people.length} people</span>}
       >
-        <div className="work-toolbar people-toolbar">
-          <div className="toolbar-search-and-count">
-            <SearchInput value={query} onChange={setQuery} />
-            <span className="toolbar-count" aria-live="polite">
-              Showing {people.length} of {state.people.filter(p => (status === "Archived" ? !!p.archivedAt : !p.archivedAt) && !HIDDEN_FROM_PEOPLE_LIST.has(p.name)).length}
-            </span>
-          </div>
-          <div className="people-toolbar-filters">
-            <Select
-              label="Episode status"
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-            >
-              {["All episodes", "Intake", "Active", "Paused", "Closed", "Archived"].map(
-                (s) => (
-                  <option key={s}>{s}</option>
-                ),
-              )}
-            </Select>
+        <ListFilterBar
+          id="people-filters"
+          label="Care episode status"
+          items={episodeFilterItems}
+          value={status}
+          onChange={setStatus}
+          query={query}
+          onQueryChange={setQuery}
+          placeholder="Search people"
+          shown={people.length}
+          total={state.people.filter((person) => status === "Archived" ? !!person.archivedAt : !person.archivedAt).length}
+          noun="people"
+          activeAdvancedCount={Number(assessmentStatus !== "All statuses")}
+          onClear={clearAll}
+          advanced={
             <Select
               label="Assessment status"
               value={assessmentStatus}
@@ -165,8 +153,8 @@ export default function People({ navigate, openModal }) {
                 </option>
               ))}
             </Select>
-          </div>
-        </div>
+          }
+        />
         <ActiveFilters
           items={[
             ...(query ? [{ id: "search", label: `Search: ${query}`, onRemove: () => setQuery("") }] : []),

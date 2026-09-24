@@ -3,7 +3,7 @@ import { INTAKE_CHECKS, INTAKE_DETAIL_FIELDS, intakeActionError } from "../intak
 import { currentStaff, formatDate, formatTimestamp, TODAY } from "../model";
 import { IntakeHistory } from "../features/Intake";
 import { useStore } from "../store";
-import { Badge, Button, Field, Modal } from "./UI";
+import { Badge, Button, Field, FormErrorSummary, Modal, ValidatedForm } from "./UI";
 
 const recorded = (value) => value === true ? "Yes" : value === false ? "No" : value || "Not recorded";
 const date = (value) => value ? formatDate(value) : "Not recorded";
@@ -258,7 +258,7 @@ export default function IntakeDetailsModal({ person, intake, onClose }) {
         </>
       )}
       {mode === "edit" && (
-        <form onSubmit={confirmEdit}>
+        <ValidatedForm onSubmit={confirmEdit}>
           <div className="form-body intake-details-body intake-edit-body">
             <p>Update recorded identity, referral, contact and follow-up details. The completed intake decision and required checks stay in the history.</p>
             {editGroups.map(([title, fields]) => (
@@ -274,13 +274,13 @@ export default function IntakeDetailsModal({ person, intake, onClose }) {
             <Field label="Reason for this update">
               <textarea rows={3} required value={reason} onChange={(event) => setReason(event.target.value)} />
             </Field>
-            {error && <p className="field-error" role="alert">{error}</p>}
           </div>
           <div className="modal-footer intake-details-actions">
             <Button type="button" onClick={() => setMode("view")}>Cancel</Button>
             <Button type="submit" variant="primary">Review changes</Button>
           </div>
-        </form>
+          {error && <FormErrorSummary title="Changes not ready to review" description={error} />}
+        </ValidatedForm>
       )}
       {mode.startsWith("confirm-") && (
         <div className="intake-confirmation">

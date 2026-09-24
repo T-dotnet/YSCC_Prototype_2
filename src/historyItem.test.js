@@ -1,7 +1,26 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { clinicalHistoryEntries } from "./activity.js";
-import { historyCategory, historyItem } from "./historyItem.js";
+import { associatedCareItems, historyCategory, historyItem } from "./historyItem.js";
+
+test("Care events list every explicitly linked assessment and appointment", () => {
+  const episode = {
+    appointments: [
+      { id: "visit-1", attendance: "Planned", plannedDate: "2026-09-12", contactType: "Care review" },
+      { id: "visit-2", attendance: "Attended", plannedDate: "2026-09-13", actualDate: "2026-09-14", contactType: "Assessment" },
+    ],
+    collections: [
+      { id: "assessment-1", label: "90-day review", version: "Review v1", due: "2026-09-14", appointmentId: "visit-1", attempts: [{ appointmentId: "visit-2" }] },
+      { id: "assessment-2", label: "Support check-in", version: "Check-in v1", due: "2026-09-12", appointmentId: "visit-1" },
+    ],
+  };
+  const appointmentItems = associatedCareItems({ type: "appointment", id: "appointment-visit-1" }, episode);
+  assert.deepEqual(appointmentItems.map((item) => item.title), ["90-day review", "Support check-in"]);
+  const assessmentItems = associatedCareItems({ type: "assessment", collectionId: "assessment-1" }, episode);
+  assert.deepEqual(assessmentItems.map((item) => item.id), ["visit-1", "visit-2"]);
+  assert.equal(assessmentItems[1].date, "2026-09-14");
+  assert.deepEqual(associatedCareItems({ type: "assessment", collectionId: "missing" }, episode), []);
+});
 
 test("History uses the contact date once and keeps appointment provenance available", () => {
   const appointment = {

@@ -97,6 +97,22 @@ export function appointmentError(episode, action, today) {
   );
   if (duplicate)
     return "A contact with the same planned date, time and practitioner or service already exists. Check the existing record before adding another.";
+  const collectionIds = action.collectionIds ?? (action.collectionId ? [action.collectionId] : []);
+  if (!Array.isArray(collectionIds) || new Set(collectionIds).size !== collectionIds.length)
+    return "Choose valid assessments to associate with this contact.";
+  for (const collectionId of collectionIds) {
+    const collection = episode.collections?.find((item) => item.id === collectionId);
+    if (!collection || ["Cancelled", "Paused"].includes(collection.assignment))
+      return "A selected assessment is unavailable in this care episode.";
+    if (collection.appointmentId || collection.submittedAppointmentId ||
+        collection.attempts?.some((attempt) => attempt.appointmentId))
+      return "A selected assessment is already associated with an appointment.";
+    if (!appointmentMatchesCollectionDate({
+      plannedDate: action.plannedDate,
+      actualDate: action.attendance === "Attended" ? action.actualDate : null,
+    }, collection))
+      return "Choose assessments whose due or response dates match this contact.";
+  }
   if (action.attendance !== "Attended") return null;
   const contactError = validContact(action);
   if (contactError) return contactError;

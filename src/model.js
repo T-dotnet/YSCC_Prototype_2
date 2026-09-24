@@ -10,11 +10,13 @@ import { careChanges, recordFieldChanges } from "./activity.js";
 import {
   applyIntakeAction,
   canAssess,
+  intakeFor,
   intakeTasks,
   newIntake,
 } from "./intake.js";
 import {
   DEMO_INSTRUMENT,
+  INITIAL_ASSESSMENT_INSTRUMENT,
   INSTRUMENTS,
   LEGACY_INSTRUMENT,
   LIKERT_INSTRUMENT,
@@ -44,9 +46,9 @@ import {
   appointmentOutcomeError,
 } from "./appointments.js";
 
-import { carePeriodError, currentCarePeriod, nextDate } from "./carePeriods.js";
+import { carePeriodError, currentCarePeriod, nextDate, previousDate } from "./carePeriods.js";
 import { K10_SCORING_METHOD } from "./k10.js";
-import { MEASURE_INSTRUMENTS, sampleMeasureTotal } from "./measureQuestionnaires.js";
+import { MEASURE_INSTRUMENTS, measureInstrument, sampleMeasureTotal } from "./measureQuestionnaires.js";
 import { QUALITY_STATUSES, getQualityIssues, validISODate } from "./dataQuality.js";
 
 export const PERSON_TAG_OPTIONS = [
@@ -59,6 +61,49 @@ export const PERSON_TAG_OPTIONS = [
 ];
 export const TODAY = "2026-09-15";
 export const VERSION = DEMO_INSTRUMENT.version;
+export const CLOSURE_ASSESSMENT_VERSION = "Episode closure assessment v1.0";
+export const CLOSURE_FEEDBACK_VERSION = "Care experience feedback v1.0";
+export const canCollectInEpisode = (episode, collection) =>
+  episode?.status === "Active" ||
+  (episode?.status === "Closed" &&
+    ((collection?.closureKind === "assessment" && collection.version === CLOSURE_ASSESSMENT_VERSION) ||
+      (collection?.closureKind === "feedback" && collection.version === CLOSURE_FEEDBACK_VERSION)));
+const closureDueDate = () =>
+  new Date(Date.parse(`${TODAY}T12:00:00Z`) + 7 * 86400000)
+    .toISOString().slice(0, 10);
+const closureCollections = (person, episode, assignedAt = TODAY) =>
+  [
+    ["assessment", "Episode closure assessment", CLOSURE_ASSESSMENT_VERSION],
+    ["feedback", "Care experience feedback", CLOSURE_FEEDBACK_VERSION],
+  ].map(([kind, label, version]) => {
+    const ready = person.consent === "Recorded" && person.contact === "Suitable";
+    return {
+      id: `A-${episode.id}-closure-${kind}`,
+      closureKind: kind,
+      label,
+      version,
+      due: closureDueDate(),
+      assignment: ready ? "Active" : "Planned",
+      response: "Not started",
+      review: "Pending",
+      link: ready ? "Active" : "Not sent",
+      channel: "SMS link",
+      respondent: "Person",
+      respondentName: person.name,
+      recorder: "Person",
+      recorderName: person.name,
+      assistance: "Independent",
+      answers: [],
+      attempts: ready ? [{
+        id: `D-${episode.id}-closure-${kind}`,
+        date: assignedAt,
+        channel: "SMS link",
+        respondent: "Person",
+        respondentName: person.name,
+        status: "Prepared (sample; not sent)",
+      }] : [],
+    };
+  });
 export const STORAGE_KEY = "yscc-prototype-v1";
 export const CONSENT_LIBRARY = [
   {
@@ -125,6 +170,7 @@ export const formatTimestamp = (timestamp) =>
   new Date(timestamp).toLocaleString("en-GB", { timeZoneName: "short" });
 export const uid = () => globalThis.crypto.randomUUID();
 export const formatDate = (date) =>
+  !date ? "Not set" :
   new Date(date + "T12:00:00")
     .toLocaleDateString("en-GB", {
       day: "numeric",
@@ -1802,6 +1848,175 @@ function createMockIntakeAssessmentPerson() {
   };
 }
 
+function createMockClosurePerson() {
+  const person = createMockIntakeAssessmentPerson();
+  person.id = "YS-DEMO-CLOSE";
+  person.name = "Leila Morgan";
+  person.dob = "2007-05-21";
+  person.pronouns = "She/her";
+  person.fixtureLabel = "Fictional closed episode with patient follow-up";
+  const episode = person.episodes[0];
+  episode.id = "EP-YS-DEMO-CLOSE-01";
+  episode.status = "Closed";
+  episode.start = "2026-08-12";
+  episode.end = "2026-09-12";
+  episode.disposition = "Admitted";
+  episode.reason = "Planned support completed; final patient check-in requested.";
+  episode.closureCategory = "Planned care completed";
+  episode.handoverStatus = "Not applicable";
+  episode.finalMeasureStatus = "Outstanding";
+  episode.nextCareStep = "Review closure assessment and patient feedback.";
+  episode.nextCareOwner = "Jess Taylor";
+  episode.appointments = [];
+  episode.collections = closureCollections(person, episode);
+  episode.events = [
+    { id: "E-YS-DEMO-CLOSE-closure", date: "2026-09-12", title: "Care episode closed", detail: "Planned support completed; closure assessment and care experience feedback assigned to Leila." },
+    { id: "E-YS-DEMO-CLOSE-started", date: "2026-08-12", title: "Care episode started", detail: "Fictional support episode." },
+  ];
+  const intake = person.intakes[0];
+  intake.id = "IN-YS-DEMO-CLOSE";
+  intake.episodeId = episode.id;
+  intake.consentRecorded = true;
+  intake.consentReference = "Fictional completed-intake consent record";
+  intake.receivedAt = "2026-08-10T14:00:00";
+  intake.decisionAt = "2026-08-12T09:00:00";
+  intake.summary = "Intake completed before the fictional care episode.";
+  intake.history = [];
+  return enrichMockClosurePerson(person);
+}
+
+function enrichMockClosurePerson(person) {
+  if (person?.id !== "YS-DEMO-CLOSE" ||
+      person.fixtureLabel !== "Fictional closed episode with patient follow-up") return person;
+  const episode = person.episodes.find((item) => item.id === "EP-YS-DEMO-CLOSE-01");
+  const intake = person.intakes?.find((item) => item.episodeId === episode?.id);
+  if (!episode || !intake) return person;
+
+  intake.reviewer ||= "Jess Taylor";
+  intake.checkEvidence ||= "Fictional referral, participation and triage checks reviewed.";
+  if (!intake.summary || intake.summary === "Intake completed before the fictional care episode.")
+    intake.summary = "Fictional intake reviewed by Jess Taylor; proceed decision and receiving assessment owner recorded.";
+  intake.history ??= [];
+  if (!intake.history.some((entry) => entry.id === "IN-YS-DEMO-CLOSE-reviewed"))
+    intake.history.push({
+      id: "IN-YS-DEMO-CLOSE-reviewed",
+      timestamp: "2026-08-12T09:00:00Z",
+      actor: "Jess Taylor",
+      title: "Intake reviewed · Proceed",
+      detail: "Required checks reviewed and assessment ownership recorded for this fictional example.",
+    });
+
+  episode.programStream ||= "General";
+  episode.carePeriods ??= [];
+  if (!episode.carePeriods.length) episode.carePeriods.push({
+    id: `${episode.id}-starting-level`,
+    episodeId: episode.id,
+    startDate: episode.start,
+    endDateExclusive: nextDate(episode.end),
+    programStream: "General",
+    careLevel: "Mid",
+    deliveringUnit: "Northside Centre",
+    entryReason: "Fictional starting level recorded for this example",
+    triggeringReviewId: null,
+    authorisingPractitionerId: "jess",
+    authorisingPractitioner: "Jess Taylor",
+    actor: "Sample fixture",
+    timestamp: "2026-08-12T09:00:00Z",
+  });
+
+  episode.appointments ??= [];
+  for (const [key, date, type, duration, note] of [
+    ["initial", "2026-08-14", "Initial assessment", 60, "Earlier questionnaire responses collected at the initial assessment."],
+    ["midpoint", "2026-09-02", "Care review", 45, "Progress responses discussed and final next steps considered."],
+  ]) {
+    const id = `APT-YS-DEMO-CLOSE-${key}`;
+    if (episode.appointments.some((item) => item.id === id)) continue;
+    episode.appointments.push({
+      id, appointmentType: type, plannedDate: date, plannedTime: "10:00",
+      plannedDurationMinutes: duration, practitionerService: "Jess Taylor · Northside Centre",
+      location: "Northside Centre", deliveryMode: "In person", attendance: "Attended",
+      actualDate: date, actualTime: "10:00", actualDurationMinutes: duration,
+      notes: note, outcomeNotes: note, outcomeRecordedAt: `${date}T11:30:00Z`,
+      outcomeRecordedBy: "Jess Taylor", timestamp: `${date}T09:00:00Z`,
+      actor: "Sample fixture", role: "Clinician",
+    });
+  }
+
+  const history = [
+    ["initial", "Initial assessment", "2026-08-14", VERSION, sampleAnswersFor(1, "baseline")],
+    ["midpoint", "Progress assessment", "2026-09-02", VERSION, sampleAnswersFor(1, "current")],
+    ["k10-start", "K10+ sample · starting point", "2026-08-14", measureInstrument("k10-plus").version, measureSampleAnswers("k10-plus", "baseline")],
+    ["k10-review", "K10+ sample · review", "2026-09-02", measureInstrument("k10-plus").version, measureSampleAnswers("k10-plus", "review")],
+  ];
+  for (const [key, label, date, version, answers] of history) {
+    const id = `A-YS-DEMO-CLOSE-${key}`;
+    if (episode.collections.some((item) => item.id === id)) continue;
+    episode.collections.push({
+      id, label, due: date, version,
+      readOnly: true,
+      assignment: "Fulfilled", response: "Submitted", review: "Reviewed",
+      reviewNote: "Fictional response reviewed during the care episode; retained as historical evidence.",
+      reviewActor: "Jess Taylor", reviewDate: date,
+      assessmentProgress: "Completed", answers,
+      attempts: [{ id: `${id}-sample-session`, date, channel: "Clinic tablet", status: "Session started (sample)", respondentName: person.name }],
+      submittedAt: date, submittedAttemptId: `${id}-sample-session`,
+      link: "Ended", respondent: "Person", respondentName: person.name,
+      recorder: "Person", recorderName: person.name,
+      assistance: "Independent", channel: "Clinic tablet",
+    });
+  }
+  for (const collection of episode.collections.filter((item) => item.readOnly && item.version === measureInstrument("k10-plus").version))
+    syncMeasureSampleRecord(episode, collection, "Jess Taylor");
+  for (const collection of episode.collections.filter((item) => item.readOnly)) {
+    const appointmentId = `APT-YS-DEMO-CLOSE-${collection.due === "2026-08-14" ? "initial" : "midpoint"}`;
+    collection.appointmentId ??= appointmentId;
+    collection.submittedAppointmentId ??= appointmentId;
+    for (const attempt of collection.attempts ?? [])
+      if (["Clinic tablet", "Clinician entry"].includes(attempt.channel)) attempt.appointmentId ??= appointmentId;
+  }
+
+  episode.events ??= [];
+  const levelEvent = {
+    id: "E-YS-DEMO-CLOSE-level", date: "2026-08-12", title: "Starting care level recorded",
+    detail: "General stream · Mid level · fictional starting level", actionType: "SET_INITIAL_CARE_LEVEL",
+  };
+  if (!episode.events.some((item) => item.id === levelEvent.id)) episode.events.push(levelEvent);
+  for (const event of [
+    { id: "E-YS-DEMO-CLOSE-started", date: "2026-08-12", title: "Care episode started", detail: "Fictional support episode.", eventType: "care-transition", fields: { source: "Reviewed fictional intake", impact: "Initial assessment arranged." } },
+    { id: "E-YS-DEMO-CLOSE-plan", date: "2026-08-14", title: "Care plan agreed", detail: "Leila and Jess recorded priorities for the fictional support episode.", eventType: "other", fields: { source: "Fictional care planning conversation", impact: "Review priorities at the next assessment." } },
+    { id: "E-YS-DEMO-CLOSE-review", date: "2026-09-02", title: "Care progress reviewed", detail: "Earlier questionnaire responses were reviewed; final next steps were discussed.", eventType: "other", fields: { source: "Fictional review conversation", impact: "Prepare episode closure and invite Leila's final perspective." } },
+    { id: "E-YS-DEMO-CLOSE-closure", date: "2026-09-12", title: "Care episode closed", detail: "Planned support completed; closure assessment and care experience feedback assigned to Leila.", eventType: "care-transition", fields: { source: "Fictional episode closure", impact: "Closure questionnaires remain available for Leila to complete." } },
+  ]) {
+    const existing = episode.events.find((item) => item.id === event.id);
+    if (!existing) episode.events.push({
+      ...event, eventDate: event.date, timestamp: `${event.date}T09:00:00Z`,
+      actionType: "ADD_CARE_EVENT", actor: "Sample fixture", role: "Clinician",
+    });
+    else {
+      existing.eventDate ??= existing.date ?? event.date;
+      existing.timestamp ??= `${event.date}T09:00:00Z`;
+      existing.actionType ??= "ADD_CARE_EVENT";
+      existing.eventType ??= event.eventType;
+      existing.fields ??= event.fields;
+      existing.actor ??= "Sample fixture";
+      existing.role ??= "Clinician";
+    }
+  }
+
+  addFictionalProgressReport(episode, {
+    eventId: "E-YS-DEMO-CLOSE-report",
+    timestamp: "2026-09-10T10:00:00Z",
+    content: {
+      summary: "Fictional episode report based on Leila's earlier submitted assessments. This is a demonstration record, not a clinical conclusion.",
+      changes: "The two dated check-ins and K10+ sample item sets remain available as source records. Raw sample totals are displayed without a severity category or inferred clinical change.",
+      interpretation: "Fictional clinician note: discuss Leila's own account and the agreed plan alongside the questionnaire responses.",
+      nextSteps: "Close the planned care episode, then invite a separate closure assessment and care experience feedback response.",
+    },
+  });
+  person.closureFixtureRevision = 4;
+  return person;
+}
+
 const LEGACY_PARTICIPANT_ROLE = "Young person";
 
 function updateParticipantRoles(value) {
@@ -1938,6 +2153,31 @@ export function upgradeSampleData(state) {
   state = state.qualityRevision === 1
     ? state
     : prepareQualityState(JSON.parse(JSON.stringify(state)));
+  const earlierClosureExample = state.people.find((person) =>
+    person.id === "YS-9901" &&
+    person.fixtureLabel === "Fictional closed episode with patient follow-up");
+  if (earlierClosureExample) {
+    state = JSON.parse(JSON.stringify(state));
+    state.people = state.people.map((person) => person.id === "YS-9901"
+      ? JSON.parse(JSON.stringify(person).replaceAll("YS-9901", "YS-DEMO-CLOSE"))
+      : person);
+    remapPersonReferences(state, "YS-9901", "YS-DEMO-CLOSE");
+  }
+  if (!state.people.some((person) => person.id === "YS-DEMO-CLOSE")) {
+    state = JSON.parse(JSON.stringify(state));
+    state.people.push(createMockClosurePerson());
+  }
+  const closureExample = state.people.find((person) =>
+    person.id === "YS-DEMO-CLOSE" &&
+    person.fixtureLabel === "Fictional closed episode with patient follow-up");
+  if (closureExample && closureExample.closureFixtureRevision !== 4) {
+    state = JSON.parse(JSON.stringify(state));
+    const person = state.people.find((item) => item.id === "YS-DEMO-CLOSE");
+    const intake = person.intakes[0];
+    intake.consentRecorded = true;
+    intake.consentReference = "Fictional completed-intake consent record";
+    enrichMockClosurePerson(person);
+  }
   return withSampleFixtures(improveRiverIntakeSummary(removeJordanSep15UnstartedFollowUp(removeJordanOutlierFollowUp(improveJordanFollowUpLabels(state)))));
 }
 
@@ -2134,6 +2374,7 @@ function prepareSeed(state) {
     createMockIntakePerson(),
     createMockIntakeOutcomePerson(),
     createMockIntakeAssessmentPerson(),
+    createMockClosurePerson(),
     jordanFixture,
   ]) {
     if (!next.people.some((person) => person.id === fixture.id))
@@ -3047,6 +3288,7 @@ export function collectionStatus(c) {
     return "Completed";
   if (c.review === "Reviewed") return "Reviewed";
   if (c.response === "Submitted") return "Ready for review";
+  if (!c.due) return "Needs planning";
   if (c.due < TODAY) return "Overdue";
   if (c.due === TODAY) return "Due today";
   return "Scheduled";
@@ -3054,12 +3296,21 @@ export function collectionStatus(c) {
 export const noClinicalReviewRequired = (c) =>
   c?.response === "Submitted" &&
   !c.needsReview &&
-  (c.channel === "Clinician entry" ||
+  (c.closureKind === "feedback" || c.channel === "Clinician entry" ||
     (c.channel === "Clinic tablet" && c.assistance === "Supported"));
 export const hasPendingClinicalReview = (c) =>
   c?.response === "Submitted" &&
   !noClinicalReviewRequired(c) &&
   (c.review !== "Reviewed" || !!c.needsReview);
+const closureFollowUpComplete = (episode) =>
+  [
+    ["assessment", CLOSURE_ASSESSMENT_VERSION],
+    ["feedback", CLOSURE_FEEDBACK_VERSION],
+  ].every(([kind, version]) => {
+    const collection = episode.collections.find((item) =>
+      item.closureKind === kind && item.version === version);
+    return collection?.response === "Submitted" && !hasPendingClinicalReview(collection);
+  });
 export const clinicalReviewStatus = (c) =>
   c.needsReview
     ? "Re-review required"
@@ -3100,11 +3351,12 @@ export function getTasks(state) {
     ...intakeTasks(state, TODAY),
     ...(state?.people || []).filter((p) => !p.archivedAt).flatMap((p) =>
       (p.episodes || [])
-        .filter((e) => e.status === "Active" && canAssess(p, e))
+        .filter((e) => ["Active", "Closed"].includes(e.status) && canAssess(p, e))
         .flatMap((e) =>
           (e.collections || [])
             .filter(
               (c) =>
+                canCollectInEpisode(e, c) &&
                 !["Cancelled", "Paused"].includes(c.assignment) &&
                 (c.response !== "Submitted" || hasPendingClinicalReview(c)),
             )
@@ -3121,6 +3373,33 @@ export function getTasks(state) {
 }
 export function reducer(state, action) {
   if (action.type === "RESET") return createSeed();
+  if (action.type === "RESET_INTAKE_EXAMPLES") {
+    const ids = new Set(["YS-1031", "YS-1032"]);
+    const seed = createSeed();
+    const originals = new Map(seed.people.filter((person) => ids.has(person.id)).map((person) => [person.id, person]));
+    if ([...ids].some((id) => state.people.find((person) => person.id === id)?.name !== originals.get(id)?.name))
+      return state;
+    const resetToken = action.resetToken || uid();
+    const issueIds = new Set(getQualityIssues(state)
+      .filter((issue) => ids.has(issue.personId))
+      .map((issue) => issue.id));
+    return {
+      ...state,
+      people: state.people.map((person) => ids.has(person.id)
+        ? { ...originals.get(person.id), intakeResetToken: resetToken }
+        : person),
+      issues: [
+        ...state.issues.filter((issue) => !ids.has(issue.personId)),
+        ...seed.issues.filter((issue) => ids.has(issue.personId)),
+      ],
+      audit: [
+        ...state.audit.filter((entry) => !ids.has(entry.personId)),
+        ...seed.audit.filter((entry) => ids.has(entry.personId)),
+      ],
+      qualityIssueWorkflow: Object.fromEntries(Object.entries(state.qualityIssueWorkflow || {})
+        .filter(([id]) => !issueIds.has(id))),
+    };
+  }
   if (action.type === "UPGRADE_QUESTIONNAIRE_SAMPLES")
     return upgradeSampleData(state);
   if (
@@ -3138,7 +3417,7 @@ export function reducer(state, action) {
       staff: currentStaff(state),
       uid,
       today: TODAY,
-      version: VERSION,
+      version: INITIAL_ASSESSMENT_INSTRUMENT.version,
     });
   const next = JSON.parse(JSON.stringify(state));
   const p = next.people.find((p) => p.id === action.personId);
@@ -3172,6 +3451,16 @@ export function reducer(state, action) {
       changes: careChanges(priorEpisode, e),
       ...context,
     });
+  };
+  const completeClosureFollowUp = () => {
+    if (e?.status !== "Closed" || !closureFollowUpComplete(e)) return;
+    e.status = "Completed";
+    e.completedAt = recordedAt;
+    event(
+      "Care episode completed",
+      "Episode closure assessment and care experience feedback completed.",
+      { actionType: "COMPLETE_CARE_EPISODE", collectionId: null },
+    );
   };
   switch (action.type) {
     case "ADD_PERSON_TAG":
@@ -3259,12 +3548,22 @@ export function reducer(state, action) {
     case "CHANGE_CARE_LEVEL": {
       if (carePeriodError(e, action, staff, TODAY, DEMO_STAFF.filter((item) => item.role === "Clinician")))
         return state;
+      if (!getInstrument(action.assessmentVersion) ||
+          !INSTRUMENTS.some((instrument) => instrument.version === action.assessmentVersion) ||
+          (action.newEpisodeId && p.episodes.some((episode) => episode.id === action.newEpisodeId)))
+        return state;
       const previous = currentCarePeriod(e);
       const authoriser = DEMO_STAFF.find((item) => item.id === action.authorisingPractitionerId);
+      const newEpisodeId = action.newEpisodeId || uid();
+      const newEpisodeNumber = String(Math.max(0, ...p.episodes.map((episode) => Number(episode.number) || 0)) + 1).padStart(2, "0");
+      const assessmentId = uid();
+      const linkedIntake = intakeFor(p, e);
+      const respondent = linkedIntake?.respondentPreference || "Person";
+      const respondentName = respondent === "Family respondent" ? linkedIntake?.respondentName : p.name;
       previous.endDateExclusive = action.effectiveDate;
       const period = {
         id: uid(),
-        episodeId: e.id,
+        episodeId: newEpisodeId,
         startDate: action.effectiveDate,
         endDateExclusive: null,
         careLevel: action.careLevel,
@@ -3278,17 +3577,82 @@ export function reducer(state, action) {
         actor: staff.name,
         timestamp: recordedAt,
       };
-      e.carePeriods.push(period);
-      event("Care level changed", `${previous.careLevel} to ${action.careLevel} · ${action.entryReason} · effective ${action.effectiveDate}`, {
+      e.status = "Closed";
+      e.end = previousDate(action.effectiveDate);
+      e.reason = `Care level changed from ${previous.careLevel} to ${action.careLevel}.`;
+      e.nextEpisodeId = newEpisodeId;
+      e.nextCareStep = `Continued in care episode ${newEpisodeNumber} at ${action.careLevel} level.`;
+      event("Care episode ended for level change", `${previous.careLevel} to ${action.careLevel} · ${action.entryReason} · next episode ${newEpisodeNumber} starts ${action.effectiveDate}`, {
+        actionType: "END_CARE_EPISODE_FOR_LEVEL_CHANGE",
         date: action.effectiveDate,
         effectiveDate: action.effectiveDate,
-        carePeriodId: period.id,
+        carePeriodId: previous.id,
+        fromCareLevel: previous.careLevel,
+        toCareLevel: action.careLevel,
+        entryReason: action.entryReason,
+        nextEpisodeId: newEpisodeId,
+        nextEpisodeNumber: newEpisodeNumber,
         collectionId: null,
       });
+      const newEpisode = {
+        id: newEpisodeId,
+        number: newEpisodeNumber,
+        status: "Active",
+        start: action.effectiveDate,
+        programStream: e.programStream,
+        disposition: "Continued care",
+        owner: e.owner || p.owner,
+        intakeId: linkedIntake?.id || null,
+        previousEpisodeId: e.id,
+        carePeriods: [period],
+        collections: [{
+          id: assessmentId,
+          label: "Initial assessment",
+          due: action.assessmentDue,
+          version: action.assessmentVersion,
+          assignment: "Planned",
+          response: "Not started",
+          review: "Pending",
+          link: "Not sent",
+          attempts: [],
+          answers: [],
+          respondent,
+          respondentName,
+          recorder: respondent,
+          recorderName: respondentName,
+        }],
+        appointments: [],
+        events: [{
+          id: uid(),
+          date: action.effectiveDate,
+          effectiveDate: action.effectiveDate,
+          timestamp: recordedAt,
+          title: "Care episode started after level change",
+          detail: `${e.programStream} stream · ${action.careLevel} level · initial assessment due ${action.assessmentDue}`,
+          actionType: "CHANGE_CARE_LEVEL",
+          personId: p.id,
+          episodeId: newEpisodeId,
+          previousEpisodeId: e.id,
+          carePeriodId: period.id,
+          collectionId: assessmentId,
+          actor: staff.name,
+          actorId: staff.id,
+          role: staff.role,
+        }],
+      };
+      newEpisode.events[0].changes = careChanges(null, newEpisode);
+      p.episodes.unshift(newEpisode);
       break;
     }
     case "ADD_APPOINTMENT": {
       if (e?.status !== "Active" || appointmentError(e, action, TODAY))
+        return state;
+      const newAssessmentVersions = action.newAssessmentVersions ?? [];
+      if (!Array.isArray(newAssessmentVersions) ||
+          new Set(newAssessmentVersions).size !== newAssessmentVersions.length ||
+          (newAssessmentVersions.length && !canAssess(p, e)) ||
+          newAssessmentVersions.some((version) =>
+            !INSTRUMENTS.some((instrument) => instrument.version === version)))
         return state;
       const appointment = {
         id: action.id || uid(),
@@ -3300,6 +3664,34 @@ export function reducer(state, action) {
       };
       e.appointments ??= [];
       e.appointments.unshift(appointment);
+      for (const collectionId of action.collectionIds ?? (action.collectionId ? [action.collectionId] : []))
+        e.collections.find((collection) => collection.id === collectionId).appointmentId = appointment.id;
+      const assessmentDue = action.attendance === "Attended"
+        ? action.actualDate : action.plannedDate;
+      for (const version of newAssessmentVersions) {
+        const instrument = INSTRUMENTS.find((item) => item.version === version);
+        const collection = {
+          id: uid(),
+          label: instrument.name,
+          due: assessmentDue,
+          version,
+          assignment: "Planned",
+          response: "Not started",
+          review: "Pending",
+          link: "Not sent",
+          appointmentId: appointment.id,
+          attempts: [],
+          answers: [],
+          respondent: "Person",
+          recorder: "Person",
+          assistance: "Independent",
+        };
+        e.collections.push(collection);
+        event("Follow-up planned", `${collection.label} · due ${formatDate(assessmentDue)} · linked to contact`, {
+          collectionId: collection.id,
+          appointmentId: appointment.id,
+        });
+      }
       break;
     }
     case "RECORD_APPOINTMENT_OUTCOME": {
@@ -3548,6 +3940,13 @@ export function reducer(state, action) {
         `${c.label} · ${staff.name} · revision ${c.revision}${c.needsReview ? " · re-review required" : ""}`,
         { auditId: next.audit[0].id, revision: c.revision },
       );
+      if (e.status === "Completed" && c.closureKind === "assessment" && c.needsReview) {
+        e.status = "Closed";
+        e.completedAt = null;
+        event("Care episode completion pending", "Closure assessment answers changed; clinical re-review is required.", {
+          actionType: "REOPEN_CLOSURE_REVIEW", collectionId: c.id,
+        });
+      }
       break;
     }
     case "PLAN":
@@ -3594,7 +3993,8 @@ export function reducer(state, action) {
       if (
         !canAssess(p, e) ||
         !c ||
-        e.status !== "Active" ||
+        !c.due ||
+        !canCollectInEpisode(e, c) ||
         p.consent !== "Recorded" ||
         p.contact !== "Suitable" ||
         !getInstrument(c.version) ||
@@ -3684,7 +4084,7 @@ export function reducer(state, action) {
       if (
         !canAssess(p, e) ||
         !c ||
-        e.status !== "Active" ||
+        !canCollectInEpisode(e, c) ||
         c.response === "Submitted" ||
         c.assignment !== "Active" ||
         c.link !== "Active"
@@ -3741,6 +4141,7 @@ export function reducer(state, action) {
         action.answers,
       ).answers;
       c.response = "Submitted";
+      c.assessmentProgress = "Completed";
       c.assignment = "Fulfilled";
       c.link = "Ended";
       c.submittedAt = TODAY;
@@ -3788,6 +4189,7 @@ export function reducer(state, action) {
         "Questionnaire response received",
         `${c.label} · ${collectionActor(p, c, "respondent")} · ${reviewRequired ? "clinical review pending" : "clinical review not required"}`,
       );
+      completeClosureFollowUp();
       break;
     case "REVIEW":
       if (
@@ -3819,6 +4221,7 @@ export function reducer(state, action) {
         `${c.label} · ${c.reviewActor} · ${c.version}`,
         { reviewRevision: c.reviewRevision },
       );
+      completeClosureFollowUp();
       break;
     case "CONSENT_SEND": {
       const item = CONSENT_LIBRARY.find(
@@ -4153,6 +4556,17 @@ export function reducer(state, action) {
           c.link = "Revoked";
         }
       });
+      if (action.status === "Closed") {
+        const assignments = closureCollections(p, e);
+        e.collections.push(...assignments);
+        for (const assignment of assignments) {
+          event(
+            "Closure questionnaire assigned",
+            `${assignment.label} · ${p.name} · due ${formatDate(assignment.due)} · ${assignment.link === "Active" ? "sample link prepared, not sent" : "contact settings need review before link preparation"}`,
+            { collectionId: assignment.id },
+          );
+        }
+      }
       event(
         `Care episode ${action.status.toLowerCase()}`,
         `${action.reason} · ${
@@ -4392,6 +4806,8 @@ export function responseEditError(state, action) {
   if (!canEditResponses(state)) return "Your role cannot edit responses.";
   if (!response || response.response !== "Submitted")
     return "Only submitted responses can be edited.";
+  if (response.readOnly)
+    return "This historical assessment is view only.";
   const instrument = getInstrument(response.version);
   if (!instrument)
     return "The questionnaire version is unavailable for editing.";

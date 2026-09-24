@@ -1,5 +1,6 @@
 import { Button, Field, Modal, Notice, ValidatedForm } from "./UI";
 import { CARE_LEVELS, CARE_LEVEL_REASONS, PROGRAM_STREAMS, currentCarePeriod, nextDate } from "../carePeriods";
+import { DEMO_INSTRUMENT, INSTRUMENTS } from "../instruments";
 import { formatDate, TODAY } from "../model";
 
 export default function CareLevelForm({ episode, clinicians, error, onClose, onSave }) {
@@ -20,11 +21,13 @@ export default function CareLevelForm({ episode, clinicians, error, onClose, onS
         });
       }}>
         <div className="form-body care-level-form">
-          <Notice>Record the program stream for this episode and its dated level history.</Notice>
+          <Notice>{initial
+            ? "Record the program stream and starting level for this episode."
+            : "The level change starts a new care episode and plans its initial assessment. Earlier records remain in the current episode."}</Notice>
           {initial ? (
             <p>Confirm the level in effect from the episode start, {formatDate(episode.start)}. No earlier level will be inferred.</p>
           ) : (
-            <p>Current level: <strong>{current.careLevel}</strong> since {formatDate(current.startDate)}. The change closes that period and starts the next one on the effective date.</p>
+            <p>Current level: <strong>{current.careLevel}</strong> since {formatDate(current.startDate)}. The change closes this care episode and starts a new numbered episode on the effective date. Existing assessments and contacts stay with this episode.</p>
           )}
           <div className="form-grid">
             {initial && !episode.programStream && (
@@ -70,6 +73,14 @@ export default function CareLevelForm({ episode, clinicians, error, onClose, onS
                     {reviewedCollections.map((collection) => <option key={collection.id} value={collection.id}>{collection.label} · {collection.reviewDate ? formatDate(collection.reviewDate) : "date not recorded"}</option>)}
                   </select>
                 </Field>
+                <Field label="Initial assessment due in new episode">
+                  <input name="assessmentDue" type="date" min={TODAY} defaultValue={TODAY} required />
+                </Field>
+                <Field label="Questionnaire for new assessment">
+                  <select name="assessmentVersion" defaultValue={episode.collections?.at(-1)?.version || DEMO_INSTRUMENT.version} required>
+                    {INSTRUMENTS.map((instrument) => <option key={instrument.version} value={instrument.version}>{instrument.name} · {instrument.version}</option>)}
+                  </select>
+                </Field>
               </>
             )}
           </div>
@@ -77,7 +88,7 @@ export default function CareLevelForm({ episode, clinicians, error, onClose, onS
         </div>
         <div className="modal-footer">
           <Button type="button" onClick={onClose}>Cancel</Button>
-          <Button type="submit" variant="primary">{initial ? "Record starting level" : "Save level change"}</Button>
+          <Button type="submit" variant="primary">{initial ? "Record starting level" : "Start new care episode"}</Button>
         </div>
       </ValidatedForm>
     </Modal>

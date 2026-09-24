@@ -20,6 +20,7 @@ import {
   FileText,
   CheckCircle2,
   FileCheck2,
+  CalendarClock,
 } from "lucide-react";
 import { useStore } from "../store";
 import RecordTwo from "./RecordTwo";
@@ -28,6 +29,7 @@ import Appointments from "./Appointments";
 import RecordItem from "../components/RecordItem";
 import IntakeDetailsModal from "../components/IntakeDetailsModal";
 import CareLevelSection from "../components/CareLevelSection";
+import ListFilterBar from "../components/ListFilterBar";
 import { currentCarePeriod, nextDate } from "../carePeriods";
 import Timeline, {
   ChangeLog,
@@ -50,6 +52,8 @@ import { getQualityIssues, recordCompleteness } from "../dataQuality";
 import {
   Button,
   Badge,
+  Field,
+  FormErrorSummary,
   Panel,
   Select,
   Notice,
@@ -60,6 +64,7 @@ import {
   RecordTabs,
   PersonIdentity,
   Avatar,
+  ValidatedForm,
 } from "../components/UI";
 
 const hiddenRecordTabs = ["Appointments", "History", "Change log"];
@@ -88,6 +93,12 @@ export default function Person({ id, navigate, openModal }) {
   const [tagEditorOpen, setTagEditorOpen] = useState(false);
   const [selectedTag, setSelectedTag] = useState("");
   const [tagError, setTagError] = useState("");
+  const [assessmentFilter, setAssessmentFilter] = useState("all");
+  const [assessmentQuery, setAssessmentQuery] = useState("");
+  const [assessmentMethod, setAssessmentMethod] = useState("all");
+  const [consentFilter, setConsentFilter] = useState("all");
+  const [consentQuery, setConsentQuery] = useState("");
+  const [consentChannel, setConsentChannel] = useState("all");
   const allTabs = [
     "Overview",
     "Assessment",
@@ -105,6 +116,7 @@ export default function Person({ id, navigate, openModal }) {
     const params = new URLSearchParams(searchParams.toString());
     if (value === "Overview") params.delete("tab");
     else params.set("tab", value.toLowerCase());
+    params.delete("attention");
     params.delete("historyView");
     navigate(`/people/${p.id}${params.size ? `?${params}` : ""}`, {
       scroll: false,
@@ -169,6 +181,30 @@ export default function Person({ id, navigate, openModal }) {
   const modal = (type) =>
     type === "review" ? openReview(c) : openModal({ type, ...context });
   const consentRequests = p.consentRequests || [];
+  const assessmentStatuses = [...new Set(orderedCollections.map(collectionStatus))];
+  const assessmentItems = ["all", ...assessmentStatuses].map((value) => ({
+    value,
+    label: value === "all" ? "All" : value,
+    count: value === "all" ? orderedCollections.length : orderedCollections.filter((col) => collectionStatus(col) === value).length,
+  }));
+  const visibleCollections = orderedCollections.filter((col) =>
+    (assessmentFilter === "all" || collectionStatus(col) === assessmentFilter) &&
+    (assessmentMethod === "all" || (col.channel || "Not set up") === assessmentMethod) &&
+    `${col.label} ${col.version} ${col.assignment} ${col.response} ${collectionStatus(col)}`
+      .toLowerCase().includes(assessmentQuery.trim().toLowerCase()),
+  );
+  const consentStatuses = [...new Set(consentRequests.map((request) => request.status))];
+  const consentItems = ["all", ...consentStatuses].map((value) => ({
+    value,
+    label: value === "all" ? "All" : value,
+    count: value === "all" ? consentRequests.length : consentRequests.filter((request) => request.status === value).length,
+  }));
+  const visibleConsentRequests = consentRequests.filter((request) =>
+    (consentFilter === "all" || request.status === consentFilter) &&
+    (consentChannel === "all" || request.channel === consentChannel) &&
+    `${request.title} ${request.version} ${request.scope} ${request.status} ${request.channel}`
+      .toLowerCase().includes(consentQuery.trim().toLowerCase()),
+  );
   const eventSummary = latestCareEventsByType(e);
   const reviewed =
     c.response === "Submitted" &&
@@ -177,6 +213,36 @@ export default function Person({ id, navigate, openModal }) {
   const completeness = recordCompleteness(p, TODAY);
   const requiredDataIssues = getQualityIssues(state, TODAY).filter((issue) =>
     issue.personId === p.id && !["Resolved", "Closed"].includes(issue.status));
+  const attentionItems = e.status === "Active" ? [
+    ...(e.appointments || [])
+      .filter((appointment) => appointment.attendance === "Planned" && appointment.plannedDate && appointment.plannedDate <= TODAY)
+      .map((appointment) => ({ id: `appointment-${appointment.id}`, type: "appointment", date: appointment.plannedDate })),
+    ...(e.collections || [])
+      .filter((collection) => collection.due && collection.due <= TODAY && collection.response !== "Submitted" && !["Cancelled", "Paused"].includes(collection.assignment))
+      .map((collection) => ({ id: `assessment-${collection.id}`, type: "assessment", date: collection.due })),
+  ] : [];
+  const attentionSummary = [
+    ["appointment", true, "planned contact", "overdue"],
+    ["appointment", false, "planned contact", "today"],
+    ["assessment", true, "assessment", "overdue"],
+    ["assessment", false, "assessment", "due today"],
+  ].map(([type, overdue, label, when]) => {
+    const count = attentionItems.filter((item) => item.type === type && (item.date < TODAY) === overdue).length;
+    return count ? `${count} ${label}${count === 1 ? "" : "s"} ${when}` : null;
+  }).filter(Boolean).join(" · ");
+  const attentionOnly = tab === "Events" && searchParams.get("attention") === "1";
+  const clearAttention = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("attention");
+    navigate(`/people/${p.id}${params.size ? `?${params}` : ""}`, { scroll: false });
+  };
+  const toggleAttention = () => {
+    if (attentionOnly) return clearAttention();
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", "events");
+    params.set("attention", "1");
+    navigate(`/people/${p.id}?${params}`, { scroll: false });
+  };
   const currentLevelPeriod = currentCarePeriod(e);
   const canChangeLevel = e.status === "Active" && currentStaff(state)?.role === "Clinician" &&
     (!currentLevelPeriod || nextDate(currentLevelPeriod.startDate) <= TODAY);
@@ -235,7 +301,7 @@ export default function Person({ id, navigate, openModal }) {
         </div>
         <div className="actions">
           <Button
-            disabled={e.status === "Closed"}
+            disabled={e.status !== "Active"}
             onClick={() => modal("episode")}
           >
             Care episode actions
@@ -243,6 +309,26 @@ export default function Person({ id, navigate, openModal }) {
           </Button>
         </div>
       </div>
+      {e.status !== "Active" && (
+        <div className="care-period-status-notice" role="status">
+          <Notice tone="amber">
+            {e.status === "Completed"
+              ? `This period of care ended${e.end ? ` on ${formatDate(e.end)}` : ""}. The closure assessment and care experience feedback are complete.`
+              : e.status === "Closed"
+              ? `This period of care is closed${e.end ? ` as of ${formatDate(e.end)}` : ""}. Closure assessment and feedback assignments can still be completed here.`
+              : "This care episode is paused. Outstanding collections are paused and their links are revoked. Submitted responses remain in the record."}
+          </Notice>
+        </div>
+      )}
+      {attentionItems.length > 0 && (
+        <button type="button" className="care-event-attention" onClick={toggleAttention}>
+          <CalendarClock size={18} aria-hidden="true" />
+          <span className="care-event-attention-summary"><strong>Needs attention</strong><span>{attentionSummary}</span></span>
+          <span className="care-event-attention-action">
+            {attentionOnly ? "Show all records" : `Show ${attentionItems.length} ${attentionItems.length === 1 ? "item" : "items"}`}
+          </span>
+        </button>
+      )}
       {intakeDetailsOpen && (
         <IntakeDetailsModal
           person={p}
@@ -252,7 +338,7 @@ export default function Person({ id, navigate, openModal }) {
       )}
       {tagEditorOpen && (
         <Modal title="Person tags" subtitle="Add short labels to help identify this record." onClose={() => setTagEditorOpen(false)}>
-          <form onSubmit={(event) => {
+          <ValidatedForm onSubmit={(event) => {
             event.preventDefault();
             const tag = selectedTag;
             if (!tag) return setTagError("Choose a tag.");
@@ -264,14 +350,12 @@ export default function Person({ id, navigate, openModal }) {
             setTagError("");
           }}>
             <div className="form-body">
-              <label className={`field${tagError ? " has-error" : ""}`}>
-                <span>Tag</span>
-                <select value={selectedTag} aria-invalid={Boolean(tagError) || undefined} onChange={(event) => { setSelectedTag(event.target.value); setTagError(""); }} autoFocus>
+              <Field label="Tag" error={tagError}>
+                <select id="person-tag-choice" value={selectedTag} onChange={(event) => { setSelectedTag(event.target.value); setTagError(""); }} autoFocus>
                   <option value="">Choose a tag</option>
                   {PERSON_TAG_OPTIONS.filter((tag) => !(p.tags || []).includes(tag)).map((tag) => <option key={tag} value={tag}>{tag}</option>)}
                 </select>
-              </label>
-              {tagError && <p className="field-error" role="alert">{tagError}</p>}
+              </Field>
               <div className="person-tag-editor-list">
                 {(p.tags || []).map((tag) => (
                   <div className="person-tag-editor-item" key={tag}>
@@ -285,7 +369,8 @@ export default function Person({ id, navigate, openModal }) {
               </div>
             </div>
             <div className="modal-footer person-tag-editor-actions"><Button type="button" onClick={() => setTagEditorOpen(false)}>Close</Button><Button type="submit" variant="primary">Add tag</Button></div>
-          </form>
+            {tagError && <FormErrorSummary title="Tag not added · 1 item to check" description="Correct the tag selection, then try again." items={[{ id: "person-tag-choice", label: "Tag", message: tagError }]} />}
+          </ValidatedForm>
         </Modal>
       )}
       <div className="episode-bar">
@@ -309,7 +394,7 @@ export default function Person({ id, navigate, openModal }) {
                     {formatDate(ep.start)} –{" "}
                     {ep.end
                       ? formatDate(ep.end)
-                      : ep.status === "Closed"
+                      : ["Closed", "Completed"].includes(ep.status)
                         ? "end not recorded"
                         : "present"}{" "}
                     · {ep.status}
@@ -378,62 +463,42 @@ export default function Person({ id, navigate, openModal }) {
           </button>
           {requiredDataIssues.length > 0 && (
             <div className="episode-required-issues">
-              {requiredDataIssues.length === 1 ? (
-                <button
-                  type="button"
-                  className="episode-required-issue-link"
-                  onClick={() => openModal({ type: "quality-issue", personId: p.id, issueId: requiredDataIssues[0].id })}
-                >
-                  1 data issue
-                </button>
-              ) : (
-                <>
-                  <strong>{requiredDataIssues.length} data issues</strong>
-                  <ul>
-                    {requiredDataIssues.map((issue) => (
-                      <li key={issue.id}>
-                        <button
-                          type="button"
-                          className="episode-required-issue-link"
-                          onClick={() => openModal({ type: "quality-issue", personId: p.id, issueId: issue.id })}
-                        >
-                          {issue.title || issue.type || "Data issue"}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
+              <button
+                type="button"
+                className="episode-required-issue-link"
+                onClick={() => requiredDataIssues.length === 1
+                  ? openModal({ type: "quality-issue", personId: p.id, issueId: requiredDataIssues[0].id })
+                  : navigate(`/quality?q=${encodeURIComponent(p.name)}`)}
+              >
+                {requiredDataIssues.length} data {requiredDataIssues.length === 1 ? "issue" : "issues"}
+              </button>
             </div>
           )}
         </div>
       </div>
       <div className="person-content-surface">
-      {contextualView ? (
+      {contextualView === "Referrals" ? (
         <div className="section-toolbar">
           <h2 id="person-context-heading">{contextualView}</h2>
-          <Button onClick={() => setTab("Overview")}>
-            <ArrowLeft size={16} aria-hidden="true" /> Back to overview
-          </Button>
         </div>
-      ) : (
+      ) : !contextualView ? (
         <PersonRecordNavigation
           tabs={tabs}
           value={tab}
           onChange={setTab}
         />
-      )}
+      ) : null}
       <div
         role={contextualView || hiddenRecordTab ? "region" : "tabpanel"}
         id="person-panel"
         aria-labelledby={
-          contextualView
+          contextualView === "Referrals"
             ? "person-context-heading"
             : hiddenRecordTab
               ? undefined
               : `person-tab-${tabs.filter((item) => !hiddenRecordTabs.includes(typeof item === "string" ? item : item.value)).findIndex((item) => (typeof item === "string" ? item : item.value) === tab)}`
         }
-        aria-label={hiddenRecordTab ? (tab === "Appointments" ? "Service contacts" : tab) : undefined}
+        aria-label={contextualView === "Intake" ? "Intake information" : hiddenRecordTab ? (tab === "Appointments" ? "Service contacts" : tab) : undefined}
       >
         {!canAssess(p, e) && (
           <Notice tone="amber">
@@ -445,7 +510,7 @@ export default function Person({ id, navigate, openModal }) {
         )}
         {tab === "Intake" && (
           <IntakePanel
-            key={`${intakeFor(p, e)?.id}:${intakeFor(p, e)?.revision}`}
+            key={`${intakeFor(p, e)?.id}:${intakeFor(p, e)?.revision}:${p.intakeResetToken || "original"}`}
             person={p}
             intake={intakeFor(p, e) || p.intakes[0]}
             navigate={navigate}
@@ -459,13 +524,6 @@ export default function Person({ id, navigate, openModal }) {
             openModal={openModal}
           />
         )}
-        {e.status !== "Active" && (
-          <Notice tone="amber">
-            {e.status === "Closed"
-              ? `This period of care is closed${e.end ? ` as of ${formatDate(e.end)}` : ""}. Submitted responses and reviews remain available.`
-              : "This care episode is paused. Outstanding collections are paused and their links are revoked. Submitted responses remain in the record."}
-          </Notice>
-        )}
         {tab === "Overview" && (
           <>
             <div className="overview-top-row">
@@ -473,8 +531,8 @@ export default function Person({ id, navigate, openModal }) {
               <header className="overview-assessment-heading">
                 <div className="overview-assessment-topline">
                   <p className="overview-assessment-label">
-                    {e.status === "Closed"
-                      ? "Latest assessment in this period"
+                    {["Closed", "Completed"].includes(e.status)
+                      ? (c.closureKind ? "Post-closure patient check-in" : "Latest assessment in this period")
                       : "Current assessment"}
                   </p>
                   <Badge>{nextStep.badge}</Badge>
@@ -645,18 +703,48 @@ export default function Person({ id, navigate, openModal }) {
               <div>
                 <h2>Assessment & collection plan</h2>
                 <p>
-                  Separate collection points within care episode {e.number}.
+                  Separate collection points within care episode {e.number}. Closure assessment and feedback remain linked to this episode after it closes.
                 </p>
               </div>
               <Button
                 variant="primary"
-                disabled={e.status !== "Active" || !canAssess(p, e)}
+                disabled={e.status !== "Active" || !canAssess(p, e) || !c.due}
                 onClick={() => modal("plan")}
               >
                 Plan follow-up
               </Button>
             </div>
-            {orderedCollections.map((col) => {
+            {!c.due && (
+              <div>
+                <Button onClick={() => setTab("Intake")}>
+                  <ArrowLeft size={16} aria-hidden="true" /> Back to Intake
+                </Button>
+              </div>
+            )}
+            <ListFilterBar
+              id="assessment-status"
+              label="Assessment status"
+              items={assessmentItems}
+              value={assessmentFilter}
+              onChange={setAssessmentFilter}
+              query={assessmentQuery}
+              onQueryChange={setAssessmentQuery}
+              placeholder="Search assessments"
+              shown={visibleCollections.length}
+              total={orderedCollections.length}
+              noun="assessments"
+              activeAdvancedCount={Number(assessmentMethod !== "all")}
+              onClear={() => { setAssessmentFilter("all"); setAssessmentQuery(""); setAssessmentMethod("all"); }}
+              advanced={
+                <Select label="Collection method" value={assessmentMethod} onChange={(event) => setAssessmentMethod(event.target.value)}>
+                  <option value="all">All methods</option>
+                  {[...new Set(orderedCollections.map((col) => col.channel || "Not set up"))].map((method) => (
+                    <option key={method} value={method}>{method}</option>
+                  ))}
+                </Select>
+              }
+            />
+            {visibleCollections.map((col) => {
               const isPrior =
                 !isOutstanding(col) &&
                 col.id !== searchParams.get("collection");
@@ -699,10 +787,15 @@ export default function Person({ id, navigate, openModal }) {
                     </div>
                   }
                   note={
-                    <>
-                      {col.attempts.length} delivery{" "}
-                      {col.attempts.length === 1 ? "attempt" : "attempts"} · version pinned at assignment
-                    </>
+                    col.readOnly
+                      ? "Historical assessment · view only · version retained"
+                      : col.closureKind && col.attempts.length > 0 &&
+                    col.attempts.every((attempt) => attempt.status === "Prepared (sample; not sent)")
+                      ? "Sample link prepared · no SMS sent · version pinned at assignment"
+                      : <>
+                          {col.attempts.length} delivery{" "}
+                          {col.attempts.length === 1 ? "attempt" : "attempts"} · version pinned at assignment
+                        </>
                   }
                   actions={
                     <>
@@ -733,6 +826,7 @@ export default function Person({ id, navigate, openModal }) {
                       {col.response !== "Submitted" && (
                         <Button
                           variant="secondary"
+                          disabled={!col.due}
                           aria-haspopup="dialog"
                           onClick={() =>
                             openModal({
@@ -740,7 +834,7 @@ export default function Person({ id, navigate, openModal }) {
                               personId: p.id,
                               episodeId: e.id,
                               collectionId: col.id,
-                              channel: "Clinic tablet",
+                              channel: col.closureKind ? "SMS link" : "Clinic tablet",
                               collectResponse: true,
                             })
                           }
@@ -753,6 +847,7 @@ export default function Person({ id, navigate, openModal }) {
                 />
               );
             })}
+            {!visibleCollections.length && <Empty title="No assessments match these filters">Try another search or filter.</Empty>}
             <Notice>
               Sample instrument and collection rules. Clinical content,
               eligibility, cadence, and completion criteria require approval
@@ -773,6 +868,9 @@ export default function Person({ id, navigate, openModal }) {
             episode={e}
             person={p}
             audit={state.audit}
+            attentionIds={attentionItems.map((item) => item.id)}
+            attentionOnly={attentionOnly}
+            onClearAttention={clearAttention}
             eventId={searchParams.get("event")}
             openModal={(eventModal) =>
               openModal({ ...eventModal, personId: p.id })
@@ -793,7 +891,30 @@ export default function Person({ id, navigate, openModal }) {
                 Send consent request
               </Button>
             </div>
-            {consentRequests.map((request) => (
+            <ListFilterBar
+              id="consent-status"
+              label="Consent request status"
+              items={consentItems}
+              value={consentFilter}
+              onChange={setConsentFilter}
+              query={consentQuery}
+              onQueryChange={setConsentQuery}
+              placeholder="Search consent requests"
+              shown={visibleConsentRequests.length}
+              total={consentRequests.length}
+              noun="requests"
+              activeAdvancedCount={Number(consentChannel !== "all")}
+              onClear={() => { setConsentFilter("all"); setConsentQuery(""); setConsentChannel("all"); }}
+              advanced={
+                <Select label="Delivery channel" value={consentChannel} onChange={(event) => setConsentChannel(event.target.value)}>
+                  <option value="all">All channels</option>
+                  {[...new Set(consentRequests.map((request) => request.channel))].map((channel) => (
+                    <option key={channel} value={channel}>{channel}</option>
+                  ))}
+                </Select>
+              }
+            />
+            {visibleConsentRequests.map((request) => (
               <RecordItem
                 key={request.id}
                 title={request.title}
@@ -834,6 +955,7 @@ export default function Person({ id, navigate, openModal }) {
                 }
               />
             ))}
+            {!visibleConsentRequests.length && consentRequests.length > 0 && <Empty title="No consent requests match these filters">Try another search or filter.</Empty>}
             <section className="consent-context-panel" aria-labelledby="consent-context-title">
               <h3 id="consent-context-title">Contact and participant context</h3>
               <dl className="consent-summary-row">

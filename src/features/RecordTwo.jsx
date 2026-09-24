@@ -3,16 +3,20 @@ import {
   ArrowDown,
   ArrowRight,
   ArrowUp,
+  ChartNoAxesCombined,
   CheckCircle2,
   ChevronDown,
   CircleAlert,
   Clock3,
   ExternalLink,
 } from "lucide-react";
-import { CareTimeline } from "./LongitudinalReport";
-import { Button, Modal } from "../components/UI";
+import { CareTimeline, hasCareTimelineEntries } from "./LongitudinalReport";
+import { Badge, Button, Modal, Panel, TextLink } from "../components/UI";
+import ReportingIndicator from "../components/ReportingIndicator";
 import { GOVERNED_MEASURES } from "../measureGovernance";
-import { formatDate } from "../model";
+import { collectionStatus, formatDate } from "../model";
+import { currentCollection } from "../workflow";
+import { REPORT_FIELDS } from "../report";
 import {
   isCompletedScore,
   outcomeMeasureCards,
@@ -42,6 +46,7 @@ function ChartCard({
   className = "",
   isVisible = true,
   onToggle,
+  reportingType = "context",
 }) {
   return (
     <section
@@ -52,16 +57,19 @@ function ChartCard({
           <h3>{title}</h3>
           <p>{description}</p>
         </div>
-        {onToggle && (
-          <button
-            type="button"
-            className="report-section-toggle"
-            aria-expanded={isVisible}
-            onClick={onToggle}
-          >
-            {isVisible ? "Hide" : "Show"}
-          </button>
-        )}
+        <div className="record-two-header-actions">
+          <ReportingIndicator type={reportingType} />
+          {onToggle && (
+            <button
+              type="button"
+              className="report-section-toggle"
+              aria-expanded={isVisible}
+              onClick={onToggle}
+            >
+              {isVisible ? "Hide" : "Show"}
+            </button>
+          )}
+        </div>
       </header>
       {isVisible && children}
     </section>
@@ -739,6 +747,7 @@ function OutcomeMeasurePanel({ measure, onShowResponses }) {
           : "No completed scores are available to plot."
       }
       className="record-two-measure-panel"
+      reportingType={measure.key === "iar-dst" ? "unconfigured" : ["sidas", "who-5"].includes(measure.key) ? "aftercare" : "outcome"}
     >
       {points.length ? (
         <>
@@ -847,6 +856,7 @@ function OutcomeScoreSummary({ episode, onShowResponses }) {
       title="K10+ and K5 scores"
       description="Dated raw scores from the linked sample responses. Each measure keeps its own scale."
       className="record-two-measure-panel"
+      reportingType="outcome"
     >
       {measures.map((measure) => (
         <div key={measure.key} className="record-two-measure-sources">
@@ -961,10 +971,19 @@ function Risk() {
 }
 
 export default function RecordTwo({ person, episode, navigate }) {
-  const isFixture = Boolean(person.fixtureLabel);
+  const isFixture = Boolean(person.fixtureLabel) &&
+    person.fixtureLabel !== "Fictional closed episode with patient follow-up";
   const hasOutcomeMeasures = episode.reportOutcomeMeasures?.some(
     (measure) => measure.records?.length,
   );
+  const isEmptyReport = !isFixture && !hasOutcomeMeasures && !hasCareTimelineEntries(episode);
+  const nextAssessment = currentCollection(episode);
+  const nextAssessmentStatus = nextAssessment ? collectionStatus(nextAssessment) : null;
+  const openAssessment = () => {
+    const params = new URLSearchParams({ tab: "assessment", episode: episode.id });
+    if (nextAssessment?.id) params.set("collection", nextAssessment.id);
+    navigate(`/people/${person.id}?${params}`, { scroll: false });
+  };
   const [careTimelineVisible, setCareTimelineVisible] = useState(true);
   const [compareMeasuresOpen, setCompareMeasuresOpen] = useState(false);
   const [responseListKey, setResponseListKey] = useState(null);
@@ -994,7 +1013,63 @@ export default function RecordTwo({ person, episode, navigate }) {
           </Button>
         )}
       </div>
-      <div className="record-two-grid">
+      {episode.progressReport && (
+        <Panel title="Saved episode report">
+          <div className="panel-body stack">
+            <p className="muted">
+              Recorded {formatDate(episode.progressReport.timestamp?.slice(0, 10))} by {episode.progressReport.actor || "Not recorded"} · {episode.progressReport.sources?.length || 0} submitted assessment sources. This saved version is view only.
+            </p>
+            <dl className="metadata">
+              {REPORT_FIELDS.map(({ key, label }) => (
+                <div key={key}>
+                  <dt>{label}</dt>
+                  <dd>{episode.progressReport.content?.[key] || "Not recorded"}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        </Panel>
+      )}
+      {isEmptyReport ? (
+        <section className="report-empty-state" aria-labelledby="report-empty-title">
+          <div className="report-empty-main">
+            <span className="report-empty-icon" aria-hidden="true"><ChartNoAxesCombined size={28} /></span>
+            <span className="report-empty-kicker">Report status</span>
+            <h3 id="report-empty-title">Waiting for recorded evidence</h3>
+            <p>
+              This care episode has no completed evidence to display in the report yet.
+              Dated care activity and supported outcome measures will appear here when
+              those records are available.
+            </p>
+            <div className="report-empty-sections" aria-label="Report sections awaiting evidence">
+              <span>Care timeline <strong>No reportable activity yet</strong></span>
+              <span>Outcome measures <strong>Awaiting completed scores</strong></span>
+            </div>
+          </div>
+          <Panel
+            title="Next step"
+            className="report-empty-next"
+            action={nextAssessmentStatus && (
+              <Badge tone={nextAssessmentStatus === "Overdue" ? "coral" : "neutral"}>
+                {nextAssessmentStatus}
+              </Badge>
+            )}
+          >
+            <div className="panel-body">
+              <h3>{nextAssessment?.label || "Initial assessment"}</h3>
+              {nextAssessment?.due && <p>Due {formatDate(nextAssessment.due)}</p>}
+              <div className="actions">
+                <Button variant="primary" onClick={openAssessment}>Open assessment</Button>
+                <TextLink
+                  onClick={() => navigate(`/people/${person.id}?tab=events&episode=${encodeURIComponent(episode.id)}`, { scroll: false })}
+                >
+                  View care events
+                </TextLink>
+              </div>
+            </div>
+          </Panel>
+        </section>
+      ) : <div className="record-two-grid">
         {isFixture ? (
           <>
             <CareTimeline
@@ -1026,14 +1101,14 @@ export default function RecordTwo({ person, episode, navigate }) {
             <OutcomeMeasureCards episode={episode} onShowResponses={setResponseListKey} />
             {!hasOutcomeMeasures && (
               <div className="record-two-empty record-two-empty-wide">
-                Structured observations, care periods, goals, activity ratings,
-                outcome measures, risk reviews and medication courses are needed
-                before this report can draw additional longitudinal graphs.
+                <strong>Outcome measures are not available yet</strong>
+                <p>Completed, dated scores will appear when they are recorded for this care episode.</p>
+                <Button variant="secondary" onClick={openAssessment}>View assessment</Button>
               </div>
             )}
           </>
         )}
-      </div>
+      </div>}
       {compareMeasuresOpen && (
         <CompareMeasuresModal
           episode={episode}

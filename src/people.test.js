@@ -1,8 +1,19 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createSeed, TODAY } from "./model.js";
+import { createSeed, getTasks, TODAY } from "./model.js";
 import { newIntake } from "./intake.js";
-import { comparePeople, peopleInEpisodes, personStatus } from "./people.js";
+import { comparePeople, peopleForList, peopleInEpisodes, personStatus } from "./people.js";
+
+test("every person with work is discoverable in People", () => {
+  const state = createSeed();
+  const rows = peopleForList(state.people);
+  const ids = new Set(rows.map((row) => row.person.id));
+  for (const task of getTasks(state)) {
+    assert.ok(ids.has(task.person.id), `${task.person.name} is missing from People`);
+    assert.equal(peopleForList(state.people, "All episodes", task.person.id).length, 1);
+  }
+  assert.equal(rows.length, state.people.filter((person) => !person.archivedAt).length);
+});
 
 test("people show actionable assessment states in priority order", () => {
   const rows = peopleInEpisodes(createSeed().people).sort(comparePeople);
@@ -45,10 +56,10 @@ test("future follow-ups cannot hide overdue work, and completed review updates t
   assert.match(personStatus(person, episode).detail, /Re-review required/);
 });
 
-test("paused, closed and intake-blocked care never show stale overdue assessment work", () => {
+test("paused, closed, completed and intake-blocked care never show stale overdue assessment work", () => {
   const person = createSeed().people[0];
   const episode = person.episodes[0];
-  for (const status of ["Paused", "Closed"]) {
+  for (const status of ["Paused", "Closed", "Completed"]) {
     episode.status = status;
     const summary = personStatus(person, episode);
     assert.equal(summary.status, status);
@@ -58,6 +69,16 @@ test("paused, closed and intake-blocked care never show stale overdue assessment
   episode.status = "Active";
   person.intakes[0].status = "Awaiting triage";
   assert.equal(personStatus(person, episode).status, "Intake required");
+});
+
+test("completed episodes remain discoverable in the People status filter", () => {
+  const state = createSeed();
+  const person = state.people.find((item) => item.id === "YS-DEMO-CLOSE");
+  person.episodes[0].status = "Completed";
+  const rows = peopleForList(state.people, "Completed");
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].person.id, person.id);
+  assert.match(rows[0].detail, /Closure assessment and care experience feedback complete/);
 });
 
 test("episode filtering keeps the status and opened collection in the same care period", () => {

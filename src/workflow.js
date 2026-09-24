@@ -17,27 +17,32 @@ export function compareCollections(a, b) {
       collectionStatus(c)
     ] ?? 4;
   return (
-    rank(a) - rank(b) || a.due.localeCompare(b.due) || a.id.localeCompare(b.id)
+    rank(a) - rank(b) || (a.due || "").localeCompare(b.due || "") || a.id.localeCompare(b.id)
   );
 }
 
 export function currentCollection(episode) {
   return (
     episode.collections.filter(isOutstanding).sort(compareCollections)[0] ||
-    [...episode.collections].sort((a, b) => b.due.localeCompare(a.due))[0]
+    [...episode.collections].sort((a, b) => (b.due || "").localeCompare(a.due || ""))[0]
   );
 }
 
+export function matchesWorkOwner(owner, state, ownership) {
+  const assignedOwner = owner && owner !== "Unassigned" ? owner : null;
+  return ownership === "team" ||
+    (ownership === "unassigned"
+      ? !assignedOwner
+      : assignedOwner === currentStaff(state)?.name);
+}
+
 export function ownedTasks(tasks, state, ownership) {
+  const reviewDate = (task) =>
+    task.collection?.due || task.record?.reviewDate || "9999-12-31";
   return tasks
     .filter(({ person, episode, owner: taskOwner }) => {
       const owner = taskOwner || episode?.owner || person.owner;
-      return (
-        ownership === "team" ||
-        (ownership === "unassigned"
-          ? !owner
-          : owner === currentStaff(state)?.name)
-      );
+      return matchesWorkOwner(owner, state, ownership);
     })
     .sort((a, b) => {
       const rank = (task) =>
@@ -48,9 +53,7 @@ export function ownedTasks(tasks, state, ownership) {
             : 2;
       return (
         rank(a) - rank(b) ||
-        (a.collection?.due || a.record.reviewDate).localeCompare(
-          b.collection?.due || b.record.reviewDate,
-        )
+        reviewDate(a).localeCompare(reviewDate(b))
       );
     });
 }

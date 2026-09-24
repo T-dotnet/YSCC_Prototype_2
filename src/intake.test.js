@@ -16,6 +16,7 @@ import {
   INTAKE_CHECKS,
 } from "./intake.js";
 import { ownedTasks, taskHref } from "./workflow.js";
+import { INITIAL_ASSESSMENT_INSTRUMENT } from "./instruments.js";
 
 const registration = {
   type: "ADD_PERSON",
@@ -56,10 +57,19 @@ const save = (s, values = {}) =>
       ...values,
     },
   });
-test("Consent and Outcome unlock only after required intake checks are validated and saved", () => {
+test("consent can be saved before checks, while the outcome waits for validated checks", () => {
   const received = registered();
   assert.equal(intakeStepComplete(person(received).intakes[0]), false);
-  const checked = save(received, {
+  const withConsent = save(received, {
+    consentRecorded: true,
+    consentReference: "Recorded discussion reference",
+    respondentPreference: "Family respondent",
+    respondentName: "Alex's parent",
+  });
+  assert.equal(person(withConsent).intakes[0].consentRecorded, true);
+  assert.equal(person(withConsent).intakes[0].respondentName, "Alex's parent");
+  assert.equal(intakeStepComplete(person(withConsent).intakes[0]), false);
+  const checked = save(withConsent, {
     ...Object.fromEntries(INTAKE_CHECKS.map(([key]) => [key, true])),
   });
   assert.equal(intakeStepComplete(person(checked).intakes[0]), false);
@@ -262,7 +272,7 @@ test("consent and an initial respondent are required before intake can complete"
   assert.equal(person(done).consent, "Recorded");
   assert.equal(intakeReady(person(done).intakes[0]), true);
 });
-test("AC-25: waiting resumes with history; proceed leaves an owned assessment queue until explicit planning", () => {
+test("AC-25: completing a proceed intake adds initial assessment before planning", () => {
   const waiting = save(registered(), {
     status: "Awaiting information",
     waitingReason: "Source needs checking",
@@ -277,18 +287,31 @@ test("AC-25: waiting resumes with history; proceed leaves an owned assessment qu
     changeReason: "Information received",
   });
   const done = complete(resumed);
-  assert.equal(person(done).episodes.length, 0);
+  assert.equal(person(done).episodes.length, 1);
+  assert.equal(person(done).episodes[0].collections.length, 1);
+  assert.equal(person(done).episodes[0].collections[0].label, "Initial assessment");
+  assert.equal(person(done).episodes[0].collections[0].version, INITIAL_ASSESSMENT_INSTRUMENT.version);
+  assert.equal(person(done).episodes[0].collections[0].due, "");
+  assert.equal(person(done).episodes[0].programStream, "");
+  assert.equal(person(done).episodes[0].events.some((event) => event.eventType === "inpatient"), false);
+  assert.equal(person(done).intakes[0].episodeId, person(done).episodes[0].id);
+  assert.ok(canAssess(person(done), person(done).episodes[0]));
   assert.ok(
     getTasks(done).some(
       (t) =>
         t.person.id === person(done).id &&
-        t.status === "Waiting for assessment",
+        t.status === "Needs planning",
     ),
   );
+  const collectionId = person(done).episodes[0].collections[0].id;
   const planned = start(done),
     p = person(planned);
   assert.equal(p.episodes.length, 1);
   assert.equal(p.episodes[0].collections.length, 1);
+  assert.equal(p.episodes[0].collections[0].id, collectionId);
+  assert.equal(p.episodes[0].collections[0].due, TODAY);
+  assert.equal(p.episodes[0].programStream, "General");
+  assert.equal(p.episodes[0].events.filter((event) => event.eventType === "inpatient").length, 1);
   assert.equal(p.episodes[0].disposition, "Undecided");
   assert.ok(canAssess(p, p.episodes[0]));
   assert.equal(p.intakes[0].history.length, 5);
@@ -310,6 +333,7 @@ test("a completed intake can be reopened before assessment planning while retain
   assert.equal(intake.decisionBy, "");
   assert.equal(intake.history[0].title, "Intake reopened");
   assert.equal(intake.history[1].title, "Intake completed");
+  assert.equal(person(reopened).episodes.length, 0);
   assert.equal(start(reopened), reopened);
   assert.equal(reopen(reopened), reopened);
 });

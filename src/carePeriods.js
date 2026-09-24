@@ -66,6 +66,8 @@ export function carePeriodError(episode, action, staff, today, clinicians) {
     return "Choose a date after the current level began and within this episode.";
   if (action.careLevel === current.careLevel)
     return "Choose a different care level.";
+  if (!validDate(action.assessmentDue) || action.assessmentDue < today)
+    return "Choose an initial assessment due date for the new episode.";
   if (!CARE_LEVEL_REASONS.includes(action.entryReason))
     return "Choose a reason for the level change.";
   if (!clinicians.some((clinician) => clinician.id === action.authorisingPractitionerId))

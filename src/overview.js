@@ -41,6 +41,30 @@ export function overviewNextStep(person, episode, collection, staff) {
     modal: "collection-details",
   };
 
+  if (episode.status === "Completed")
+    return {
+      ...step(
+        "Closure follow-up complete",
+        "The closure assessment has been reviewed and care experience feedback received. Both responses remain available in Assessment.",
+        { label: "View assessments", tab: "Assessment" },
+        "Completed",
+      ),
+      dueText: episode.completedAt
+        ? `Completed ${formatDate(episode.completedAt.slice(0, 10))}`
+        : "Closure follow-up complete",
+    };
+
+  if (episode.status === "Closed" && c.closureKind)
+    return step(
+      submitted
+        ? (c.closureKind === "feedback" ? "Patient feedback received" : reviewed || reviewNotRequired ? "Closure assessment reviewed" : "Closure assessment needs review")
+        : "Awaiting post-closure response",
+      submitted
+        ? (c.closureKind === "feedback" ? "The patient feedback is retained with this closed episode." : reviewed || reviewNotRequired ? "The final check-in is retained with this closed episode. Care experience feedback is still outstanding." : "Review the patient's final check-in while the episode remains closed.")
+        : "The patient has a sample closure questionnaire assignment. Its link was prepared in this prototype; no SMS was sent.",
+      { label: "Open assessment", tab: "Assessment" },
+    );
+
   if (episode.status !== "Active")
     return step(
       episode.status === "Closed"
@@ -100,6 +124,14 @@ export function overviewNextStep(person, episode, collection, staff) {
       "Review the intake evidence and proceed decision before starting or reissuing this questionnaire.",
       { label: "Open intake", tab: "Intake" },
       "Intake required",
+    );
+
+  if (!c.due)
+    return step(
+      "Plan initial assessment",
+      "The initial assessment instrument was added after intake. Set its due date and program stream before collecting a response.",
+      { label: "Open assessment", tab: "Assessment" },
+      "Needs planning",
     );
 
   if (person.consent !== "Recorded" || person.contact !== "Suitable")

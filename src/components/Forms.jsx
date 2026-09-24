@@ -26,6 +26,7 @@ import {
   displayPersonName,
   displayFamilyName,
   CONSENT_LIBRARY,
+  canCollectInEpisode,
   uid,
 } from "../model";
 import { DEMO_INSTRUMENT, INSTRUMENTS, getInstrument } from "../instruments";
@@ -248,6 +249,7 @@ export default function Forms({
         people={state.people}
         person={p}
         error={formError}
+        canCreateAssessment={canAssess(p, e)}
         onClose={onClose}
         onSave={(action) =>
           save(action, "Appointment or service contact added to this care episode.")
@@ -265,7 +267,13 @@ export default function Forms({
         onSave={(action) => {
           const problem = carePeriodError(e, action, staff, TODAY, clinicians);
           if (problem) return setFormError(problem);
-          save(action, action.type === "CHANGE_CARE_LEVEL" ? "Care level changed. Earlier level retained in history." : "Starting care level recorded.");
+          if (action.type === "CHANGE_CARE_LEVEL") {
+            const newEpisodeId = uid();
+            if (save({ ...action, newEpisodeId }, "New care episode started. The earlier episode remains in history."))
+              navigate(`/people/${p.id}?episode=${newEpisodeId}`);
+          } else {
+            save(action, "Starting care level recorded.");
+          }
         }}
       />
     );
@@ -552,7 +560,7 @@ export default function Forms({
               </summary>
               <ul>
                 {[...e.collections]
-                  .sort((a, b) => a.due.localeCompare(b.due))
+                  .sort((a, b) => (a.due || "").localeCompare(b.due || ""))
                   .map((col) => (
                     <li key={col.id}>
                       {col.label} · {formatDate(col.due)} ·{" "}
@@ -1008,7 +1016,7 @@ export default function Forms({
     const allowed =
       p.consent === "Recorded" &&
       p.contact === "Suitable" &&
-      e.status === "Active" &&
+      canCollectInEpisode(e, c) &&
       c.response !== "Submitted" &&
       !!getInstrument(c.version) &&
       getInstrument(c.version).respondents.includes(respondent) &&
@@ -1019,7 +1027,7 @@ export default function Forms({
         `Assessment participation is ${p.consent.toLowerCase()}.`,
       p.contact !== "Suitable" &&
         `Contact suitability is ${p.contact.toLowerCase()}.`,
-      e.status !== "Active" &&
+      !canCollectInEpisode(e, c) &&
         `This care episode is ${e.status.toLowerCase()}.`,
       c.response === "Submitted" && "A response has already been submitted.",
       !getInstrument(c.version) && "This questionnaire version is unavailable.",
@@ -1886,6 +1894,9 @@ export default function Forms({
                   Prototype closure record only. Closure categories and
                   final-measure rules must be confirmed before PMHC-MDS use.
                 </Notice>
+                <Notice>
+                  Closing assigns the patient an episode closure assessment and a separate care experience feedback questionnaire, due seven days from today. This prototype prepares sample links but sends no SMS.
+                </Notice>
                 <Field label="Actual care end date">
                   <input
                     name="end"
@@ -2028,6 +2039,9 @@ export default function Forms({
                 review history are retained.
               </p>
               <p>No clinical admission decision is made by this action.</p>
+              {episodeAction === "Closed" && (
+                <p>Two new patient questionnaires will be assigned to this closed episode. If participation or contact settings are unsuitable, their links will wait for review.</p>
+              )}
             </div>
             <label className="check-field">
               <input type="checkbox" required />
@@ -2302,7 +2316,7 @@ export default function Forms({
       "This affects only the workspace’s sample data.",
       <>
         <p>
-          Return to the six original people and their sample tasks. Your local
+          Return to the original sample people and their tasks. Your local
           demo changes and questionnaire drafts will be removed.
         </p>
         <Button
@@ -2325,6 +2339,26 @@ export default function Forms({
         >
           Reset sample data
         </Button>
+      </>,
+    ],
+    "reset-intake-examples": [
+      "Reset River and Samira",
+      "Restore only these two fictional records for intake testing.",
+      <>
+        <p>River returns to intake in progress. Samira returns to completed intake, ready to plan the initial assessment. Other people and their work stay as they are.</p>
+        <Button
+          variant="primary"
+          onClick={() => {
+            const result = commit({ type: "RESET_INTAKE_EXAMPLES", resetToken: uid() });
+            if (result.error) return setFormError(result.error);
+            onClose();
+            navigate("/people/YS-1031?tab=intake");
+            notify("River and Samira reset to their sample intake states.");
+          }}
+        >
+          Reset River and Samira
+        </Button>
+        {formError && <p className="field-error" role="alert">{formError}</p>}
       </>,
     ],
     "system-status": [

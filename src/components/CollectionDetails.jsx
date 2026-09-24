@@ -3,6 +3,7 @@ import {
   clinicalReviewStatus,
   displayPersonName,
   displayCollectionActor,
+  canCollectInEpisode,
 } from "../model";
 import { canAssess } from "../intake";
 import { collectionSetupLabel } from "../overview";
@@ -20,7 +21,7 @@ export default function CollectionDetails({
   const c = collection;
   const submitted = c.response === "Submitted";
   const collectionOpen =
-    episode.status === "Active" &&
+    canCollectInEpisode(episode, c) &&
     !["Paused", "Cancelled"].includes(c.assignment) &&
     canAssess(person, episode);
 
@@ -212,7 +213,7 @@ export default function CollectionDetails({
             {canCompleteAsClinician && (
               <Button
                 disabled={
-                  episode.status !== "Active" ||
+                  !canCollectInEpisode(episode, c) ||
                   ["Paused", "Cancelled"].includes(c.assignment)
                 }
                 onClick={() => onAction("clinician-entry")}

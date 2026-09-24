@@ -1,5 +1,5 @@
 import useQueueView from "../useQueueView";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { INSTRUMENTS } from "../instruments";
 import {
   Plus,
@@ -9,8 +9,6 @@ import {
   CalendarX,
   FileCheck,
   Search,
-  Filter,
-  ChevronDown,
   RotateCcw,
   ClipboardList,
   FileCheck2,
@@ -26,6 +24,7 @@ import { currentStaff, formatDate, TODAY } from "../model";
 import { sortQueueRows } from "../queueSort";
 import { ActiveFilters, SortableHeader, useQueueSort } from "../components/QueueControls";
 import { QueueCell, QueueRow } from "../components/QueueRow";
+import ListFilterBar from "../components/ListFilterBar";
 import {
   QUALITY_SEVERITIES,
   QUALITY_STATUSES,
@@ -39,7 +38,6 @@ import {
   Notice,
   Empty,
   Select,
-  SearchInput,
 } from "../components/UI";
 
 const EMPTY_FILTERS = {
@@ -139,9 +137,8 @@ export function Quality({ openModal, navigate }) {
     clinicians: [...new Set(issues.map((issue) => issue.owner))],
     periods: [...new Set(issues.map((issue) => issue.submissionPeriod))],
   };
-  const [filtersExpanded, setFiltersExpanded] = useState(false);
   const activeFilterCount = Object.entries(filters).filter(
-    ([key, value]) => value !== EMPTY_FILTERS[key],
+    ([key, value]) => key !== "status" && value !== EMPTY_FILTERS[key],
   ).length;
   return (
     <>
@@ -155,34 +152,25 @@ export function Quality({ openModal, navigate }) {
         action={<Badge>{unresolved.length} unresolved</Badge>}
         className="quality-queue"
       >
-        <div className="work-toolbar quality-toolbar">
-          <div className="toolbar-search-and-count">
-            <SearchInput
-              value={query}
-              onChange={setQuery}
-              placeholder="Search issues..."
-            />
-            <span className="toolbar-count" aria-live="polite">
-              Showing {visibleIssues.length} of {issues.length}
-            </span>
-          </div>
-          <button
-            type="button"
-            className="quality-filter-toggle"
-            aria-expanded={filtersExpanded}
-            aria-controls="quality-filter-fields"
-            onClick={() => setFiltersExpanded((expanded) => !expanded)}
-          >
-            <span>
-              <Filter size={16} aria-hidden="true" />
-              Filters{activeFilterCount ? ` (${activeFilterCount})` : ""}
-            </span>
-            <ChevronDown size={16} aria-hidden="true" />
-          </button>
-          <div
-            id="quality-filter-fields"
-            className={`quality-filter-fields${filtersExpanded ? " open" : ""}`}
-          >
+        <ListFilterBar
+          id="quality-status"
+          label="Validation issue status"
+          items={["All statuses", ...QUALITY_STATUSES].map((value) => ({
+            value,
+            label: value === "All statuses" ? "All" : value,
+            count: value === "All statuses" ? issues.length : issues.filter((issue) => issue.status === value).length,
+          }))}
+          value={filters.status}
+          onChange={(value) => setFilter("status", value)}
+          query={query}
+          onQueryChange={setQuery}
+          placeholder="Search issues"
+          shown={visibleIssues.length}
+          total={issues.length}
+          noun="issues"
+          activeAdvancedCount={activeFilterCount}
+          onClear={clearAll}
+          advanced={<>
             <Select
               label="Organisation filter"
               value={filters.organisation}
@@ -237,8 +225,8 @@ export function Quality({ openModal, navigate }) {
                 <option key={value}>{value}</option>
               ))}
             </Select>
-          </div>
-        </div>
+          </>}
+        />
         <ActiveFilters
           items={[
             ...(query ? [{ id: "search", label: `Search: ${query}`, onRemove: () => setQuery("") }] : []),
@@ -419,12 +407,18 @@ export function Administration({ openModal }) {
       <div className="reset-panel">
         <div>
           <h3>Start fresh with sample data</h3>
-          <p>Restore the original six people and their worklist.</p>
+          <p>Reset the intake examples or restore the full sample workspace.</p>
         </div>
-        <Button onClick={() => openModal({ type: "reset" })}>
-          <RotateCcw size={17} />
-          Reset sample workspace
-        </Button>
+        <div className="button-row">
+          <Button onClick={() => openModal({ type: "reset-intake-examples" })}>
+            <RotateCcw size={17} />
+            Reset River and Samira
+          </Button>
+          <Button onClick={() => openModal({ type: "reset" })}>
+            <RotateCcw size={17} />
+            Reset sample workspace
+          </Button>
+        </div>
       </div>
     </>
   );

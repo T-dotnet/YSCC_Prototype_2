@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ChevronDown } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useStore } from "../store";
@@ -24,6 +24,7 @@ import {
   Badge,
   Button,
   Field,
+  FormErrorSummary,
   Modal,
   Notice,
   Panel,
@@ -267,11 +268,26 @@ function intakeFieldErrors(draft, outcomeDraft, mode, modelError) {
   return errors;
 }
 
-export function IntakePanel({ person, intake, navigate }) {
+const INTAKE_ERROR_LABELS = {
+  ...Object.fromEntries(INTAKE_CHECKS.map(([key, label]) => [key, label])),
+  displayName: "Preferred / supplied name",
+  dob: "Date of birth",
+  receivedAt: "Contact received",
+  reviewer: "Assigned triage reviewer",
+  nextAction: "Next step",
+  consentRecorded: "Consent for assessment participation",
+  consentReference: "Consent source / reference",
+  respondentPreference: "Initial assessment respondent",
+  respondentName: "Family respondent name",
+  outcome: "Outcome",
+};
+
+export function IntakePanel({ person, intake, navigate, mobileReferrals }) {
   const { state, commit } = useStore(),
     staff = currentStaff(state);
+  const searchParams = useSearchParams();
   const [draft, setDraft, _clearDraft, draftError] = useDraft(
-    `intake:${intake.id}:${intake.revision}`,
+    `intake:${intake.id}:${intake.revision}:${person.intakeResetToken || "original"}`,
     {
       ...intake,
       displayName: person.nameUnknown ? "" : person.name,
@@ -280,13 +296,29 @@ export function IntakePanel({ person, intake, navigate }) {
     },
   );
   const [outcomeDraft, setOutcomeDraft, _clearOutcomeDraft, outcomeDraftError] = useDraft(
-    `intake-outcome:${intake.id}`,
+    `intake-outcome:${intake.id}:${person.intakeResetToken || "original"}`,
     { outcome: "" },
   );
   const [error, setError] = useState(""),
     [saveMessage, setSaveMessage] = useState("");
   const [validationMode, setValidationMode] = useState("");
+  const [validationAttempt, setValidationAttempt] = useState(0);
+  const errorSummaryRef = useRef(null);
   const validationErrors = intakeFieldErrors(draft, outcomeDraft, validationMode, error);
+  const validationItems = Object.entries(validationErrors).map(([key, message]) => ({
+    id: `intake-${key}`,
+    label: INTAKE_ERROR_LABELS[key] || key,
+    message,
+  }));
+  useEffect(() => {
+    if (validationAttempt) errorSummaryRef.current?.focus();
+  }, [validationAttempt]);
+  const reportValidation = (mode, message = "") => {
+    setValidationMode(mode);
+    setError(message);
+    setSaveMessage("");
+    setValidationAttempt((attempt) => attempt + 1);
+  };
   const finalised = ["Completed", "Closed incomplete"].includes(intake.status);
   const change = (key, value) => {
     setError("");
@@ -325,6 +357,7 @@ export function IntakePanel({ person, intake, navigate }) {
     <Field label={label} hint={hint} error={validationErrors[key]}>
       {staff ? (
         <StaffPicker
+          id={`intake-${key}`}
           value={draft[key] || ""}
           onChange={(value) => change(key, value)}
           required={required}
@@ -332,6 +365,7 @@ export function IntakePanel({ person, intake, navigate }) {
         />
       ) : multiline ? (
         <textarea
+          id={`intake-${key}`}
           rows={2}
           value={draft[key] || ""}
           required={required}
@@ -340,6 +374,7 @@ export function IntakePanel({ person, intake, navigate }) {
         />
       ) : (
         <input
+          id={`intake-${key}`}
           type={type}
           value={draft[key] || ""}
           required={required}
@@ -349,7 +384,7 @@ export function IntakePanel({ person, intake, navigate }) {
       )}
     </Field>
   );
-  const submit = (action, successMessage) => {
+  const submit = (action, successMessage, failedMode = "") => {
     const full = {
       ...action,
       personId: person.id,
@@ -358,12 +393,12 @@ export function IntakePanel({ person, intake, navigate }) {
     };
     const problem = intakeActionError(state, full, staff);
     if (problem) {
-      setError(problem);
+      reportValidation(failedMode, problem);
       return false;
     }
     const result = commit(full);
     if (result.error) {
-      setError(result.error);
+      reportValidation(failedMode, result.error);
       return false;
     }
     setError("");
@@ -402,17 +437,16 @@ export function IntakePanel({ person, intake, navigate }) {
     setOutcomeDraft((current) => ({ ...current, [key]: value }));
   };
   const recordOutcome = () => {
-    setValidationMode("outcome");
     if (!intakeStepComplete(intake)) {
-      setError("Save the required intake checks before recording an outcome.");
+      reportValidation("checks", "Save the required intake checks before recording an outcome.");
       return;
     }
-    if (!outcomeDraft.outcome) {
-      setError("Choose an intake outcome.");
+    if (Object.keys(intakeFieldErrors(draft, outcomeDraft, "outcome", "")).length) {
+      reportValidation("outcome");
       return;
     }
     const checkProblem = intakeCheckFieldsError(draft);
-    if (checkProblem) return setError(checkProblem);
+    if (checkProblem) return reportValidation("outcome", checkProblem);
     const closedIncomplete = outcomeDraft.outcome === "Closed incomplete";
     const saved = submit({
       type: "SAVE_INTAKE",
@@ -426,17 +460,25 @@ export function IntakePanel({ person, intake, navigate }) {
         assessmentOwner: outcomeDraft.outcome === "Proceed" ? intake.owner : "",
         changeReason: `Intake outcome recorded: ${outcomeDraft.outcome}.`,
       },
-    });
+    }, undefined, "outcome");
     if (saved) {
       setOutcomeDraft({ outcome: "" });
+      if (searchParams.get("tab") !== "intake") {
+        const params = new URLSearchParams(searchParams.toString());
+        params.set("tab", "intake");
+        params.delete("collection");
+        navigate(`/people/${person.id}?${params}`, { scroll: false });
+      }
     }
   };
   const saveIntake = (validateChecks) => {
-    setValidationMode(validateChecks ? "checks" : "");
     if (validateChecks) {
+      if (Object.keys(intakeFieldErrors(draft, outcomeDraft, "checks", "")).length)
+        return reportValidation("checks");
       const problem = intakeCheckFieldsError(draft);
-      if (problem) return setError(problem);
+      if (problem) return reportValidation("checks", problem);
     }
+    setValidationMode("");
     submit({
       type: "SAVE_INTAKE",
       validatedChecks: validateChecks,
@@ -459,7 +501,7 @@ export function IntakePanel({ person, intake, navigate }) {
       },
     }, validateChecks
       ? "Required intake checks and entered details saved. The intake state is unchanged."
-      : "Draft saved. The intake state is unchanged.");
+      : "Draft saved. The intake state is unchanged.", validateChecks ? "checks" : "");
   };
   if (finalised)
     return (
@@ -467,10 +509,13 @@ export function IntakePanel({ person, intake, navigate }) {
         <div className="section-toolbar">
           <div>
             <h2>Intake information</h2>
-            <p>Review the saved referral, contact details and required checks.</p>
+            <p>Review the saved intake and assessment decision.</p>
           </div>
           <Badge>{intake.status}</Badge>
         </div>
+        <Notice>{intake.status === "Completed"
+          ? "Intake completed. Review the saved details below and plan the initial assessment when ready."
+          : "Intake closed incomplete. Review the saved details and recorded decision below."}</Notice>
         <div className="intake-sections">
           <Panel title="Saved intake">
             <div className="panel-body stack intake-detail-body">
@@ -488,30 +533,16 @@ export function IntakePanel({ person, intake, navigate }) {
               </dl>
             </div>
           </Panel>
-          <Panel title="Required intake checks">
-            <div className="panel-body stack intake-detail-body">
-              {INTAKE_CHECKS.map(([key, label]) => (
-                <p key={key}>{intake[key] ? "✓" : "○"} {label}</p>
-              ))}
-              <dl className="metadata">
-                <div><dt>Assigned triage reviewer</dt><dd>{intake.reviewer || "Not recorded"}</dd></div>
-                <div><dt>Next step</dt><dd>{intake.nextAction}</dd></div>
-                <div><dt>Outcome</dt><dd>{intake.outcome || "Closed incomplete"}</dd></div>
-                <div><dt>Recorded by</dt><dd>{intake.decisionBy || intake.history[0]?.actor || "Not recorded"}</dd></div>
-              </dl>
-              {intake.status === "Completed" && !intake.episodeId && !person.episodes.length && (
-                <Button onClick={() => submit({ type: "REOPEN_INTAKE" })}>Reopen intake</Button>
-              )}
-              {intakeReady(intake) && intake.episodeId && (
-                <Button variant="primary" onClick={() => navigate(`/people/${person.id}?episode=${intake.episodeId}&tab=assessment`)}>Open assessment plan</Button>
-              )}
-              {error && <p className="field-error" role="alert">{error}</p>}
-            </div>
-          </Panel>
+          <div className="stack intake-assessment-sidebar">
+            <IntakeAssessmentPanel
+              person={person}
+              intake={intake}
+              navigate={navigate}
+              onReopen={() => submit({ type: "REOPEN_INTAKE" })}
+              reopenError={error}
+            />
+          </div>
         </div>
-        {intakeReady(intake) && !intake.episodeId && (
-          <IntakeAssessmentPanel person={person} intake={intake} navigate={navigate} />
-        )}
       </div>
     );
   return (
@@ -519,7 +550,7 @@ export function IntakePanel({ person, intake, navigate }) {
       className="stack intake-form"
       onSubmit={(e) => {
         e.preventDefault();
-        if (intakeStepComplete(intake) && outcomeDraft.outcome) recordOutcome();
+        if (intakeStepComplete(intake)) recordOutcome();
         else saveIntake(true);
       }}
     >
@@ -638,61 +669,61 @@ export function IntakePanel({ person, intake, navigate }) {
               </details>
             </div>
           </Panel>
+          {mobileReferrals}
           <Panel title="Consent for assessment participation">
             <div className="panel-body stack intake-detail-body">
-              {intakeStepComplete(intake) ? (
-                  <>
-                    <div className={`intake-check-control ${validationErrors.consentRecorded ? "has-error" : ""}`}>
-                      <label className="check-field">
-                        <input
-                          type="checkbox"
-                          checked={draft.consentRecorded === true}
-                          aria-invalid={Boolean(validationErrors.consentRecorded) || undefined}
-                          onChange={(event) => change("consentRecorded", event.target.checked)}
-                        />
-                        Consent for assessment participation has been recorded
-                      </label>
-                      {validationErrors.consentRecorded && <small className="intake-check-error">{validationErrors.consentRecorded}</small>}
-                    </div>
-                    <Field
-                      label="Consent source / reference"
-                      hint="For example, approved form reference or recorded discussion."
-                      error={validationErrors.consentReference}
-                    >
-                      <textarea
-                        rows={2}
-                        value={draft.consentReference || ""}
-                        aria-invalid={Boolean(validationErrors.consentReference) || undefined}
-                        onChange={(event) => change("consentReference", event.target.value)}
-                      />
-                    </Field>
-                    <h3 className="intake-respondent-heading">Initial assessment respondent</h3>
-                    <Field label="Who will complete the initial assessment?" error={validationErrors.respondentPreference}>
-                      <select
-                        value={draft.respondentPreference || "Person"}
-                        aria-invalid={Boolean(validationErrors.respondentPreference) || undefined}
-                        onChange={(event) => change("respondentPreference", event.target.value)}
-                      >
-                        <option value="Person">Person</option>
-                        <option value="Family respondent">Family respondent</option>
-                      </select>
-                    </Field>
-                    {draft.respondentPreference === "Family respondent" && (
-                      <Field
-                        label="Family respondent name"
-                        hint="This identifies their own contribution; it does not establish authority."
-                        error={validationErrors.respondentName}
-                      >
-                        <input
-                          value={draft.respondentName || ""}
-                          aria-invalid={Boolean(validationErrors.respondentName) || undefined}
-                          onChange={(event) => change("respondentName", event.target.value)}
-                        />
-                      </Field>
-                    )}
-                  </>
-              ) : (
-                <Notice tone="amber">Save intake to unlock consent and respondent details.</Notice>
+              <div className={`intake-check-control ${validationErrors.consentRecorded ? "has-error" : ""}`}>
+                <label className="check-field">
+                  <input
+                    id="intake-consentRecorded"
+                    type="checkbox"
+                    checked={draft.consentRecorded === true}
+                    aria-invalid={Boolean(validationErrors.consentRecorded) || undefined}
+                    aria-describedby={validationErrors.consentRecorded ? "intake-consentRecorded-error" : undefined}
+                    onChange={(event) => change("consentRecorded", event.target.checked)}
+                  />
+                  Consent for assessment participation has been recorded
+                </label>
+                {validationErrors.consentRecorded && <small id="intake-consentRecorded-error" className="intake-check-error">{validationErrors.consentRecorded}</small>}
+              </div>
+              <Field
+                label="Consent source / reference"
+                hint="For example, approved form reference or recorded discussion."
+                error={validationErrors.consentReference}
+              >
+                <textarea
+                  id="intake-consentReference"
+                  rows={2}
+                  value={draft.consentReference || ""}
+                  aria-invalid={Boolean(validationErrors.consentReference) || undefined}
+                  onChange={(event) => change("consentReference", event.target.value)}
+                />
+              </Field>
+              <h3 className="intake-respondent-heading">Initial assessment respondent</h3>
+              <Field label="Who will complete the initial assessment?" error={validationErrors.respondentPreference}>
+                <select
+                  id="intake-respondentPreference"
+                  value={draft.respondentPreference || "Person"}
+                  aria-invalid={Boolean(validationErrors.respondentPreference) || undefined}
+                  onChange={(event) => change("respondentPreference", event.target.value)}
+                >
+                  <option value="Person">Person</option>
+                  <option value="Family respondent">Family respondent</option>
+                </select>
+              </Field>
+              {draft.respondentPreference === "Family respondent" && (
+                <Field
+                  label="Family respondent name"
+                  hint="This identifies their own contribution; it does not establish authority."
+                  error={validationErrors.respondentName}
+                >
+                  <input
+                    id="intake-respondentName"
+                    value={draft.respondentName || ""}
+                    aria-invalid={Boolean(validationErrors.respondentName) || undefined}
+                    onChange={(event) => change("respondentName", event.target.value)}
+                  />
+                </Field>
               )}
             </div>
           </Panel>
@@ -708,23 +739,20 @@ export function IntakePanel({ person, intake, navigate }) {
                 <div className={`intake-check-control ${validationErrors[key] ? "has-error" : ""}`} key={key}>
                   <label className="check-field">
                     <input
+                      id={`intake-${key}`}
                       type="checkbox"
                       checked={draft[key] === true}
                       aria-invalid={Boolean(validationErrors[key]) || undefined}
+                      aria-describedby={validationErrors[key] ? `intake-${key}-error` : undefined}
                       onChange={(e) => change(key, e.target.checked)}
                     />
                     {label}
                   </label>
-                  {validationErrors[key] && <small className="intake-check-error">{validationErrors[key]}</small>}
+                  {validationErrors[key] && <small id={`intake-${key}-error`} className="intake-check-error">{validationErrors[key]}</small>}
                 </div>
               ))}
               {field("reviewer", "Assigned triage reviewer", { staff: true })}
               {field("nextAction", "Next step", { multiline: true })}
-              {error && (
-                <p className="field-error" role="alert">
-                  {error}
-                </p>
-              )}
               {saveMessage && <p className="form-save-success">{saveMessage}</p>}
               <div className="stack intake-outcome-step">
                 <h3>Intake outcome</h3>
@@ -736,6 +764,7 @@ export function IntakePanel({ person, intake, navigate }) {
                 )}
                 <Field label="Outcome" error={validationErrors.outcome}>
                   <select
+                    id="intake-outcome"
                     value={outcomeDraft.outcome || ""}
                     disabled={!intakeStepComplete(intake)}
                     aria-invalid={Boolean(validationErrors.outcome) || undefined}
@@ -749,11 +778,20 @@ export function IntakePanel({ person, intake, navigate }) {
                 </Field>
               </div>
               <div className="intake-save-actions">
-                <p className="muted">
-                  {intakeStepComplete(intake) && outcomeDraft.outcome
-                    ? "Recording an outcome completes this intake and saves the decision."
-                    : "Save intake checks the required fields before saving."}
-                </p>
+                {validationItems.length > 0 || error ? (
+                  <FormErrorSummary
+                    containerRef={errorSummaryRef}
+                    title={`Intake not saved · ${validationItems.length || 1} ${validationItems.length === 1 ? "item" : "items"} to check`}
+                    description={error || "Correct the highlighted fields, then select the save action again."}
+                    items={validationItems}
+                  />
+                ) : (
+                  <p className="muted">
+                    {intakeStepComplete(intake) && outcomeDraft.outcome
+                      ? "Recording an outcome completes this intake and saves the decision."
+                      : "Save intake checks the required fields before saving."}
+                  </p>
+                )}
                 <div className="intake-save-buttons">
                   <Button type="button" onClick={() => saveIntake(false)}>Save draft</Button>
                   <Button type="submit" variant="primary">
@@ -774,12 +812,16 @@ export function IntakePanel({ person, intake, navigate }) {
   );
 }
 
-function IntakeAssessmentPanel({ person, intake, navigate }) {
+function IntakeAssessmentPanel({ person, intake, navigate, onReopen, reopenError }) {
   const { state, commit } = useStore();
   const [due, setDue] = useState(TODAY);
   const [programStream, setProgramStream] = useState("");
   const [error, setError] = useState("");
   const ready = intakeReady(intake);
+  const episode = person.episodes.find((item) => item.id === intake.episodeId);
+  const assessmentPlanned = Boolean(episode?.collections?.[0]?.due);
+  const canReopen = intake.status === "Completed" && !assessmentPlanned &&
+    person.episodes.every((item) => item.id === intake.episodeId);
   const startAssessment = (event) => {
     event.preventDefault();
     const action = {
@@ -799,12 +841,6 @@ function IntakeAssessmentPanel({ person, intake, navigate }) {
 
   return (
     <div className="stack">
-      <div className="section-toolbar">
-        <div>
-          <h2>Assessment & collection plan</h2>
-          <p>Initial assessment follows the recorded intake decision.</p>
-        </div>
-      </div>
       <Panel title="Initial assessment" action={<Badge>{ready ? "Ready to plan" : "Waiting for intake"}</Badge>}>
         <div className="panel-body stack">
           <dl className="metadata">
@@ -813,7 +849,7 @@ function IntakeAssessmentPanel({ person, intake, navigate }) {
             <div><dt>Respondent</dt><dd>{intake.respondentPreference || "Not recorded"}</dd></div>
           </dl>
           {ready ? (
-            intake.episodeId ? (
+            assessmentPlanned ? (
               <Button
                 variant="primary"
                 onClick={() => navigate(`/people/${person.id}?episode=${intake.episodeId}&tab=assessment`)}
@@ -823,8 +859,8 @@ function IntakeAssessmentPanel({ person, intake, navigate }) {
             ) : (
               <ValidatedForm className="stack" onSubmit={startAssessment}>
                 <Notice>
-                  {intake.assessmentOwner} owns the next step. Creating the plan
-                  starts the assessment record; the intake decision remains in history.
+                  {intake.assessmentOwner} owns the next step. Set the due date
+                  and program stream to place the initial assessment in the record.
                 </Notice>
                 <Field label="Initial assessment due date">
                   <input
@@ -842,7 +878,10 @@ function IntakeAssessmentPanel({ person, intake, navigate }) {
                   </select>
                 </Field>
                 {error && <p role="alert" className="field-error">{error}</p>}
-                <Button type="submit" variant="primary">Create assessment plan</Button>
+                <div className="intake-assessment-actions">
+                  <Button type="submit" variant="primary">Create assessment plan</Button>
+                  {canReopen && <Button type="button" onClick={onReopen}>Reopen intake</Button>}
+                </div>
               </ValidatedForm>
             )
           ) : (
@@ -852,6 +891,10 @@ function IntakeAssessmentPanel({ person, intake, navigate }) {
                 : "Complete intake with a proceed decision and receiving assessment owner before planning assessment."}
             </Notice>
           )}
+          {!ready && canReopen && (
+            <Button type="button" onClick={onReopen}>Reopen intake</Button>
+          )}
+          {reopenError && <p className="field-error" role="alert">{reopenError}</p>}
         </div>
       </Panel>
     </div>
@@ -861,6 +904,21 @@ function IntakeAssessmentPanel({ person, intake, navigate }) {
 export default function IntakeWorkspace({ person, navigate, openModal }) {
   const params = useSearchParams(),
     intake = person.intakes[0];
+  const [mobileLayout, setMobileLayout] = useState(() =>
+    typeof window !== "undefined" && window.matchMedia?.("(max-width: 720px)").matches,
+  );
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 720px)");
+    const updateLayout = (event) => setMobileLayout(event.matches);
+    query.addEventListener("change", updateLayout);
+    return () => query.removeEventListener("change", updateLayout);
+  }, []);
+  const showReferrals = !["Completed", "Closed incomplete"].includes(intake.status);
+  const referrals = showReferrals && (
+    <section className="intake-referrals-container" aria-label="Referrals">
+      <Referrals person={person} intake={intake} openModal={openModal} hideEmptyState />
+    </section>
+  );
   const returnTo = safeReturnTo(params.get("returnTo"));
   const lastUpdatedAt = [
     intake.createdAt,
@@ -901,11 +959,14 @@ export default function IntakeWorkspace({ person, navigate, openModal }) {
       </div>
       <div className="person-content-surface">
         <div id="intake-workspace-panel" className="stack intake-workspace-sections">
-          <IntakePanel person={person} intake={intake} navigate={navigate} />
-          <section className="intake-referrals-container" aria-label="Referrals">
-            <Referrals person={person} intake={intake} openModal={openModal} hideEmptyState />
-          </section>
-          <IntakeHistory intake={intake} />
+          <IntakePanel
+            key={`${intake.id}:${intake.revision}:${person.intakeResetToken || "original"}`}
+            person={person}
+            intake={intake}
+            navigate={navigate}
+            mobileReferrals={mobileLayout ? referrals : null}
+          />
+          {!mobileLayout && referrals}
         </div>
       </div>
     </>

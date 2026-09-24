@@ -11,6 +11,7 @@ import {
   responseEditError,
   qualityWorkflowError,
   clinicalReviewStatus,
+  canCollectInEpisode,
   collectionActor,
   personEventText,
 } from "./model.js";
@@ -20,6 +21,7 @@ import {
   questionnaireState,
 } from "./instruments.js";
 import { careRecordTimelineEntries } from "./careRecordTimeline.js";
+import { careEventEntries } from "./activity.js";
 import { peopleInEpisodes } from "./people.js";
 const ctx = {
   personId: "YS-1024",
@@ -47,7 +49,8 @@ const submit = (s) =>
   });
 test("seed worklist counts represent actual open collection and review work", () => {
   const tasks = getTasks(createSeed());
-  assert.equal(tasks.length, 9);
+  assert.equal(tasks.length, 11);
+  assert.equal(tasks.filter((task) => task.person.id === "YS-DEMO-CLOSE").length, 2);
   assert.equal(tasks.filter((t) => t.status === "Overdue").length, 2);
   assert.equal(tasks.filter((t) => t.status === "Ready for review").length, 2);
 });
@@ -105,6 +108,30 @@ test("sample tags match each fixture and preserve saved tag choices", () => {
   assert.deepEqual(tagsFor(upgraded, "YS-1031"), []);
   assert.deepEqual(tagsFor(upgraded, "YS-1028"), ["Review requested"]);
   assert.equal(upgradeSampleData(upgraded), upgraded);
+});
+test("resetting intake examples restores River and Samira without changing other records", () => {
+  const seed = createSeed();
+  const edited = structuredClone(seed);
+  edited.people.find((person) => person.id === "YS-1031").intakes[0].status = "Completed";
+  edited.people.find((person) => person.id === "YS-1032").intakes[0].nextAction = "Edited locally";
+  edited.people.find((person) => person.id === "YS-1024").tags = ["Review requested"];
+  edited.audit.push({ id: "AUD-RIVER-LOCAL", personId: "YS-1031" });
+  edited.audit.push({ id: "AUD-KAI-LOCAL", personId: "YS-1024" });
+  edited.issues.push({ id: "DQ-SAMIRA-LOCAL", personId: "YS-1032", title: "Local sample issue", status: "Open" });
+  edited.qualityIssueWorkflow["DQ-SAMIRA-LOCAL"] = { status: "Investigating" };
+  const reset = reducer(edited, { type: "RESET_INTAKE_EXAMPLES", resetToken: "test-reset" });
+  for (const id of ["YS-1031", "YS-1032"]) {
+    const actual = reset.people.find((person) => person.id === id);
+    const original = seed.people.find((person) => person.id === id);
+    assert.deepEqual({ ...actual, intakeResetToken: undefined }, { ...original, intakeResetToken: undefined });
+    assert.equal(actual.intakeResetToken, "test-reset");
+  }
+  assert.deepEqual(reset.people.find((person) => person.id === "YS-1024"), edited.people.find((person) => person.id === "YS-1024"));
+  assert.equal(reset.audit.some((entry) => entry.id === "AUD-RIVER-LOCAL"), false);
+  assert.equal(reset.audit.some((entry) => entry.id === "AUD-KAI-LOCAL"), true);
+  assert.equal(reset.issues.some((issue) => issue.id === "DQ-SAMIRA-LOCAL"), false);
+  assert.equal(reset.qualityIssueWorkflow["DQ-SAMIRA-LOCAL"], undefined);
+  assert.equal(edited.people.find((person) => person.id === "YS-1031").intakes[0].status, "Completed");
 });
 test("Zoe has distinct current and closed care periods without adding historical work to the queue", () => {
   const seed = createSeed();
@@ -559,7 +586,8 @@ test("episode closure cancels outstanding work and preserves historical response
     handoverConfirmationReference: "Sample handover confirmation",
     finalMeasureStatus: "Recorded missing",
   });
-  assert.equal(collection(closed).assignment, "Cancelled");
+  const oldCollection = closed.people[0].episodes[0].collections.find((item) => item.id === ctx.collectionId);
+  assert.equal(oldCollection.assignment, "Cancelled");
   assert.equal(closed.people[0].episodes[0].end, "2026-09-12");
   assert.equal(
     closed.people[0].episodes[0].closureCategory,
@@ -578,16 +606,164 @@ test("episode closure cancels outstanding work and preserves historical response
     closed.people[0].episodes[0].finalMeasureStatus,
     "Recorded missing",
   );
-  assert.equal(collection(closed).link, "Revoked");
+  assert.equal(oldCollection.link, "Revoked");
+  const closureCollections = closed.people[0].episodes[0].collections.filter((item) => item.closureKind);
+  assert.deepEqual(closureCollections.map((item) => item.closureKind), ["assessment", "feedback"]);
+  assert.ok(closureCollections.every((item) => item.assignment === "Active" && item.link === "Active"));
+  assert.ok(closureCollections.every((item) => item.attempts[0].status === "Prepared (sample; not sent)"));
   assert.deepEqual(
     closed.people[0].episodes[0].collections[0],
     seed.people[0].episodes[0].collections[0],
   );
   assert.equal(
     getTasks(closed).some((t) => t.person.id === ctx.personId),
-    false,
+    true,
   );
   assert.deepEqual(submit(closed), closed);
+});
+test("a patient can answer closure questionnaires after the episode closes", () => {
+  const seed = createSeed();
+  const person = seed.people.find((item) => item.id === "YS-DEMO-CLOSE");
+  const episode = person.episodes[0];
+  assert.equal(episode.status, "Closed");
+  assert.equal(person.intakes[0].consentRecorded, true);
+  assert.equal(person.intakes[0].reviewer, "Jess Taylor");
+  assert.equal(episode.programStream, "General");
+  assert.equal(episode.carePeriods[0].careLevel, "Mid");
+  assert.equal(episode.carePeriods[0].endDateExclusive, "2026-09-13");
+  assert.equal(episode.collections.filter((item) => item.readOnly).length, 4);
+  assert.equal(episode.reportOutcomeMeasures.find((item) => item.key === "k10-plus").records.length, 2);
+  assert.equal(episode.progressReport.sources.length, 4);
+  assert.ok(episode.events.some((item) => item.title === "Care plan agreed"));
+  assert.deepEqual(
+    careEventEntries(person, episode).filter((item) => item.actionType === "ADD_CARE_EVENT").map((item) => item.title).sort(),
+    ["Care episode closed", "Care episode started", "Care plan agreed", "Care progress reviewed"].sort(),
+  );
+  const historical = episode.collections.find((item) => item.readOnly);
+  assert.equal(responseEditError(seed, {
+    type: "EDIT_RESPONSE", personId: person.id, episodeId: episode.id,
+    collectionId: historical.id, expectedRevision: 0,
+    answers: historical.answers, reason: "Fictional correction",
+  }), "This historical assessment is view only.");
+  for (const item of episode.collections.filter((candidate) => candidate.closureKind)) {
+    assert.equal(canCollectInEpisode(episode, item), true);
+    const instrument = getInstrument(item.version);
+    const answers = instrument.questions.map((question) => question.options[0]);
+    const before = seed;
+    const after = reducer(before, {
+      type: "SUBMIT",
+      personId: person.id,
+      episodeId: episode.id,
+      collectionId: item.id,
+      attemptId: item.attempts[0].id,
+      channel: "SMS link",
+      answers,
+    });
+    const saved = after.people.find((candidate) => candidate.id === person.id).episodes[0].collections.find((candidate) => candidate.id === item.id);
+    assert.equal(saved.response, "Submitted");
+    assert.equal(saved.review, item.closureKind === "feedback" ? "Not required" : "Pending");
+    assert.equal(after.people.find((candidate) => candidate.id === person.id).episodes[0].status, "Closed");
+    assert.deepEqual(reducer(after, {
+      type: "SUBMIT", personId: person.id, episodeId: episode.id,
+      collectionId: item.id, answers,
+    }), after);
+  }
+});
+test("a closed care episode completes only after both closure responses and clinical review", () => {
+  const submitClosure = (state, kind) => {
+    const person = state.people.find((item) => item.id === "YS-DEMO-CLOSE");
+    const episode = person.episodes[0];
+    const item = episode.collections.find((candidate) => candidate.closureKind === kind);
+    return reducer(state, {
+      type: "SUBMIT", personId: person.id, episodeId: episode.id,
+      collectionId: item.id, attemptId: item.attempts.at(-1).id,
+      channel: "SMS link",
+      answers: getInstrument(item.version).questions.map((question) => question.options[0]),
+    });
+  };
+  for (const order of [["assessment", "feedback"], ["feedback", "assessment"]]) {
+    let state = createSeed();
+    state = submitClosure(state, order[0]);
+    let episode = state.people.find((item) => item.id === "YS-DEMO-CLOSE").episodes[0];
+    assert.equal(episode.status, "Closed");
+    state = submitClosure(state, order[1]);
+    episode = state.people.find((item) => item.id === "YS-DEMO-CLOSE").episodes[0];
+    assert.equal(episode.status, "Closed");
+    const assessment = episode.collections.find((item) => item.closureKind === "assessment");
+    assert.equal(assessment.review, "Pending");
+    assert.equal(getTasks(state).some((task) => task.collection?.id === assessment.id), true);
+
+    state = reducer(state, {
+      type: "REVIEW", personId: "YS-DEMO-CLOSE", episodeId: episode.id,
+      collectionId: assessment.id, note: "Fictional closure response reviewed.",
+    });
+    episode = state.people.find((item) => item.id === "YS-DEMO-CLOSE").episodes[0];
+    assert.equal(episode.status, "Completed");
+    assert.equal(episode.end, "2026-09-12");
+    assert.ok(episode.completedAt);
+    assert.equal(episode.events.filter((item) => item.actionType === "COMPLETE_CARE_EPISODE").length, 1);
+    assert.equal(getTasks(state).some((task) => task.episode?.id === episode.id), false);
+    assert.equal(canCollectInEpisode(episode, assessment), false);
+  }
+});
+test("correcting a completed closure assessment restores review work before completing again", () => {
+  const seed = createSeed();
+  const person = seed.people.find((item) => item.id === "YS-DEMO-CLOSE");
+  const episode = person.episodes[0];
+  const assessment = episode.collections.find((item) => item.closureKind === "assessment");
+  const feedback = episode.collections.find((item) => item.closureKind === "feedback");
+  let state = seed;
+  for (const item of [assessment, feedback]) state = reducer(state, {
+    type: "SUBMIT", personId: person.id, episodeId: episode.id,
+    collectionId: item.id, attemptId: item.attempts.at(-1).id, channel: "SMS link",
+    answers: getInstrument(item.version).questions.map((question) => question.options[0]),
+  });
+  state = reducer(state, {
+    type: "REVIEW", personId: person.id, episodeId: episode.id,
+    collectionId: assessment.id, note: "Fictional closure response reviewed.",
+  });
+  const completed = state.people.find((item) => item.id === person.id).episodes[0];
+  const savedAssessment = completed.collections.find((item) => item.id === assessment.id);
+  const changedAnswers = [...savedAssessment.answers];
+  changedAnswers[0] = getInstrument(savedAssessment.version).questions[0].options[1];
+  state = reducer(state, {
+    type: "EDIT_RESPONSE", personId: person.id, episodeId: episode.id,
+    collectionId: assessment.id, expectedRevision: savedAssessment.revision ?? 0,
+    answers: changedAnswers, reason: "Correct the fictional answer", source: "Fictional follow-up",
+  });
+  const pending = state.people.find((item) => item.id === person.id).episodes[0];
+  assert.equal(pending.status, "Closed");
+  assert.equal(pending.completedAt, null);
+  assert.equal(getTasks(state).some((task) => task.collection?.id === assessment.id), true);
+  state = reducer(state, {
+    type: "REVIEW", personId: person.id, episodeId: episode.id,
+    collectionId: assessment.id, note: "Corrected response reviewed.",
+  });
+  const recompleted = state.people.find((item) => item.id === person.id).episodes[0];
+  assert.equal(recompleted.status, "Completed");
+  assert.equal(recompleted.events.filter((item) => item.actionType === "COMPLETE_CARE_EPISODE").length, 2);
+});
+test("saved Leila example gains historical evidence without replacing closure activity", () => {
+  const saved = createSeed();
+  const person = saved.people.find((item) => item.id === "YS-DEMO-CLOSE");
+  const episode = person.episodes[0];
+  const closure = episode.collections.find((item) => item.closureKind === "assessment");
+  closure.attempts.push({ id: "local-sample-attempt", date: TODAY, status: "Prepared (sample; not sent)", channel: "SMS link" });
+  episode.collections = episode.collections.filter((item) => item.closureKind);
+  episode.carePeriods = [];
+  episode.reportOutcomeMeasures = [];
+  delete episode.progressReport;
+  person.closureFixtureRevision = 2;
+  const savedEvent = episode.events.find((item) => item.id === "E-YS-DEMO-CLOSE-plan");
+  delete savedEvent.actionType;
+  delete savedEvent.eventDate;
+  const upgraded = upgradeSampleData(saved);
+  const restored = upgraded.people.find((item) => item.id === person.id).episodes[0];
+  assert.equal(restored.collections.filter((item) => item.readOnly).length, 4);
+  assert.equal(restored.collections.find((item) => item.id === closure.id).attempts.at(-1).id, "local-sample-attempt");
+  assert.equal(restored.progressReport.sources.length, 4);
+  assert.equal(restored.carePeriods[0].careLevel, "Mid");
+  assert.ok(careEventEntries(upgraded.people.find((item) => item.id === person.id), restored).some((item) => item.title === "Care plan agreed"));
 });
 test("care-period closure rejects incomplete or invalid structured closure details", () => {
   const state = createSeed();

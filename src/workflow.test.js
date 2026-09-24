@@ -9,6 +9,7 @@ import {
 import {
   currentCollection,
   ownedTasks,
+  matchesWorkOwner,
   safeReturnTo,
   taskHref,
   isOutstanding,
@@ -53,6 +54,29 @@ test("ownership filters use the current staff member and the episode owner", () 
     ),
   );
   assert.equal(ownedTasks(tasks, state, "team").length, tasks.length);
+});
+
+test("work items and alerts use the same ownership rule", () => {
+  const state = createSeed();
+  assert.equal(matchesWorkOwner("Jess Taylor", state, "me"), true);
+  assert.equal(matchesWorkOwner("Ananya", state, "me"), false);
+  assert.equal(matchesWorkOwner("Unassigned", state, "unassigned"), true);
+  assert.equal(matchesWorkOwner(null, state, "unassigned"), true);
+  assert.equal(matchesWorkOwner("Ananya", state, "team"), true);
+});
+
+test("worklist sorts mixed tasks without crashing when a collection has no due date", () => {
+  const state = createSeed();
+  const person = state.people[0];
+  const tasks = [
+    { person, collection: { id: "undated", due: "" }, status: "Scheduled" },
+    { person, kind: "intake", record: { id: "intake", reviewDate: "2026-09-20" }, status: "Scheduled" },
+    { person, collection: { id: "dated", due: "2026-09-18" }, status: "Scheduled" },
+  ];
+  assert.deepEqual(
+    ownedTasks(tasks, state, "team").map((task) => task.collection?.id || task.record.id),
+    ["dated", "intake", "undated"],
+  );
 });
 
 test("task links preserve exact collection, episode and filtered return view", () => {

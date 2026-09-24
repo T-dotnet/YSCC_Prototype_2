@@ -41,6 +41,7 @@ export default function Referrals({ person, intake, episode, openModal, hideEmpt
           </p>
         </div>
         <Button
+          type="button"
           variant="primary"
           onClick={() =>
             openModal({
@@ -55,10 +56,6 @@ export default function Referrals({ person, intake, episode, openModal, hideEmpt
           Add referral
         </Button>
       </div>
-      <Notice>
-        Record events from the agreed service channel. This workspace does not
-        send referrals or contact another service.
-      </Notice>
       {!hideEmptyState && !referrals.length && (
         <Panel title="No referrals">
           <div className="panel-body">
@@ -129,7 +126,7 @@ export default function Referrals({ person, intake, episode, openModal, hideEmpt
             </div>
           }
           actions={referralOpen(r) && (
-            <Button onClick={() => openModal({ type: "referral-event", personId: person.id, referralId: r.id })}>
+            <Button type="button" onClick={() => openModal({ type: "referral-event", personId: person.id, referralId: r.id })}>
               Record referral event <ArrowRight size={17} />
             </Button>
           )}

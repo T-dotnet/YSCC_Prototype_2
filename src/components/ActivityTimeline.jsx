@@ -1,15 +1,31 @@
-import { useState, useMemo } from "react";
-import { Filter, ChevronDown, Clock3 } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
+import {
+  ArrowRightLeft,
+  Building2,
+  CalendarDays,
+  ChevronDown,
+  ClipboardCheck,
+  Clock3,
+  FileText,
+  Filter,
+  Flag,
+  HeartPulse,
+  House,
+  Pill,
+  SlidersHorizontal,
+  Users,
+} from "lucide-react";
 import {
   activityEntries,
   activityChangeDetails,
   changeLogEntries,
   clinicalHistoryEntries,
 } from "../activity";
-import { collectionStatus, formatDate, formatTimestamp, personEventText } from "../model";
-import { historyCategory, HISTORY_CATEGORIES, historyDate, historyItem } from "../historyItem";
-import { SearchInput, Select, Button, Empty } from "./UI";
+import { collectionStatus, formatDate, formatTimestamp, personEventText, TODAY } from "../model";
+import { associatedCareItems, historyCategory, HISTORY_CATEGORIES, historyDate, historyItem } from "../historyItem";
+import { SearchInput, Select, Button, Empty, FilterTabs } from "./UI";
 import RecordItem from "./RecordItem";
+import ListFilterBar from "./ListFilterBar";
 
 const displayValue = (value) =>
   value === true
@@ -19,6 +35,34 @@ const displayValue = (value) =>
       : value == null || value === ""
         ? "Not recorded."
         : String(value);
+
+const CARE_EVENT_QUICK_TYPES = [
+  "all",
+  "appointment",
+  "assessment",
+  "contextual-event",
+  "clinical-record",
+];
+
+const EVENT_CATEGORY_DISPLAY = {
+  appointment: { label: "Appointment", icon: CalendarDays },
+  assessment: { label: "Assessment", icon: ClipboardCheck },
+  "contextual-event": { label: "Contextual event", icon: Flag },
+  "clinical-record": { label: "Care record", icon: FileText },
+};
+
+const CONTEXTUAL_EVENT_ICONS = {
+  "indirect-activity": Users,
+  harm: HeartPulse,
+  "medication-adverse": Pill,
+  housing: House,
+  "care-transition": ArrowRightLeft,
+  other: Flag,
+  inpatient: Building2,
+  medication: Pill,
+  "care-service": ArrowRightLeft,
+  "life-event": Flag,
+};
 
 const timelineTimestamp = (timestamp) => {
   const value = new Date(timestamp);
@@ -55,11 +99,11 @@ const displayDate = (value) =>
 const actorLabel = (entry) =>
   `${entry.actor || "Editor not recorded"}${entry.role ? ` · ${entry.role}` : ""}`;
 
-function TimelineDate({ timestamp, date, time, dateLabel }) {
+function TimelineDate({ timestamp, date, time, dateLabel, emphasized = false }) {
   const parts = !time && !dateLabel && timestamp && timestamp === date
     ? timelineTimestamp(timestamp)
     : null;
-  return (
+  if (!emphasized) return (
     <time className="record-timeline-date" dateTime={time && date ? `${date.slice(0, 10)}T${time}` : parts ? timestamp : date || undefined}>
       {parts ? parts.date : displayDate(date)}
       {(time || dateLabel || parts) && <small>
@@ -67,6 +111,17 @@ function TimelineDate({ timestamp, date, time, dateLabel }) {
           <>{parts.time}{parts.zone && <><br />{parts.zone}</>}</>
         ) : null)}
       </small>}
+    </time>
+  );
+  const clock = time || parts?.time;
+  const context = dateLabel || parts?.zone;
+  return (
+    <time className="record-timeline-date" dateTime={time && date ? `${date.slice(0, 10)}T${time}` : parts ? timestamp : date || undefined}>
+      {context && <span className="record-timeline-date-label">{context}</span>}
+      <strong className="record-timeline-when">
+        {parts ? parts.date : displayDate(date)}
+        {clock && <> · {clock}</>}
+      </strong>
     </time>
   );
 }
@@ -128,14 +183,41 @@ export default function ActivityTimeline({ episode, person, audit = [] }) {
   );
 }
 
-function ContinuousHistory({ entries, episode, person, onCorrectEvent, selectedEventId, careEventsOnly }) {
+function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordAppointmentOutcome, onCollectAssessmentResponse, canCollectAssessment, selectedEventId, careEventsOnly, showCategories = false }) {
   if (!entries.length)
     return <p className="history-empty">{careEventsOnly ? "No care events or structured records have been recorded." : "No clinical activity has been recorded."}</p>;
   return (
     <ol className="record-timeline clinical-continuous-timeline" aria-label={careEventsOnly ? "Care events and structured records" : "Continuous clinical history"}>
       {entries.map((entry) => {
         const item = historyItem(entry, episode, (value) => personEventText(person, value));
+        const category = historyCategory(entry);
+        const categoryDisplay = showCategories ? EVENT_CATEGORY_DISPLAY[category] : null;
+        const MarkerIcon = category === "contextual-event" && showCategories
+          ? CONTEXTUAL_EVENT_ICONS[entry.eventType] || Flag
+          : categoryDisplay?.icon || Clock3;
         const isCareEvent = entry.eventDate && ["ADD_CARE_EVENT", "CORRECT_CARE_EVENT"].includes(entry.actionType);
+        const appointment = entry.type === "appointment"
+          ? episode.appointments?.find((candidate) => `appointment-${candidate.id}` === entry.id)
+          : null;
+        const collection = entry.type === "assessment"
+          ? episode.collections.find((candidate) => candidate.id === entry.collectionId)
+          : null;
+        const associatedItems = showCategories ? associatedCareItems(entry, episode) : [];
+        const primaryFacts = showCategories && collection
+          ? item.primary.filter(({ label }) => label !== "Associated appointment")
+          : item.primary;
+        const moreFacts = showCategories && appointment
+          ? item.more.filter(({ label }) => !label.startsWith("Associated assignment"))
+          : item.more;
+        const datedAction = showCategories && episode.status === "Active"
+          ? appointment?.attendance === "Planned" && onRecordAppointmentOutcome
+            ? <Button variant="secondary" aria-haspopup="dialog" onClick={() => onRecordAppointmentOutcome(appointment.id)}>Record outcome</Button>
+            : collection?.response !== "Submitted" && collection?.due &&
+              !["Cancelled", "Paused"].includes(collection.assignment) &&
+              canCollectAssessment && onCollectAssessmentResponse
+              ? <Button variant="secondary" aria-haspopup="dialog" onClick={() => onCollectAssessmentResponse(collection.id)}>Collect response</Button>
+              : null
+          : null;
         const completedCollection = entry.title === "Questionnaire response received"
           ? episode.collections.find((collection) => collection.id === entry.collectionId)
           : null;
@@ -146,42 +228,66 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, selectedE
             label.startsWith("Associated assignment"),
         });
         return (
-          <li className="record-timeline-entry" key={entry.id}>
-            <TimelineDate timestamp={entry.timestamp} date={item.date} time={item.time} dateLabel={item.dateLabel} />
+          <li className="record-timeline-entry" data-category={categoryDisplay ? category : undefined} key={entry.id}>
+            {categoryDisplay ? (
+              <div className="record-timeline-meta">
+                <span className="record-timeline-category">{categoryDisplay.label}</span>
+                <TimelineDate timestamp={entry.timestamp} date={item.date} time={item.time} dateLabel={item.dateLabel} emphasized />
+              </div>
+            ) : (
+              <TimelineDate timestamp={entry.timestamp} date={item.date} time={item.time} dateLabel={item.dateLabel} />
+            )}
             <span className="record-timeline-icon" aria-hidden="true">
-              <Clock3 size={22} />
+              <MarkerIcon size={22} />
             </span>
             <RecordItem
               id={isCareEvent ? `contextual-event-${entry.id}` : undefined}
               title={completedCollection ? `${completedCollection.label} questionnaire completed` : entry.title || "Recorded event"}
               subtitle={item.subtitle}
-              status={entry.type === "assessment"
-                ? collectionStatus(episode.collections.find((collection) => collection.id === entry.collectionId))
-                : undefined}
+              status={collection ? collectionStatus(collection)
+                : showCategories && appointment?.attendance === "Planned" && appointment.plannedDate <= TODAY
+                  ? appointment.plannedDate < TODAY ? "Overdue" : "Today"
+                  : undefined}
               className={`record-item-compact${isCareEvent && entry.id === selectedEventId ? " care-event-selected" : ""}`}
-              facts={item.primary.map(toFact)}
-              secondary={item.more.length > 0 && (
-                <details className="appointment-more-detail history-more-details">
-                  <summary>
-                    <span className="history-more-closed">Record details · {item.more.length}</span>
-                    <span className="history-more-open">Show less</span>
-                  </summary>
-                  <dl className="record-item-facts">
-                    {item.more.map((detail) => (
-                      <div key={detail.label} className={toFact(detail).wide ? "record-item-fact-wide" : undefined}>
-                        <dt>{detail.label}</dt>
-                        <dd>{toFact(detail).value}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                </details>
+              facts={primaryFacts.map(toFact)}
+              secondary={(associatedItems.length > 0 || moreFacts.length > 0) && (
+                <>
+                  {associatedItems.length > 0 && (
+                    <details className="appointment-more-detail history-associated-details">
+                      <summary>Associated items · {associatedItems.length}</summary>
+                      <ul className="history-associated-list">
+                        {associatedItems.map((associated) => (
+                          <li key={`${associated.type}-${associated.id}`}>
+                            <span className="history-associated-type">{associated.type}</span>
+                            <strong>{associated.title}</strong>
+                            <small>{[associated.subtitle, associated.date && `${associated.dateLabel} ${formatDate(associated.date)}`].filter(Boolean).join(" · ")}</small>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                  {moreFacts.length > 0 && (
+                    <details className="appointment-more-detail history-more-details">
+                      <summary>
+                        <span className="history-more-closed">Record details · {moreFacts.length}</span>
+                        <span className="history-more-open">Show less</span>
+                      </summary>
+                      <dl className="record-item-facts">
+                        {moreFacts.map((detail) => (
+                          <div key={detail.label} className={toFact(detail).wide ? "record-item-fact-wide" : undefined}>
+                            <dt>{detail.label}</dt>
+                            <dd>{toFact(detail).value}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </details>
+                  )}
+                </>
               )}
               note={isCareEvent && entry.correctedEventId ? "This is an append-only correction of an earlier event." : undefined}
-              actions={onCorrectEvent && isCareEvent && (
-                <Button variant="secondary" onClick={() => onCorrectEvent(entry.id)}>
-                  Correct event
-                </Button>
-              )}
+              actions={datedAction || (onCorrectEvent && isCareEvent && (
+                <Button variant="secondary" onClick={() => onCorrectEvent(entry.id)}>Correct event</Button>
+              ))}
             />
           </li>
         );
@@ -196,7 +302,14 @@ export function ClinicalHistory({
   audit = [],
   entries: providedEntries,
   careEventsOnly = false,
+  quickFilters = false,
   onCorrectEvent,
+  onRecordAppointmentOutcome,
+  onCollectAssessmentResponse,
+  canCollectAssessment = false,
+  attentionIds = [],
+  attentionOnly = false,
+  onClearAttention,
   selectedEventId,
 }) {
   const entries = providedEntries ?? clinicalHistoryEntries(person, episode, audit);
@@ -208,9 +321,15 @@ export function ClinicalHistory({
     query: "",
   });
   const [filtersOpen, setFiltersOpen] = useState(false);
+  useEffect(() => {
+    if (attentionOnly) setFilters({ type: "all", startDate: "", endDate: "", query: "" });
+  }, [attentionOnly]);
+  const attentionActive = quickFilters && attentionOnly && attentionIds.length > 0;
+  const attentionIdSet = new Set(attentionIds);
 
   const visibleEntries = useMemo(() => {
     return entries.filter((entry) => {
+      if (attentionActive && !attentionIdSet.has(entry.id)) return false;
       if (filters.query) {
         const q = filters.query.trim().toLowerCase();
         const item = historyItem(entry, episode, (value) => personEventText(person, value));
@@ -223,6 +342,7 @@ export function ClinicalHistory({
           entry.scope,
           item.subtitle,
           ...[...item.primary, ...item.more].flatMap(({ label, value }) => [label, value]),
+          ...(quickFilters ? associatedCareItems(entry, episode).flatMap(({ type, title, subtitle }) => [type, title, subtitle]) : []),
         ].filter(Boolean).join(" ").toLowerCase();
         if (!text.includes(q)) return false;
       }
@@ -234,14 +354,16 @@ export function ClinicalHistory({
       }
       return true;
     });
-  }, [entries, filters, episode, person]);
+  }, [entries, filters, episode, person, attentionActive, attentionIdSet, quickFilters]);
 
-  const hasFilters = Object.entries(filters).some(
+  const hasFilters = attentionActive || Object.entries(filters).some(
     ([key, value]) => value !== "all" && value !== "",
   );
 
-  const setFilter = (key, value) =>
+  const setFilter = (key, value) => {
+    if (attentionActive) onClearAttention?.();
     setFilters((current) => ({ ...current, [key]: value }));
+  };
 
   const types = useMemo(() => {
     const uniqueTypes = [...new Set(entries.map(historyCategory))];
@@ -251,8 +373,92 @@ export function ClinicalHistory({
     })).sort((a, b) => a.label.localeCompare(b.label));
   }, [entries]);
 
+  const quickTypes = CARE_EVENT_QUICK_TYPES.includes(filters.type)
+    ? CARE_EVENT_QUICK_TYPES
+    : [...CARE_EVENT_QUICK_TYPES, filters.type];
+  const quickItems = quickTypes
+    .map((value) => ({
+      value,
+      label: value === "all" ? "All" : HISTORY_CATEGORIES[value] || value,
+      count: value === "all" ? entries.length : entries.filter((entry) => historyCategory(entry) === value).length,
+    }))
+    .filter(({ value, count }) => value === "all" || value === filters.type || count > 0);
+  const advancedFilterCount = Number(Boolean(filters.startDate)) +
+    Number(Boolean(filters.endDate)) +
+    Number(filters.type !== "all" && !CARE_EVENT_QUICK_TYPES.includes(filters.type));
+  const resetFilters = () => {
+    if (attentionActive) onClearAttention?.();
+    setFilters({ type: "all", startDate: "", endDate: "", query: "" });
+  };
+  const results = visibleEntries.length === 0 ? (
+    <Empty title="No timeline records match these filters">
+      Try a different search, type or date range.
+      <div style={{ marginTop: "12px" }}>
+        <Button variant="secondary" onClick={resetFilters}>Clear filters</Button>
+      </div>
+    </Empty>
+  ) : (
+    <ContinuousHistory entries={visibleEntries} episode={episode} person={person} onCorrectEvent={onCorrectEvent} onRecordAppointmentOutcome={onRecordAppointmentOutcome} onCollectAssessmentResponse={onCollectAssessmentResponse} canCollectAssessment={canCollectAssessment} selectedEventId={selectedEventId} careEventsOnly={careEventsOnly} showCategories={quickFilters} />
+  );
+
   return (
     <div className="clinical-history">
+      {quickFilters ? (
+        <div className="care-event-filter-bar">
+          <FilterTabs
+            id="care-event-filter"
+            label="Care event type"
+            panelId="care-event-results"
+            className="care-event-quick-filters"
+            value={filters.type}
+            onChange={(value) => setFilter("type", value)}
+            items={quickItems}
+          />
+          <div className="care-event-search-row">
+            <SearchInput
+              value={filters.query}
+              onChange={(value) => setFilter("query", value)}
+              placeholder="Search care events"
+            />
+            <button
+              type="button"
+              className={`care-event-more-filters${advancedFilterCount ? " has-active-filters" : ""}`}
+              aria-expanded={filtersOpen}
+              aria-controls="care-event-advanced-filters"
+              onClick={() => setFiltersOpen((open) => !open)}
+            >
+              <SlidersHorizontal size={17} aria-hidden="true" />
+              <span className="care-event-more-label">More filters</span>
+              <span className="care-event-more-label-short">Filters</span>
+              {advancedFilterCount > 0 && <span className="care-event-more-count">{advancedFilterCount}</span>}
+              <ChevronDown size={16} aria-hidden="true" />
+            </button>
+          </div>
+          <div id="care-event-advanced-filters" className="care-event-advanced-filters" hidden={!filtersOpen}>
+            <label className="care-timeline-date">
+              <span>From</span>
+              <input type="date" value={filters.startDate} onChange={(event) => setFilter("startDate", event.target.value)} />
+            </label>
+            <label className="care-timeline-date">
+              <span>To</span>
+              <input type="date" value={filters.endDate} onChange={(event) => setFilter("endDate", event.target.value)} />
+            </label>
+            <div className="care-timeline-type">
+              <span>Category</span>
+              <Select label="Care event category" value={filters.type} onChange={(event) => setFilter("type", event.target.value)}>
+                <option value="all">All types</option>
+                {types.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
+              </Select>
+            </div>
+            </div>
+          <p className="care-event-results-count" aria-live="polite">
+            <span>Showing {visibleEntries.length} of {entries.length} records</span>
+            {visibleEntries.length !== entries.length && (
+              <button type="button" className="filter-count-clear" onClick={resetFilters}>Clear filters</button>
+            )}
+          </p>
+        </div>
+      ) : (
       <details
         className={`care-timeline-filters${hasFilters ? " has-active-filters" : ""}`}
         open={filtersOpen}
@@ -307,26 +513,19 @@ export function ClinicalHistory({
               </Select>
             </div>
             {hasFilters && (
-              <Button variant="secondary" onClick={() => setFilters({ type: "all", startDate: "", endDate: "", query: "" })}>
+              <Button variant="secondary" onClick={resetFilters}>
                 Clear filters
               </Button>
             )}
           </div>
         </div>
       </details>
-
-      {visibleEntries.length === 0 ? (
-        <Empty title="No timeline records match these filters">
-          Try a different search, type or date range.
-          <div style={{ marginTop: "12px" }}>
-            <Button variant="secondary" onClick={() => setFilters({ type: "all", startDate: "", endDate: "", query: "" })}>
-              Clear filters
-            </Button>
-          </div>
-        </Empty>
-      ) : (
-      <ContinuousHistory entries={visibleEntries} episode={episode} person={person} onCorrectEvent={onCorrectEvent} selectedEventId={selectedEventId} careEventsOnly={careEventsOnly} />
       )}
+      {quickFilters ? (
+        <div id="care-event-results" role="tabpanel" aria-labelledby={`care-event-filter-tab-${quickItems.findIndex((item) => item.value === filters.type)}`}>
+          {results}
+        </div>
+      ) : results}
     </div>
   );
 }
@@ -354,7 +553,6 @@ export function ChangeLog({ episode, person, audit = [], entries: suppliedEntrie
     endDate: "",
     query: "",
   });
-  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const visibleEntries = useMemo(() => {
     return entries.filter((entry) => {
@@ -419,93 +617,79 @@ export function ChangeLog({ episode, person, audit = [], entries: suppliedEntrie
     .sort((a, b) => a === missingValue ? 1 : b === missingValue ? -1 : a.localeCompare(b)), [entries]);
   const actors = useMemo(() => [...new Set(entries.map((entry) => entry.actor || missingValue))]
     .sort((a, b) => a === missingValue ? 1 : b === missingValue ? -1 : a.localeCompare(b)), [entries]);
+  const quickScopes = [...scopes]
+    .sort((a, b) => entries.filter((entry) => entry.scope === b.value).length - entries.filter((entry) => entry.scope === a.value).length)
+    .slice(0, 3);
+  if (filters.scope !== "all" && !quickScopes.some((scope) => scope.value === filters.scope)) {
+    quickScopes.push(scopes.find((scope) => scope.value === filters.scope) || { value: filters.scope, label: filters.scope });
+  }
+  const scopeItems = [
+    { value: "all", label: "All", count: entries.length },
+    ...quickScopes.map((scope) => ({
+      ...scope,
+      count: entries.filter((entry) => entry.scope === scope.value).length,
+    })),
+  ];
+  const advancedFilterCount = [filters.person, filters.source, filters.actor]
+    .filter((value) => value !== "all").length + Number(Boolean(filters.startDate)) + Number(Boolean(filters.endDate));
 
   return (
     <div className={`change-log${isGlobal ? " global-change-log" : ""}`}>
-      <details
-        className={`care-timeline-filters${hasFilters ? " has-active-filters" : ""}`}
-        open={filtersOpen}
-        onToggle={(event) => setFiltersOpen(event.currentTarget.open)}
-      >
-        <summary className="care-timeline-filter-heading" aria-label="Show timeline filters">
-          <div>
-            <Filter size={18} aria-hidden="true" />
-            <span className="sr-only">Filter timeline</span>
-          </div>
-          <span aria-live="polite">
-            Showing {visibleEntries.length} of {entries.length} changes
-          </span>
-          <ChevronDown className="care-timeline-filter-chevron" size={18} aria-hidden="true" />
-        </summary>
-        <div className="care-timeline-filter-body">
-          <div className="care-timeline-filter-fields">
-            <SearchInput
-              value={filters.query}
-              onChange={(value) => setFilter("query", value)}
-              placeholder={isGlobal ? "Search people, changes, fields or actors" : "Search changes, fields or actors"}
-            />
-            {isGlobal && <>
-              <div className="care-timeline-type">
-                <span>Person</span>
-                <Select label="Filter by person" value={filters.person} onChange={(event) => setFilter("person", event.target.value)}>
-                  <option value="all">All people</option>
-                  {people.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-                </Select>
-              </div>
-              <div className="care-timeline-type">
-                <span>Source</span>
-                <Select label="Filter by source" value={filters.source} onChange={(event) => setFilter("source", event.target.value)}>
-                  <option value="all">All sources</option>
-                  {sources.map((source) => <option key={source} value={source}>{source === missingValue ? "Not recorded" : source}</option>)}
-                </Select>
-              </div>
-              <div className="care-timeline-type">
-                <span>Changed by</span>
-                <Select label="Filter by changed by" value={filters.actor} onChange={(event) => setFilter("actor", event.target.value)}>
-                  <option value="all">Anyone</option>
-                  {actors.map((actor) => <option key={actor} value={actor}>{actor === missingValue ? "Editor not recorded" : actor}</option>)}
-                </Select>
-              </div>
-            </>}
-            <label className="care-timeline-date">
-              <span>From</span>
-              <input
-                type="date"
-                value={filters.startDate}
-                onChange={(event) => setFilter("startDate", event.target.value)}
-              />
-            </label>
-            <label className="care-timeline-date">
-              <span>To</span>
-              <input
-                type="date"
-                value={filters.endDate}
-                onChange={(event) => setFilter("endDate", event.target.value)}
-              />
-            </label>
+      <ListFilterBar
+        id={isGlobal ? "global-change-scope" : "person-change-scope"}
+        label="Change scope"
+        items={scopeItems}
+        value={filters.scope}
+        onChange={(value) => setFilter("scope", value)}
+        query={filters.query}
+        onQueryChange={(value) => setFilter("query", value)}
+        placeholder={isGlobal ? "Search people, changes, fields or actors" : "Search changes, fields or actors"}
+        shown={visibleEntries.length}
+        total={entries.length}
+        noun="changes"
+        activeAdvancedCount={advancedFilterCount}
+        onClear={clearFilters}
+        advanced={<>
+          {isGlobal && <>
             <div className="care-timeline-type">
-              <span>Scope</span>
-              <Select
-                label="Change scope"
-                value={filters.scope}
-                onChange={(event) => setFilter("scope", event.target.value)}
-              >
-                <option value="all">All scopes</option>
-                {scopes.map((scope) => (
-                  <option key={scope.value} value={scope.value}>
-                    {scope.label}
-                  </option>
-                ))}
+              <span>Person</span>
+              <Select label="Filter by person" value={filters.person} onChange={(event) => setFilter("person", event.target.value)}>
+                <option value="all">All people</option>
+                {people.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
               </Select>
             </div>
-            {hasFilters && (
-              <Button variant="secondary" onClick={clearFilters}>
-                Clear filters
-              </Button>
-            )}
+            <div className="care-timeline-type">
+              <span>Source</span>
+              <Select label="Filter by source" value={filters.source} onChange={(event) => setFilter("source", event.target.value)}>
+                <option value="all">All sources</option>
+                {sources.map((source) => <option key={source} value={source}>{source === missingValue ? "Not recorded" : source}</option>)}
+              </Select>
+            </div>
+            <div className="care-timeline-type">
+              <span>Changed by</span>
+              <Select label="Filter by changed by" value={filters.actor} onChange={(event) => setFilter("actor", event.target.value)}>
+                <option value="all">Anyone</option>
+                {actors.map((actor) => <option key={actor} value={actor}>{actor === missingValue ? "Editor not recorded" : actor}</option>)}
+              </Select>
+            </div>
+          </>}
+          <label className="care-timeline-date">
+            <span>From</span>
+            <input type="date" value={filters.startDate} onChange={(event) => setFilter("startDate", event.target.value)} />
+          </label>
+          <label className="care-timeline-date">
+            <span>To</span>
+            <input type="date" value={filters.endDate} onChange={(event) => setFilter("endDate", event.target.value)} />
+          </label>
+          <div className="care-timeline-type">
+            <span>Scope</span>
+            <Select label="Change scope" value={filters.scope} onChange={(event) => setFilter("scope", event.target.value)}>
+              <option value="all">All scopes</option>
+              {scopes.map((scope) => <option key={scope.value} value={scope.value}>{scope.label}</option>)}
+            </Select>
           </div>
-        </div>
-      </details>
+        </>}
+      />
 
       {visibleEntries.length ? (
         <ol className="record-timeline" aria-label="Field change log">

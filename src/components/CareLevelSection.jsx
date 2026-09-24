@@ -31,7 +31,7 @@ export default function CareLevelSection({ episode, canEdit, openModal }) {
         </div>
         {!displayed && <p className="care-level-empty-note">Record the starting level to track step up and step down changes over time.</p>}
         {periods.length > 0 && (
-          <details className="care-level-history" open={periods.length > 1}>
+          <details className="care-level-history">
             <summary>Level history</summary>
             <ol>
               {[...periods].reverse().map((period) => {

@@ -61,7 +61,8 @@ export const validDate = (value) =>
 const validTime = (value) => text(value) && Number.isFinite(Date.parse(value));
 export const intakeFor = (person, episode) =>
   episode
-    ? person?.intakes?.find((i) => i.episodeId === episode.id)
+    ? person?.intakes?.find((i) => i.episodeId === episode.id) ||
+      person?.intakes?.find((i) => i.id === episode.intakeId)
     : person?.intakes?.[0];
 export const intakeReady = (i) =>
   !!i &&
@@ -85,6 +86,28 @@ export const referralOpen = (r) =>
     "Resolved alternative",
     "Cancelled with plan",
   ].includes(r.handover);
+
+function initialAssessmentCollection(intake, person, version, uid) {
+  const respondentName = intake.respondentPreference === "Family respondent"
+    ? intake.respondentName : person.name;
+  return {
+    id: uid(),
+    label: "Initial assessment",
+    due: "",
+    version,
+    assignment: "Planned",
+    response: "Not started",
+    review: "Pending",
+    link: "Not sent",
+    attempts: [],
+    answers: [],
+    respondent: intake.respondentPreference || "Person",
+    respondentName,
+    recorder: intake.respondentPreference || "Person",
+    recorderName: respondentName,
+    assistance: "Independent",
+  };
+}
 
 export function newIntake({
   id,
@@ -208,7 +231,7 @@ export function intakeActionError(state, action, staff) {
     if (action.type === "REOPEN_INTAKE") {
       if (i.status !== "Completed")
         return "Only a completed intake can be reopened.";
-      if (i.episodeId || p.episodes.length)
+      if (p.episodes.some((episode) => episode.id !== i.episodeId || episode.programStream || episode.collections?.[0]?.due))
         return "Assessment planning has already started. The completed intake is retained in history.";
       return "";
     }
@@ -217,7 +240,8 @@ export function intakeActionError(state, action, staff) {
         return "Choose the program stream for this episode.";
       if (!intakeReady(i))
         return "Complete intake with a proceed decision and assessment owner first.";
-      if (i.episodeId || p.episodes.length)
+      if (p.episodes.some((episode) => episode.id !== i.episodeId) ||
+          (i.episodeId && p.episodes.find((episode) => episode.id === i.episodeId)?.collections?.[0]?.due))
         return "An existing care record needs review; another episode cannot be created here.";
       if (!validDate(action.due) || action.due < "2026-09-15")
         return "Choose an assessment due date on or after the sample date.";
@@ -434,6 +458,10 @@ export function applyIntakeAction(
     i.outcome = "";
     i.decisionAt = "";
     i.decisionBy = "";
+    if (i.episodeId) {
+      p.episodes = p.episodes.filter((episode) => episode.id !== i.episodeId);
+      i.episodeId = null;
+    }
     i.revision += 1;
     i.history.unshift({
       ...history(
@@ -513,7 +541,34 @@ export function applyIntakeAction(
       i.outcome = f.outcome;
       i.decisionAt = f.decisionAt;
       i.decisionBy = staff.name;
-      if (i.outcome === "Proceed" && i.episodeId) {
+      const hadEpisodeBeforeCompletion = !!i.episodeId;
+      if (i.outcome === "Proceed" && !i.episodeId && !p.episodes.length) {
+        const episodeId = uid();
+        i.episodeId = episodeId;
+        p.owner = i.assessmentOwner;
+        p.episodes.push({
+          id: episodeId,
+          intakeId: i.id,
+          number: "01",
+          status: "Active",
+          start: i.decisionAt.slice(0, 10),
+          programStream: "",
+          disposition: "Undecided",
+          owner: i.assessmentOwner,
+          events: [{
+            id: uid(),
+            date: i.decisionAt.slice(0, 10),
+            timestamp,
+            actor: "System",
+            actorId: "system",
+            role: "System",
+            title: "Initial assessment added after intake",
+            detail: "Instrument added automatically after the proceed decision; due date and program stream need planning.",
+          }],
+          collections: [initialAssessmentCollection(i, p, version, uid)],
+        });
+      }
+      if (i.outcome === "Proceed" && hadEpisodeBeforeCompletion) {
         const ep = p.episodes?.find((e) => e.id === i.episodeId);
         if (ep && !ep.events?.some((evt) => evt.eventType === "inpatient")) {
           ep.events ??= [];
@@ -553,6 +608,31 @@ export function applyIntakeAction(
       ),
     });
   } else if (action.type === "START_ASSESSMENT") {
+    if (i.episodeId) {
+      const episode = p.episodes.find((item) => item.id === i.episodeId);
+      episode.programStream = action.programStream;
+      episode.collections[0].due = action.due;
+      i.revision += 1;
+      episode.events.unshift({
+        id: uid(), date: today, timestamp, actor: staff.name, actorId: staff.id,
+        role: staff.role, actionType: action.type, title: "Assessment planned after intake",
+        detail: `${i.assessmentOwner} owns the assessment · due ${action.due} · ${action.programStream} stream`,
+      });
+      episode.events.unshift({
+        id: uid(), date: today, eventDate: today, timestamp,
+        actor: "System", actorId: "system", role: "System",
+        actionType: "ADD_CARE_EVENT", eventType: "inpatient",
+        title: "Inpatient admission recorded",
+        detail: `Inpatient admission automatically recorded upon successful intake completion (${i.service || "Northside Centre"}).`,
+        fields: {
+          source: `${i.service || "Northside Centre"} intake`,
+          notes: "Automatic system record created upon successful intake completion and assessment planning.",
+        },
+        personId: p.id, episodeId: episode.id,
+      });
+      i.history.unshift(history("Assessment handoff recorded", `Initial assessment due ${action.due} · ${i.assessmentOwner}`));
+      return next;
+    }
     const episodeId = uid();
     i.episodeId = episodeId;
     i.revision += 1;
@@ -599,27 +679,8 @@ export function applyIntakeAction(
       ],
       collections: [
         {
-          id: uid(),
-          label: "Initial assessment",
+          ...initialAssessmentCollection(i, p, version, uid),
           due: action.due,
-          version,
-          assignment: "Planned",
-          response: "Not started",
-          review: "Pending",
-          link: "Not sent",
-          attempts: [],
-          answers: [],
-          respondent: i.respondentPreference || "Person",
-          respondentName:
-            i.respondentPreference === "Family respondent"
-              ? i.respondentName
-              : p.name,
-          recorder: i.respondentPreference || "Person",
-          recorderName:
-            i.respondentPreference === "Family respondent"
-              ? i.respondentName
-              : p.name,
-          assistance: "Independent",
         },
       ],
     });

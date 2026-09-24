@@ -9,12 +9,13 @@ import {
 } from "../model";
 import { appointmentIsOverdue } from "../appointments";
 import { getQualityIssues } from "../dataQuality";
-import { ownedTasks, taskHref } from "../workflow";
+import { matchesWorkOwner, ownedTasks, taskHref } from "../workflow";
 import { intakeStage } from "../intake";
 import useQueueView from "../useQueueView";
 import { sortQueueRows } from "../queueSort";
 import { ActiveFilters, SortableHeader, useQueueSort } from "../components/QueueControls";
 import { QueueCell, QueueRow } from "../components/QueueRow";
+import ListFilterBar from "../components/ListFilterBar";
 import {
   PageHeading,
   Button,
@@ -67,20 +68,23 @@ export default function Worklist({ navigate, openModal }) {
   const [alertQuery, setAlertQuery] = useState("");
   const [alertPage, setAlertPage] = useState(1);
 
-  const qualityIssues = getQualityIssues(state, TODAY).filter(
-    (issue) => !["Resolved", "Closed"].includes(issue.status) && !issue.person?.archivedAt
-  );
+  const peopleById = new Map((state.people || []).map((person) => [person.id, person]));
+  const qualityIssues = getQualityIssues(state, TODAY).filter((issue) => {
+    const person = peopleById.get(issue.personId);
+    return person && !person.archivedAt && !["Resolved", "Closed"].includes(issue.status);
+  });
 
   const dqAlerts = qualityIssues.map((issue) => ({
     id: `dq-${issue.id}`,
+    issueId: issue.id,
     category: "Data quality error",
     categoryKey: "Errors",
     title: issue.title || issue.type || "Data quality error",
-    person: issue.person ? { name: issue.person.name, id: issue.person.id } : null,
+    person: peopleById.get(issue.personId),
+    owner: issue.owner || peopleById.get(issue.personId)?.owner,
     detail: issue.summary || issue.description || issue.detail || "Data quality check failed",
     badgeColor: "coral",
-    actionLabel: "Resolve issue",
-    href: issue.person ? `/people/${encodeURIComponent(issue.person.id)}?tab=quality` : "/quality",
+    actionLabel: "Manage issue",
     date: issue.detectedAt ? issue.detectedAt.slice(0, 10) : TODAY,
   }));
 
@@ -96,6 +100,7 @@ export default function Worklist({ navigate, openModal }) {
             categoryKey: "Appointments",
             title: `${apt.practitionerService || "Planned contact"} attendance missing`,
             person: { name: person.name, id: person.id },
+            owner: episode.owner || person.owner,
             detail: `Planned for ${apt.plannedDate} at ${apt.plannedTime || "unspecified time"} · Attendance input required`,
             badgeColor: "amber",
             icon: CalendarX,
@@ -106,7 +111,9 @@ export default function Worklist({ navigate, openModal }) {
       )
   );
 
-  const allAlerts = [...dqAlerts, ...appointmentOverdueAlerts];
+  const allAlerts = [...dqAlerts, ...appointmentOverdueAlerts].filter((alert) =>
+    matchesWorkOwner(alert.owner, state, ownership),
+  );
 
   const alertFiltersList = [
     "All",
@@ -191,6 +198,7 @@ export default function Worklist({ navigate, openModal }) {
       <PageHeading
         title="My work"
         subtitle="Intake, assessment and referral follow-up in one place."
+        meta="Sample date · 15 September 2026"
       >
         <Button
           variant="primary"
@@ -221,52 +229,42 @@ export default function Worklist({ navigate, openModal }) {
             </Select>
           }
         >
-          <FilterTabs
+          <ListFilterBar
             id="work"
             label="Work status"
-            className="worklist-status-tabs"
+            panelId="work-panel"
             value={filter}
             onChange={(value) => view.set("filter", value, "All work", true)}
             items={filters.map((value) => ({
               value,
               count: tasks.filter((task) => matchesFilter(task, value)).length,
             }))}
+            query={query}
+            onQueryChange={(value) => view.set("q", value, "", true)}
+            placeholder="Search work"
+            shown={filtered.length}
+            total={tasks.length}
+            noun={filtered.length === 1 ? "task" : "tasks"}
+            activeAdvancedCount={Number(point !== "All collection points")}
+            onClear={clearAll}
+            advanced={
+              <Select
+                label="Collection point filter"
+                value={point}
+                onChange={(event) => view.set("point", event.target.value, "All collection points", true)}
+              >
+                <option>All collection points</option>
+                {[...new Set(tasks.map((task) => workRecord(task).label))].map((label) => (
+                  <option key={label}>{label}</option>
+                ))}
+              </Select>
+            }
           />
           <div
             role="tabpanel"
             id="work-panel"
             aria-labelledby={`work-tab-${filters.indexOf(filter)}`}
           >
-            <div className="work-toolbar">
-              <div className="toolbar-search-and-count">
-                <SearchInput
-                  value={query}
-                  onChange={(value) => view.set("q", value, "", true)}
-                />
-                <span className="toolbar-count" aria-live="polite">
-                  Showing {filtered.length} of {tasks.length}
-                </span>
-              </div>
-              <Select
-                label="Collection point filter"
-                value={point}
-                onChange={(event) =>
-                  view.set(
-                    "point",
-                    event.target.value,
-                    "All collection points",
-                    true,
-                  )
-                }
-              >
-                <option>All collection points</option>
-                {[...new Set(tasks.map((task) => workRecord(task).label))].map(
-                  (label) => (
-                    <option key={label}>{label}</option>
-                  ),
-                )}
-              </Select>
-            </div>
             <ActiveFilters
               items={[
                 ...(query ? [{ id: "search", label: `Search: ${query}`, onRemove: () => view.set("q", "", "", true) }] : []),
@@ -403,8 +401,8 @@ export default function Worklist({ navigate, openModal }) {
                 val === "All"
                   ? allAlerts.length
                   : val === "Errors"
-                    ? dqAlerts.length
-                    : appointmentOverdueAlerts.length,
+                    ? allAlerts.filter((alert) => alert.categoryKey === "Errors").length
+                    : allAlerts.filter((alert) => alert.categoryKey === "Appointments").length,
             }))}
           />
           <div role="tabpanel" id="alerts-panel">
@@ -418,11 +416,18 @@ export default function Worklist({ navigate, openModal }) {
                   }}
                   placeholder="Search additional alerts..."
                 />
-                <span className="toolbar-count" aria-live="polite">
-                  Showing {filteredAlerts.length} of {allAlerts.length}
-                </span>
               </div>
             </div>
+            <p className="care-event-results-count alerts-results-count" aria-live="polite">
+              <span>Showing {filteredAlerts.length} of {allAlerts.length} alerts</span>
+              {filteredAlerts.length !== allAlerts.length && (
+                <button
+                  type="button"
+                  className="filter-count-clear"
+                  onClick={() => { setAlertFilter("All"); setAlertQuery(""); setAlertPage(1); }}
+                >Clear filters</button>
+              )}
+            </p>
             <ActiveFilters
               items={alertQuery ? [{ id: "search", label: `Search: ${alertQuery}`, onRemove: () => setAlertQuery("") }] : []}
               onClear={() => setAlertQuery("")}
@@ -455,7 +460,13 @@ export default function Worklist({ navigate, openModal }) {
                       className="task-action small"
                       onClick={() => {
                         view.remember();
-                        navigate(alert.href);
+                        if (alert.issueId)
+                          openModal({
+                            type: "quality-issue",
+                            personId: alert.person.id,
+                            issueId: alert.issueId,
+                          });
+                        else navigate(alert.href);
                       }}
                     >
                       {alert.actionLabel}

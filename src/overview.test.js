@@ -120,6 +120,19 @@ test("closed and paused care show the episode state and history instead of overd
   }
 });
 
+test("completed care points to the retained closure responses", () => {
+  const state = createSeed();
+  const person = state.people.find((item) => item.id === "YS-DEMO-CLOSE");
+  const episode = person.episodes[0];
+  episode.status = "Completed";
+  episode.completedAt = "2026-09-24T10:00:00Z";
+  const result = overviewNextStep(person, episode, currentCollection(episode), currentStaff(state));
+  assert.equal(result.title, "Closure follow-up complete");
+  assert.equal(result.badge, "Completed");
+  assert.equal(result.primary.tab, "Assessment");
+  assert.equal(result.dueText, "Completed 24 Sep 2026");
+});
+
 test("submitted evidence remains reviewable after participation changes; completed review stays on the record", () => {
   const { state, person, collection, step } = fixture(1);
   person.consent = "Withdrawn";

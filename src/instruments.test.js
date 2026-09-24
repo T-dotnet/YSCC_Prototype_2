@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   DEMO_INSTRUMENT as instrument,
+  INITIAL_ASSESSMENT_INSTRUMENT,
   LIKERT_INSTRUMENT,
   LEGACY_INSTRUMENT,
   INSTRUMENTS,
@@ -81,6 +82,13 @@ test("versioned definitions have unique stable IDs and valid acyclic conditions"
   }
   assert.equal(getInstrument("unknown"), null);
   assert.equal(getInstrument(LEGACY_INSTRUMENT.version).questions.length, 3);
+});
+
+test("initial assessment is available with person and family wording", () => {
+  assert.equal(getInstrument(INITIAL_ASSESSMENT_INSTRUMENT.version), INITIAL_ASSESSMENT_INSTRUMENT);
+  assert.ok(INSTRUMENTS.includes(INITIAL_ASSESSMENT_INSTRUMENT));
+  assert.ok(INITIAL_ASSESSMENT_INSTRUMENT.questions.every((question) => question.family));
+  assert.deepEqual(INITIAL_ASSESSMENT_INSTRUMENT.respondents, ["Person", "Family respondent"]);
 });
 
 test("the youth check-in keeps verbal Likert anchors and nonresponse distinct", () => {
@@ -207,7 +215,7 @@ test("planning rejects unavailable and legacy definitions and delivery respects 
     ...context,
     label: "Person perspective",
     due: "2026-09-16",
-    version: INSTRUMENTS[1].version,
+    version: LIKERT_INSTRUMENT.version,
   });
   assert.equal(
     reducer(next, {

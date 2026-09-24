@@ -1,10 +1,13 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { ChevronDown, Search } from "lucide-react";
 import { Field, Modal, Notice, Button, ValidatedForm } from "./UI";
 import {
   APPOINTMENT_ATTENDANCE,
   APPOINTMENT_DELIVERY_MODES,
+  appointmentMatchesCollectionDate,
 } from "../appointments";
 import { formatDate, practitionerServiceOptions, TODAY } from "../model";
+import { INSTRUMENTS } from "../instruments";
 import ContactFields from "./ContactFields";
 
 const formValues = (event) =>
@@ -15,13 +18,54 @@ export default function AppointmentForm({
   people,
   person,
   error,
+  canCreateAssessment,
   onClose,
   onSave,
 }) {
   const [attendance, setAttendance] = useState("Planned");
+  const [plannedDate, setPlannedDate] = useState("");
+  const [actualDate, setActualDate] = useState("");
+  const [collectionIds, setCollectionIds] = useState([]);
+  const [newAssessmentVersions, setNewAssessmentVersions] = useState([]);
+  const [assessmentMenuOpen, setAssessmentMenuOpen] = useState(false);
+  const [assessmentSearch, setAssessmentSearch] = useState("");
+  const assessmentPickerRef = useRef(null);
+  const assessmentSearchRef = useRef(null);
+  useEffect(() => {
+    if (!assessmentMenuOpen) return;
+    assessmentSearchRef.current?.focus();
+    const closeOnOutsideClick = (event) => {
+      if (!assessmentPickerRef.current?.contains(event.target))
+        setAssessmentMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    return () => document.removeEventListener("pointerdown", closeOnOutsideClick);
+  }, [assessmentMenuOpen]);
   const actualLatestDate =
     episode.end && episode.end < TODAY ? episode.end : TODAY;
   const practitionerServices = practitionerServiceOptions(people);
+  const assessments = [...(episode.collections || [])].sort((a, b) =>
+    (b.due || "").localeCompare(a.due || ""));
+  const contactDates = {
+    plannedDate,
+    actualDate: attendance === "Attended" ? actualDate : null,
+  };
+  const hasContactDate = Boolean(plannedDate || contactDates.actualDate);
+  const assessmentAvailability = (collection) => {
+    if (["Cancelled", "Paused"].includes(collection.assignment)) return "Unavailable";
+    if (collection.appointmentId || collection.submittedAppointmentId ||
+        collection.attempts?.some((attempt) => attempt.appointmentId)) return "Already linked";
+    if (!hasContactDate) return "Choose a contact date";
+    return appointmentMatchesCollectionDate(contactDates, collection)
+      ? "Matches contact date" : "Different date";
+  };
+  const dueAssessments = assessments.filter((collection) => collection.due);
+  const searchTerm = assessmentSearch.trim().toLocaleLowerCase();
+  const visibleDueAssessments = dueAssessments.filter((collection) =>
+    `${collection.label} ${collection.due} ${formatDate(collection.due)}`.toLocaleLowerCase().includes(searchTerm));
+  const visibleInstruments = INSTRUMENTS.filter((instrument) =>
+    `${instrument.name} ${instrument.version}`.toLocaleLowerCase().includes(searchTerm));
+  const selectedCount = collectionIds.length + newAssessmentVersions.length;
 
   return (
     <Modal
@@ -32,7 +76,7 @@ export default function AppointmentForm({
       <ValidatedForm
         onSubmit={(event) => {
           event.preventDefault();
-          onSave({ type: "ADD_APPOINTMENT", ...formValues(event) });
+          onSave({ type: "ADD_APPOINTMENT", ...formValues(event), collectionIds, newAssessmentVersions });
         }}
       >
         <div className="form-body appointment-form">
@@ -45,7 +89,7 @@ export default function AppointmentForm({
               <select
                 name="attendance"
                 value={attendance}
-                onChange={(event) => setAttendance(event.target.value)}
+                onChange={(event) => { setAttendance(event.target.value); setCollectionIds([]); }}
               >
                 {APPOINTMENT_ATTENDANCE.map((value) => (
                   <option key={value}>{value}</option>
@@ -60,7 +104,7 @@ export default function AppointmentForm({
               </select>
             </Field>
             <Field label="Planned date">
-              <input name="plannedDate" type="date" min={episode.start} required />
+              <input name="plannedDate" type="date" min={episode.start} value={plannedDate} onChange={(event) => { setPlannedDate(event.target.value); setCollectionIds([]); }} required />
             </Field>
             <Field label="Planned time">
               <input name="plannedTime" type="time" required />
@@ -104,6 +148,8 @@ export default function AppointmentForm({
                     type="date"
                     min={episode.start}
                     max={actualLatestDate}
+                    value={actualDate}
+                    onChange={(event) => { setActualDate(event.target.value); setCollectionIds([]); }}
                     required
                   />
                 </Field>
@@ -122,6 +168,74 @@ export default function AppointmentForm({
               </div>
             </div>
           )}
+          <div className="appointment-assessment-picker" ref={assessmentPickerRef}
+            onKeyDown={(event) => {
+              if (event.key === "Escape" && assessmentMenuOpen) {
+                event.stopPropagation();
+                setAssessmentMenuOpen(false);
+              }
+            }}>
+            <span className="appointment-assessment-label" id="appointment-assessment-label">Associated assessments (optional)</span>
+            <button type="button" className="appointment-assessment-trigger"
+              aria-labelledby="appointment-assessment-label appointment-assessment-value"
+              aria-expanded={assessmentMenuOpen}
+              aria-controls="appointment-assessment-options"
+              onClick={() => { setAssessmentMenuOpen((open) => !open); setAssessmentSearch(""); }}>
+              <span id="appointment-assessment-value">{selectedCount ? `${selectedCount} assessment${selectedCount === 1 ? "" : "s"} selected` : "Choose assessments"}</span>
+              <ChevronDown size={18} aria-hidden="true" />
+            </button>
+            {assessmentMenuOpen && <div className="appointment-assessment-dropdown" id="appointment-assessment-options">
+              <div className="appointment-assessment-search">
+                <Search size={17} aria-hidden="true" />
+                <input ref={assessmentSearchRef} type="search" value={assessmentSearch}
+                  onChange={(event) => setAssessmentSearch(event.target.value)}
+                  placeholder="Search assessments" aria-label="Search assessments" />
+              </div>
+              <div className="appointment-assessment-list">
+                <div className="appointment-assessment-group">
+                  <h3>Due assessments</h3>
+                  {visibleDueAssessments.length ? visibleDueAssessments.map((collection) => {
+                    const availability = assessmentAvailability(collection);
+                    return (
+                      <label className="appointment-assessment-option" key={collection.id}>
+                        <input
+                          type="checkbox"
+                          checked={collectionIds.includes(collection.id)}
+                          disabled={availability !== "Matches contact date"}
+                          onChange={(event) => setCollectionIds((current) => event.target.checked
+                            ? [...current, collection.id]
+                            : current.filter((id) => id !== collection.id))}
+                        />
+                        <span>
+                          <strong>{collection.label}</strong>
+                          <small>Due {formatDate(collection.due)} · {availability}</small>
+                        </span>
+                      </label>
+                    );
+                  }) : <p>{searchTerm ? "No matching due assessments." : "No assessments with a due date are in this care episode."}</p>}
+                </div>
+                <div className="appointment-assessment-group">
+                  <h3>New assessment</h3>
+                  <p>Selected assessments will be created and linked when you save this contact.</p>
+                  {visibleInstruments.map((instrument) => (
+                    <label className="appointment-assessment-option" key={instrument.version}>
+                      <input
+                        type="checkbox"
+                        checked={newAssessmentVersions.includes(instrument.version)}
+                        disabled={!canCreateAssessment}
+                        onChange={(event) => setNewAssessmentVersions((current) => event.target.checked
+                          ? [...current, instrument.version]
+                          : current.filter((version) => version !== instrument.version))}
+                      />
+                      <span><strong>{instrument.name}</strong><small>{instrument.version}</small></span>
+                    </label>
+                  ))}
+                  {visibleInstruments.length === 0 && <p>No matching new assessments.</p>}
+                  {!canCreateAssessment && <p>Complete intake before planning a new assessment.</p>}
+                </div>
+              </div>
+            </div>}
+          </div>
           <Field label="Notes (optional)">
             <textarea
               name="notes"

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useId, useState } from "react";
+import { cloneElement, isValidElement, useEffect, useRef, useId, useState } from "react";
 import {
   X,
   Search,
@@ -173,13 +173,31 @@ export function Select({ label, children, className = "", ...props }) {
   );
 }
 export function Field({ label, hint, error, children }) {
+  const hintId = useId();
+  const errorId = useId();
+  const requiredId = useId();
+  const isControl = isValidElement(children) && (
+    ["input", "select", "textarea"].includes(children.type) ||
+    children.type === StaffPicker || children.type === Select
+  );
+  const describedBy = isControl
+    ? [children.props["aria-describedby"], hint && hintId, error && errorId,
+        children.props.required && requiredId]
+        .filter(Boolean).join(" ")
+    : undefined;
+  const control = isControl
+    ? cloneElement(children, {
+        "aria-describedby": describedBy || undefined,
+        "aria-invalid": error ? true : children.props["aria-invalid"],
+      })
+    : children;
   return (
     <label className={`field ${error ? "has-error" : ""}`}>
       <span>{label}</span>
-      {children}
-      {hint && <small>{hint}</small>}
-      {error && <small className="field-inline-error" aria-live="polite">{error}</small>}
-      <small className="field-required-hint" aria-live="polite">
+      {control}
+      {hint && <small id={hintId}>{hint}</small>}
+      {error && <small id={errorId} className="field-inline-error">{error}</small>}
+      <small id={requiredId} className="field-required-hint" aria-live="polite">
         This field is required.
       </small>
     </label>
@@ -193,6 +211,7 @@ export function StaffPicker({
   required = false,
   invalid = false,
   placeholder = "Choose team member",
+  ...controlProps
 }) {
   const controlled = value !== undefined;
   const [internalValue, setInternalValue] = useState(defaultValue);
@@ -205,6 +224,7 @@ export function StaffPicker({
       value={selectedValue}
       required={required}
       aria-invalid={invalid || undefined}
+      {...controlProps}
       onChange={(event) => {
         if (!controlled) setInternalValue(event.target.value);
         onChange?.(event.target.value);
@@ -221,6 +241,45 @@ export function StaffPicker({
     </Select>
   );
 }
+export function FormErrorSummary({
+  title = "Check the highlighted fields",
+  description = "Correct the errors, then try again.",
+  items = [],
+  containerRef,
+  id,
+}) {
+  return (
+    <div className="form-error-summary" role="alert" tabIndex={-1} ref={containerRef} id={id}>
+      <strong>{title}</strong>
+      <p>{description}</p>
+      {items.length > 0 && (
+        <ul>
+          {items.map(({ id: fieldId, label, message }) => (
+            <li key={fieldId}>
+              <button type="button" onClick={() => document.getElementById(fieldId)?.focus()}>
+                {label}: {message}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+function nativeFormErrors(form, idPrefix) {
+  return Array.from(form.querySelectorAll("input:invalid, select:invalid, textarea:invalid"))
+    .map((control, index) => {
+      if (!control.id) control.id = `${idPrefix}-${index}`;
+      const fieldLabel = control.labels?.[0]?.querySelector(":scope > span")?.textContent?.trim();
+      const label = fieldLabel || control.getAttribute("aria-label") || control.labels?.[0]?.textContent?.trim() || control.name || "Field";
+      const message = control.validity.valueMissing
+        ? "This field is required."
+        : control.validity.typeMismatch
+          ? "Enter a valid value."
+          : control.validationMessage || "Check this value.";
+      return { id: control.id, label, message };
+    });
+}
 export function ValidatedForm({
   children,
   className = "",
@@ -228,29 +287,34 @@ export function ValidatedForm({
   onInput,
   ...props
 }) {
-  const [hasValidationErrors, setHasValidationErrors] = useState(false);
+  const errorIdPrefix = useId();
+  const [validationItems, setValidationItems] = useState([]);
   return (
     <form
-      className={`${className} ${hasValidationErrors ? "has-validation-errors" : ""}`}
-      onInvalidCapture={() => setHasValidationErrors(true)}
+      className={`${className} ${validationItems.length ? "has-validation-errors" : ""}`}
+      onInvalidCapture={(event) => {
+        setValidationItems(nativeFormErrors(event.currentTarget, errorIdPrefix));
+      }}
       onInput={(event) => {
-        if (hasValidationErrors && event.currentTarget.checkValidity()) {
-          setHasValidationErrors(false);
+        if (validationItems.length) {
+          setValidationItems(nativeFormErrors(event.currentTarget, errorIdPrefix));
         }
         onInput?.(event);
       }}
       onSubmit={(event) => {
-        setHasValidationErrors(false);
+        setValidationItems([]);
         onSubmit?.(event);
       }}
       {...props}
     >
-      {hasValidationErrors && (
-        <p className="field-error form-validation-error" role="alert">
-          Complete the highlighted required fields before continuing.
-        </p>
-      )}
       {children}
+      {validationItems.length > 0 && (
+        <FormErrorSummary
+          title={`${validationItems.length} ${validationItems.length === 1 ? "field" : "fields"} to check`}
+          description="Correct the highlighted fields, then try again."
+          items={validationItems}
+        />
+      )}
     </form>
   );
 }

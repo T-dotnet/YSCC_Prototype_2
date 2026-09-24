@@ -1,8 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { activityEntries, changeLogEntries } from "./activity.js";
+import { activityEntries, careEventEntries, changeLogEntries } from "./activity.js";
 import { appointmentDetails } from "./appointments.js";
 import { historyItem } from "./historyItem.js";
+import { DEMO_INSTRUMENT, INITIAL_ASSESSMENT_INSTRUMENT } from "./instruments.js";
 import {
   createSeed,
   practitionerServiceOptions,
@@ -137,6 +138,73 @@ test("appointment records reject invalid actual contacts and closed care periods
 test("appointment records reject a duplicate planned date, time and service", () => {
   const state = reducer(createSeed(), plannedContact);
   assert.equal(reducer(state, plannedContact), state);
+});
+
+test("adding a contact can associate multiple unlinked assessments on the same date", () => {
+  const state = createSeed();
+  const collections = state.people[0].episodes[0].collections;
+  collections.push({
+    ...collections.find((item) => item.id === "A-0-current"),
+    id: "A-0-current-extra",
+    label: "Support network review",
+    attempts: [],
+  });
+  const action = {
+    ...plannedContact,
+    id: "APT-linked-review",
+    plannedDate: "2026-09-12",
+    plannedTime: "13:00",
+    collectionIds: ["A-0-current", "A-0-current-extra"],
+  };
+  const next = reducer(state, action);
+  const episode = next.people[0].episodes[0];
+  const appointment = episode.appointments.find((item) => item.id === action.id);
+  const assessments = episode.collections.filter((item) => action.collectionIds.includes(item.id));
+  assert.ok(appointment);
+  assert.equal(assessments.length, 2);
+  assert.ok(assessments.every((assessment) => assessment.appointmentId === appointment.id));
+  assert.ok(appointmentDetails(appointment, episode).some(([label, value]) =>
+    label === "Associated assignments" && assessments.every((assessment) => value.includes(assessment.label))));
+  const entry = careEventEntries(next.people[0], episode, next.audit)
+    .find((item) => item.id === `assessment-${assessments[0].id}`);
+  assert.ok(historyItem(entry, episode).primary.some((item) =>
+    item.label === "Associated appointment"));
+  assert.equal(reducer(state, { ...action, plannedDate: "2026-09-11" }), state);
+  assert.equal(reducer(state, { ...action, collectionIds: ["A-0-current", "missing"] }), state);
+  assert.equal(reducer(next, { ...action, id: "APT-second-review", plannedTime: "14:00" }), next);
+});
+
+test("saving a contact creates and links selected new assessments", () => {
+  const state = createSeed();
+  const versions = [INITIAL_ASSESSMENT_INSTRUMENT.version, DEMO_INSTRUMENT.version];
+  const action = {
+    ...plannedContact,
+    id: "APT-new-assessments",
+    plannedDate: "2026-09-13",
+    plannedTime: "15:00",
+    collectionIds: [],
+    newAssessmentVersions: versions,
+  };
+  const before = state.people[0].episodes[0].collections.length;
+  const next = reducer(state, action);
+  const episode = next.people[0].episodes[0];
+  const created = episode.collections.slice(before);
+  assert.equal(created.length, 2);
+  assert.deepEqual(created.map((item) => item.version), versions);
+  assert.ok(created.every((item) => item.appointmentId === action.id &&
+    item.due === action.plannedDate && item.assignment === "Planned"));
+  assert.ok(appointmentDetails(episode.appointments[0], episode).some(([label, value]) =>
+    label === "Associated assignments" && created.every((item) => value.includes(item.label))));
+  const attended = reducer(state, {
+    ...attendedContact,
+    collectionIds: [],
+    newAssessmentVersions: [versions[0]],
+  });
+  const attendedEpisode = attended.people[0].episodes[0];
+  assert.equal(attendedEpisode.collections.at(-1).due, attendedContact.actualDate);
+  assert.equal(attendedEpisode.collections.at(-1).appointmentId, attendedEpisode.appointments[0].id);
+  assert.equal(reducer(state, { ...action, newAssessmentVersions: ["Unknown v1.0"] }), state);
+  assert.equal(reducer(state, { ...action, newAssessmentVersions: [versions[0], versions[0]] }), state);
 });
 
 test("a planned contact can be updated once with an attendance outcome", () => {

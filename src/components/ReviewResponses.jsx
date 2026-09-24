@@ -56,10 +56,12 @@ export default function ReviewResponses({
   const canReview =
     currentStaff(state)?.role === "Clinician" &&
     c.response === "Submitted" &&
+    !c.readOnly &&
     !reviewNotRequired &&
     (!reviewed || c.needsReview);
   const canEdit =
     canEditResponses(state) &&
+    !c.readOnly &&
     !!getInstrument(c.version) &&
     c.response === "Submitted";
 
@@ -174,6 +176,7 @@ export default function ReviewResponses({
       }}
     >
       <div className="response-dialog-body">
+        {c.readOnly && <Notice>This historical assessment is view only. Its submitted answers and recorded review remain available.</Notice>}
         {saveError && (
           <p className="form-error" role="alert">
             {saveError}

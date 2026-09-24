@@ -433,7 +433,7 @@ export function detectQualityFindings(state, today) {
         );
       }
 
-      if (episode.status === "Closed") {
+      if (["Closed", "Completed"].includes(episode.status)) {
         for (const referral of person.referrals || []) {
           if (referral.episodeId !== episode.id || !openReferral(referral))
             continue;

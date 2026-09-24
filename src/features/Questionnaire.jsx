@@ -9,7 +9,7 @@ import {
   LifeBuoy,
 } from "lucide-react";
 import { useStore } from "../store";
-import { displayFamilyName, displayPersonName, formatDate } from "../model";
+import { canCollectInEpisode, displayFamilyName, displayPersonName, formatDate } from "../model";
 import {
   DEMO_INSTRUMENT,
   getInstrument,
@@ -53,7 +53,7 @@ export default function Questionnaire({ session, navigate, onEnd }) {
         c.assignment !== "Active" ||
         c.link !== "Active" ||
         (session.attemptId && session.attemptId !== c.attempts.at(-1)?.id) ||
-        e.status !== "Active" ||
+        !canCollectInEpisode(e, c) ||
         ["Revoked", "Expired"].includes(c.link) ||
         c.response === "Submitted");
   const end = () => {

@@ -74,6 +74,12 @@ function reportLanes(timeline) {
   ];
 }
 
+export function hasCareTimelineEntries(episode) {
+  const timeline = careTimelineData(episode);
+  return reportLanes(timeline).some((lane) => lane.entries.length > 0) ||
+    timeline.lanes.some((lane) => lane.id === "k10" && lane.entries.length > 0);
+}
+
 function sourceRecord(episode, entry) {
   if (entry.sourceType === "collection")
     return episode.collections.find((record) => record.id === entry.sourceId);

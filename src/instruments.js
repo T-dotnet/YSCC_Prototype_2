@@ -379,10 +379,77 @@ const sampleInstrument = (name, description, sections, questions) => ({
   questions,
 });
 
+// An original, unscored starting-point questionnaire for a new care episode.
+// The family wording keeps the same answer IDs when the intake respondent is a family member.
+export const INITIAL_ASSESSMENT_INSTRUMENT = {
+  name: "Initial assessment",
+  version: "Initial assessment v1.0",
+  description: "Explore what matters now, everyday life, support and a useful first step.",
+  respondents: ["Person", "Family respondent"],
+  sections: [
+    { id: "priorities", title: "What matters now" },
+    { id: "daily-life", title: "Everyday life" },
+    { id: "support", title: "Support and next steps" },
+  ],
+  questions: [
+    {
+      ...choice("starting-priority", "priorities", "What would you most like help with at the start of care?", ["Understanding care options", "Everyday routines", "People and relationships", "Planning next steps", "Something else", "Not sure yet"]),
+      family: "What would the person you support most like help with at the start of care?",
+    },
+    {
+      ...choice("what-works", "priorities", "What is working well for you right now?", ["Daily routine", "Support from others", "Time for enjoyable activities", "Still working this out"]),
+      family: "What seems to be working well for the person you support right now?",
+    },
+    {
+      ...choice("daily-life", "daily-life", "How are everyday activities going for you right now?", ["Mostly manageable", "Some parts are difficult", "Many parts are difficult", "I am not sure"]),
+      family: "How do everyday activities seem to be going for the person you support?",
+    },
+    {
+      ...choice("daily-life-focus", "daily-life", "Which part of everyday life would you like to talk about first?", ["Learning or work", "Home and routine", "Friends and family", "Interests and free time", "Something else"]),
+      family: "Which part of everyday life would be useful to talk about first?",
+    },
+    {
+      ...choice("involve-someone", "support", "Would you like someone involved in planning your care?", ["Yes", "Not right now", "I am not sure"]),
+      family: "Would the person you support like someone involved in planning their care?",
+    },
+    {
+      ...choice("involvement", "support", "How would you like them to take part?", ["Join a conversation", "Help prepare for a conversation", "Share an update with consent", "Talk about the options first"], when("involve-someone", "Yes")),
+      family: "How might that person take part?",
+    },
+    {
+      ...choice("first-step", "support", "What would be a useful first step for you?", ["Talk through priorities", "Make a simple plan", "Find practical support", "Learn more about available care", "Not sure yet"]),
+      family: "What might be a useful first step for the person you support?",
+    },
+  ],
+};
+
 export const INSTRUMENTS = [
+  INITIAL_ASSESSMENT_INSTRUMENT,
   DEMO_INSTRUMENT,
   LIKERT_INSTRUMENT,
   ...MEASURE_INSTRUMENTS,
+  sampleInstrument(
+    "Episode closure assessment",
+    "A final, unscored check-in about progress and support after care ends.",
+    [["progress", "Looking back"], ["next", "What happens next"]],
+    [
+      choice("closure-progress", "progress", "How do things feel compared with when this care episode began?", ["Better", "About the same", "More difficult", "Not sure"]),
+      choice("closure-goals", "progress", "How do you feel about the goals you worked on?", ["I made progress", "I made some progress", "I did not make the progress I hoped for", "Not sure"]),
+      choice("closure-next", "next", "How clear are your next steps?", ["Very clear", "Somewhat clear", "I need more information", "No next steps were agreed"]),
+      choice("closure-support", "next", "Do you know where to ask for support after this episode?", ["Yes", "I would like a reminder", "No", "Not sure"]),
+    ],
+  ),
+  sampleInstrument(
+    "Care experience feedback",
+    "A separate, unscored questionnaire about the experience of care.",
+    [["experience", "Your experience"], ["voice", "Your voice"]],
+    [
+      choice("feedback-listened", "experience", "Did you feel listened to during this care episode?", ["Yes", "Sometimes", "No", "Not sure"]),
+      choice("feedback-involved", "experience", "Were you involved in decisions about your care?", ["Yes", "Sometimes", "No", "Not sure"]),
+      choice("feedback-useful", "voice", "What part of the support was most useful?", ["Conversations with staff", "Practical help", "Planning next steps", "Something else", "Nothing was useful"]),
+      choice("feedback-improve", "voice", "What should we improve?", ["Clearer information", "More choice", "Easier contact", "More time", "Nothing to add"]),
+    ],
+  ),
   sampleInstrument(
     "Everyday life",
     "Explore daily routines, enjoyable activities and practical next steps.",
