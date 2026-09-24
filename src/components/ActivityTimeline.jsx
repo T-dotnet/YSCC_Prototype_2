@@ -324,13 +324,14 @@ export function ClinicalHistory({
 
   const [filters, setFilters] = useState({
     type: "all",
+    period: "all",
     startDate: "",
     endDate: "",
     query: "",
   });
   const [filtersOpen, setFiltersOpen] = useState(false);
   useEffect(() => {
-    if (attentionOnly) setFilters({ type: "all", startDate: "", endDate: "", query: "" });
+    if (attentionOnly) setFilters({ type: "all", period: "all", startDate: "", endDate: "", query: "" });
   }, [attentionOnly]);
   const attentionActive = quickFilters && attentionOnly && attentionIds.length > 0;
   const attentionIdSet = new Set(attentionIds);
@@ -355,6 +356,8 @@ export function ClinicalHistory({
         if (!text.includes(q)) return false;
       }
       const entryDate = historyDate(entry);
+      if (filters.period === "upcoming" && (!entryDate || entryDate.slice(0, 10) <= TODAY)) return false;
+      if (filters.period === "past" && (!entryDate || entryDate.slice(0, 10) > TODAY)) return false;
       if (filters.startDate && (!entryDate || entryDate.slice(0, 10) < filters.startDate)) return false;
       if (filters.endDate && (!entryDate || entryDate.slice(0, 10) > filters.endDate)) return false;
       if (filters.type !== "all" && historyCategory(entry) !== filters.type) {
@@ -391,12 +394,13 @@ export function ClinicalHistory({
       count: value === "all" ? entries.length : entries.filter((entry) => historyCategory(entry) === value).length,
     }))
     .filter(({ value, count }) => value === "all" || value === filters.type || count > 0);
-  const advancedFilterCount = Number(Boolean(filters.startDate)) +
+  const advancedFilterCount = Number(filters.period !== "all") +
+    Number(Boolean(filters.startDate)) +
     Number(Boolean(filters.endDate)) +
     Number(filters.type !== "all" && !CARE_EVENT_QUICK_TYPES.includes(filters.type));
   const resetFilters = () => {
     if (attentionActive) onClearAttention?.();
-    setFilters({ type: "all", startDate: "", endDate: "", query: "" });
+    setFilters({ type: "all", period: "all", startDate: "", endDate: "", query: "" });
   };
   const results = visibleEntries.length === 0 ? (
     <Empty title="No timeline records match these filters">
@@ -443,6 +447,16 @@ export function ClinicalHistory({
             </button>
           </div>
           <div id="care-event-advanced-filters" className="care-event-advanced-filters" hidden={!filtersOpen}>
+            <div className="care-event-period-filters" role="group" aria-label="Care event date">
+              {[
+                { value: "all", label: "All dates" },
+                { value: "upcoming", label: "Upcoming" },
+                { value: "past", label: "Past & today" },
+              ].map(({ value, label }) => (
+                <button key={value} type="button" aria-pressed={filters.period === value}
+                  onClick={() => setFilter("period", value)}>{label}</button>
+              ))}
+            </div>
             <label className="care-timeline-date">
               <span>From</span>
               <input type="date" value={filters.startDate} onChange={(event) => setFilter("startDate", event.target.value)} />

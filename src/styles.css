@@ -4234,6 +4234,32 @@ td:last-child {
   gap: var(--space-3);
   margin-bottom: var(--space-5);
 }
+.care-event-period-filters {
+  display: flex;
+  flex-wrap: wrap;
+  flex-basis: 100%;
+  gap: var(--space-2);
+}
+.care-event-period-filters button {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--control-radius);
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+.care-event-period-filters button[aria-pressed="true"] {
+  border-color: var(--orygen-forest);
+  background: #edf2e8;
+  color: var(--orygen-forest);
+  font-weight: 700;
+}
+.care-event-period-filters button:focus-visible {
+  outline: 2px solid var(--orygen-forest);
+  outline-offset: 2px;
+}
 .care-event-attention {
   display: flex;
   align-items: center;
