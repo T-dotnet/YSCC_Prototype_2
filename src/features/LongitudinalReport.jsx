@@ -5,6 +5,8 @@ import { k10Series, K10_SCORING_METHOD, K10_METHOD_URL } from "../k10";
 import { recordedCareEvents } from "../careEvents";
 import { collectionActor, formatDate } from "../model";
 import { reportEvidence } from "../progress";
+import { appointmentDetails } from "../appointments";
+import { clinicalRecordDetails, clinicalRecordType } from "../clinicalRecords";
 import { TextLink, Badge } from "../components/UI";
 
 const dateLabel = (date, showYear) =>
@@ -43,7 +45,7 @@ function reportLanes(timeline) {
         {
           ...lane,
           group:
-            ["services", "medication"].includes(lane.id)
+            ["services", "contacts", "medication"].includes(lane.id)
               ? "care"
               : "context",
         },
@@ -81,6 +83,10 @@ export function hasCareTimelineEntries(episode) {
 }
 
 function sourceRecord(episode, entry) {
+  if (entry.sourceType === "appointment")
+    return episode.appointments?.find((record) => record.id === entry.sourceId);
+  if (entry.sourceType === "clinical-record")
+    return episode.clinicalRecords?.find((record) => record.id === entry.sourceId);
   if (entry.sourceType === "collection")
     return episode.collections.find((record) => record.id === entry.sourceId);
   if (entry.sourceType === "event")
@@ -109,13 +115,22 @@ function RecordDetail({ person, episode, entry, onClose, onOpenSource }) {
   const source = sourceRecord(episode, entry);
   const collection = entry.sourceType === "collection" ? source : null;
   const event = entry.sourceType === "event" ? source : null;
+  const appointment = entry.sourceType === "appointment" ? source : null;
+  const clinicalRecord = entry.sourceType === "clinical-record" ? source : null;
   const k10 = entry.sourceType === "k10" ? source : null;
   const isPlanned = entry.kind === "planned";
   const sourceLabel =
     entry.sourceType === "collection"
       ? "Assessment"
       : entry.sourceType === "event"
-        ? "Care event"
+        ? event?.eventType === "medication-course" ? "Medication course"
+          : event?.eventType === "service-period" ? "Service period"
+            : event?.eventType === "care-transition" && entry.id.startsWith("service-change-") ? "Service period"
+            : event?.eventType === "goal-milestone" ? "Goal milestone" : "Care event"
+        : entry.sourceType === "appointment"
+          ? "Appointment or service contact"
+          : entry.sourceType === "clinical-record"
+            ? clinicalRecordType(clinicalRecord?.recordType)?.label || "Structured care record"
         : entry.sourceType === "service"
           ? "Service period"
           : entry.sourceType === "medication-course"
@@ -151,12 +166,21 @@ function RecordDetail({ person, episode, entry, onClose, onOpenSource }) {
               ? "Due"
               : entry.end
                 ? "Recorded period"
+                : entry.sourceType === "appointment"
+                  ? appointment?.actualDate ? "Actual contact" : "Planned contact"
+                : entry.kind === "medication-duration" || entry.id.startsWith("service-change-")
+                  ? "Start date"
+                : entry.id.startsWith("medication-adverse-record-") || entry.id.startsWith("risk-medication-adverse-")
+                  ? "Adverse event date"
+                : entry.sourceType === "clinical-record"
+                  ? "Record date"
                 : entry.kind === "response"
                   ? "Submitted"
                   : entry.kind === "reviewed"
                     ? "Reviewed"
                     : entry.sourceType === "event"
-                      ? "Event date"
+                      ? event?.eventType === "goal-milestone" ? "Milestone date"
+                        : ["medication-course", "service-period"].includes(event?.eventType) ? "Start date" : "Event date"
                       : "Milestone date"}
           </dt>
           <dd>
@@ -211,12 +235,36 @@ function RecordDetail({ person, episode, entry, onClose, onOpenSource }) {
                 {event.role ? ` · ${event.role}` : ""}
               </dd>
             </div>
-            <div>
+            {(!event.fields?.status || event.fields?.notes) && <div>
               <dt>Record detail</dt>
-              <dd>{event.detail || "No detail recorded"}</dd>
-            </div>
+              <dd>{event.fields?.notes || event.detail || "No detail recorded"}</dd>
+            </div>}
+            {event.fields?.status && <div>
+              <dt>Source status</dt>
+              <dd>{event.fields.status}</dd>
+            </div>}
+            {event.fields?.source && <div>
+              <dt>Source</dt>
+              <dd>{event.fields.source}</dd>
+            </div>}
+            {event.fields?.impact && <div>
+              <dt>Impact on care or coordination</dt>
+              <dd>{event.fields.impact}</dd>
+            </div>}
           </>
         )}
+        {appointment && <>
+          <div><dt>Recorded by</dt><dd>{appointment.actor || "Not recorded"}{appointment.role ? ` · ${appointment.role}` : ""}</dd></div>
+          {appointmentDetails(appointment, episode).filter(([, value]) => value).map(([label, value]) =>
+            <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
+          )}
+        </>}
+        {clinicalRecord && <>
+          <div><dt>Recorded by</dt><dd>{clinicalRecord.actor || "Not recorded"}{clinicalRecord.role ? ` · ${clinicalRecord.role}` : ""}</dd></div>
+          {clinicalRecordDetails(clinicalRecord).filter(([, value]) => value).map(([label, value]) =>
+            <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
+          )}
+        </>}
         {k10 && (
           <>
             <div>
@@ -256,14 +304,14 @@ function RecordDetail({ person, episode, entry, onClose, onOpenSource }) {
           <dd>{episode.id}</dd>
         </div>
       </dl>
-      {(collection || event) && (
+      {(collection || event || appointment || clinicalRecord || k10?.sourceCollectionId ||
+        (["service", "goal", "medication-course"].includes(entry.sourceType) && source?.id)) && (
         <TextLink onClick={() => onOpenSource(entry)}>
           Open source record
         </TextLink>
       )}
-      {["service", "goal", "medication-course", "k10"].includes(
-        entry.sourceType,
-      ) && (
+      {(["service", "goal", "medication-course"].includes(entry.sourceType) && !source?.id ||
+        (entry.sourceType === "k10" && !k10?.sourceCollectionId)) && (
         <small>
           Source detail is shown here because this prototype has no separate
           record view for this item.
@@ -384,7 +432,7 @@ function SharedTimeline({
   const ticks = timelineTicks(plotRange.start, plotRange.end);
   const filters = [
     ["all", "All", "All tracks"],
-    ["care", "Care", "Care and medication"],
+    ["care", "Care", "Care, contacts and medication"],
     ["context", "Context", "Goals, events and risk"],
     ["measure", "K10", "K10 measure"],
   ].filter(([id]) => id !== "measure" || k10Points.length > 0);
@@ -450,7 +498,10 @@ function SharedTimeline({
               course
             </span>
             <span>
-              <i className="longitudinal-key-event" /> Dated event or risk
+              <i className="longitudinal-key-event" /> Dated event
+            </span>
+            <span>
+              <i className="longitudinal-key-risk" /> Risk event
             </span>
             <span>
               <i className="longitudinal-key-goal" /> Dated goal milestone
@@ -819,9 +870,11 @@ export function CareTimeline({ person, episode, navigate, isVisible, onToggle })
 
   const openSource = (entry) => {
     const params = new URLSearchParams({ episode: episode.id });
-    if (entry.sourceType === "collection") {
+    if (entry.sourceType === "collection" || entry.sourceType === "k10") {
       params.set("tab", "assessment");
-      params.set("collection", entry.sourceId);
+      params.set("collection", entry.sourceType === "k10"
+        ? episode.k10Responses?.find((record) => record.id === entry.sourceId)?.sourceCollectionId
+        : entry.sourceId);
     } else {
       params.set("tab", "events");
       params.set("event", entry.sourceId);

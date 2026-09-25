@@ -20,6 +20,48 @@ export const isCompletedScore = (record) =>
 
 const byDate = (a, b) => a.date.localeCompare(b.date);
 
+const PROTOTYPE_SCORE_RANGES = {
+  "k10-plus": [10, 50],
+  k5: [5, 25],
+  sdq: [0, 40],
+  sidas: [0, 50],
+  "who-5": [0, 100],
+};
+export const prototypeScoreRange = (key) => PROTOTYPE_SCORE_RANGES[key] || null;
+
+// Keep a recorded outcome value and its source in the Report without scoring
+// questionnaire items or assigning an interpretation.
+export function episodeOutcomeRecords(episode) {
+  const groups = new Map((episode?.reportOutcomeMeasures ?? []).map((measure) => [
+    measure.key,
+    { ...measure, records: [...(measure.records ?? [])] },
+  ]));
+  for (const record of episode?.clinicalRecords ?? []) {
+    if (record.recordType !== "outcome" || !record.fields?.measureKey) continue;
+    const fields = record.fields;
+    const group = groups.get(fields.measureKey) || {
+      key: fields.measureKey,
+      scoreRange: PROTOTYPE_SCORE_RANGES[fields.measureKey],
+      records: [],
+    };
+    group.records.push({
+      id: `clinical-${record.id}`,
+      date: record.recordDate,
+      value: fields.outcomeStatus === "Complete" && fields.measureValue !== null &&
+        Number.isFinite(Number(fields.measureValue)) ? Number(fields.measureValue) : null,
+      status: fields.outcomeStatus,
+      context: fields.collectionPoint,
+      category: null,
+      recordedBy: record.actor,
+      notes: fields.notes || fields.missingDataReason || `Source: ${fields.source}`,
+      sourceClinicalRecordId: record.id,
+      change: null,
+    });
+    groups.set(fields.measureKey, group);
+  }
+  return [...groups.values()];
+}
+
 // This adapter keeps the source score and any documented change judgement
 // separate. A numerical difference is displayed literally; it never creates a
 // clinical interpretation on its own.

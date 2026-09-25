@@ -364,7 +364,38 @@ export function careEventEntries(person, episode, audit = []) {
       : collection.due,
     title: collection.label,
   }));
-  return [...records, ...assessments].sort((a, b) =>
+  // Existing demonstration periods and milestones are source records in the
+  // Report. Show their source detail in Events alongside newly entered items.
+  const reportSources = [
+    ...(episode.servicePeriods ?? []).map((period) => ({
+      id: period.id,
+      eventType: "service-period",
+      eventDate: period.start || period.date,
+      title: period.label || period.setting || "Care setting",
+      detail: period.status || "Recorded service period",
+      fields: { status: period.status, source: period.source, endDate: period.end },
+      actor: period.recordedBy || "Sample fixture",
+    })),
+    ...(episode.medicationCourses ?? []).map((course) => ({
+      id: course.id,
+      eventType: "medication-course",
+      eventDate: course.start,
+      title: course.label || "Medication course",
+      detail: course.status || "Recorded medication course",
+      fields: { status: course.status, source: course.source, endDate: course.end },
+      actor: course.recordedBy || "Sample fixture",
+    })),
+    ...(episode.goalMilestones ?? []).map((milestone) => ({
+      id: milestone.id,
+      eventType: "goal-milestone",
+      eventDate: milestone.date || milestone.recordedDate,
+      title: milestone.title || milestone.goal || "Goal milestone",
+      detail: milestone.status || "Recorded milestone",
+      fields: { status: milestone.status, source: milestone.source },
+      actor: milestone.recordedBy || "Sample fixture",
+    })),
+  ].filter((entry) => entry.id && entry.eventDate);
+  return [...records, ...assessments, ...reportSources].sort((a, b) =>
     (historyDate(b) || "").localeCompare(historyDate(a) || "") ||
     (b.timestamp || "").localeCompare(a.timestamp || ""),
   );

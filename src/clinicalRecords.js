@@ -42,6 +42,7 @@ export const MEDICATION_CHANGES = [
   "Other recorded change",
 ];
 export { OUTCOME_STATUSES } from "./measureGovernance.js";
+import { prototypeScoreRange } from "./outcomeMeasures.js";
 import {
   OUTCOME_STATUSES,
   configuredMeasure,
@@ -78,8 +79,27 @@ export function clinicalRecordError(episode, action, today) {
   }
   if (action.recordType === "medication") {
     if (!action.medicationName?.trim()) return "Enter the medication name.";
-    if (!MEDICATION_CHANGES.includes(action.medicationChange))
-      return "Choose the recorded medication change.";
+    const hasChange = Boolean(action.medicationChange);
+    const hasCourse = Boolean(action.courseStartDate);
+    const hasAdverseEvent = Boolean(action.adverseEvent?.trim());
+    if (!hasChange && !hasCourse && !hasAdverseEvent)
+      return "Record a medication change, course start or adverse event.";
+    if (hasChange && !MEDICATION_CHANGES.includes(action.medicationChange))
+      return "Choose a valid recorded medication change.";
+    if (action.courseEndDate && !hasCourse)
+      return "Enter the course start date before its end date.";
+    if (hasCourse && (!validDate(action.courseStartDate) || action.courseStartDate < episode.start || action.courseStartDate > latestDate))
+      return "Enter a course start date within this care period.";
+    if (action.courseEndDate && (!validDate(action.courseEndDate) || action.courseEndDate <= action.courseStartDate || action.courseEndDate > latestDate))
+      return "The course end date must follow its start and be within this care period.";
+    if (action.courseStatus && !["Started", "Start and end recorded", "Completed", "Stopped early"].includes(action.courseStatus))
+      return "Choose a valid course status.";
+    if (action.courseStatus && !hasCourse)
+      return "Enter the course start date for its status.";
+    if (action.adverseEventDate && !hasAdverseEvent)
+      return "Describe the adverse event for its date.";
+    if (action.adverseEventDate && (!validDate(action.adverseEventDate) || action.adverseEventDate < episode.start || action.adverseEventDate > latestDate))
+      return "Enter an adverse event date within this care period.";
   }
   if (action.recordType === "outcome") {
     const measure = configuredMeasure(action.measureKey);
@@ -92,6 +112,14 @@ export function clinicalRecordError(episode, action, today) {
       return "Choose the collection status.";
     if (action.outcomeStatus === "Complete" && !action.measureValue?.trim())
       return "Enter the recorded measure value or mark it incomplete.";
+    if (action.outcomeStatus === "Complete") {
+      const value = Number(action.measureValue);
+      const range = prototypeScoreRange(action.measureKey);
+      if (!Number.isFinite(value) || (range && (value < range[0] || value > range[1])))
+        return range
+          ? `Enter a recorded value between ${range[0]} and ${range[1]}.`
+          : "Enter a numeric recorded value.";
+    }
     if (
       outcomeNeedsMissingReason(action.outcomeStatus) &&
       !action.missingDataReason?.trim()
@@ -104,7 +132,9 @@ export function clinicalRecordError(episode, action, today) {
 export function clinicalRecordContent(action) {
   const common = {
     source: action.source.trim(),
+    impact: clean(action.impact),
     notes: clean(action.notes),
+    externalAppointment: action.externalAppointment || null,
   };
   if (action.recordType === "risk")
     return {
@@ -129,13 +159,18 @@ export function clinicalRecordContent(action) {
     };
   if (action.recordType === "medication")
     return {
-      title: `${action.medicationName.trim()} · ${action.medicationChange}`,
+      title: `${action.medicationName.trim()} · ${action.medicationChange || (action.courseStartDate ? "medication course" : "adverse event")}`,
       detail: `Medication record · ${action.source.trim()}`,
       fields: {
         ...common,
         medicationName: action.medicationName.trim(),
-        medicationChange: action.medicationChange,
+        medicationChange: clean(action.medicationChange),
         dose: clean(action.dose),
+        courseStartDate: clean(action.courseStartDate),
+        courseEndDate: clean(action.courseEndDate),
+        courseStatus: clean(action.courseStatus),
+        adverseEvent: clean(action.adverseEvent),
+        adverseEventDate: clean(action.adverseEventDate),
       },
     };
   const measure = configuredMeasure(action.measureKey);
@@ -174,6 +209,11 @@ export function clinicalRecordDetails(record) {
       ["Medication", fields.medicationName],
       ["Recorded change", fields.medicationChange],
       ["Dose as recorded", fields.dose],
+      ["Course start", fields.courseStartDate],
+      ["Course end", fields.courseEndDate],
+      ["Course status", fields.courseStatus],
+      ["Adverse event", fields.adverseEvent],
+      ["Adverse event date", fields.adverseEventDate],
     ],
     outcome: [
       ["Measure", fields.measureName],
@@ -189,7 +229,9 @@ export function clinicalRecordDetails(record) {
   };
   return [
     ...(specific[record.recordType] ?? []),
+    ["External appointment", fields.externalAppointment && `${fields.externalAppointment.date} at ${fields.externalAppointment.time} · ${fields.externalAppointment.practitionerService} · ${fields.externalAppointment.deliveryMode}`],
     ["Source or authority", fields.source],
+    ["Impact on care or coordination", fields.impact],
     ["Notes", fields.notes],
   ].filter(([, value]) => value);
 }

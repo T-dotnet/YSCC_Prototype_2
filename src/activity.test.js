@@ -243,6 +243,9 @@ test("Care events projects Jordan's appointment and assessment lists once each",
   const history = clinicalHistoryEntries(jordan, episode, state.audit);
   assert.ok(events.some((entry) => entry.id === "clinical-record-record-in-events-test"));
   assert.ok(events.some((entry) => entry.id === "E-7-med-adverse"));
+  assert.ok(events.some((entry) => entry.id === "MC-7-a" && entry.eventType === "medication-course"));
+  assert.ok(events.some((entry) => entry.id === "GM-7-started" && entry.eventType === "goal-milestone"));
+  assert.ok(events.some((entry) => entry.id === "SP-7-community" && entry.eventType === "service-period"));
   assert.deepEqual(
     events.filter((entry) => entry.type === "appointment").map((entry) => entry.id).sort(),
     episode.appointments.map((appointment) => `appointment-${appointment.id}`).sort(),

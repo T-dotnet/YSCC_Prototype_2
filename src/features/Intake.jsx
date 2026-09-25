@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ChevronDown } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useStore } from "../store";
+import AppointmentSlotPicker from "../components/AppointmentSlotPicker";
 import { PROGRAM_STREAMS } from "../carePeriods";
 import {
   TODAY,
@@ -817,6 +818,7 @@ function IntakeAssessmentPanel({ person, intake, navigate, onReopen, reopenError
   const [due, setDue] = useState(TODAY);
   const [programStream, setProgramStream] = useState("");
   const [error, setError] = useState("");
+  const [externalSlot, setExternalSlot] = useState(null);
   const ready = intakeReady(intake);
   const episode = person.episodes.find((item) => item.id === intake.episodeId);
   const assessmentPlanned = Boolean(episode?.collections?.[0]?.due);
@@ -831,6 +833,7 @@ function IntakeAssessmentPanel({ person, intake, navigate, onReopen, reopenError
       revision: intake.revision,
       due,
       programStream,
+      externalAppointment: externalSlot,
     };
     const problem = intakeActionError(state, action, currentStaff(state));
     if (problem) return setError(problem);
@@ -868,7 +871,7 @@ function IntakeAssessmentPanel({ person, intake, navigate, onReopen, reopenError
                     min={TODAY}
                     required
                     value={due}
-                    onChange={(event) => setDue(event.target.value)}
+                    onChange={(event) => { setDue(event.target.value); setExternalSlot(null); }}
                   />
                 </Field>
                 <Field label="Program stream">
@@ -877,6 +880,7 @@ function IntakeAssessmentPanel({ person, intake, navigate, onReopen, reopenError
                     {PROGRAM_STREAMS.map((stream) => <option key={stream} value={stream}>{stream}</option>)}
                   </select>
                 </Field>
+                <AppointmentSlotPicker key={due} mode="assessment" dueDate={due} selectedSlot={externalSlot} onSelect={setExternalSlot} />
                 {error && <p role="alert" className="field-error">{error}</p>}
                 <div className="intake-assessment-actions">
                   <Button type="submit" variant="primary">Create assessment plan</Button>

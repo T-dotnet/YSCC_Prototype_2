@@ -22,6 +22,7 @@ export default function AssessmentCollectionCard({
   inTimeline = false,
   initiallyExpanded = inTimeline,
   headingLevel = inTimeline ? 4 : 3,
+  showLead = true,
 }) {
   const isPrior = !isOutstanding(col) && col.id !== selectedId;
   const respondent = collectionActorIdentity(person, col, "respondent");
@@ -39,7 +40,7 @@ export default function AssessmentCollectionCard({
       selected={col.id === selectedId}
       headingLevel={headingLevel}
       className={inTimeline ? "record-item-compact assessment-timeline-item" : ""}
-      lead={
+      lead={showLead ? (
         <>
           <span className="record-item-lead-icon"><FileText size={22} /></span>
           <span>
@@ -52,7 +53,7 @@ export default function AssessmentCollectionCard({
             </small>
           </span>
         </>
-      }
+      ) : undefined}
       facts={[
         {
           label: "Respondent",

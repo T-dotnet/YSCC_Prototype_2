@@ -53,6 +53,9 @@ const EVENT_CATEGORY_DISPLAY = {
 };
 
 const CONTEXTUAL_EVENT_ICONS = {
+  "medication-course": Pill,
+  "service-period": Building2,
+  "goal-milestone": ClipboardCheck,
   "indirect-activity": Users,
   harm: HeartPulse,
   "medication-adverse": Pill,
@@ -198,6 +201,12 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordA
           ? CONTEXTUAL_EVENT_ICONS[entry.eventType] || Flag
           : categoryDisplay?.icon || Clock3;
         const isCareEvent = entry.eventDate && ["ADD_CARE_EVENT", "CORRECT_CARE_EVENT"].includes(entry.actionType);
+        const selectedSourceId = entry.type === "appointment"
+          ? entry.id?.replace(/^appointment-/, "")
+          : entry.type === "clinical-record"
+            ? entry.id?.replace(/^clinical-record-/, "")
+            : entry.id;
+        const isSelectedSource = Boolean(selectedEventId && selectedSourceId === selectedEventId);
         const appointment = entry.type === "appointment"
           ? episode.appointments?.find((candidate) => `appointment-${candidate.id}` === entry.id)
           : null;
@@ -260,16 +269,19 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordA
               <MarkerIcon size={22} />
             </span>
             <RecordItem
-              id={isCareEvent ? `contextual-event-${entry.id}` : undefined}
+              id={isCareEvent ? `contextual-event-${entry.id}` : isSelectedSource ? `source-record-${selectedSourceId}` : undefined}
               collapsible
-              initiallyExpanded
+              initiallyExpanded={!showCategories || item.date >= TODAY ||
+                appointment?.attendance === "Planned" ||
+                (collection && collection.response !== "Submitted") ||
+                isSelectedSource}
               title={completedCollection ? `${completedCollection.label} questionnaire completed` : entry.title || "Recorded event"}
               subtitle={item.subtitle}
               status={collection ? collectionStatus(collection)
                 : showCategories && appointment?.attendance === "Planned" && appointment.plannedDate <= TODAY
                   ? appointment.plannedDate < TODAY ? "Overdue" : "Today"
                   : undefined}
-              className={`record-item-compact${isCareEvent && entry.id === selectedEventId ? " care-event-selected" : ""}`}
+              className={`record-item-compact${isSelectedSource ? " care-event-selected" : ""}`}
               facts={primaryFacts.map(toFact)}
               secondary={(associatedItems.length > 0 || moreFacts.length > 0) && (
                 <>
@@ -679,7 +691,7 @@ export function ChangeLog({ episode, person, audit = [], entries: suppliedEntrie
     .filter((value) => value !== "all").length + Number(Boolean(filters.startDate)) + Number(Boolean(filters.endDate));
 
   return (
-    <div className={`change-log${isGlobal ? " global-change-log" : ""}`} id="change-log-timeline" ref={timelineRef}>
+    <div className={`change-log${isGlobal ? " global-change-log care-events" : ""}`} id="change-log-timeline" ref={timelineRef}>
       <ListFilterBar
         id={isGlobal ? "global-change-scope" : "person-change-scope"}
         label="Change scope"
@@ -762,7 +774,12 @@ export function ChangeLog({ episode, person, audit = [], entries: suppliedEntrie
             ];
             return (
               <li className="record-timeline-entry" key={`${entry.person?.id || person?.id}:${entry.id}`}>
-                <TimelineDate timestamp={entryTimestamp} date={entry.date} />
+                {isGlobal ? (
+                  <div className="record-timeline-meta">
+                    <span className="record-timeline-category">{entry.scope || "Scope not recorded"}</span>
+                    <TimelineDate timestamp={entryTimestamp} date={entry.date} dateLabel={entry.person?.name || "Person not recorded"} emphasized />
+                  </div>
+                ) : <TimelineDate timestamp={entryTimestamp} date={entry.date} />}
                 <span className="record-timeline-icon" aria-hidden="true">
                   <Clock3 size={22} />
                 </span>

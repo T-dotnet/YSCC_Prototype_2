@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  episodeOutcomeRecords,
   isCompletedScore,
   outcomeMeasureCards,
   scoreChangeLabel,
@@ -51,4 +52,23 @@ test("an incomplete latest assessment remains visibly unscored", () => {
   assert.equal(card.latestScore, null);
   assert.equal(card.scoreChange, null);
   assert.equal(card.needsFollowUp, true);
+});
+
+test("a structured outcome record feeds Report cards with a care-record source", () => {
+  const episode = {
+    reportOutcomeMeasures: [{ key: "k5", scoreRange: [5, 25], records: [
+      { id: "assessment", date: "2026-06-16", value: 14, status: "Complete", sourceCollectionId: "A-1" },
+    ] }],
+    clinicalRecords: [{
+      id: "C-1", recordType: "outcome", recordDate: "2026-09-10", actor: "Jess Taylor",
+      fields: { measureKey: "k5", measureValue: "18", outcomeStatus: "Complete",
+        collectionPoint: "Review", source: "External measure" },
+    }],
+  };
+  const [card] = outcomeMeasureCards(definitions, episodeOutcomeRecords(episode));
+  assert.equal(card.records.length, 2);
+  assert.equal(card.latestScore, 18);
+  assert.equal(card.latest.sourceClinicalRecordId, "C-1");
+  assert.equal(card.latest.change, null);
+  assert.deepEqual(episode.reportOutcomeMeasures[0].records.map((record) => record.id), ["assessment"]);
 });

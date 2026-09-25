@@ -11,6 +11,7 @@ import {
   outcomeNeedsMissingReason,
 } from "../measureGovernance";
 import { formatDate, TODAY } from "../model";
+import { prototypeScoreRange } from "../outcomeMeasures";
 
 export const TIMELINE_RECORD_TYPES = [
   {
@@ -42,17 +43,35 @@ export const TIMELINE_RECORD_TYPES = [
   },
   {
     value: "medication",
-    label: "Medication chart record",
+    label: "Medication",
     scope: "structured",
     description:
-      "A local candidate record of a prescribed medication change.",
+      "Record a documented medication change, course or adverse event in one form.",
+  },
+  {
+    value: "medication-course",
+    label: "Medication course",
+    scope: "contextual",
+    description: "Record the documented start and end of a medication course for the Report timeline.",
+  },
+  {
+    value: "service-period",
+    label: "Care setting or service period",
+    scope: "contextual",
+    description: "Record a dated period of care setting, service or support intensity.",
+  },
+  {
+    value: "goal-milestone",
+    label: "Goal milestone",
+    scope: "contextual",
+    description: "Record a dated, sourced update to a care goal.",
   },
   {
     value: "care-transition",
-    label: "Major care or service transition",
+    label: "Care or service change",
     scope: "contextual",
     description:
-      "A step-up, step-down or other major change in care coordination, support, service or provider.",
+      "Record a change in care or service, with period dates when a service duration is documented.",
   },
   {
     value: "indirect-activity",
@@ -90,6 +109,19 @@ export const TIMELINE_RECORD_TYPES = [
   },
 ];
 
+export const NEW_RECORD_TYPES = [
+  "appointment",
+  "outcome",
+  "risk",
+  "harm",
+  "medication",
+  "goal-milestone",
+  "housing",
+  "care-transition",
+];
+export const recordCategoryLabel = (value) =>
+  TIMELINE_RECORD_TYPES.find((type) => type.value === value)?.label;
+
 const formValues = (event) =>
   Object.fromEntries(new FormData(event.currentTarget));
 
@@ -104,17 +136,18 @@ export default function CareTimelineEntryForm({
 }) {
   const isCorrection = Boolean(existingEvent);
   const [entryType, setEntryType] = useState(
-    existingEvent?.eventType ||
-      existingEvent?.recordType ||
-      initialType ||
-      "",
+    existingEvent?.eventType || existingEvent?.recordType || initialType || "",
   );
   const [measureKey, setMeasureKey] = useState(configuredMeasures()[0].key);
   const [outcomeStatus, setOutcomeStatus] = useState("");
+  const externalSlot = existingEvent?.fields?.externalAppointment || null;
 
   const latestDate = episode.end && episode.end < TODAY ? episode.end : TODAY;
   const selectedType = TIMELINE_RECORD_TYPES.find((type) => type.value === entryType);
+  const isDedicatedType = Boolean(initialType && !NEW_RECORD_TYPES.includes(initialType));
+  const isUnlistedType = Boolean(entryType && !NEW_RECORD_TYPES.includes(entryType));
   const isStructured = selectedType?.scope === "structured";
+  const isReportEvent = ["medication-course", "service-period", "goal-milestone"].includes(entryType);
   const selectedMeasure = configuredMeasures().find(
     (measure) => measure.key === measureKey,
   );
@@ -141,6 +174,7 @@ export default function CareTimelineEntryForm({
               type: "ADD_CLINICAL_RECORD",
               recordType: entryType,
               recordDate: values.recordDate,
+              externalAppointment: externalSlot,
               ...values,
             });
           } else if (isCorrection) {
@@ -149,6 +183,7 @@ export default function CareTimelineEntryForm({
               eventId: existingEvent.id,
               eventType: entryType,
               eventDate: values.eventDate,
+              externalAppointment: externalSlot,
               ...values,
             });
           } else {
@@ -156,6 +191,7 @@ export default function CareTimelineEntryForm({
               type: "ADD_CARE_EVENT",
               eventType: entryType,
               eventDate: values.eventDate,
+              externalAppointment: externalSlot,
               ...values,
             });
           }
@@ -163,79 +199,149 @@ export default function CareTimelineEntryForm({
       >
         <div className="form-body care-event-form">
           {!selectedType ? (
-            <Notice>Choose a record type to see the fields for this event.</Notice>
+            <Notice>Choose a record category to see its fields.</Notice>
           ) : isStructured ? (
             <Notice>
-              Candidate PMHC-MDS-aligned data structure only. It does not submit
-              data, score measures, generate a safety plan or make a clinical
-              decision.
+              {entryType === "medication"
+                ? "Record only medication facts supported by the source. This is not a prescription, medication chart or clinical decision."
+                : "Candidate PMHC-MDS-aligned data structure only. It does not submit data, score measures, generate a safety plan or make a clinical decision."}
             </Notice>
           ) : (
             <Notice>
               {entryType === "indirect-activity"
                 ? "Record work completed for the person without a direct contact. This is saved to care history."
-                : "Record contextual events only. This does not replace a safety plan, medication chart or source clinical record."}
+                : isReportEvent
+                  ? "Record a dated source item for the Report. This does not replace the source clinical record."
+                  : "Record contextual events only. This does not replace a safety plan, medication chart or source clinical record."}
             </Notice>
           )}
 
-          <div className="form-grid">
-            <Field label="Record type">
-              <select
-                name="entryType"
-                value={entryType}
-                onChange={(e) => {
-                  if (e.target.value === "appointment") {
-                    onSelectAppointment?.();
-                  } else {
-                    setEntryType(e.target.value);
-                  }
-                }}
-                required
-              >
-                <option value="" disabled>Choose record type</option>
-                {TIMELINE_RECORD_TYPES.filter((type) => !isCorrection || type.scope !== "appointment").map((type) => (
-                  <option key={type.value} value={type.value}>
-                    {type.label}
-                  </option>
-                ))}
-              </select>
-            </Field>
+          <Field label="Record category">
+            <select
+              name="entryType"
+              value={entryType}
+              onChange={(e) => {
+                if (e.target.value === "appointment") {
+                  onSelectAppointment?.();
+                } else {
+                  setEntryType(e.target.value);
+                }
+              }}
+              disabled={isCorrection || isDedicatedType}
+              required
+            >
+              <option value="" disabled>Choose category</option>
+              {NEW_RECORD_TYPES.filter((type) => !isCorrection || type !== "appointment").map((type) => (
+                <option key={type} value={type}>{recordCategoryLabel(type)}</option>
+              ))}
+              {isUnlistedType && (
+                <option value={entryType}>{selectedType?.label || existingEvent?.title || "Original event type"}</option>
+              )}
+            </select>
+          </Field>
 
-            {selectedType && (isStructured ? (
-              <Field
-                label="Record date"
-                hint="The date recorded by the source."
-              >
-                <input
-                  type="date"
-                  name="recordDate"
-                  defaultValue={latestDate}
-                  min={episode.start}
-                  max={latestDate}
-                  required
-                />
-              </Field>
-            ) : (
-              <Field
-                label="Event date"
-                hint="The date the event happened."
-              >
-                <input
-                  type="date"
-                  name="eventDate"
-                  defaultValue={existingEvent?.eventDate || latestDate}
-                  min={episode.start}
-                  max={latestDate}
-                  required
-                />
-              </Field>
-            ))}
-          </div>
+          {selectedType && (
+            <p className="event-type-description">{selectedType.description}</p>
+          )}
+
+          {selectedType && (isStructured ? (
+            <Field
+              label="Record date"
+              hint="The date recorded by the source."
+            >
+              <input
+                type="date"
+                name="recordDate"
+                defaultValue={latestDate}
+                min={episode.start}
+                max={latestDate}
+                required
+              />
+            </Field>
+          ) : (
+            <Field
+              label={entryType === "goal-milestone" ? "Milestone date" : ["medication-course", "service-period"].includes(entryType) ? "Start date" : entryType === "care-transition" ? "Change or period start date" : "Event date"}
+              hint={entryType === "goal-milestone" ? "The date this goal status was recorded." : ["medication-course", "service-period"].includes(entryType) ? "The documented start of this period." : entryType === "care-transition" ? "The date the change happened or the documented period began." : "The date the event happened."}
+            >
+              <input
+                type="date"
+                name="eventDate"
+                defaultValue={existingEvent?.eventDate || latestDate}
+                min={episode.start}
+                max={latestDate}
+                required
+              />
+            </Field>
+          ))}
 
           {selectedType && <>
-          <p className="event-type-description">{selectedType.description}</p>
-
           <div className="care-event-fields">
+            {entryType === "medication-course" && <>
+              <Field label="Medication or course name">
+                <input name="courseName" defaultValue={existingEvent?.title || ""} autoFocus required />
+              </Field>
+              <Field label="End date" hint="A completed course needs a documented end date.">
+                <input type="date" name="endDate" defaultValue={existingEvent?.fields?.endDate || ""} min={episode.start} max={latestDate} required />
+              </Field>
+              <Field label="Source status">
+                <select name="reportStatus" defaultValue={existingEvent?.fields?.status || "Start and end recorded"} required>
+                  <option>Start and end recorded</option>
+                  <option>Completed</option>
+                  <option>Stopped early</option>
+                </select>
+              </Field>
+            </>}
+
+            {entryType === "service-period" && <>
+              <Field label="Care setting or service">
+                <input name="periodName" defaultValue={existingEvent?.title || ""} autoFocus required />
+              </Field>
+              <Field label="End date (optional)" hint="Leave blank when only the start is documented.">
+                <input type="date" name="endDate" defaultValue={existingEvent?.fields?.endDate || ""} min={episode.start} max={latestDate} />
+              </Field>
+              <Field label="Source status">
+                <select name="reportStatus" defaultValue={existingEvent?.fields?.status || "Started"} required>
+                  <option>Planned</option>
+                  <option>Started</option>
+                  <option>Delivered</option>
+                  <option>Ended</option>
+                </select>
+              </Field>
+            </>}
+
+            {entryType === "care-transition" && <>
+              <Field label="Service or care period name (optional)" hint="Complete this only when the change starts a documented service or care period.">
+                <input name="periodName" defaultValue={existingEvent?.fields?.periodName || ""} />
+              </Field>
+              <Field label="Period end date (optional)" hint="Leave blank when the period is ongoing or only its start is known.">
+                <input type="date" name="endDate" defaultValue={existingEvent?.fields?.endDate || ""} min={episode.start} max={latestDate} />
+              </Field>
+              <Field label="Period status (optional)">
+                <select name="reportStatus" defaultValue={existingEvent?.fields?.status || ""}>
+                  <option value="">Not recorded</option>
+                  <option>Planned</option>
+                  <option>Started</option>
+                  <option>Delivered</option>
+                  <option>Ended</option>
+                </select>
+              </Field>
+            </>}
+
+            {entryType === "goal-milestone" && <>
+              <Field label="Goal">
+                <input name="goalTitle" defaultValue={existingEvent?.title || ""} autoFocus required />
+              </Field>
+              <Field label="Milestone status">
+                <select name="reportStatus" defaultValue={existingEvent?.fields?.status || "Started"} required>
+                  <option>Started</option>
+                  <option>Reviewed</option>
+                  <option>Progressed</option>
+                  <option>Achieved</option>
+                  <option>Paused</option>
+                  <option>Stopped</option>
+                </select>
+              </Field>
+            </>}
             {entryType === "risk" && (
               <>
                 <Field label="Recorded risk status">
@@ -284,11 +390,9 @@ export default function CareTimelineEntryForm({
                 <Field label="Medication name">
                   <input name="medicationName" autoFocus required />
                 </Field>
-                <Field label="Recorded medication change">
-                  <select name="medicationChange" defaultValue="" required>
-                    <option value="" disabled>
-                      Choose change
-                    </option>
+                <Field label="Recorded change (optional)" hint="Complete when the source records a start, stop, dose change or review.">
+                  <select name="medicationChange" defaultValue="">
+                    <option value="">No change recorded</option>
                     {MEDICATION_CHANGES.map((item) => (
                       <option key={item} value={item}>
                         {item}
@@ -298,6 +402,27 @@ export default function CareTimelineEntryForm({
                 </Field>
                 <Field label="Dose as recorded (optional)">
                   <input name="dose" placeholder="For example, 20 mg daily" />
+                </Field>
+                <Field label="Course start date (optional)" hint="A documented course appears as a period in Report when both dates are known.">
+                  <input type="date" name="courseStartDate" min={episode.start} max={latestDate} />
+                </Field>
+                <Field label="Course end date (optional)">
+                  <input type="date" name="courseEndDate" min={episode.start} max={latestDate} />
+                </Field>
+                <Field label="Course status (optional)">
+                  <select name="courseStatus" defaultValue="">
+                    <option value="">Not recorded</option>
+                    <option>Started</option>
+                    <option>Start and end recorded</option>
+                    <option>Completed</option>
+                    <option>Stopped early</option>
+                  </select>
+                </Field>
+                <Field label="Adverse event (optional)" hint="Describe what was observed without assigning a cause.">
+                  <textarea name="adverseEvent" rows="2" />
+                </Field>
+                <Field label="Adverse event date (optional)" hint="If different from the record date, enter when the event happened.">
+                  <input type="date" name="adverseEventDate" min={episode.start} max={latestDate} />
                 </Field>
               </>
             )}
@@ -383,7 +508,9 @@ export default function CareTimelineEntryForm({
                   label="Recorded value"
                   hint="Required only when complete; scoring is not calculated in this prototype."
                 >
-                  <input name="measureValue" />
+                  <input name="measureValue" type="number" step="any"
+                    min={prototypeScoreRange(measureKey)?.[0]}
+                    max={prototypeScoreRange(measureKey)?.[1]} />
                 </Field>
                 {outcomeNeedsMissingReason(outcomeStatus) && (
                   <Field label="Missing-data reason">
@@ -394,12 +521,17 @@ export default function CareTimelineEntryForm({
             )}
 
             {isStructured && (
-              <Field
-                label="Source or authority"
-                hint="For example, source clinical record, treating practitioner or completed measure."
-              >
-                <input name="source" required />
-              </Field>
+              <>
+                <Field
+                  label="Source or authority"
+                  hint="For example, source clinical record, treating practitioner or completed measure."
+                >
+                  <input name="source" required />
+                </Field>
+                <Field label="Impact on care or coordination (optional)" hint="Record an observed change or follow-up only if it is documented by the source.">
+                  <textarea name="impact" rows="3" />
+                </Field>
+              </>
             )}
 
             {entryType === "medication-adverse" && (
@@ -413,7 +545,7 @@ export default function CareTimelineEntryForm({
               </Field>
             )}
 
-            {!isStructured && (
+            {!isStructured && !isReportEvent && (
               <Field label="Factual event summary">
                 <input
                   name="summary"
@@ -430,12 +562,13 @@ export default function CareTimelineEntryForm({
             {!isStructured && (
               <>
                 <Field
-                  label="Source or observer (optional)"
+                  label={isReportEvent || entryType === "care-transition" ? "Source or authority" : "Source or observer (optional)"}
                   hint="For example, person, treating clinician, hospital update or documented source."
                 >
                   <input
                     name="source"
                     defaultValue={existingEvent?.fields?.source || ""}
+                    required={isReportEvent || entryType === "care-transition"}
                   />
                 </Field>
                 <Field label="Impact on care or coordination (optional)">
@@ -448,13 +581,17 @@ export default function CareTimelineEntryForm({
               </>
             )}
 
-            <Field label="Notes (optional)">
+            <Field
+              label={isStructured || isReportEvent ? "Supporting notes (optional)" : "Factual description"}
+              hint={!isStructured ? "Describe what happened and any known outcome. Keep interpretation separate from the facts." : undefined}
+            >
               <textarea
                 name="notes"
                 rows="3"
                 defaultValue={
                   !isStructured ? existingEvent?.fields?.notes || "" : ""
                 }
+                required={!isStructured && !isReportEvent && NEW_RECORD_TYPES.includes(entryType)}
               />
             </Field>
 
@@ -482,8 +619,10 @@ export default function CareTimelineEntryForm({
               : !selectedType
                 ? "Add event"
               : isStructured
-                ? "Add structured record"
-                : "Add contextual event"}
+                ? entryType === "medication" ? "Add medication record" : "Add structured record"
+                : isReportEvent
+                  ? "Add report source record"
+                  : "Add contextual event"}
           </Button>
         </div>
       </ValidatedForm>

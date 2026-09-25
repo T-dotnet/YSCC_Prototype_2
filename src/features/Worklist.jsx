@@ -198,7 +198,7 @@ export default function Worklist({ navigate, openModal }) {
       <PageHeading
         title="My work"
         subtitle="Intake, assessment and referral follow-up in one place."
-        meta="Sample date · 15 September 2026"
+        meta={`Today · ${formatDate(TODAY)} · Fictional sample data`}
       >
         <Button
           variant="primary"
@@ -211,22 +211,25 @@ export default function Worklist({ navigate, openModal }) {
 
       <div className="work-grid">
         <Panel
-          className="work-panel worklist-main-panel"
+          className="work-panel worklist-main-panel queue-list-panel"
           title="Worklist"
           action={
-            <Select
-              label="Work ownership"
-              value={ownership}
-              onChange={(event) =>
-                view.set("owner", event.target.value, "me", true)
-              }
-            >
-              <option value="me">
-                Assigned to me · {currentStaff(state)?.name}
-              </option>
-              <option value="team">My team · Northside Centre</option>
-              <option value="unassigned">Unassigned</option>
-            </Select>
+            <div className="worklist-heading-actions">
+              <span className="muted">{filtered.length} tasks</span>
+              <Select
+                label="Work ownership"
+                value={ownership}
+                onChange={(event) =>
+                  view.set("owner", event.target.value, "me", true)
+                }
+              >
+                <option value="me">
+                  Assigned to me · {currentStaff(state)?.name}
+                </option>
+                <option value="team">My team · Northside Centre</option>
+                <option value="unassigned">Unassigned</option>
+              </Select>
+            </div>
           }
         >
           <ListFilterBar

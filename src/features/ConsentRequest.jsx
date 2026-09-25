@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ArrowRight, Check, HeartHandshake, ShieldCheck } from "lucide-react";
 import { useStore } from "../store";
-import { Button, Notice, Success } from "../components/UI";
+import { Button, Logo, Notice, Success } from "../components/UI";
 
 export default function ConsentRequest({ session, navigate, onEnd }) {
   const { state, commit, storageError } = useStore();
@@ -52,7 +52,7 @@ export default function ConsentRequest({ session, navigate, onEnd }) {
   return (
     <div className="participant">
       <header className="participant-header">
-        <span className="brand">YSCC</span>
+        <Logo />
         <span>Consent request · sample content</span>
       </header>
       <main className="questionnaire consent-participant">

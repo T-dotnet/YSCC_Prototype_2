@@ -17,6 +17,8 @@ export default function AppointmentForm({
   episode,
   people,
   person,
+  recordTypes,
+  onChangeEventType,
   error,
   canCreateAssessment,
   onClose,
@@ -29,6 +31,7 @@ export default function AppointmentForm({
   const [newAssessmentVersions, setNewAssessmentVersions] = useState([]);
   const [assessmentMenuOpen, setAssessmentMenuOpen] = useState(false);
   const [assessmentSearch, setAssessmentSearch] = useState("");
+  const [assessmentDateError, setAssessmentDateError] = useState(false);
   const assessmentPickerRef = useRef(null);
   const assessmentSearchRef = useRef(null);
   useEffect(() => {
@@ -66,6 +69,10 @@ export default function AppointmentForm({
   const visibleInstruments = INSTRUMENTS.filter((instrument) =>
     `${instrument.name} ${instrument.version}`.toLocaleLowerCase().includes(searchTerm));
   const selectedCount = collectionIds.length + newAssessmentVersions.length;
+  const selectedDateMismatch = hasContactDate && collectionIds.some((id) => {
+    const collection = assessments.find((item) => item.id === id);
+    return collection && !appointmentMatchesCollectionDate(contactDates, collection);
+  });
 
   return (
     <Modal
@@ -76,6 +83,11 @@ export default function AppointmentForm({
       <ValidatedForm
         onSubmit={(event) => {
           event.preventDefault();
+          if (selectedDateMismatch) {
+            setAssessmentDateError(true);
+            setAssessmentMenuOpen(true);
+            return;
+          }
           onSave({ type: "ADD_APPOINTMENT", ...formValues(event), collectionIds, newAssessmentVersions });
         }}
       >
@@ -84,12 +96,19 @@ export default function AppointmentForm({
             Prototype operational record only. This is not an appointment-booking
             system or an approved PMHC-MDS submission record.
           </Notice>
+          <Field label="Record category">
+            <select value="appointment" onChange={(event) => onChangeEventType(event.target.value)}>
+              {recordTypes.map((type) => (
+                <option key={type.value} value={type.value}>{type.label}</option>
+              ))}
+            </select>
+          </Field>
           <div className="form-grid">
             <Field label="Contact status">
               <select
                 name="attendance"
                 value={attendance}
-                onChange={(event) => { setAttendance(event.target.value); setCollectionIds([]); }}
+                onChange={(event) => { setAttendance(event.target.value); setAssessmentDateError(false); }}
               >
                 {APPOINTMENT_ATTENDANCE.map((value) => (
                   <option key={value}>{value}</option>
@@ -104,7 +123,7 @@ export default function AppointmentForm({
               </select>
             </Field>
             <Field label="Planned date">
-              <input name="plannedDate" type="date" min={episode.start} value={plannedDate} onChange={(event) => { setPlannedDate(event.target.value); setCollectionIds([]); }} required />
+              <input name="plannedDate" type="date" min={episode.start} value={plannedDate} onChange={(event) => { setPlannedDate(event.target.value); setAssessmentDateError(false); }} required />
             </Field>
             <Field label="Planned time">
               <input name="plannedTime" type="time" required />
@@ -149,7 +168,7 @@ export default function AppointmentForm({
                     min={episode.start}
                     max={actualLatestDate}
                     value={actualDate}
-                    onChange={(event) => { setActualDate(event.target.value); setCollectionIds([]); }}
+                    onChange={(event) => { setActualDate(event.target.value); setAssessmentDateError(false); }}
                     required
                   />
                 </Field>
@@ -196,19 +215,25 @@ export default function AppointmentForm({
                   <h3>Due assessments</h3>
                   {visibleDueAssessments.length ? visibleDueAssessments.map((collection) => {
                     const availability = assessmentAvailability(collection);
+                    const selected = collectionIds.includes(collection.id);
                     return (
                       <label className="appointment-assessment-option" key={collection.id}>
                         <input
                           type="checkbox"
-                          checked={collectionIds.includes(collection.id)}
-                          disabled={availability !== "Matches contact date"}
-                          onChange={(event) => setCollectionIds((current) => event.target.checked
-                            ? [...current, collection.id]
-                            : current.filter((id) => id !== collection.id))}
+                          checked={selected}
+                          disabled={availability === "Unavailable" || availability === "Already linked" ||
+                            (availability === "Different date" && !selected)}
+                          onChange={(event) => {
+                            setAssessmentDateError(false);
+                            setCollectionIds((current) => event.target.checked
+                              ? [...current, collection.id]
+                              : current.filter((id) => id !== collection.id));
+                          }}
                         />
                         <span>
                           <strong>{collection.label}</strong>
-                          <small>Due {formatDate(collection.due)} · {availability}</small>
+                          <small>Due {formatDate(collection.due)} · {availability === "Choose a contact date"
+                            ? "Select now, then enter a matching contact date" : availability}</small>
                         </span>
                       </label>
                     );
@@ -236,6 +261,19 @@ export default function AppointmentForm({
               </div>
             </div>}
           </div>
+          {selectedDateMismatch && (
+            <p className="field-error" role={assessmentDateError ? "alert" : undefined}>
+              A selected assessment has a different due or response date. Enter a matching contact date or unselect it.
+            </p>
+          )}
+          <Field label="Purpose or care context (optional)" hint="Record the reason for this contact if it is known.">
+            <textarea name="purpose" rows="2" />
+          </Field>
+          {attendance === "Attended" && (
+            <Field label="Impact on care or coordination (optional)" hint="Record an observed change or follow-up, without inferring a cause.">
+              <textarea name="impact" rows="3" />
+            </Field>
+          )}
           <Field label="Notes (optional)">
             <textarea
               name="notes"

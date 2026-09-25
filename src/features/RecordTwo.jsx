@@ -18,6 +18,7 @@ import { collectionStatus, formatDate } from "../model";
 import { currentCollection } from "../workflow";
 import { REPORT_FIELDS } from "../report";
 import {
+  episodeOutcomeRecords,
   isCompletedScore,
   outcomeMeasureCards,
   scoreChangeLabel,
@@ -219,7 +220,7 @@ function Goals() {
     >
       <ol className="record-two-goals">
         {goals.map(([label, value, state]) => (
-          <li key={label}>
+          <li key={label} className={state === "Achieved" ? "goal-achieved" : ""}>
             <div>
               <strong>{label}</strong>
               <span>{state}</span>
@@ -495,13 +496,13 @@ function OutcomeRecordDetail({ measure, record, onOpenAssessment }) {
           <dd>{record.notes || "No associated note recorded."}</dd>
         </div>
       </dl>
-      {record.sourceCollectionId && (
+      {(record.sourceCollectionId || record.sourceClinicalRecordId) && (
         <button
           type="button"
           className="outcome-source-link"
           onClick={() => onOpenAssessment(record)}
         >
-          Open assessment record
+          {record.sourceClinicalRecordId ? "Open care record" : "Open assessment record"}
           <ExternalLink size={15} aria-hidden="true" />
         </button>
       )}
@@ -800,13 +801,13 @@ function OutcomeMeasurePanel({ measure, onShowResponses }) {
           No completed score is recorded for this measure.
         </p>
       )}
-      {measure.recordable && measure.records.some((record) => record.sourceCollectionId) && (
+      {measure.recordable && measure.records.some((record) => record.sourceCollectionId || record.sourceClinicalRecordId) && (
         <button
           type="button"
           className="outcome-source-link"
           onClick={() => onShowResponses(measure.key)}
         >
-          Response list
+          Source records
           <ArrowRight size={15} aria-hidden="true" />
         </button>
       )}
@@ -817,7 +818,7 @@ function OutcomeMeasurePanel({ measure, onShowResponses }) {
 function outcomeMeasuresFor(episode) {
   const cards = outcomeMeasureCards(
     GOVERNED_MEASURES,
-    episode.reportOutcomeMeasures,
+    episodeOutcomeRecords(episode),
   );
   const measures = REPORT_OUTCOME_KEYS.flatMap((key) => {
     const measure = cards.find((item) => item.key === key);
@@ -854,7 +855,7 @@ function OutcomeScoreSummary({ episode, onShowResponses }) {
   return (
     <ChartCard
       title="K10+ and K5 scores"
-      description="Dated raw scores from the linked sample responses. Each measure keeps its own scale."
+      description="Dated recorded values from assessments and care records. Each measure keeps its own scale."
       className="record-two-measure-panel"
       reportingType="outcome"
     >
@@ -871,7 +872,7 @@ function OutcomeScoreSummary({ episode, onShowResponses }) {
             className="outcome-source-link"
             onClick={() => onShowResponses(measure.key)}
           >
-            Response list
+            Source records
             <ArrowRight size={15} aria-hidden="true" />
           </button>
         </div>
@@ -883,8 +884,8 @@ function OutcomeScoreSummary({ episode, onShowResponses }) {
 function ResponseListModal({ measure, onClose, onOpenAssessment }) {
   return (
     <Modal
-      title={`${measure.displayName} responses`}
-      subtitle="Select a dated response to open its assessment record."
+      title={`${measure.displayName} source records`}
+      subtitle="Select a dated result to open its source record."
       onClose={onClose}
     >
       <ol className="outcome-response-list">
@@ -894,17 +895,17 @@ function ResponseListModal({ measure, onClose, onOpenAssessment }) {
               <strong>{formatDate(record.date)}</strong>
               <small>{isCompletedScore(record) ? `Score ${record.value}` : record.status}</small>
             </span>
-            {record.sourceCollectionId ? (
+            {record.sourceCollectionId || record.sourceClinicalRecordId ? (
               <button
                 type="button"
                 className="outcome-source-link"
                 onClick={() => onOpenAssessment(record)}
               >
-                Open response
+                {record.sourceClinicalRecordId ? "Open care record" : "Open response"}
                 <ExternalLink size={15} aria-hidden="true" />
               </button>
             ) : (
-              <span className="muted">No linked response</span>
+              <span className="muted">No linked source</span>
             )}
           </li>
         ))}
@@ -973,7 +974,7 @@ function Risk() {
 export default function RecordTwo({ person, episode, navigate }) {
   const isFixture = Boolean(person.fixtureLabel) &&
     person.fixtureLabel !== "Fictional closed episode with patient follow-up";
-  const hasOutcomeMeasures = episode.reportOutcomeMeasures?.some(
+  const hasOutcomeMeasures = episodeOutcomeRecords(episode).some(
     (measure) => measure.records?.length,
   );
   const isEmptyReport = !isFixture && !hasOutcomeMeasures && !hasCareTimelineEntries(episode);
@@ -991,13 +992,14 @@ export default function RecordTwo({ person, episode, navigate }) {
     (measure) => measure.key === responseListKey,
   );
   const openMeasureSource = (record) => {
-    if (!record.sourceCollectionId) return;
+    if (!record.sourceCollectionId && !record.sourceClinicalRecordId) return;
     setResponseListKey(null);
     const params = new URLSearchParams({
-      tab: "assessment",
+      tab: record.sourceClinicalRecordId ? "events" : "assessment",
       episode: episode.id,
-      collection: record.sourceCollectionId,
     });
+    if (record.sourceClinicalRecordId) params.set("event", record.sourceClinicalRecordId);
+    else params.set("collection", record.sourceCollectionId);
     navigate(`/people/${person.id}?${params}`, { scroll: false });
   };
   return (

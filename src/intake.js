@@ -1,5 +1,6 @@
 import { careChanges, recordFieldChanges } from "./activity.js";
 import { PROGRAM_STREAMS } from "./carePeriods.js";
+import { validExternalSlot } from "./externalAppointmentSlots.js";
 
 // Prototype workflow only: clinical criteria and external agreements remain D-26/D-27.
 export const INTAKE_STATES = [
@@ -245,6 +246,11 @@ export function intakeActionError(state, action, staff) {
         return "An existing care record needs review; another episode cannot be created here.";
       if (!validDate(action.due) || action.due < "2026-09-15")
         return "Choose an assessment due date on or after the sample date.";
+      if (action.externalAppointment &&
+          (!validExternalSlot(action.externalAppointment) ||
+            action.externalAppointment.date < "2026-09-15" ||
+            action.externalAppointment.date > action.due))
+        return "Choose an available appointment on or before the assessment due date.";
       return "";
     }
     const f = action.values || {};
@@ -612,6 +618,7 @@ export function applyIntakeAction(
       const episode = p.episodes.find((item) => item.id === i.episodeId);
       episode.programStream = action.programStream;
       episode.collections[0].due = action.due;
+      episode.collections[0].externalAppointment = action.externalAppointment || null;
       i.revision += 1;
       episode.events.unshift({
         id: uid(), date: today, timestamp, actor: staff.name, actorId: staff.id,
@@ -681,6 +688,7 @@ export function applyIntakeAction(
         {
           ...initialAssessmentCollection(i, p, version, uid),
           due: action.due,
+          externalAppointment: action.externalAppointment || null,
         },
       ],
     });

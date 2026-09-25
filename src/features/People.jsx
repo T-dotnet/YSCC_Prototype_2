@@ -103,7 +103,7 @@ export default function People({ navigate, openModal }) {
       <PageHeading
         title="People"
         subtitle="See who needs attention and where they are in their care."
-        meta="Sample date · 15 September 2026"
+        meta={`Today · ${formatDate(TODAY)} · Fictional sample data`}
       >
         <Button
           variant="primary"
@@ -120,7 +120,7 @@ export default function People({ navigate, openModal }) {
         </Button>
       </PageHeading>
       <Panel
-        className="people-panel"
+        className="people-panel queue-list-panel"
         title="People at Northside Centre"
         action={<span className="muted">{people.length} people</span>}
       >

@@ -1,3 +1,28 @@
+import { validExternalSlot } from "./externalAppointmentSlots.js";
+
+const validDate = (value) =>
+  /^\d{4}-\d{2}-\d{2}$/.test(value || "") &&
+  Number.isFinite(new Date(`${value}T12:00:00Z`).getTime()) &&
+  new Date(`${value}T12:00:00Z`).toISOString().slice(0, 10) === value;
+
+export const REPORT_EVENT_TYPES = [
+  {
+    value: "medication-course",
+    label: "Medication course",
+    description: "A documented medication course period.",
+  },
+  {
+    value: "service-period",
+    label: "Care setting or service period",
+    description: "A documented care or service period.",
+  },
+  {
+    value: "goal-milestone",
+    label: "Goal milestone",
+    description: "A dated update to a care goal.",
+  },
+];
+
 export const CARE_EVENT_TYPES = [
   {
     value: "indirect-activity",
@@ -59,7 +84,7 @@ const LEGACY_MEDICATION_CHANGES = [
 ];
 
 export const careEventType = (value) =>
-  [...CARE_EVENT_TYPES, ...SYSTEM_EVENT_TYPES, ...LEGACY_EVENT_TYPES].find(
+  [...REPORT_EVENT_TYPES, ...CARE_EVENT_TYPES, ...SYSTEM_EVENT_TYPES, ...LEGACY_EVENT_TYPES].find(
     (type) => type.value === value,
   );
 
@@ -78,6 +103,42 @@ export function careEventError(episode, action, today) {
   const latestDate = episode.end && episode.end < today ? episode.end : today;
   if (action.eventDate > latestDate)
     return "The event date cannot be after this care period or in the future.";
+  if (["medication-course", "service-period"].includes(action.eventType)) {
+    if (action.eventType === "medication-course" && !action.courseName?.trim())
+      return "Enter the medication or course name.";
+    if (action.eventType === "service-period" && !action.periodName?.trim())
+      return "Enter the care setting or service.";
+    if (action.eventType === "medication-course" && !action.endDate)
+      return "Enter the documented course end date.";
+    if (action.endDate && (!validDate(action.endDate) || action.endDate <= action.eventDate || action.endDate > latestDate))
+      return "The end date must be after the start date and within this care period.";
+  }
+  if (action.eventType === "goal-milestone" && !action.goalTitle?.trim())
+    return "Enter the goal.";
+  if (action.eventType === "care-transition") {
+    if (action.endDate && !action.periodName?.trim())
+      return "Enter the service or care period name for its end date.";
+    if (action.reportStatus && !action.periodName?.trim())
+      return "Enter the service or care period name for its status.";
+    if (action.endDate && (!validDate(action.endDate) || action.endDate <= action.eventDate || action.endDate > latestDate))
+      return "The period end date must follow its start and be within this care period.";
+    if (action.reportStatus && !["Planned", "Started", "Delivered", "Ended"].includes(action.reportStatus))
+      return "Choose a valid period status.";
+    if (action.periodName?.trim() && !action.source?.trim())
+      return "Enter the source or authority for this period.";
+  }
+  if (["medication-course", "service-period", "goal-milestone"].includes(action.eventType)) {
+    const statuses = {
+      "medication-course": ["Start and end recorded", "Completed", "Stopped early"],
+      "service-period": ["Planned", "Started", "Delivered", "Ended"],
+      "goal-milestone": ["Started", "Reviewed", "Progressed", "Achieved", "Paused", "Stopped"],
+    };
+    if (!statuses[action.eventType].includes(action.reportStatus)) return "Choose a valid source status.";
+    if (!action.source?.trim()) return "Enter the source or authority.";
+  }
+  if (action.externalAppointment &&
+      (!validExternalSlot(action.externalAppointment) || action.externalAppointment.date < today))
+    return "Choose an available external appointment.";
   if (action.eventType === "medication") {
     if (!action.medicationName?.trim()) return "Enter the medication name.";
     if (!LEGACY_MEDICATION_CHANGES.includes(action.medicationChange))
@@ -85,7 +146,7 @@ export function careEventError(episode, action, today) {
   }
   if (action.eventType === "medication-adverse" && !action.medicationName?.trim())
     return "Enter the medication name if it is known.";
-  if (action.eventType !== "medication" && !action.summary?.trim())
+  if (!["medication", "medication-course", "service-period", "goal-milestone"].includes(action.eventType) && !action.summary?.trim())
     return "Enter a factual event summary.";
   if (action.type === "CORRECT_CARE_EVENT" && !action.correctionReason?.trim())
     return "Explain why this event is being corrected.";
@@ -95,6 +156,36 @@ export function careEventError(episode, action, today) {
 const clean = (value) => value?.trim() || null;
 
 export function careEventContent(action) {
+  if (action.eventType === "care-transition")
+    return {
+      title: action.summary.trim(),
+      detail: clean(action.notes) || "Care or service change recorded.",
+      fields: {
+        periodName: clean(action.periodName),
+        endDate: clean(action.endDate),
+        status: clean(action.reportStatus),
+        source: clean(action.source),
+        impact: clean(action.impact),
+        notes: clean(action.notes),
+        externalAppointment: action.externalAppointment || null,
+      },
+    };
+  if (["medication-course", "service-period", "goal-milestone"].includes(action.eventType)) {
+    const title = action.eventType === "medication-course" ? action.courseName.trim()
+      : action.eventType === "service-period" ? action.periodName.trim()
+        : action.goalTitle.trim();
+    return {
+      title,
+      detail: action.reportStatus,
+      fields: {
+        source: action.source.trim(),
+        status: action.reportStatus,
+        endDate: clean(action.endDate),
+        impact: clean(action.impact),
+        notes: clean(action.notes),
+      },
+    };
+  }
   if (action.eventType === "medication") {
     const medicationName = action.medicationName.trim();
     const medicationChange = action.medicationChange;
@@ -123,15 +214,21 @@ export function careEventContent(action) {
       source: clean(action.source),
       impact: clean(action.impact),
       notes: clean(action.notes),
+      externalAppointment: action.externalAppointment || null,
     },
   };
 }
 
 export function careEventDetails(event) {
   const fields = event.fields ?? {};
+  const reportItem = ["medication-course", "service-period", "goal-milestone"].includes(event.eventType);
   return [
+    ["External appointment", fields.externalAppointment && `${fields.externalAppointment.date} at ${fields.externalAppointment.time} · ${fields.externalAppointment.practitionerService} · ${fields.externalAppointment.deliveryMode}`],
     ["Medication", fields.medicationName],
-    ["Source or observer", fields.source],
+    [reportItem ? "Source or authority" : "Source or observer", fields.source],
+    ["Source status", fields.status],
+    ["End date", fields.endDate],
+    ["Service or care period", fields.periodName],
     ["Impact on care", fields.impact],
     ["Notes", fields.notes],
     ["Correction reason", event.correctionReason],

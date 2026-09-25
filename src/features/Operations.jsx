@@ -145,12 +145,12 @@ export function Quality({ openModal, navigate }) {
       <PageHeading
         title="Data quality"
         subtitle="Continuously check completeness, resolve the source, and retain the evidence."
-        meta="Sample PMHC-MDS rule set · Northside Centre · 15 September 2026"
+        meta={`Sample PMHC-MDS rule set · Northside Centre · Today ${formatDate(TODAY)}`}
       />
       <Panel
         title="Validation issues"
         action={<Badge>{unresolved.length} unresolved</Badge>}
-        className="quality-queue"
+        className="quality-queue queue-list-panel"
       >
         <ListFilterBar
           id="quality-status"

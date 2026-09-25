@@ -34,6 +34,7 @@ import {
   reportSources,
 } from "./report.js";
 import { careEventContent, careEventError } from "./careEvents.js";
+import { validExternalSlot } from "./externalAppointmentSlots.js";
 import {
   clinicalRecordContent,
   clinicalRecordError,
@@ -59,7 +60,11 @@ export const PERSON_TAG_OPTIONS = [
   "Interpreter needed",
   "Review requested",
 ];
-export const TODAY = "2026-09-15";
+export const SAMPLE_DATE = "2026-09-15";
+const localDate = new Date();
+const currentLocalDate = `${localDate.getFullYear()}-${String(localDate.getMonth() + 1).padStart(2, "0")}-${String(localDate.getDate()).padStart(2, "0")}`;
+const testDate = typeof process !== "undefined" ? process.env.YSCC_TEST_DATE : undefined;
+export const TODAY = /^\d{4}-\d{2}-\d{2}$/.test(testDate || "") ? testDate : currentLocalDate;
 export const VERSION = DEMO_INSTRUMENT.version;
 export const CLOSURE_ASSESSMENT_VERSION = "Episode closure assessment v1.0";
 export const CLOSURE_FEEDBACK_VERSION = "Care experience feedback v1.0";
@@ -213,7 +218,7 @@ export const displayCollectionActor = (person, collection, actor) => {
 export const age = (dob) => {
   if (!dob) return "Unknown";
   const d = new Date(dob);
-  return 2026 - d.getFullYear() - (dob.slice(5) > "09-15" ? 1 : 0);
+  return Number(TODAY.slice(0, 4)) - d.getFullYear() - (dob.slice(5) > TODAY.slice(5) ? 1 : 0);
 };
 
 const seeds = [
@@ -231,7 +236,7 @@ const seeds = [
     "2007-02-06",
     "She/her",
     "Initial assessment",
-    TODAY,
+    SAMPLE_DATE,
     "Submitted",
     "Ended",
   ],
@@ -240,7 +245,7 @@ const seeds = [
     "2010-07-12",
     "He/him",
     "Initial assessment",
-    TODAY,
+    SAMPLE_DATE,
     "Not started",
     "Not sent",
   ],
@@ -249,7 +254,7 @@ const seeds = [
     "2008-11-23",
     "She/her",
     "90-day review",
-    TODAY,
+    SAMPLE_DATE,
     "Submitted",
     "Ended",
   ],
@@ -267,7 +272,7 @@ const seeds = [
     "2009-01-30",
     "She/her",
     "90-day review",
-    TODAY,
+    SAMPLE_DATE,
     "Not started",
     "Not sent",
   ],
@@ -409,7 +414,7 @@ export function sampleAppointmentsForSeed(seedIndex) {
         {
           id: "APT-1-initial-assessment",
           appointmentType: "Initial assessment",
-          plannedDate: TODAY,
+          plannedDate: SAMPLE_DATE,
           plannedTime: "10:00",
           plannedDurationMinutes: 60,
           practitionerService: "Jess Taylor · Northside Centre",
@@ -468,7 +473,7 @@ export function sampleAppointmentsForSeed(seedIndex) {
         {
           id: "APT-3-90day-review",
           appointmentType: "Care review",
-          plannedDate: TODAY,
+          plannedDate: SAMPLE_DATE,
           plannedTime: "14:00",
           plannedDurationMinutes: 45,
           practitionerService: "Jess Taylor · Northside Centre",
@@ -1302,7 +1307,7 @@ function createMockFullReportPerson() {
         ...newIntake({
           id: `IN-${episodeId}`,
           owner: "Jess Taylor",
-          today: TODAY,
+          today: SAMPLE_DATE,
           actor: "Sample fixture",
           timestamp: "2026-06-15T09:00:00Z",
           episodeId,
@@ -1733,7 +1738,7 @@ function createMockIntakePerson() {
         ...newIntake({
           id: "IN-YS-1031",
           owner: "Jess Taylor",
-          today: TODAY,
+          today: SAMPLE_DATE,
           actor: "Sample fixture",
           timestamp: "2026-09-12T09:30:00",
         }),
@@ -1757,7 +1762,7 @@ function improveRiverIntakeSummary(state) {
   if (
     intake?.status !== "In progress" ||
     intake.nextAction !== "Confirm identity and contact arrangements" ||
-    intake.reviewDate !== TODAY
+    intake.reviewDate !== SAMPLE_DATE
   ) return state;
   const next = structuredClone(state);
   const updated = next.people.find((item) => item.id === "YS-1031").intakes.find((item) => item.id === "IN-YS-1031");
@@ -1782,7 +1787,7 @@ function createMockIntakeOutcomePerson() {
         ...newIntake({
           id: "IN-YS-1032",
           owner: "Jess Taylor",
-          today: TODAY,
+          today: SAMPLE_DATE,
           actor: "Sample fixture",
           timestamp: "2026-09-10T10:15:00",
         }),
@@ -1834,7 +1839,7 @@ function createMockIntakeAssessmentPerson() {
         ...newIntake({
           id: "IN-YS-1033",
           owner: "Jess Taylor",
-          today: TODAY,
+          today: SAMPLE_DATE,
           actor: "Sample fixture",
           timestamp: "2026-09-08T14:00:00",
           episodeId,
@@ -3014,18 +3019,18 @@ function prepareConsentRequests(next) {
         scope: assessment.scope,
         status: person.consent === "Withdrawn" ? "Withdrawn" : "Accepted",
         channel: "SMS link",
-        sentAt: person.episodes[0]?.start || TODAY,
-        decidedAt: person.episodes[0]?.start || TODAY,
+        sentAt: person.episodes[0]?.start || SAMPLE_DATE,
+        decidedAt: person.episodes[0]?.start || SAMPLE_DATE,
         decisionMaker: person.name,
         history: [
           {
             status: "Sent",
-            at: person.episodes[0]?.start || TODAY,
+            at: person.episodes[0]?.start || SAMPLE_DATE,
             actor: "Sample fixture",
           },
           {
             status: person.consent === "Withdrawn" ? "Withdrawn" : "Accepted",
-            at: person.episodes[0]?.start || TODAY,
+            at: person.episodes[0]?.start || SAMPLE_DATE,
             actor: person.name,
           },
         ],
@@ -3128,7 +3133,7 @@ function prepareIntakes(next) {
         ...newIntake({
           id: `IN-${ep.id}`,
           owner: person.owner,
-          today: TODAY,
+          today: SAMPLE_DATE,
           actor: "Sample fixture",
           timestamp: ep.start + "T09:00:00",
           episodeId: ep.id,
@@ -3863,7 +3868,9 @@ export function reducer(state, action) {
       break;
     }
     case "ADD_CLINICAL_RECORD": {
-      if (e?.status !== "Active" || clinicalRecordError(e, action, TODAY))
+      if (e?.status !== "Active" || clinicalRecordError(e, action, TODAY) ||
+          (action.externalAppointment &&
+            (!validExternalSlot(action.externalAppointment) || action.externalAppointment.date < TODAY)))
         return state;
       const content = clinicalRecordContent(action);
       const record = {
@@ -4055,6 +4062,10 @@ export function reducer(state, action) {
         ) ||
         !/^\d{4}-\d{2}-\d{2}$/.test(action.due || "") ||
         action.due < TODAY ||
+        (action.externalAppointment &&
+          (!validExternalSlot(action.externalAppointment) ||
+            action.externalAppointment.date < TODAY ||
+            action.externalAppointment.date > action.due)) ||
         (action.appointmentId && !e.appointments?.some((appointment) =>
           appointment.id === action.appointmentId &&
           appointmentMatchesCollectionDate(appointment, { due: action.due })))
@@ -4072,6 +4083,7 @@ export function reducer(state, action) {
         link: "Not sent",
         channel: action.channel || undefined,
         appointmentId: action.appointmentId || null,
+        externalAppointment: action.externalAppointment || null,
         attempts: [],
         answers: [],
         respondent: action.respondent || "Person",
@@ -4083,6 +4095,33 @@ export function reducer(state, action) {
         `${action.label} · due ${formatDate(action.due)} · same care episode`,
         { collectionId: plannedCollectionId, appointmentId: action.appointmentId || null },
       );
+      break;
+    case "SAVE_COLLECTION_SETUP":
+      if (
+        !canAssess(p, e) || !c || !c.due || !canCollectInEpisode(e, c) ||
+        p.consent !== "Recorded" || p.contact !== "Suitable" ||
+        !getInstrument(c.version) || c.response === "Submitted" ||
+        ["Paused", "Cancelled"].includes(c.assignment) ||
+        !["SMS link", "Clinic tablet", "Clinician entry"].includes(action.channel) ||
+        !getInstrument(c.version).respondents.includes(action.respondent) ||
+        !(action.channel === "Clinician entry"
+          ? ["Transcribed", "Joint completion"]
+          : ["Independent", "Supported"]).includes(action.assistance) ||
+        (action.respondent === "Family respondent" && !p.family) ||
+        (action.channel === "Clinician entry" && currentStaff(state)?.role !== "Clinician") ||
+        (action.externalAppointment &&
+          (!validExternalSlot(action.externalAppointment) ||
+            action.externalAppointment.date < TODAY ||
+            action.externalAppointment.date > c.due))
+      ) return state;
+      c.channel = action.channel;
+      c.respondent = action.respondent;
+      c.respondentName = action.respondent === "Person" ? p.name : p.family;
+      c.assistance = action.assistance;
+      c.externalAppointment = action.channel === "SMS link"
+        ? null : action.externalAppointment || null;
+      c.setupSavedAt = recordedAt;
+      event("Collection setup saved", `${c.label} · ${c.channel}`, { collectionId: c.id });
       break;
     case "DELIVER":
       if (
@@ -4118,11 +4157,21 @@ export function reducer(state, action) {
         currentStaff(state)?.role !== "Clinician"
       )
         return state;
+      if (action.externalAppointment &&
+          (!validExternalSlot(action.externalAppointment) ||
+            action.externalAppointment.date < TODAY ||
+            action.externalAppointment.date > c.due))
+        return state;
+      const hasExternalSelection = Object.hasOwn(action, "externalAppointment");
       c.assignment = "Active";
       c.link = "Active";
       c.respondent = action.respondent;
       c.respondentName = action.respondent === "Person" ? p.name : p.family;
       c.channel = action.channel;
+      if (hasExternalSelection)
+        c.externalAppointment = action.channel === "SMS link"
+          ? null
+          : action.externalAppointment || null;
       c.assistance = action.assistance;
       c.recorder =
         action.channel === "Clinician entry"
@@ -4132,7 +4181,7 @@ export function reducer(state, action) {
         action.channel === "Clinician entry" ? c.recorder : c.respondentName;
       c.recorderId =
         action.channel === "Clinician entry" ? currentStaff(state).id : null;
-      const linkedApptId =
+      const linkedApptId = hasExternalSelection || c.externalAppointment ? null :
         action.appointmentId ||
         (action.channel !== "SMS link"
           ? e.appointments?.find(
@@ -4162,6 +4211,7 @@ export function reducer(state, action) {
         recorderId: c.recorderId,
         assistance: c.assistance,
         appointmentId: linkedApptId,
+        externalAppointment: c.externalAppointment,
         status:
           action.channel === "SMS link"
             ? "Prepared (sample; not sent)"

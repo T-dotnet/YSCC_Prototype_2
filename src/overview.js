@@ -7,10 +7,11 @@ import {
   TODAY,
 } from "./model.js";
 
-// Opening setup never delivers anything; its primary action saves the attempt.
+// Setup saves collection choices without starting a delivery attempt.
 export function collectionSetupLabel(collection) {
   if (collection.link === "Expired") return "Replace expired link";
   if (
+    collection.setupSavedAt ||
     collection.attempts.length ||
     collection.response === "Draft" ||
     ["Active", "Revoked"].includes(collection.link)

@@ -164,10 +164,10 @@ export function historyItem(entry, episode, formatDetail = (value) => value) {
     const details = careEventDetails(entry).map(([label, value]) => fact(label, value));
     const rawDetail = formatDetail(entry.detail);
     const note = entry.fields?.notes;
-    const usefulDetail = rawDetail && rawDetail !== note && rawDetail !== "Contextual care event recorded."
+    const usefulDetail = rawDetail && rawDetail !== note && rawDetail !== entry.fields?.status && rawDetail !== "Contextual care event recorded."
       ? [fact("Summary", rawDetail)]
       : [];
-    const primaryLabels = ["Source or observer", "Impact on care", "Medication"];
+    const primaryLabels = ["Source or observer", "Source or authority", "Source status", "Impact on care", "Medication"];
     const primary = [
       ...details.filter(({ label }) => primaryLabels.includes(label)),
       ...usefulDetail,

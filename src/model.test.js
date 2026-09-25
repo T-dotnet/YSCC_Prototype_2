@@ -391,6 +391,7 @@ test("a care event retains its factual summary, source and recording dates", () 
   assert.equal(event.eventType, "housing");
   assert.equal(event.eventDate, TODAY);
   assert.equal(event.title, "Temporary accommodation ended");
+  assert.equal(event.detail, "Monitor until the next review.");
   assert.equal(event.fields.source, "Treating clinician");
   assert.equal(
     event.fields.impact,

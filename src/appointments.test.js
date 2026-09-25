@@ -80,6 +80,21 @@ test("an attended appointment retains planned and actual contact details", () =>
   assert.deepEqual(next.people[0].episodes[0].collections, state.people[0].episodes[0].collections);
 });
 
+test("a new attended contact retains factual care context in its source details", () => {
+  const next = reducer(createSeed(), {
+    ...attendedContact,
+    collectionId: null,
+    purpose: "Review support options after the assessment.",
+    impact: "Follow-up contact agreed for next week.",
+  });
+  const episode = next.people[0].episodes[0];
+  const appointment = episode.appointments[0];
+  assert.equal(appointment.purpose, "Review support options after the assessment.");
+  assert.equal(appointment.impact, "Follow-up contact agreed for next week.");
+  assert.ok(appointmentDetails(appointment, episode)
+    .some(([label, value]) => label === "Impact on care or coordination" && value === appointment.impact));
+});
+
 test("practitioner and service choices are drawn from existing care-directory data", () => {
   const options = practitionerServiceOptions([
     {

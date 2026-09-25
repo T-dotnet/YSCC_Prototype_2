@@ -1,6 +1,7 @@
 import { recordedCareEvents } from "./careEvents.js";
 import { responseDate } from "./progress.js";
 import { k10Series } from "./k10.js";
+import { appointmentTitle } from "./appointments.js";
 
 const EVENT_DATE = (event) => event?.eventDate || event?.date || null;
 
@@ -120,6 +121,23 @@ export function timelineExtent(entries) {
 
 export function careTimelineData(episode) {
   const events = recordedCareEvents(episode);
+  const reportEvents = events.filter((event) =>
+    ["service-period", "medication-course", "goal-milestone"].includes(event.eventType),
+  );
+  const clinicalRecords = (episode?.clinicalRecords ?? [])
+    .filter((record) => isRecordedDate(record.recordDate));
+  const medicationRecords = clinicalRecords.filter((record) => record.recordType === "medication");
+  const appointments = (episode?.appointments ?? [])
+    .filter((appointment) => isRecordedDate(appointment.actualDate || appointment.plannedDate))
+    .map((appointment) => item({
+      id: `appointment-${appointment.id}`,
+      date: appointment.actualDate || appointment.plannedDate,
+      label: appointmentTitle(appointment),
+      detail: `${appointment.attendance || "Planned"} · ${appointment.practitionerService || "Service contact"}`,
+      kind: "event",
+      sourceId: appointment.id,
+      sourceType: "appointment",
+    }));
   const responses = dated(
     (episode?.collections ?? [])
       .filter((collection) => collection.response === "Submitted")
@@ -175,7 +193,29 @@ export function careTimelineData(episode) {
       return [...completed, ...planned];
     }),
   );
-  const services = servicePeriods(episode);
+  const services = [
+    ...servicePeriods(episode),
+    ...reportEvents.filter((event) => event.eventType === "service-period").map((event) => item({
+      id: `service-event-${event.id}`,
+      date: EVENT_DATE(event),
+      end: event.fields?.endDate,
+      label: event.title,
+      detail: event.fields?.status || event.detail,
+      kind: event.fields?.endDate ? "duration" : "service",
+      sourceId: event.id,
+      sourceType: "event",
+    })),
+    ...events.filter((event) => event.eventType === "care-transition" && event.fields?.periodName).map((event) => item({
+      id: `service-change-${event.id}`,
+      date: EVENT_DATE(event),
+      end: event.fields.endDate,
+      label: event.fields.periodName,
+      detail: event.fields.status || event.title,
+      kind: event.fields.endDate ? "duration" : "service",
+      sourceId: event.id,
+      sourceType: "event",
+    })),
+  ];
   const medicationEvents = events
     .filter((event) => event.eventType === "medication")
     .map((event) =>
@@ -189,7 +229,40 @@ export function careTimelineData(episode) {
         sourceType: "event",
       }),
     );
-  const medication = [...medicationCourses(episode), ...medicationEvents];
+  const medication = [
+    ...medicationCourses(episode),
+    ...reportEvents.filter((event) => event.eventType === "medication-course").map((event) => item({
+      id: `medication-course-event-${event.id}`,
+      date: EVENT_DATE(event),
+      end: event.fields?.endDate,
+      label: event.title,
+      detail: event.fields?.status || event.detail,
+      kind: "medication-duration",
+      sourceId: event.id,
+      sourceType: "event",
+    })),
+    ...medicationRecords.filter((record) => record.fields?.medicationChange ||
+      (!record.fields?.courseStartDate && !record.fields?.adverseEvent)).map((record) => item({
+      id: `medication-record-${record.id}`,
+      date: record.recordDate,
+      label: record.title,
+      detail: record.detail,
+      kind: "medication",
+      sourceId: record.id,
+      sourceType: "clinical-record",
+    })),
+    ...medicationRecords.filter((record) => isRecordedDate(record.fields?.courseStartDate)).map((record) => item({
+      id: `medication-course-record-${record.id}`,
+      date: record.fields.courseStartDate,
+      end: record.fields.courseEndDate,
+      label: record.fields.medicationName || record.title,
+      detail: record.fields.courseStatus || "Course start recorded",
+      kind: "medication-duration",
+      sourceId: record.id,
+      sourceType: "clinical-record",
+    })),
+    ...medicationEvents,
+  ];
   const k10 = k10Series(episode).points.map((record) =>
     item({
       id: record.id,
@@ -201,8 +274,9 @@ export function careTimelineData(episode) {
       sourceType: "k10",
     }),
   );
-  const contextual = events
-    .filter((event) => event.eventType !== "medication")
+  const contextual = [
+    ...events
+    .filter((event) => event.eventType !== "medication" && !reportEvents.includes(event))
     .map((event) =>
       item({
         id: `event-${event.id}`,
@@ -213,17 +287,52 @@ export function careTimelineData(episode) {
         sourceId: event.id,
         sourceType: "event",
       }),
-    );
-  const goals = goalMilestones(episode);
+    ),
+    ...medicationRecords.filter((record) => record.fields?.adverseEvent).map((record) => item({
+      id: `medication-adverse-record-${record.id}`,
+      date: record.fields.adverseEventDate || record.recordDate,
+      label: record.fields.adverseEvent,
+      detail: record.fields.medicationName || record.title,
+      kind: "event",
+      sourceId: record.id,
+      sourceType: "clinical-record",
+    })),
+  ];
+  const goals = [
+    ...goalMilestones(episode),
+    ...reportEvents.filter((event) => event.eventType === "goal-milestone").map((event) => item({
+      id: `goal-event-${event.id}`,
+      date: EVENT_DATE(event),
+      label: event.title,
+      detail: event.fields?.status || event.detail,
+      kind: "milestone",
+      sourceId: event.id,
+      sourceType: "event",
+    })),
+  ];
+  const structured = clinicalRecords
+    .filter((record) => ["diagnosis", "outcome"].includes(record.recordType))
+    .map((record) => item({
+      id: `clinical-record-${record.id}`,
+      date: record.recordDate,
+      label: record.title,
+      detail: record.detail,
+      kind: "event",
+      sourceId: record.id,
+      sourceType: "clinical-record",
+    }));
   const dateValues = [
     episode?.start,
     episode?.end,
     ...responses.flatMap((entry) => [entry.date, entry.end]),
     ...reviews.flatMap((entry) => [entry.date, entry.end]),
     ...services.flatMap((entry) => [entry.date, entry.end]),
+    ...appointments.map((entry) => entry.date),
     ...medication.flatMap((entry) => [entry.date, entry.end]),
     ...k10.map((entry) => entry.date),
     ...contextual.flatMap((entry) => [entry.date, entry.end]),
+    ...structured.map((entry) => entry.date),
+    ...clinicalRecords.filter((record) => record.recordType === "risk").map((record) => record.recordDate),
     ...goals.flatMap((entry) => [entry.date, entry.end]),
   ].filter(isRecordedDate);
   const start = [...dateValues].sort()[0] || null;
@@ -251,11 +360,14 @@ export function careTimelineData(episode) {
         label: "Care setting and intensity",
         entries: services,
       },
+      { id: "contacts", label: "Appointments and contacts", entries: appointments },
       { id: "medication", label: "Medication context", entries: medication },
+      { id: "records", label: "Structured care records", entries: structured },
       { id: "k10", label: "K10 · raw total", entries: k10 },
       { id: "events", label: "Significant events", entries: contextual },
     ],
-    riskRows: riskCategories.map(([eventType, label]) => ({
+    riskRows: [
+      ...riskCategories.map(([eventType, label]) => ({
       id: eventType,
       label,
       entries: events
@@ -271,7 +383,35 @@ export function careTimelineData(episode) {
             sourceType: "event",
           }),
         ),
-    })),
+      })).map((row) => row.id === "medication-adverse" ? {
+        ...row,
+        entries: [
+          ...row.entries,
+          ...medicationRecords.filter((record) => record.fields?.adverseEvent).map((record) => item({
+            id: `risk-medication-adverse-${record.id}`,
+            date: record.fields.adverseEventDate || record.recordDate,
+            label: record.fields.adverseEvent,
+            detail: record.fields.medicationName || record.title,
+            kind: "risk",
+            sourceId: record.id,
+            sourceType: "clinical-record",
+          })),
+        ],
+      } : row),
+      {
+        id: "risk-status",
+        label: "Recorded risk status",
+        entries: clinicalRecords.filter((record) => record.recordType === "risk").map((record) => item({
+          id: `risk-record-${record.id}`,
+          date: record.recordDate,
+          label: record.title,
+          detail: record.detail,
+          kind: "risk",
+          sourceId: record.id,
+          sourceType: "clinical-record",
+        })),
+      },
+    ],
     goals,
   };
 }

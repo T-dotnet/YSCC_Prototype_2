@@ -119,9 +119,13 @@ export default function CollectionDetails({
                   {c.channel || (submitted ? "Not recorded" : "Not selected")}
                 </dd>
               </div>
+              {c.externalAppointment && <div>
+                <dt>External appointment</dt>
+                <dd>{c.externalAppointment.date} at {c.externalAppointment.time} · {c.externalAppointment.practitionerService} · {c.externalAppointment.deliveryMode}</dd>
+              </div>}
               {(() => {
                 const linkedApptId = c.submittedAppointmentId || c.appointmentId;
-                const linkedAppt =
+                const linkedAppt = c.externalAppointment ? null :
                   (episode.appointments || []).find((a) => a.id === linkedApptId) ||
                   (episode.appointments || []).find(
                     (a) =>

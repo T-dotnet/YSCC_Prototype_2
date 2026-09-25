@@ -191,6 +191,8 @@ export function appointmentContent(action) {
     practitionerService: action.practitionerService.trim(),
     deliveryMode: action.deliveryMode,
     attendance: action.attendance,
+    purpose: clean(action.purpose),
+    impact: clean(action.impact),
     notes: clean(action.notes),
     ...contactAttributes(action),
     ...actual,
@@ -298,6 +300,8 @@ export function appointmentDetails(appointment, episode) {
     ["Actual date", appointment.actualDate],
     ["Actual time", appointment.actualTime],
     ["Actual duration", appointment.actualDurationMinutes && `${appointment.actualDurationMinutes} min`],
+    ["Purpose or care context", appointment.purpose],
+    ["Impact on care or coordination", appointment.impact],
     ["Notes", appointment.notes],
     ["Outcome notes", appointment.outcomeNotes],
   ];
@@ -336,6 +340,8 @@ export function appointmentChanges(appointment) {
     ["actualDate", "Actual date", appointment.actualDate],
     ["actualTime", "Actual time", appointment.actualTime],
     ["actualDurationMinutes", "Actual duration", appointment.actualDurationMinutes && `${appointment.actualDurationMinutes} min`],
+    ["purpose", "Purpose or care context", appointment.purpose],
+    ["impact", "Impact on care or coordination", appointment.impact],
     ["notes", "Notes", appointment.notes],
     ["outcomeNotes", "Outcome notes", appointment.outcomeNotes],
   ]
