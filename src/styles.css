@@ -14214,8 +14214,10 @@ h6 {
   padding: 12px 18px;
   gap: 14px;
   border: 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
   border-radius: 12px;
-  background: var(--episode-highlight);
+  background: transparent;
 }
 
 .main:has(.person-heading) .episode-context {
@@ -14234,7 +14236,7 @@ h6 {
 
 .main:has(.person-heading) .episode-bar > div:not(:first-child) {
   padding-left: 18px;
-  border-left-color: var(--line);
+  border-left: 0;
 }
 
 .main:has(.person-heading) .person-tabs {
@@ -15793,7 +15795,7 @@ h6 {
   font-size: 12px;
   line-height: 1.35;
 }
-.assessment-ledger-score-change.is-positive { color: var(--status-success-ink); }
+.assessment-ledger-score-change.is-positive { color: #287a3d; }
 .assessment-ledger-score-change.is-negative { color: var(--status-danger-ink); }
 .assessment-ledger-row :is(.assessment-ledger-submitted, .assessment-ledger-score, .assessment-ledger-due) {
   display: grid;
@@ -16237,10 +16239,27 @@ h6 {
   border-radius: 0;
   background: transparent;
 }
-.main:has(.person-heading) .episode-bar:not(.intake-summary) > div,
-.main:has(.person-heading) .episode-bar:not(.intake-summary) > div:not(:first-child),
-.main:has(.person-heading) .episode-bar:not(.intake-summary) > .episode-fact {
+.main:has(.person-heading) .episode-bar:not(.intake-summary) > div:not(.episode-fact) {
   border: 0;
+}
+
+/* Keep a visible separator at the start of each episode fact at every width. */
+.main:has(.person-heading) .episode-bar:not(.intake-summary) > .episode-fact {
+  border-left: 1px solid var(--line);
+  padding-left: 12px;
+}
+
+@media (max-width: 700px) {
+  .main:has(.person-heading) .episode-bar:not(.intake-summary) > .episode-fact {
+    padding-left: 10px;
+  }
+}
+
+@container person-record (max-width: 1100px) {
+  .main:has(.person-heading) .episode-bar:not(.intake-summary) > .episode-owner {
+    border-left: 0;
+    padding-left: 0;
+  }
 }
 
 /* Typography roles: let size, colour and spacing carry hierarchy before weight. */
