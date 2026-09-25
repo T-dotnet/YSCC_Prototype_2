@@ -15793,6 +15793,8 @@ h6 {
   font-size: 12px;
   line-height: 1.35;
 }
+.assessment-ledger-score-change.is-positive { color: var(--status-success-ink); }
+.assessment-ledger-score-change.is-negative { color: var(--status-danger-ink); }
 .assessment-ledger-row :is(.assessment-ledger-submitted, .assessment-ledger-score, .assessment-ledger-due) {
   display: grid;
   align-content: center;

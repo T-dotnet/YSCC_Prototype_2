@@ -859,7 +859,10 @@ export default function Person({ id, navigate, openModal }) {
                             ? `${group.score}${group.scoreRange ? ` / ${group.scoreRange[1]}` : ""}`
                             : group.measureKey ? group.lastDone ? "Unavailable" : "Awaiting response" : "Not scored"}</strong>
                           {group.scoreChange !== null ? (
-                            <small className="assessment-ledger-score-change" title="Numerical score change only; no clinical interpretation">
+                            <small
+                              className={`assessment-ledger-score-change${group.scoreChange > 0 ? " is-positive" : group.scoreChange < 0 ? " is-negative" : ""}`}
+                              title="Numerical score change only; no clinical interpretation"
+                            >
                               {group.scoreChange > 0 ? `+${group.scoreChange}` : group.scoreChange} vs previous raw score
                             </small>
                           ) : <small>{group.measureKey ? "Linked sample measure result" : "This questionnaire has no clinical score"}</small>}
