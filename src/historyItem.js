@@ -1,4 +1,5 @@
-import { appointmentDetails, appointmentMatchesCollectionDate, appointmentTitle } from "./appointments.js";
+import { appointmentDetails, appointmentTitle } from "./appointments.js";
+import { assessmentsForContact, contactsForAssessment } from "./assessmentContacts.js";
 import { careEventDetails, careEventType } from "./careEvents.js";
 import { clinicalRecordDetails, clinicalRecordType } from "./clinicalRecords.js";
 
@@ -42,19 +43,11 @@ export const HISTORY_CATEGORIES = {
 const fact = (label, value) => ({ label, value });
 const populated = ([, value]) => value !== null && value !== undefined && value !== "";
 
-const linkedAppointmentIds = (collection) => new Set([
-  collection.appointmentId,
-  collection.submittedAppointmentId,
-  ...(collection.attempts || []).map((attempt) => attempt.appointmentId),
-].filter(Boolean));
-
 export function associatedCareItems(entry, episode) {
   if (entry.type === "appointment") {
     const appointmentId = entry.id?.replace(/^appointment-/, "");
     const appointment = episode.appointments?.find((item) => item.id === appointmentId);
-    return (episode.collections || [])
-      .filter((collection) => appointment && linkedAppointmentIds(collection).has(appointmentId) &&
-        appointmentMatchesCollectionDate(appointment, collection))
+    return (appointment ? assessmentsForContact(episode, appointmentId) : [])
       .map((collection) => ({
         id: collection.id,
         type: "Assessment",
@@ -68,10 +61,7 @@ export function associatedCareItems(entry, episode) {
   if (entry.type === "assessment") {
     const collection = episode.collections?.find((item) => item.id === entry.collectionId);
     if (!collection) return [];
-    const appointmentIds = linkedAppointmentIds(collection);
-    return (episode.appointments || [])
-      .filter((appointment) => appointmentIds.has(appointment.id) &&
-        appointmentMatchesCollectionDate(appointment, collection))
+    return contactsForAssessment(episode, collection.id)
       .map((appointment) => ({
         id: appointment.id,
         type: "Appointment",
@@ -138,10 +128,7 @@ export function historyItem(entry, episode, formatDetail = (value) => value) {
 
   if (entry.type === "assessment") {
     const collection = episode.collections.find((item) => item.id === entry.collectionId);
-    const appointment = episode.appointments?.find((item) =>
-      item.id === (collection?.submittedAppointmentId || collection?.appointmentId) &&
-      appointmentMatchesCollectionDate(item, collection),
-    );
+    const contacts = collection ? contactsForAssessment(episode, collection.id) : [];
     if (collection) return {
       subtitle: collection.version,
       date: historyDate(entry),
@@ -150,7 +137,8 @@ export function historyItem(entry, episode, formatDetail = (value) => value) {
       primary: [
         fact("Response", collection.response),
         fact("Due date", collection.due),
-        ...(appointment ? [fact("Associated appointment", `${appointment.appointmentType || appointment.contactType || "Service contact"} · ${appointment.actualDate || appointment.plannedDate}`)] : []),
+        ...(contacts.length ? [fact("Related contacts", contacts.map((item) =>
+          `${item.contactType || item.appointmentType || "Service contact"} · ${item.actualDate || item.plannedDate}`).join(", "))] : []),
       ],
       more: [
         fact("Collection method", collection.channel || "Not set up"),

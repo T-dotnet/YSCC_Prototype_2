@@ -94,7 +94,7 @@ test("intake requirements take priority over expired links and participation set
   const { person, step } = fixture(0);
   person.intakes[0].status = "Awaiting information";
   person.consent = "Not recorded";
-  assert.equal(step().primary.tab, "Intake");
+  assert.equal(step().primary.tab, "Overview");
   assert.equal(step().badge, "Intake required");
 });
 

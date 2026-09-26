@@ -17,6 +17,11 @@ export default function AppointmentOutcomeForm({
   const [attendance, setAttendance] = useState("Attended");
   const actualLatestDate =
     episode.end && episode.end < TODAY ? episode.end : TODAY;
+  const initialAssessment = person?.intakes?.find((intake) =>
+    intake.episodeId === episode.id && intake.outcome === "Proceed");
+  const [linkedToInitialAssessment, setLinkedToInitialAssessment] = useState(
+    Boolean(initialAssessment && appointment.assessmentIntakeId === initialAssessment.id),
+  );
 
   return (
     <Modal
@@ -31,6 +36,7 @@ export default function AppointmentOutcomeForm({
             type: "RECORD_APPOINTMENT_OUTCOME",
             appointmentId: appointment.id,
             ...formValues(event),
+            assessmentIntakeId: linkedToInitialAssessment ? initialAssessment?.id : null,
           });
         }}
       >
@@ -67,6 +73,13 @@ export default function AppointmentOutcomeForm({
             </select>
           </Field>
           <ContactFields appointment={appointment} attended={attendance === "Attended"} person={person} />
+          {initialAssessment && (
+            <label className="check-field">
+              <input type="checkbox" checked={linkedToInitialAssessment}
+                onChange={(event) => setLinkedToInitialAssessment(event.target.checked)} />
+              Associate this contact with the initial assessment
+            </label>
+          )}
           {attendance === "Attended" && (
             <div className="appointment-actual-fields">
               <h3>Actual contact</h3>

@@ -547,7 +547,6 @@ export function applyIntakeAction(
       i.outcome = f.outcome;
       i.decisionAt = f.decisionAt;
       i.decisionBy = staff.name;
-      const hadEpisodeBeforeCompletion = !!i.episodeId;
       if (i.outcome === "Proceed" && !i.episodeId && !p.episodes.length) {
         const episodeId = uid();
         i.episodeId = episodeId;
@@ -573,31 +572,6 @@ export function applyIntakeAction(
           }],
           collections: [initialAssessmentCollection(i, p, version, uid)],
         });
-      }
-      if (i.outcome === "Proceed" && hadEpisodeBeforeCompletion) {
-        const ep = p.episodes?.find((e) => e.id === i.episodeId);
-        if (ep && !ep.events?.some((evt) => evt.eventType === "inpatient")) {
-          ep.events ??= [];
-          ep.events.unshift({
-            id: uid(),
-            date: i.decisionAt ? i.decisionAt.slice(0, 10) : today,
-            eventDate: i.decisionAt ? i.decisionAt.slice(0, 10) : today,
-            timestamp,
-            actor: "System",
-            actorId: "system",
-            role: "System",
-            actionType: "ADD_CARE_EVENT",
-            eventType: "inpatient",
-            title: "Inpatient admission recorded",
-            detail: `Inpatient admission automatically recorded upon successful intake completion (${i.service || "Northside Centre"}).`,
-            fields: {
-              source: `${i.service || "Northside Centre"} intake`,
-              notes: "Automatic system record created upon successful intake completion with proceed decision.",
-            },
-            personId: p.id,
-            episodeId: ep.id,
-          });
-        }
       }
     }
     i.history.unshift({
@@ -625,18 +599,6 @@ export function applyIntakeAction(
         role: staff.role, actionType: action.type, title: "Assessment planned after intake",
         detail: `${i.assessmentOwner} owns the assessment · due ${action.due} · ${action.programStream} stream`,
       });
-      episode.events.unshift({
-        id: uid(), date: today, eventDate: today, timestamp,
-        actor: "System", actorId: "system", role: "System",
-        actionType: "ADD_CARE_EVENT", eventType: "inpatient",
-        title: "Inpatient admission recorded",
-        detail: `Inpatient admission automatically recorded upon successful intake completion (${i.service || "Northside Centre"}).`,
-        fields: {
-          source: `${i.service || "Northside Centre"} intake`,
-          notes: "Automatic system record created upon successful intake completion and assessment planning.",
-        },
-        personId: p.id, episodeId: episode.id,
-      });
       i.history.unshift(history("Assessment handoff recorded", `Initial assessment due ${action.due} · ${i.assessmentOwner}`));
       return next;
     }
@@ -663,25 +625,6 @@ export function applyIntakeAction(
           actionType: action.type,
           title: "Assessment planned after intake",
           detail: `${i.decisionBy} recorded proceed · ${i.assessmentOwner} owns the assessment · admission undecided`,
-        },
-        {
-          id: uid(),
-          date: today,
-          eventDate: today,
-          timestamp,
-          actor: "System",
-          actorId: "system",
-          role: "System",
-          actionType: "ADD_CARE_EVENT",
-          eventType: "inpatient",
-          title: "Inpatient admission recorded",
-          detail: `Inpatient admission automatically recorded upon successful intake completion (${i.service || "Northside Centre"}).`,
-          fields: {
-            source: `${i.service || "Northside Centre"} intake`,
-            notes: "Automatic system record created upon successful intake completion and assessment planning.",
-          },
-          personId: p.id,
-          episodeId,
         },
       ],
       collections: [

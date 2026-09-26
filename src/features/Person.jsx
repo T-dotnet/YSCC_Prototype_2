@@ -1,4 +1,4 @@
-import IntakeWorkspace, { IntakePanel } from "./Intake";
+import IntakeWorkspace, { IntakePanel, IntakeAssessmentPanel } from "./Intake";
 import Referrals from "./Referrals";
 import { intakeFor, canAssess } from "../intake";
 import { overviewNextStep } from "../overview";
@@ -27,6 +27,7 @@ import CareEvents from "./CareEvents";
 import Appointments from "./Appointments";
 import RecordItem from "../components/RecordItem";
 import AssessmentCollectionCard from "../components/AssessmentCollectionCard";
+import EpisodeReviews from "../components/EpisodeReviews";
 import IntakeDetailsModal from "../components/IntakeDetailsModal";
 import CareLevelSection from "../components/CareLevelSection";
 import ListFilterBar from "../components/ListFilterBar";
@@ -39,6 +40,8 @@ import Timeline, {
 import { assessmentTypeGroups, linkedAssessmentScore } from "../assessmentGroups";
 import { responseDate } from "../progress";
 import { daysAgoLabel } from "../relativeDate";
+import { contactsForAssessment } from "../assessmentContacts";
+import { episodeReviewSchedule, reviewTiming } from "../episodeReviews";
 import {
   age,
   formatDate,
@@ -113,8 +116,8 @@ export default function Person({ id, navigate, openModal }) {
     "History",
     "Change log",
   ];
-  // Existing worklist links open these workflows outside the record tab bar.
-  const contextualView = ["Intake", "Referrals"].find(
+  // Referral links open their workflow outside the record tab bar.
+  const contextualView = ["Referrals"].find(
     (view) => view.toLowerCase() === searchParams.get("tab"),
   );
   const setTab = (value) => {
@@ -145,6 +148,13 @@ export default function Person({ id, navigate, openModal }) {
       e.collections.find((col) => col.id === searchParams.get("collection")) ||
       currentCollection(e),
     nextStep = overviewNextStep(p, e, c, currentStaff(state));
+  const reviewSchedule = episodeReviewSchedule(e, TODAY);
+  const episodeIntake = intakeFor(p, e);
+  const initialIntake = p.intakes?.find((intake) =>
+    intake.episodeId === e.id && intake.outcome === "Proceed");
+  const initialAssessmentContacts = initialIntake
+    ? (e.appointments || []).filter((appointment) => appointment.assessmentIntakeId === initialIntake.id)
+    : [];
   const assessmentAvailable = canAssess(p, e);
   const tabs = assessmentAvailable
     ? allTabs
@@ -207,17 +217,20 @@ export default function Person({ id, navigate, openModal }) {
     return Boolean(date) && date <= TODAY;
   });
   const groupedAssessments = assessmentTypeGroups(e, visibleCollections);
-  const renderAssessmentCard = (collection, inTimeline = false, headingLevel = 4, initiallyExpanded = inTimeline, showLead = true) => (
+  const renderAssessmentCard = (collection, inTimeline = false, headingLevel = 4, initiallyExpanded = inTimeline) => (
     <AssessmentCollectionCard
       key={collection.id}
       collection={collection}
       person={p}
+      relatedContacts={[...new Map([
+        ...contactsForAssessment(e, collection.id),
+        ...(collection.label === "Initial assessment" ? initialAssessmentContacts : []),
+      ].map((contact) => [contact.id, contact])).values()]}
       score={linkedAssessmentScore(e, collection)}
       selectedId={searchParams.get("collection")}
       inTimeline={inTimeline}
       initiallyExpanded={initiallyExpanded}
       headingLevel={inTimeline ? headingLevel : 3}
-      showLead={showLead}
       onViewDetails={(item) => openModal({
         type: "collection-details",
         personId: p.id,
@@ -375,7 +388,7 @@ export default function Person({ id, navigate, openModal }) {
       {intakeDetailsOpen && (
         <IntakeDetailsModal
           person={p}
-          intake={intakeFor(p, e)}
+          intake={episodeIntake}
           onClose={() => setIntakeDetailsOpen(false)}
         />
       )}
@@ -463,13 +476,22 @@ export default function Person({ id, navigate, openModal }) {
         <div className="episode-status">
           <Badge>{e.status}</Badge>
         </div>
-        <div className="episode-fact episode-owner">
-          <small>Key clinician</small>
-          <span>{p.owner}</span>
-        </div>
-        <div className="episode-fact episode-location">
-          <small>Location</small>
-          <span>Northside Centre</span>
+        <div className="episode-fact episode-registration">
+          <small>Intake decision</small>
+          <div className="episode-registration-value">
+            <span>{episodeIntake?.outcome || "Not recorded"}</span>
+            {episodeIntake && (
+              <button
+                type="button"
+                className="episode-registration-details"
+                aria-label="View registration details"
+                aria-haspopup="dialog"
+                onClick={() => setIntakeDetailsOpen(true)}
+              >
+                View details
+              </button>
+            )}
+          </div>
         </div>
         <div className="episode-fact episode-care-level">
           <small>{e.programStream ? `${e.programStream} stream` : "Program stream"}</small>
@@ -487,36 +509,45 @@ export default function Person({ id, navigate, openModal }) {
             )}
           </div>
         </div>
+        <div className="episode-fact episode-next-review">
+          <small>{reviewSchedule.confirmed ? "Next review" : "Proposed next review"}</small>
+          <div className="episode-next-review-value">
+            <span>{reviewSchedule.outcome.due ? formatDate(reviewSchedule.outcome.due) : "Not scheduled"}</span>
+            {reviewSchedule.outcome.due && <small>{reviewTiming(reviewSchedule.outcome.due, TODAY)}</small>}
+          </div>
+        </div>
         <div className="episode-fact episode-completeness">
           <small>Required data</small>
-          <button
-            type="button"
-            className="episode-bar-completeness-link"
-            onClick={() => navigate("/quality")}
-            aria-label={`Open data quality. ${completeness.requiredPercentage}% of required fields complete. ${requiredDataIssues.length} unresolved data ${requiredDataIssues.length === 1 ? "issue" : "issues"}.`}
-          >
-            {completeness.requiredPercentage === 100 && requiredDataIssues.length === 0 && (
-              <CheckCircle2
-                size={15}
-                aria-hidden="true"
-                className="record-completeness-icon"
-              />
+          <div className="episode-completeness-value">
+            <button
+              type="button"
+              className="episode-bar-completeness-link"
+              onClick={() => navigate("/quality")}
+              aria-label={`Open data quality. ${completeness.requiredPercentage}% of required fields complete. ${requiredDataIssues.length} unresolved data ${requiredDataIssues.length === 1 ? "issue" : "issues"}.`}
+            >
+              {completeness.requiredPercentage === 100 && requiredDataIssues.length === 0 && (
+                <CheckCircle2
+                  size={15}
+                  aria-hidden="true"
+                  className="record-completeness-icon"
+                />
+              )}
+              <span>{completeness.requiredPercentage}%</span>
+            </button>
+            {requiredDataIssues.length > 0 && (
+              <div className="episode-required-issues">
+                <button
+                  type="button"
+                  className="episode-required-issue-link"
+                  onClick={() => requiredDataIssues.length === 1
+                    ? openModal({ type: "quality-issue", personId: p.id, issueId: requiredDataIssues[0].id })
+                    : navigate(`/quality?q=${encodeURIComponent(p.name)}`)}
+                >
+                  {requiredDataIssues.length} data {requiredDataIssues.length === 1 ? "issue" : "issues"}
+                </button>
+              </div>
             )}
-            <span>{completeness.requiredPercentage}%</span>
-          </button>
-          {requiredDataIssues.length > 0 && (
-            <div className="episode-required-issues">
-              <button
-                type="button"
-                className="episode-required-issue-link"
-                onClick={() => requiredDataIssues.length === 1
-                  ? openModal({ type: "quality-issue", personId: p.id, issueId: requiredDataIssues[0].id })
-                  : navigate(`/quality?q=${encodeURIComponent(p.name)}`)}
-              >
-                {requiredDataIssues.length} data {requiredDataIssues.length === 1 ? "issue" : "issues"}
-              </button>
-            </div>
-          )}
+          </div>
         </div>
       </div>
       <div className={`person-content-surface person-open-surface${tab === "Assessment" ? " assessment-ledger-surface" : ""}`}>
@@ -541,23 +572,15 @@ export default function Person({ id, navigate, openModal }) {
               ? undefined
               : `person-tab-${tabs.filter((item) => !hiddenRecordTabs.includes(typeof item === "string" ? item : item.value)).findIndex((item) => (typeof item === "string" ? item : item.value) === tab)}`
         }
-        aria-label={contextualView === "Intake" ? "Intake information" : hiddenRecordTab ? (tab === "Appointments" ? "Service contacts" : tab) : undefined}
+        aria-label={hiddenRecordTab ? (tab === "Appointments" ? "Service contacts" : tab) : undefined}
       >
         {!canAssess(p, e) && (
           <Notice tone="amber">
             Intake must be reviewed before further assessment work.{" "}
-            <button className="inline-link" onClick={() => setTab("Intake")}>
-              Open intake
+            <button className="inline-link" onClick={() => setTab("Overview")}>
+              Open overview
             </button>
           </Notice>
-        )}
-        {tab === "Intake" && (
-          <IntakePanel
-            key={`${intakeFor(p, e)?.id}:${intakeFor(p, e)?.revision}:${p.intakeResetToken || "original"}`}
-            person={p}
-            intake={intakeFor(p, e) || p.intakes[0]}
-            navigate={navigate}
-          />
         )}
         {tab === "Referrals" && (
           <Referrals
@@ -569,6 +592,14 @@ export default function Person({ id, navigate, openModal }) {
         )}
         {tab === "Overview" && (
           <>
+            {!assessmentAvailable && intakeFor(p, e) && (
+              <IntakePanel
+                key={`${intakeFor(p, e).id}:${intakeFor(p, e).revision}:${p.intakeResetToken || "original"}`}
+                person={p}
+                intake={intakeFor(p, e)}
+                navigate={navigate}
+              />
+            )}
             <div className="overview-top-row">
             <Panel className="overview-assessment">
               <header className="overview-assessment-heading">
@@ -662,6 +693,8 @@ export default function Person({ id, navigate, openModal }) {
               openModal={(request) => modal(request.type)}
             />
             </div>
+            <EpisodeReviews key={e.id} episode={e} personId={p.id} commit={commit}
+              canEdit={e.status === "Active" && !p.archivedAt} />
             <div className="person-grid">
               <Panel
                 title="Care timeline"
@@ -740,6 +773,17 @@ export default function Person({ id, navigate, openModal }) {
         )}
         {tab === "Assessment" && (
           <div className="stack">
+            {initialIntake && !e.collections?.[0]?.due && (
+              <IntakeAssessmentPanel
+                person={p}
+                intake={initialIntake}
+                navigate={navigate}
+                onReopen={() => {
+                  const result = commit({ type: "REOPEN_INTAKE", personId: p.id, intakeId: initialIntake.id, revision: initialIntake.revision });
+                  if (!result.error) setTab("Overview");
+                }}
+              />
+            )}
             <div className="section-toolbar assessment-ledger-toolbar">
               <h2>Assessment Ledger</h2>
               <Button
@@ -900,7 +944,6 @@ export default function Person({ id, navigate, openModal }) {
                           <ol className="assessment-type-timeline">
                             {group.collections.map((col, historyIndex) => {
                               const date = responseDate(col) || col.due;
-                              const score = linkedAssessmentScore(e, col);
                               return (
                                 <Fragment key={col.id}>
                                   {historyIndex === firstPastHistoryIndex && historyIndex > 0 && (
@@ -911,9 +954,8 @@ export default function Person({ id, navigate, openModal }) {
                                   <li>
                                     <div className="assessment-type-timeline-meta">
                                       <span>{col.response === "Submitted" ? "Submitted" : "Due"} {formatDate(date)}</span>
-                                      {score && <span>Raw score {score.value}{score.range ? ` / ${score.range[1]}` : ""}</span>}
                                     </div>
-                                    {renderAssessmentCard(col, true, 4, false, false)}
+                                    {renderAssessmentCard(col, true, 4)}
                                   </li>
                                 </Fragment>
                               );

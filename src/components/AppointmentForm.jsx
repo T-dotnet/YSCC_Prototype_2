@@ -8,6 +8,7 @@ import {
 } from "../appointments";
 import { formatDate, practitionerServiceOptions, TODAY } from "../model";
 import { INSTRUMENTS } from "../instruments";
+import { contactsForAssessment } from "../assessmentContacts";
 import ContactFields from "./ContactFields";
 
 const formValues = (event) =>
@@ -31,7 +32,6 @@ export default function AppointmentForm({
   const [newAssessmentVersions, setNewAssessmentVersions] = useState([]);
   const [assessmentMenuOpen, setAssessmentMenuOpen] = useState(false);
   const [assessmentSearch, setAssessmentSearch] = useState("");
-  const [assessmentDateError, setAssessmentDateError] = useState(false);
   const assessmentPickerRef = useRef(null);
   const assessmentSearchRef = useRef(null);
   useEffect(() => {
@@ -47,6 +47,8 @@ export default function AppointmentForm({
   const actualLatestDate =
     episode.end && episode.end < TODAY ? episode.end : TODAY;
   const practitionerServices = practitionerServiceOptions(people);
+  const initialAssessment = person?.intakes?.find((intake) =>
+    intake.episodeId === episode.id && intake.outcome === "Proceed");
   const assessments = [...(episode.collections || [])].sort((a, b) =>
     (b.due || "").localeCompare(a.due || ""));
   const contactDates = {
@@ -56,11 +58,9 @@ export default function AppointmentForm({
   const hasContactDate = Boolean(plannedDate || contactDates.actualDate);
   const assessmentAvailability = (collection) => {
     if (["Cancelled", "Paused"].includes(collection.assignment)) return "Unavailable";
-    if (collection.appointmentId || collection.submittedAppointmentId ||
-        collection.attempts?.some((attempt) => attempt.appointmentId)) return "Already linked";
     if (!hasContactDate) return "Choose a contact date";
     return appointmentMatchesCollectionDate(contactDates, collection)
-      ? "Matches contact date" : "Different date";
+      ? "Matches contact date" : "Due on a different date";
   };
   const dueAssessments = assessments.filter((collection) => collection.due);
   const searchTerm = assessmentSearch.trim().toLocaleLowerCase();
@@ -69,10 +69,6 @@ export default function AppointmentForm({
   const visibleInstruments = INSTRUMENTS.filter((instrument) =>
     `${instrument.name} ${instrument.version}`.toLocaleLowerCase().includes(searchTerm));
   const selectedCount = collectionIds.length + newAssessmentVersions.length;
-  const selectedDateMismatch = hasContactDate && collectionIds.some((id) => {
-    const collection = assessments.find((item) => item.id === id);
-    return collection && !appointmentMatchesCollectionDate(contactDates, collection);
-  });
 
   return (
     <Modal
@@ -83,11 +79,6 @@ export default function AppointmentForm({
       <ValidatedForm
         onSubmit={(event) => {
           event.preventDefault();
-          if (selectedDateMismatch) {
-            setAssessmentDateError(true);
-            setAssessmentMenuOpen(true);
-            return;
-          }
           onSave({ type: "ADD_APPOINTMENT", ...formValues(event), collectionIds, newAssessmentVersions });
         }}
       >
@@ -108,7 +99,7 @@ export default function AppointmentForm({
               <select
                 name="attendance"
                 value={attendance}
-                onChange={(event) => { setAttendance(event.target.value); setAssessmentDateError(false); }}
+                onChange={(event) => setAttendance(event.target.value)}
               >
                 {APPOINTMENT_ATTENDANCE.map((value) => (
                   <option key={value}>{value}</option>
@@ -156,6 +147,12 @@ export default function AppointmentForm({
             </Field>
           </div>
           <ContactFields attended={attendance === "Attended"} person={person} />
+          {initialAssessment && (
+            <label className="check-field">
+              <input type="checkbox" name="assessmentIntakeId" value={initialAssessment.id} />
+              Associate this contact with the initial assessment
+            </label>
+          )}
           {attendance === "Attended" && (
             <div className="appointment-actual-fields">
               <h3>Actual contact</h3>
@@ -212,19 +209,18 @@ export default function AppointmentForm({
               </div>
               <div className="appointment-assessment-list">
                 <div className="appointment-assessment-group">
-                  <h3>Due assessments</h3>
+                  <h3>Existing assessments</h3>
                   {visibleDueAssessments.length ? visibleDueAssessments.map((collection) => {
                     const availability = assessmentAvailability(collection);
+                    const relatedCount = contactsForAssessment(episode, collection.id).length;
                     const selected = collectionIds.includes(collection.id);
                     return (
                       <label className="appointment-assessment-option" key={collection.id}>
                         <input
                           type="checkbox"
                           checked={selected}
-                          disabled={availability === "Unavailable" || availability === "Already linked" ||
-                            (availability === "Different date" && !selected)}
+                          disabled={availability === "Unavailable"}
                           onChange={(event) => {
-                            setAssessmentDateError(false);
                             setCollectionIds((current) => event.target.checked
                               ? [...current, collection.id]
                               : current.filter((id) => id !== collection.id));
@@ -232,12 +228,11 @@ export default function AppointmentForm({
                         />
                         <span>
                           <strong>{collection.label}</strong>
-                          <small>Due {formatDate(collection.due)} · {availability === "Choose a contact date"
-                            ? "Select now, then enter a matching contact date" : availability}</small>
+                          <small>Due {formatDate(collection.due)} · {availability}{relatedCount ? ` · ${relatedCount} related ${relatedCount === 1 ? "contact" : "contacts"}` : ""}</small>
                         </span>
                       </label>
                     );
-                  }) : <p>{searchTerm ? "No matching due assessments." : "No assessments with a due date are in this care episode."}</p>}
+                  }) : <p>{searchTerm ? "No matching assessments." : "No assessments with a due date are in this care episode."}</p>}
                 </div>
                 <div className="appointment-assessment-group">
                   <h3>New assessment</h3>
@@ -261,11 +256,6 @@ export default function AppointmentForm({
               </div>
             </div>}
           </div>
-          {selectedDateMismatch && (
-            <p className="field-error" role={assessmentDateError ? "alert" : undefined}>
-              A selected assessment has a different due or response date. Enter a matching contact date or unselect it.
-            </p>
-          )}
           <Field label="Purpose or care context (optional)" hint="Record the reason for this contact if it is known.">
             <textarea name="purpose" rows="2" />
           </Field>

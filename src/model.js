@@ -48,6 +48,8 @@ import {
 } from "./appointments.js";
 
 import { carePeriodError, currentCarePeriod, nextDate, previousDate } from "./carePeriods.js";
+import { addAssessmentContactLink, assessmentContactLinks } from "./assessmentContacts.js";
+import { EPISODE_REVIEW_TYPES, episodeReviewActionError, episodeReviewSchedule } from "./episodeReviews.js";
 import { K10_SCORING_METHOD } from "./k10.js";
 import { MEASURE_INSTRUMENTS, measureInstrument, sampleMeasureTotal } from "./measureQuestionnaires.js";
 import { QUALITY_STATUSES, getQualityIssues, validISODate } from "./dataQuality.js";
@@ -362,8 +364,10 @@ function withSampleCareLevels(state) {
 }
 
 const withSampleFixtures = (state) =>
-  ensureJordanFutureAssessment(
-    repairJordanAssessmentAppointments(withSampleCareLevels(withSamplePersonTags(state))),
+  ensureJordanAssessmentContactExamples(
+    ensureJordanFutureAssessment(
+      repairJordanAssessmentAppointments(withSampleCareLevels(withSamplePersonTags(state))),
+    ),
   );
 
 export function sampleAppointmentsForSeed(seedIndex) {
@@ -1678,6 +1682,33 @@ function ensureJordanFutureAssessment(state) {
   return next;
 }
 
+function ensureJordanAssessmentContactExamples(state) {
+  const episode = state.people.find((person) =>
+    person.id === "YS-1034" && person.fixtureLabel === "Fictional full-report example",
+  )?.episodes.find((item) => item.id === "EP-1034-01");
+  if (!episode) return state;
+  // The 8 Sep response came from the care review. Later contacts can discuss
+  // that assessment without changing its response source or due date.
+  const examples = [
+    ["A-7-life-care-twelve-weeks", "APT-7-attended"],
+    ["A-7-life-care-twelve-weeks", "APT-7-upcoming-plan"],
+    ["A-7-everyday-life-twelve-weeks", "APT-7-attended"],
+    ["A-7-life-care-sixteen-weeks", "APT-7-upcoming-plan"],
+  ];
+  const existing = assessmentContactLinks(episode);
+  const missing = examples.filter(([collectionId, appointmentId]) =>
+    episode.collections.some((item) => item.id === collectionId) &&
+    episode.appointments.some((item) => item.id === appointmentId) &&
+    !existing.some((link) => link.collectionId === collectionId && link.appointmentId === appointmentId));
+  if (!missing.length) return state;
+  const next = structuredClone(state);
+  const updated = next.people.find((person) => person.id === "YS-1034")
+    .episodes.find((item) => item.id === "EP-1034-01");
+  for (const [collectionId, appointmentId] of missing)
+    addAssessmentContactLink(updated, collectionId, appointmentId);
+  return next;
+}
+
 function repairJordanAssessmentAppointments(state) {
   if (state.jordanAssessmentAppointmentRevision === 1) return state;
   const jordan = state.people.find((person) =>
@@ -2191,7 +2222,24 @@ function removeJordanSep15UnstartedFollowUp(state) {
   return next;
 }
 
+function upgradeIntakeFlow(state) {
+  const isAutomaticAdmission = (event) =>
+    event.eventType === "inpatient" && event.actorId === "system" &&
+    event.detail?.includes("automatically recorded upon successful intake completion");
+  if (!state.people?.some((person) => person.episodes?.some((episode) =>
+    episode.events?.some(isAutomaticAdmission)))) return state;
+  const next = JSON.parse(JSON.stringify(state));
+  for (const person of next.people || []) {
+    for (const episode of person.episodes || []) {
+      episode.events = (episode.events || []).filter((event) =>
+        !isAutomaticAdmission(event));
+    }
+  }
+  return next;
+}
+
 export function upgradeSampleData(state) {
+  state = upgradeIntakeFlow(state);
   if (state.terminologyRevision !== 1) {
     state = JSON.parse(JSON.stringify(state));
     updateParticipantRoles(state);
@@ -3744,7 +3792,52 @@ export function reducer(state, action) {
       p.episodes.unshift(newEpisode);
       break;
     }
+    case "SCHEDULE_EPISODE_REVIEWS": {
+      if (!staff || p?.archivedAt || episodeReviewActionError(e, action, TODAY)) return state;
+      const schedule = episodeReviewSchedule(e, TODAY);
+      e.reviewSchedule = {
+        confirmed: action.confirmed,
+        outcome: { ...schedule.outcome, due: action.outcomeDue },
+        experience: { ...schedule.experience, due: action.experienceDue },
+      };
+      event("Episode review schedule updated",
+        `Outcome review due ${formatDate(action.outcomeDue)} · experience check due ${formatDate(action.experienceDue)} · ${action.confirmed ? "cadence confirmed" : "cadence provisional"} · ${action.reason.trim()}`,
+        { collectionId: null, reviewSchedule: true });
+      break;
+    }
+    case "RECORD_EPISODE_REVIEW": {
+      if (!staff || p?.archivedAt || episodeReviewActionError(e, action, TODAY)) return state;
+      const schedule = episodeReviewSchedule(e, TODAY);
+      const type = EPISODE_REVIEW_TYPES[action.kind];
+      const reviewId = uid();
+      const record = {
+        id: reviewId,
+        date: action.completedDate,
+        scheduledDue: schedule[action.kind].due,
+        nextDue: action.nextDue,
+        summary: action.summary.trim(),
+        recordedAt,
+        actor: staff.name,
+        actorId: staff.id,
+        role: staff.role,
+      };
+      schedule[action.kind] = {
+        ...schedule[action.kind],
+        due: action.nextDue,
+        history: [record, ...schedule[action.kind].history],
+      };
+      e.reviewSchedule = schedule;
+      event(`${type.label} recorded`,
+        `${formatDate(action.completedDate)} · ${record.summary} · next due ${formatDate(action.nextDue)}`,
+        { date: action.completedDate, effectiveDate: action.completedDate, collectionId: null,
+          reviewKind: action.kind, reviewId });
+      break;
+    }
     case "ADD_APPOINTMENT": {
+      if (action.assessmentIntakeId && !p?.intakes?.some((intake) =>
+        intake.id === action.assessmentIntakeId &&
+        intake.episodeId === e?.id && intake.outcome === "Proceed"))
+        return state;
       if (e?.status !== "Active" || appointmentError(e, action, TODAY))
         return state;
       const newAssessmentVersions = action.newAssessmentVersions ?? [];
@@ -3764,8 +3857,11 @@ export function reducer(state, action) {
       };
       e.appointments ??= [];
       e.appointments.unshift(appointment);
-      for (const collectionId of action.collectionIds ?? (action.collectionId ? [action.collectionId] : []))
-        e.collections.find((collection) => collection.id === collectionId).appointmentId = appointment.id;
+      for (const collectionId of action.collectionIds ?? (action.collectionId ? [action.collectionId] : [])) {
+        const collection = e.collections.find((item) => item.id === collectionId);
+        addAssessmentContactLink(e, collectionId, appointment.id);
+        if (!collection.appointmentId) collection.appointmentId = appointment.id;
+      }
       const assessmentDue = action.attendance === "Attended"
         ? action.actualDate : action.plannedDate;
       for (const version of newAssessmentVersions) {
@@ -3787,6 +3883,7 @@ export function reducer(state, action) {
           assistance: "Independent",
         };
         e.collections.push(collection);
+        addAssessmentContactLink(e, collection.id, appointment.id);
         event("Follow-up planned", `${collection.label} · due ${formatDate(assessmentDue)} · linked to contact`, {
           collectionId: collection.id,
           appointmentId: appointment.id,
@@ -3794,7 +3891,24 @@ export function reducer(state, action) {
       }
       break;
     }
+    case "LINK_ASSESSMENT_CONTACT": {
+      const collection = e?.collections?.find((item) => item.id === action.collectionId);
+      const appointment = e?.appointments?.find((item) => item.id === action.appointmentId);
+      if (e?.status !== "Active" || !collection || !appointment ||
+          ["Cancelled", "Paused"].includes(collection.assignment) ||
+          assessmentContactLinks(e).some((link) =>
+            link.collectionId === collection.id && link.appointmentId === appointment.id)) return state;
+      addAssessmentContactLink(e, collection.id, appointment.id);
+      event("Assessment contact linked", `${collection.label} · ${formatDate(appointment.actualDate || appointment.plannedDate)}`, {
+        collectionId: collection.id, appointmentId: appointment.id,
+      });
+      break;
+    }
     case "RECORD_APPOINTMENT_OUTCOME": {
+      if (action.assessmentIntakeId && !p?.intakes?.some((intake) =>
+        intake.id === action.assessmentIntakeId &&
+        intake.episodeId === e?.id && intake.outcome === "Proceed"))
+        return state;
       const appointment = e?.appointments?.find(
         (item) => item.id === action.appointmentId,
       );
@@ -3829,6 +3943,8 @@ export function reducer(state, action) {
       );
       if (index !== -1) {
         e.appointments.splice(index, 1);
+        e.assessmentContactLinks = (e.assessmentContactLinks || [])
+          .filter((link) => link.appointmentId !== action.appointmentId);
         for (const col of e.collections || []) {
           if (col.appointmentId === action.appointmentId) {
             col.appointmentId = null;
@@ -4162,6 +4278,9 @@ export function reducer(state, action) {
             action.externalAppointment.date < TODAY ||
             action.externalAppointment.date > c.due))
         return state;
+      if (action.appointmentId && !e.appointments?.some((item) =>
+        item.id === action.appointmentId &&
+        !["Cancelled", "Did not attend"].includes(item.attendance))) return state;
       const hasExternalSelection = Object.hasOwn(action, "externalAppointment");
       c.assignment = "Active";
       c.link = "Active";
@@ -4181,7 +4300,7 @@ export function reducer(state, action) {
         action.channel === "Clinician entry" ? c.recorder : c.respondentName;
       c.recorderId =
         action.channel === "Clinician entry" ? currentStaff(state).id : null;
-      const linkedApptId = hasExternalSelection || c.externalAppointment ? null :
+      const linkedApptId = action.channel === "SMS link" || c.externalAppointment ? null :
         action.appointmentId ||
         (action.channel !== "SMS link"
           ? e.appointments?.find(
@@ -4201,6 +4320,7 @@ export function reducer(state, action) {
           : null) ||
         null;
       c.appointmentId = linkedApptId;
+      if (linkedApptId) addAssessmentContactLink(e, c.id, linkedApptId);
       c.attempts.push({
         id: uid(),
         date: TODAY,
@@ -4250,7 +4370,7 @@ export function reducer(state, action) {
       )
         return state;
       const questionnaireAppointmentId =
-        c.appointmentId || c.attempts.at(-1)?.appointmentId;
+        c.attempts.at(-1)?.appointmentId || c.appointmentId;
       const appointmentOutcome = action.appointmentOutcome;
       const confirmedChannel = action.completionMethod || appointmentOutcome?.completionMethod || c.channel;
       const appointmentToConfirm = appointmentOutcome
@@ -4292,7 +4412,7 @@ export function reducer(state, action) {
       c.submittedAt = TODAY;
       c.submittedTimestamp = recordedAt;
       c.submittedAttemptId = c.attempts.at(-1)?.id;
-      c.submittedAppointmentId = c.appointmentId || c.attempts.at(-1)?.appointmentId || null;
+      c.submittedAppointmentId = c.attempts.at(-1)?.appointmentId || c.appointmentId || null;
       syncMeasureSampleRecord(e, c, staff?.name || "Not recorded");
       if (appointmentOutcome || action.completionMethod) {
         const attempt = c.attempts.at(-1);

@@ -123,7 +123,7 @@ export function overviewNextStep(person, episode, collection, staff) {
     return step(
       "Resolve intake before collecting",
       "Review the intake evidence and proceed decision before starting or reissuing this questionnaire.",
-      { label: "Open intake", tab: "Intake" },
+      { label: "Open overview", tab: "Overview" },
       "Intake required",
     );
 

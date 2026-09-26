@@ -187,13 +187,11 @@ test("AC-23: registration creates an owned intake with unknown DOB and no episod
     s,
   );
   assert.equal(getTasks(s).filter((t) => t.person.id === p.id).length, 1);
-  assert.match(
-    taskHref(
-      getTasks(s).find((t) => t.kind === "intake"),
-      "/",
-    ),
-    /tab=intake/,
+  const intakeHref = taskHref(
+    getTasks(s).find((t) => t.kind === "intake"),
+    "/",
   );
+  assert.equal(new URL(intakeHref, "http://localhost").searchParams.has("tab"), false);
 });
 test("AC-24: partial save works; required checks, waiting ownership and non-proceeding states block progression", () => {
   const s = registered();
@@ -311,7 +309,7 @@ test("AC-25: completing a proceed intake adds initial assessment before planning
   assert.equal(p.episodes[0].collections[0].id, collectionId);
   assert.equal(p.episodes[0].collections[0].due, TODAY);
   assert.equal(p.episodes[0].programStream, "General");
-  assert.equal(p.episodes[0].events.filter((event) => event.eventType === "inpatient").length, 1);
+  assert.equal(p.episodes[0].events.filter((event) => event.eventType === "inpatient").length, 0);
   assert.equal(p.episodes[0].disposition, "Undecided");
   assert.ok(canAssess(p, p.episodes[0]));
   assert.equal(p.intakes[0].history.length, 5);

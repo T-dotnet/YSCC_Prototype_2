@@ -8,7 +8,8 @@ import {
 import { canAssess } from "../intake";
 import { collectionSetupLabel } from "../overview";
 import { Modal, Button, Badge, Notice } from "./UI";
-import { ChevronDown, Calendar } from "lucide-react";
+import { contactsForAssessment } from "../assessmentContacts";
+import { ChevronDown } from "lucide-react";
 
 export default function CollectionDetails({
   person,
@@ -19,6 +20,7 @@ export default function CollectionDetails({
   canCompleteAsClinician = false,
 }) {
   const c = collection;
+  const linkedContacts = contactsForAssessment(episode, c.id);
   const submitted = c.response === "Submitted";
   const collectionOpen =
     canCollectInEpisode(episode, c) &&
@@ -70,7 +72,7 @@ export default function CollectionDetails({
               <div>
                 <dt>Submitted on</dt>
                 <dd>
-                  {c.submittedAt ? formatDate(c.submittedAt) : "Not recorded"}
+                  {c.submittedAt ? formatDate(c.submittedAt.slice(0, 10)) : "Not recorded"}
                 </dd>
               </div>
             )}
@@ -123,73 +125,17 @@ export default function CollectionDetails({
                 <dt>External appointment</dt>
                 <dd>{c.externalAppointment.date} at {c.externalAppointment.time} · {c.externalAppointment.practitionerService} · {c.externalAppointment.deliveryMode}</dd>
               </div>}
-              {(() => {
-                const linkedApptId = c.submittedAppointmentId || c.appointmentId;
-                const linkedAppt = c.externalAppointment ? null :
-                  (episode.appointments || []).find((a) => a.id === linkedApptId) ||
-                  (episode.appointments || []).find(
-                    (a) =>
-                      (a.actualDate || a.plannedDate) === c.due ||
-                      (a.actualDate || a.plannedDate) ===
-                        (c.submittedAt ? c.submittedAt.slice(0, 10) : null),
-                  );
-                return linkedAppt ? (
-                  <div>
-                    <dt>Linked appointment</dt>
-                    <dd
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "6px",
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <Calendar
-                        size={14}
-                        style={{ color: "var(--accent, #2563eb)", flexShrink: 0 }}
-                        aria-hidden="true"
-                      />
-                      {onAction ? (
-                        <button
-                          type="button"
-                          className="link-button"
-                          style={{
-                            background: "none",
-                            border: "none",
-                            padding: 0,
-                            color: "var(--accent, #2563eb)",
-                            cursor: "pointer",
-                            textDecoration: "underline",
-                            fontSize: "inherit",
-                            fontWeight: 500,
-                          }}
-                          onClick={() => {
-                            onClose();
-                            onAction({
-                              type: "appointment-outcome",
-                              appointmentId: linkedAppt.id,
-                              episodeId: episode.id,
-                              personId: person.id,
-                              collectionId: c.id,
-                            });
-                          }}
-                        >
-                          {formatDate(linkedAppt.actualDate || linkedAppt.plannedDate)}{" "}
-                          · {linkedAppt.plannedTime || linkedAppt.actualTime} ·{" "}
-                          {linkedAppt.deliveryMode}
-                        </button>
-                      ) : (
-                        <span>
-                          {formatDate(linkedAppt.actualDate || linkedAppt.plannedDate)}{" "}
-                          · {linkedAppt.plannedTime || linkedAppt.actualTime} ·{" "}
-                          {linkedAppt.deliveryMode}
-                        </span>
-                      )}
-                      <Badge>{linkedAppt.attendance}</Badge>
-                    </dd>
-                  </div>
-                ) : null;
-              })()}
+              <div>
+                <dt>Related contacts</dt>
+                <dd>
+                  {linkedContacts.length ? linkedContacts.map((contact) => (
+                    <div key={contact.id} className="assessment-related-contact-row">
+                      {formatDate(contact.actualDate || contact.plannedDate)} · {contact.contactType || contact.appointmentType || "Service contact"} · {contact.attendance}
+                      {c.submittedAppointmentId === contact.id && <Badge>Response source</Badge>}
+                    </div>
+                  )) : "None linked"}
+                </dd>
+              </div>
               {!submitted && (
                 <>
                   <div>
@@ -212,6 +158,10 @@ export default function CollectionDetails({
       </div>
       <div className="modal-footer">
         <Button onClick={onClose}>Close</Button>
+        {episode.status === "Active" && !["Cancelled", "Paused"].includes(c.assignment) &&
+          (episode.appointments || []).length > linkedContacts.length && (
+            <Button onClick={() => onAction("link-assessment-contact")}>Link existing contact</Button>
+          )}
         {!submitted && collectionOpen && (
           <>
             {canCompleteAsClinician && (

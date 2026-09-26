@@ -77,9 +77,9 @@ export function taskHref(
 ) {
   if (kind) {
     const params = new URLSearchParams({
-      tab: kind === "intake" ? "intake" : "referrals",
       returnTo: safeReturnTo(returnTo),
     });
+    if (kind !== "intake") params.set("tab", "referrals");
     if (kind === "referral") params.set("referral", record.id);
     return `/people/${encodeURIComponent(person.id)}?${params}`;
   }

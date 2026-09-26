@@ -66,7 +66,7 @@ export const SYSTEM_EVENT_TYPES = [
     value: "inpatient",
     label: "Inpatient care change",
     description:
-      "A contextual record of an admission, discharge or known inpatient change, generated automatically upon successful intake.",
+      "A contextual record of an admission, discharge or known inpatient change. The episode review dates stay in place.",
   },
 ];
 

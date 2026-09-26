@@ -1,4 +1,5 @@
 import { carePeriodAt } from "./carePeriods.js";
+import { assessmentsForContact } from "./assessmentContacts.js";
 
 export const APPOINTMENT_ATTENDANCE = [
   "Planned",
@@ -104,14 +105,6 @@ export function appointmentError(episode, action, today) {
     const collection = episode.collections?.find((item) => item.id === collectionId);
     if (!collection || ["Cancelled", "Paused"].includes(collection.assignment))
       return "A selected assessment is unavailable in this care episode.";
-    if (collection.appointmentId || collection.submittedAppointmentId ||
-        collection.attempts?.some((attempt) => attempt.appointmentId))
-      return "A selected assessment is already associated with an appointment.";
-    if (!appointmentMatchesCollectionDate({
-      plannedDate: action.plannedDate,
-      actualDate: action.attendance === "Attended" ? action.actualDate : null,
-    }, collection))
-      return "Choose assessments whose due or response dates match this contact.";
   }
   if (action.attendance !== "Attended") return null;
   const contactError = validContact(action);
@@ -191,6 +184,7 @@ export function appointmentContent(action) {
     practitionerService: action.practitionerService.trim(),
     deliveryMode: action.deliveryMode,
     attendance: action.attendance,
+    assessmentIntakeId: action.assessmentIntakeId || null,
     purpose: clean(action.purpose),
     impact: clean(action.impact),
     notes: clean(action.notes),
@@ -214,6 +208,8 @@ export function appointmentOutcomeContent(action, appointment) {
         };
   return {
     attendance: action.attendance,
+    assessmentIntakeId: Object.hasOwn(action, "assessmentIntakeId")
+      ? action.assessmentIntakeId || null : appointment.assessmentIntakeId || null,
     outcomeNotes: clean(action.outcomeNotes),
     ...contactAttributes({ ...appointment, ...action }),
     ...actual,
@@ -258,14 +254,7 @@ export function appointmentMatchesCollectionDate(appointment, collection) {
 }
 
 export function associatedCollections(appointment, episode) {
-  if (!episode || !episode.collections) return [];
-  return episode.collections.filter((c) => {
-    return appointmentMatchesCollectionDate(appointment, c) && (
-      c.submittedAppointmentId === appointment.id ||
-      c.appointmentId === appointment.id ||
-      c.attempts?.some((attempt) => attempt.appointmentId === appointment.id)
-    );
-  });
+  return assessmentsForContact(episode, appointment.id);
 }
 
 export function appointmentDetails(appointment, episode) {
@@ -281,6 +270,7 @@ export function appointmentDetails(appointment, episode) {
     ["Practitioner or service", appointment.practitionerService],
     ["Delivery mode", appointment.deliveryMode],
     ["Attendance", appointment.attendance],
+    ["Initial assessment", appointment.assessmentIntakeId ? "Associated" : null],
     ["Care level on contact date", levelAtContact?.careLevel],
     ["Direct contact type", appointment.contactType],
     ["Recipient", appointment.recipientType],
@@ -322,6 +312,7 @@ export function appointmentChanges(appointment) {
     ["practitionerService", "Practitioner or service", appointment.practitionerService],
     ["deliveryMode", "Delivery mode", appointment.deliveryMode],
     ["attendance", "Attendance", appointment.attendance],
+    ["assessmentIntakeId", "Initial assessment association", appointment.assessmentIntakeId],
     ["contactType", "Direct contact type", appointment.contactType],
     ["recipientType", "Recipient", appointment.recipientType],
     ["relatedPersonName", "Related person", appointment.relatedPersonName],

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { clinicalHistoryEntries } from "./activity.js";
 import { associatedCareItems, historyCategory, historyItem } from "./historyItem.js";
 
-test("Care events list explicitly linked assessments and appointments on matching dates", () => {
+test("Care events list all explicitly linked assessments and appointments", () => {
   const episode = {
     appointments: [
       { id: "visit-1", attendance: "Planned", plannedDate: "2026-09-12", contactType: "Care review" },
@@ -15,10 +15,10 @@ test("Care events list explicitly linked assessments and appointments on matchin
     ],
   };
   const appointmentItems = associatedCareItems({ type: "appointment", id: "appointment-visit-1" }, episode);
-  assert.deepEqual(appointmentItems.map((item) => item.title), ["Support check-in"]);
+  assert.deepEqual(appointmentItems.map((item) => item.title), ["90-day review", "Support check-in"]);
   const assessmentItems = associatedCareItems({ type: "assessment", collectionId: "assessment-1" }, episode);
-  assert.deepEqual(assessmentItems.map((item) => item.id), ["visit-2"]);
-  assert.equal(assessmentItems[0].date, "2026-09-14");
+  assert.deepEqual(assessmentItems.map((item) => item.id), ["visit-1", "visit-2"]);
+  assert.equal(assessmentItems[1].date, "2026-09-14");
   assert.deepEqual(associatedCareItems({ type: "assessment", collectionId: "missing" }, episode), []);
 });
 

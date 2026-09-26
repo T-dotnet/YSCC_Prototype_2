@@ -46,6 +46,7 @@ import ClinicianQuestionnaire from "./ClinicianQuestionnaire";
 import CareTimelineEntryForm, { NEW_RECORD_TYPES, recordCategoryLabel } from "./CareTimelineEntryForm";
 import AppointmentSlotPicker from "./AppointmentSlotPicker";
 import { addDays } from "../externalAppointmentSlots";
+import { contactsForAssessment } from "../assessmentContacts";
 import CareEventForm from "./CareEventForm";
 import AppointmentForm from "./AppointmentForm";
 import AppointmentOutcomeForm from "./AppointmentOutcomeForm";
@@ -83,6 +84,7 @@ export default function Forms({
     [episodeAction, setEpisodeAction] = useState("Paused"),
     [previewOpen, setPreviewOpen] = useState(false);
   const [collectionExternalSlot, setCollectionExternalSlot] = useState(undefined);
+  const [responseContactId, setResponseContactId] = useState("");
   const [planDue, setPlanDue] = useState(addDays(TODAY, 14));
   const [planChannel, setPlanChannel] = useState("SMS link");
   const [planRespondent, setPlanRespondent] = useState("Person");
@@ -298,6 +300,34 @@ export default function Forms({
         />
       </Modal>
     );
+  if (modal.type === "link-assessment-contact") {
+    const linkedIds = new Set(contactsForAssessment(e, c?.id).map((item) => item.id));
+    const choices = (e?.appointments || []).filter((item) => !linkedIds.has(item.id));
+    return (
+      <Modal title="Link existing contact" subtitle={c?.label} onClose={onClose}>
+        <ValidatedForm onSubmit={(event) => {
+          event.preventDefault();
+          save({ type: "LINK_ASSESSMENT_CONTACT", appointmentId: formValues(event).appointmentId },
+            "Contact linked to assessment.");
+        }}>
+          <div className="form-body">
+            <Field label="Contact">
+              <select name="appointmentId" required defaultValue="">
+                <option value="" disabled>Choose a contact</option>
+                {choices.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {formatDate(item.actualDate || item.plannedDate)} · {item.contactType || item.appointmentType || item.practitionerService} · {item.attendance}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <p>Linking this contact does not change the assessment due date or response source.</p>
+          </div>
+          {footer("Link contact", choices.length === 0)}
+        </ValidatedForm>
+      </Modal>
+    );
+  }
   if (modal.type === "collection-details")
     return (
       <CollectionDetails
@@ -380,7 +410,7 @@ export default function Forms({
           <Button
             onClick={() => {
               onClose();
-              navigate(`/people/${p?.id}?tab=intake`);
+              navigate(`/people/${p?.id}`);
             }}
           >
             Open intake
@@ -630,6 +660,8 @@ export default function Forms({
       </Modal>
     );
   if (modal.type === "collection") {
+    const responseContacts = contactsForAssessment(e, c.id).filter((item) =>
+      !["Cancelled", "Did not attend"].includes(item.attendance));
     const allowed =
       p.consent === "Recorded" &&
       p.contact === "Suitable" &&
@@ -668,12 +700,18 @@ export default function Forms({
           onSubmit={(ev) => {
             ev.preventDefault();
             if (!allowed) return;
+            if (modal.collectResponse && channel !== "SMS link" &&
+                !selectedCollectionExternalSlot && responseContacts.length > 1 && !responseContactId) {
+              setFormError("Choose the contact that supplied this response.");
+              return;
+            }
             const result = commit({
               ...modal,
               type: modal.collectResponse ? "DELIVER" : "SAVE_COLLECTION_SETUP",
               channel,
               respondent,
               assistance,
+              appointmentId: modal.collectResponse && channel !== "SMS link" ? responseContactId || undefined : undefined,
               externalAppointment: channel === "SMS link" ? null : selectedCollectionExternalSlot,
             });
             if (result.error) {
@@ -819,6 +857,18 @@ export default function Forms({
               selectedSlot={selectedCollectionExternalSlot}
               onSelect={(slot) => { setCollectionExternalSlot(slot); setFormError(""); }}
             />}
+            {modal.collectResponse && channel !== "SMS link" && !selectedCollectionExternalSlot && responseContacts.length > 0 && (
+              <Field label="Contact for this response" hint="Choose which related contact supplied these answers.">
+                <select value={responseContactId} onChange={(ev) => setResponseContactId(ev.target.value)}>
+                  <option value="">{responseContacts.length > 1 ? "Choose a contact" : "Choose automatically"}</option>
+                  {responseContacts.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {formatDate(item.actualDate || item.plannedDate)} · {item.contactType || item.appointmentType || item.practitionerService}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            )}
             <details className="setup-disclosure collection-checks">
               <summary>Check this collection</summary>
               <dl className="metadata">
@@ -1642,7 +1692,7 @@ export default function Forms({
             const result = commit({ type: "RESET_INTAKE_EXAMPLES", resetToken: uid() });
             if (result.error) return setFormError(result.error);
             onClose();
-            navigate("/people/YS-1031?tab=intake");
+            navigate("/people/YS-1031");
             notify("River and Samira reset to their sample intake states.");
           }}
         >

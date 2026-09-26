@@ -3377,9 +3377,17 @@ td:last-child {
   color: var(--status-success-mark);
   flex-shrink: 0;
 }
+.episode-completeness-value {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 7px;
+  min-width: 0;
+}
 .episode-required-issues {
   color: var(--status-danger-ink);
   font-size: 12px;
+  white-space: nowrap;
 }
 .episode-required-issue-link {
   border: 0;
@@ -9771,6 +9779,10 @@ form.has-validation-errors .check-field:has(:invalid) {
   font-size: 12px;
   font-weight: 600;
 }
+.assessment-type-timeline .assessment-timeline-item .record-item-heading-text h4 {
+  font-size: 14px;
+  line-height: 1.3;
+}
 @media (max-width: 900px) {
   .assessment-type-card { grid-template-columns: 1fr; }
   .assessment-type-next-due + .assessment-type-card-summary { grid-column: 1; border-left: 0; }
@@ -10169,7 +10181,7 @@ form.has-validation-errors .check-field:has(:invalid) {
   }
 }
 
-@media (min-width: 1100px) {
+@container person-record (min-width: 1250px) {
   .main:has(.person-heading) .episode-bar:not(.intake-summary) {
     grid-template-columns:
       minmax(0, 2.25fr)
@@ -10190,9 +10202,9 @@ form.has-validation-errors .check-field:has(:invalid) {
     grid-row: 1;
     justify-self: end;
   }
-  .main:has(.person-heading) .episode-bar:not(.intake-summary) .episode-owner { grid-column: 2; }
-  .main:has(.person-heading) .episode-bar:not(.intake-summary) .episode-location { grid-column: 3; }
-  .main:has(.person-heading) .episode-bar:not(.intake-summary) .episode-care-level { grid-column: 4; }
+  .main:has(.person-heading) .episode-bar:not(.intake-summary) .episode-registration { grid-column: 2; }
+  .main:has(.person-heading) .episode-bar:not(.intake-summary) .episode-care-level { grid-column: 3; }
+  .main:has(.person-heading) .episode-bar:not(.intake-summary) .episode-next-review { grid-column: 4; }
   .main:has(.person-heading) .episode-bar:not(.intake-summary) .episode-completeness { grid-column: 5; }
   .main:has(.person-heading) .episode-care-level-change {
     white-space: nowrap;
@@ -14896,7 +14908,7 @@ h6 {
   }
 }
 
-@container person-record (max-width: 1100px) {
+@container person-record (max-width: 1249px) {
   .main:has(.person-heading) .episode-bar {
     grid-template-columns: repeat(12, minmax(0, 1fr));
     row-gap: 14px;
@@ -14920,18 +14932,28 @@ h6 {
     border-top: 1px solid var(--line);
   }
 
-  .main:has(.person-heading) .episode-bar > div.episode-owner {
+  .main:has(.person-heading) .episode-bar > div.episode-registration {
     padding-left: 0;
     border-left: 0;
   }
 }
 
-@container person-record (max-width: 520px) {
-  .main:has(.person-heading) .episode-bar > .episode-owner,
-  .main:has(.person-heading) .episode-bar > .episode-location,
+@container person-record (max-width: 900px) {
+  .main:has(.person-heading) .episode-bar > .episode-next-review,
+  .main:has(.person-heading) .episode-bar > .episode-registration,
   .main:has(.person-heading) .episode-bar > .episode-care-level,
   .main:has(.person-heading) .episode-bar > .episode-completeness {
     grid-column: span 6;
+  }
+
+  .main:has(.person-heading) .episode-bar > .episode-next-review {
+    border-left: 0;
+    padding-left: 0;
+  }
+
+  .main:has(.person-heading) .episode-next-review-value,
+  .main:has(.person-heading) .episode-care-level-value {
+    flex-wrap: wrap;
   }
 
   .main:has(.person-heading) .episode-bar > div.episode-completeness {
@@ -15294,8 +15316,8 @@ h6 {
     border: 0;
   }
 
-  .main:has(.person-heading) .episode-bar > .episode-owner,
-  .main:has(.person-heading) .episode-bar > .episode-location {
+  .main:has(.person-heading) .episode-bar > .episode-registration,
+  .main:has(.person-heading) .episode-bar > .episode-care-level {
     grid-row: 2;
     flex-direction: column;
     align-items: flex-start;
@@ -15306,16 +15328,25 @@ h6 {
     border-left: 0;
   }
 
-  .main:has(.person-heading) .episode-bar > .episode-owner {
+  .main:has(.person-heading) .episode-bar > .episode-registration {
     grid-column: 1;
   }
 
-  .main:has(.person-heading) .episode-bar > .episode-location {
+  .main:has(.person-heading) .episode-bar > .episode-care-level {
     grid-column: 2;
+  }
+
+  .main:has(.person-heading) .episode-bar > .episode-next-review {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    min-width: 0;
+    padding: 10px 0 0;
+    border-left: 0;
   }
 
   .main:has(.person-heading) .episode-bar > .episode-completeness {
     grid-column: 1 / -1;
+    grid-row: 4;
     flex-direction: row;
     align-items: center;
     justify-content: space-between;
@@ -16255,8 +16286,8 @@ h6 {
   }
 }
 
-@container person-record (max-width: 1100px) {
-  .main:has(.person-heading) .episode-bar:not(.intake-summary) > .episode-owner {
+@container person-record (max-width: 1249px) {
+  .main:has(.person-heading) .episode-bar:not(.intake-summary) > .episode-registration {
     border-left: 0;
     padding-left: 0;
   }
@@ -16344,4 +16375,176 @@ h6 {
 .episode-required-issue-link,
 .episode-care-level-change {
   font-weight: 550;
+}
+.assessment-contact-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.assessment-contact-list li + li { margin-top: 4px; }
+
+.main:has(.person-heading) .episode-registration-value {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 3px 8px;
+}
+
+.main:has(.person-heading) .episode-registration-value > span {
+  color: var(--ink);
+  font-size: var(--type-supporting);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.main:has(.person-heading) .episode-registration-details {
+  padding: 0;
+  color: var(--teal);
+  font-size: var(--type-metadata);
+  font-weight: 600;
+  line-height: 1.4;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.main:has(.person-heading) .episode-registration-details:hover {
+  color: var(--teal-dark);
+}
+
+.main:has(.person-heading) .episode-next-review-value {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: flex-start;
+  gap: 4px 8px;
+}
+
+.main:has(.person-heading) .episode-next-review-value > span {
+  color: var(--ink);
+  font-size: var(--type-supporting);
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.main:has(.person-heading) .episode-next-review-value > small {
+  color: var(--muted);
+  font-size: var(--type-metadata);
+  line-height: 1.4;
+  text-align: left;
+  white-space: nowrap;
+}
+
+@media (max-width: 700px) {
+  .main:has(.person-heading) .episode-next-review-value {
+    flex-wrap: wrap;
+  }
+}
+
+.episode-reviews-panel {
+  margin-bottom: 18px;
+}
+
+.episode-reviews-panel .panel-body > .notice {
+  margin-top: 0;
+}
+
+.episode-review-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+}
+
+.episode-review-track {
+  min-width: 0;
+  padding: 2px 22px 2px 0;
+}
+
+.episode-review-track + .episode-review-track {
+  border-left: 1px solid var(--line);
+  padding-left: 22px;
+}
+
+.episode-review-track-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin-bottom: 14px;
+}
+
+.episode-review-track-heading h3 {
+  margin: 0;
+  font-size: var(--type-title);
+  font-weight: 590;
+}
+
+.episode-review-track-heading span,
+.episode-review-next > span,
+.episode-review-next > small,
+.episode-review-track > p,
+.episode-reviews-context {
+  color: var(--muted);
+  font-size: var(--type-metadata);
+}
+
+.episode-review-next {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+
+.episode-review-next > strong {
+  color: var(--ink);
+  font-size: var(--type-title);
+  font-weight: 590;
+}
+
+.episode-review-track > p {
+  margin: 9px 0 14px;
+}
+
+.episode-review-track details {
+  margin-top: 14px;
+  font-size: var(--type-metadata);
+}
+
+.episode-review-track details summary {
+  color: var(--teal);
+  cursor: pointer;
+}
+
+.episode-review-track details ol {
+  margin: 9px 0 0;
+  padding-left: 20px;
+}
+
+.episode-review-track details li + li {
+  margin-top: 8px;
+}
+
+.episode-reviews-panel .panel-body > .episode-reviews-context {
+  max-width: none;
+  margin: 0;
+}
+
+@media (max-width: 760px) {
+  .episode-review-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .episode-review-track {
+    padding-right: 0;
+  }
+
+  .episode-review-track + .episode-review-track {
+    margin-top: 20px;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+    padding: 20px 0 0;
+  }
 }

@@ -29,6 +29,8 @@ import {
   Modal,
   Notice,
   Panel,
+  RecordTabs,
+  Empty,
   StaffPicker,
   ValidatedForm,
 } from "../components/UI";
@@ -73,7 +75,7 @@ export function RegisterPerson({ onClose, navigate, notify }) {
             (p) => p.registrationRequestId === requestId,
           );
           onClose();
-          navigate(`/people/${person.id}?tab=intake`);
+          navigate(`/people/${person.id}`);
           notify("Person registered. Intake is ready to begin.");
         }}
       >
@@ -108,7 +110,7 @@ export function RegisterPerson({ onClose, navigate, notify }) {
                 className="inline-link"
                 onClick={() => {
                   onClose();
-                  navigate(`/people/${duplicate.id}?tab=intake`);
+                  navigate(`/people/${duplicate.id}`);
                 }}
               >
                 Review {displayPersonName(duplicate)}’s record
@@ -464,12 +466,7 @@ export function IntakePanel({ person, intake, navigate, mobileReferrals }) {
     }, undefined, "outcome");
     if (saved) {
       setOutcomeDraft({ outcome: "" });
-      if (searchParams.get("tab") !== "intake") {
-        const params = new URLSearchParams(searchParams.toString());
-        params.set("tab", "intake");
-        params.delete("collection");
-        navigate(`/people/${person.id}?${params}`, { scroll: false });
-      }
+      navigate(`/people/${person.id}`, { scroll: false });
     }
   };
   const saveIntake = (validateChecks) => {
@@ -813,7 +810,7 @@ export function IntakePanel({ person, intake, navigate, mobileReferrals }) {
   );
 }
 
-function IntakeAssessmentPanel({ person, intake, navigate, onReopen, reopenError }) {
+export function IntakeAssessmentPanel({ person, intake, navigate, onReopen, reopenError }) {
   const { state, commit } = useStore();
   const [due, setDue] = useState(TODAY);
   const [programStream, setProgramStream] = useState("");
@@ -884,7 +881,7 @@ function IntakeAssessmentPanel({ person, intake, navigate, onReopen, reopenError
                 {error && <p role="alert" className="field-error">{error}</p>}
                 <div className="intake-assessment-actions">
                   <Button type="submit" variant="primary">Create assessment plan</Button>
-                  {canReopen && <Button type="button" onClick={onReopen}>Reopen intake</Button>}
+                  {canReopen && onReopen && <Button type="button" onClick={onReopen}>Reopen intake</Button>}
                 </div>
               </ValidatedForm>
             )
@@ -895,7 +892,7 @@ function IntakeAssessmentPanel({ person, intake, navigate, onReopen, reopenError
                 : "Complete intake with a proceed decision and receiving assessment owner before planning assessment."}
             </Notice>
           )}
-          {!ready && canReopen && (
+          {!ready && canReopen && onReopen && (
             <Button type="button" onClick={onReopen}>Reopen intake</Button>
           )}
           {reopenError && <p className="field-error" role="alert">{reopenError}</p>}
@@ -924,6 +921,12 @@ export default function IntakeWorkspace({ person, navigate, openModal }) {
     </section>
   );
   const returnTo = safeReturnTo(params.get("returnTo"));
+  const tabs = ["Overview", "Assessment", { value: "Events", label: "Care events" },
+    "Report", { value: "Consent & respondents", label: "Consent" }];
+  const requestedTab = params.get("tab")?.toLowerCase();
+  const tab = tabs.find((item) => (typeof item === "string" ? item : item.value).toLowerCase() === requestedTab);
+  const selectedTab = typeof tab === "string" ? tab : tab?.value || "Overview";
+  const setTab = (value) => navigate(`/people/${person.id}${value === "Overview" ? "" : `?tab=${encodeURIComponent(value.toLowerCase())}`}`, { scroll: false });
   const lastUpdatedAt = [
     intake.createdAt,
     ...(intake.history || []).map((entry) => entry.timestamp),
@@ -961,16 +964,44 @@ export default function IntakeWorkspace({ person, navigate, openModal }) {
           <span>{intake.nextAction}</span>
         </div>
       </div>
-      <div className="person-content-surface">
-        <div id="intake-workspace-panel" className="stack intake-workspace-sections">
-          <IntakePanel
-            key={`${intake.id}:${intake.revision}:${person.intakeResetToken || "original"}`}
-            person={person}
-            intake={intake}
-            navigate={navigate}
-            mobileReferrals={mobileLayout ? referrals : null}
-          />
-          {!mobileLayout && referrals}
+      <div className="person-content-surface person-open-surface">
+        <div className="person-record-navigation">
+          <RecordTabs id="person" label="Person record" items={tabs} value={selectedTab} onChange={setTab} />
+        </div>
+        <div id="person-panel" role="tabpanel" aria-labelledby={`person-tab-${tabs.findIndex((item) => (typeof item === "string" ? item : item.value) === selectedTab)}`}>
+          {selectedTab === "Overview" && (
+            <div id="intake-workspace-panel" className="stack intake-workspace-sections">
+              <IntakePanel
+                key={`${intake.id}:${intake.revision}:${person.intakeResetToken || "original"}`}
+                person={person}
+                intake={intake}
+                navigate={navigate}
+                mobileReferrals={mobileLayout ? referrals : null}
+              />
+              {!mobileLayout && referrals}
+            </div>
+          )}
+          {selectedTab === "Assessment" && (
+            <div className="stack intake-workspace-sections">
+              {intakeReady(intake)
+                ? <IntakeAssessmentPanel person={person} intake={intake} navigate={navigate} />
+                : <Empty title="Assessment has not started">Complete the checks and record a Proceed decision on Overview first.</Empty>}
+            </div>
+          )}
+          {selectedTab === "Events" && <Empty title="No care events yet">Care events will appear here after an episode begins.</Empty>}
+          {selectedTab === "Report" && <Empty title="No report yet">Assessment responses will inform this view after collection.</Empty>}
+          {selectedTab === "Consent & respondents" && (
+            <Panel title="Consent & respondents">
+              <div className="panel-body stack">
+                <dl className="metadata">
+                  <div><dt>Assessment participation</dt><dd>{intake.consentRecorded ? "Recorded" : "Not recorded"}</dd></div>
+                  <div><dt>Source or reference</dt><dd>{intake.consentReference || "Not recorded"}</dd></div>
+                  <div><dt>Initial assessment respondent</dt><dd>{intake.respondentPreference || "Not recorded"}</dd></div>
+                </dl>
+                <p>Record the initial participation decision on Overview. Purpose-specific requests and withdrawal remain in this tab once care begins.</p>
+              </div>
+            </Panel>
+          )}
         </div>
       </div>
     </>

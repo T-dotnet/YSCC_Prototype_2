@@ -1,5 +1,3 @@
-import { FileText } from "lucide-react";
-import { getInstrument } from "../instruments";
 import { isOutstanding } from "../workflow";
 import {
   clinicalReviewStatus,
@@ -19,41 +17,26 @@ export default function AssessmentCollectionCard({
   onViewDetails,
   onReview,
   onCollect,
+  relatedContacts = [],
   inTimeline = false,
   initiallyExpanded = inTimeline,
   headingLevel = inTimeline ? 4 : 3,
-  showLead = true,
 }) {
   const isPrior = !isOutstanding(col) && col.id !== selectedId;
   const respondent = collectionActorIdentity(person, col, "respondent");
-  const instrument = getInstrument(col.version);
-  const scoreLabel = score
-    ? `Raw score: ${score.value}${score.range ? ` / ${score.range[1]}` : ""}`
-    : col.response === "Submitted" ? "Raw score unavailable" : "Raw score awaiting response";
+  const scoreText = score
+    ? ` · Raw score: ${score.value}${score.range ? ` / ${score.range[1]}` : ""}`
+    : "";
   return (
     <RecordItem
       title={col.label}
-      subtitle={inTimeline || isPrior ? `${formatDate(col.due)} · ${col.version}` : undefined}
+      subtitle={`${formatDate(col.due)} · ${col.version}${scoreText}`}
       status={collectionStatus(col)}
       collapsible={inTimeline || isPrior}
       initiallyExpanded={initiallyExpanded}
       selected={col.id === selectedId}
       headingLevel={headingLevel}
       className={inTimeline ? "record-item-compact assessment-timeline-item" : ""}
-      lead={showLead ? (
-        <>
-          <span className="record-item-lead-icon"><FileText size={22} /></span>
-          <span>
-            <strong>{col.version}</strong>
-            <small>
-              {instrument?.questions.length || "Version-specific"}{" "}
-              {instrument?.measureKey
-                ? `sample coded items · ${scoreLabel}`
-                : "sample questions · no clinical score"}
-            </small>
-          </span>
-        </>
-      ) : undefined}
       facts={[
         {
           label: "Respondent",
@@ -61,13 +44,28 @@ export default function AssessmentCollectionCard({
         },
         { label: "Due date", value: formatDate(col.due) },
         { label: "Collection method", value: col.channel || "Not set up" },
+        ...(relatedContacts.length ? [{
+          label: "Related contacts",
+          wide: true,
+          value: (
+            <ul className="assessment-contact-list">
+              {relatedContacts.map((contact) => (
+                <li key={contact.id}>
+                  {formatDate(contact.actualDate || contact.plannedDate)} · {contact.contactType || contact.appointmentType || "Service contact"} · {contact.attendance}
+                </li>
+              ))}
+            </ul>
+          ),
+        }] : []),
       ]}
       secondary={
-        <div className="record-item-statuses">
-          <span>Assignment <Badge>{col.assignment}</Badge></span>
-          <span>Response <Badge>{col.response}</Badge></span>
-          <span>Review <Badge>{clinicalReviewStatus(col)}</Badge></span>
-        </div>
+        <>
+          <div className="record-item-statuses">
+            <span>Assignment <Badge>{col.assignment}</Badge></span>
+            <span>Response <Badge>{col.response}</Badge></span>
+            <span>Review <Badge>{clinicalReviewStatus(col)}</Badge></span>
+          </div>
+        </>
       }
       note={
         col.readOnly

@@ -47,6 +47,29 @@ const submit = (s) =>
       next: "My next steps",
     }),
   });
+test("saved intake upgrade removes only the old automatic admission event", () => {
+  const saved = createSeed();
+  const episode = saved.people[0].episodes[0];
+  episode.events.push(
+    {
+      id: "automatic-admission",
+      eventType: "inpatient",
+      actorId: "system",
+      detail: "Inpatient admission automatically recorded upon successful intake completion.",
+    },
+    {
+      id: "documented-admission",
+      eventType: "inpatient",
+      actorId: "clinician",
+      detail: "Admission confirmed by the care team.",
+    },
+  );
+  const upgraded = upgradeSampleData(saved);
+  const events = upgraded.people[0].episodes[0].events;
+  assert.equal(events.some((item) => item.id === "automatic-admission"), false);
+  assert.equal(events.some((item) => item.id === "documented-admission"), true);
+  assert.equal(upgradeSampleData(upgraded), upgraded);
+});
 test("seed worklist counts represent actual open collection and review work", () => {
   const tasks = getTasks(createSeed());
   assert.equal(tasks.length, 12);

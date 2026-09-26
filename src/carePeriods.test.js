@@ -21,8 +21,11 @@ const change = {
   type: "CHANGE_CARE_LEVEL",
   effectiveDate: "2026-09-12",
   careLevel: "High",
+  programStream: "General",
   deliveringUnit: "Northside outreach pod",
   entryReason: "Change in care needs",
+  closureReason: "Continued in a new care episode after level change",
+  closureCategory: "Transferred or handed over",
   authorisingPractitionerId: "jess",
   triggeringReviewId: "",
   assessmentDue: TODAY,
@@ -68,7 +71,9 @@ test("a level change ends the prior episode and starts a new numbered episode", 
   assert.equal(next.people[0].episodes.length, 2);
   assert.equal(episode(next).previousEpisodeId, priorEpisode(next).id);
   assert.equal(priorEpisode(next).nextEpisodeId, episode(next).id);
-  assert.equal(priorEpisode(next).collections.length, episode(seed).collections.length);
+  assert.equal(priorEpisode(next).collections.length, episode(seed).collections.length + 2);
+  assert.deepEqual(priorEpisode(next).collections.slice(-2).map((item) => item.label),
+    ["Episode closure assessment", "Care experience feedback"]);
   assert.equal(episode(next).collections.length, 1);
   assert.equal(episode(next).collections[0].assignment, "Planned");
   assert.equal(episode(next).collections[0].respondent, started.people[0].intakes[0].respondentPreference);
@@ -148,7 +153,7 @@ test("level changes reject missing baseline, same-day overlap, unsupported value
     { careLevel: "Unsupported" },
     { assessmentDue: "2026-09-11" },
     { assessmentVersion: "Unavailable instrument" },
-    { programStream: "Psychosis" },
+    { programStream: "Unsupported" },
     { authorisingPractitionerId: "ananya" },
     { triggeringReviewId: "not-a-review" },
   ]) assert.equal(reducer(started, { ...change, ...invalid }), started);
