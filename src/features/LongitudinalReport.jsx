@@ -445,7 +445,7 @@ function SharedTimeline({
     >
       <header className="longitudinal-card-header">
         <div>
-          <h2 id="longitudinal-timeline-heading">Care timeline</h2>
+          <h3 id="longitudinal-timeline-heading">Care timeline</h3>
           <p>
             {plotRange.start && plotRange.end
               ? `${formatDate(plotRange.start)} to ${formatDate(plotRange.end)}`

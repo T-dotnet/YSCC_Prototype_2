@@ -1,5 +1,5 @@
 export const EPISODE_REVIEW_TYPES = {
-  outcome: { label: "Outcome review", months: 3 },
+  outcome: { label: "Outcome review", days: 90 },
   experience: { label: "Experience check", months: 1 },
 };
 
@@ -17,6 +17,13 @@ export function addCalendarMonths(date, months) {
   return first.toISOString().slice(0, 10);
 }
 
+export function addDays(date, days) {
+  if (!validReviewDate(date)) return null;
+  const value = new Date(`${date}T12:00:00Z`);
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
+}
+
 const localToday = () => {
   const date = new Date();
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -30,13 +37,22 @@ export function nextProposedReviewDate(start, months, today = localToday()) {
   return due;
 }
 
+export function nextRollingOutcomeDate(start, today = localToday()) {
+  if (!validReviewDate(start)) return null;
+  let due = addDays(start, 90);
+  while (due < today) due = addDays(due, 90);
+  return due;
+}
+
 export function episodeReviewSchedule(episode, today = localToday()) {
   const saved = episode?.reviewSchedule || {};
   const tracks = Object.fromEntries(Object.entries(EPISODE_REVIEW_TYPES).map(([kind, config]) => [
     kind,
     {
       due: saved[kind]?.due || (episode?.status === "Active"
-        ? nextProposedReviewDate(episode.start, config.months, today) : null),
+        ? (kind === "outcome"
+          ? nextRollingOutcomeDate(episode.reviewAnchorDate || episode.start, today)
+          : nextProposedReviewDate(episode.start, config.months, today)) : null),
       history: Array.isArray(saved[kind]?.history) ? saved[kind].history : [],
     },
   ]));

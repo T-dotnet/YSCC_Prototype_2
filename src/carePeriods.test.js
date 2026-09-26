@@ -7,6 +7,7 @@ import { canAssess } from "./intake.js";
 import { DEMO_INSTRUMENT } from "./instruments.js";
 import { historyCategory, historyDate, historyItem } from "./historyItem.js";
 import { createSeed, reducer, TODAY, upgradeSampleData } from "./model.js";
+import { episodeReviewSchedule } from "./episodeReviews.js";
 
 const context = { personId: "YS-1024", episodeId: "EP-1024-01" };
 const initial = {
@@ -58,6 +59,7 @@ test("a level change ends the prior episode and starts a new numbered episode", 
   const seed = unlevelledSeed();
   assert.equal(episode(seed).carePeriods, undefined);
   const started = reducer(seed, initial);
+  const originalReview = episodeReviewSchedule(episode(started), TODAY);
   const next = reducer(started, change);
   const first = priorEpisode(next).carePeriods[0];
   const second = episode(next).carePeriods[0];
@@ -70,6 +72,8 @@ test("a level change ends the prior episode and starts a new numbered episode", 
   assert.equal(second.programStream, "General");
   assert.equal(next.people[0].episodes.length, 2);
   assert.equal(episode(next).previousEpisodeId, priorEpisode(next).id);
+  assert.equal(episode(next).reviewAnchorDate, priorEpisode(next).start);
+  assert.equal(episodeReviewSchedule(episode(next), TODAY).outcome.due, originalReview.outcome.due);
   assert.equal(priorEpisode(next).nextEpisodeId, episode(next).id);
   assert.equal(priorEpisode(next).collections.length, episode(seed).collections.length + 2);
   assert.deepEqual(priorEpisode(next).collections.slice(-2).map((item) => item.label),

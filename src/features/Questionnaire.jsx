@@ -53,6 +53,7 @@ export default function Questionnaire({ session, navigate, onEnd }) {
         c.assignment !== "Active" ||
         c.link !== "Active" ||
         (session.attemptId && session.attemptId !== c.attempts.at(-1)?.id) ||
+        !!c.attempts.at(-1)?.endedAt ||
         !canCollectInEpisode(e, c) ||
         ["Revoked", "Expired"].includes(c.link) ||
         c.response === "Submitted");
@@ -63,6 +64,22 @@ export default function Questionnaire({ session, navigate, onEnd }) {
   };
   const requestEnd = () =>
     dirty && !finished ? setConfirmLeave(true) : end();
+  const beginQuestionnaire = () => {
+    if (preview) return setStep(0);
+    if (unavailable) return;
+    const attempt = c.attempts.at(-1);
+    if (!attempt.startedAt) {
+      const result = commit({
+        ...session,
+        type: "START_RESPONSE_SESSION",
+        channel: attempt.channel,
+        attemptId: attempt.id,
+      });
+      if (result.error) return setSubmitError(result.error);
+    }
+    setSubmitError("");
+    setStep(0);
+  };
   const saveProgress = () => {
     if (!session || unavailable || !dirty || !answers.some(Boolean)) return;
     const result = commit({ ...session, type: "SAVE_RESPONSE_PROGRESS", answers });
@@ -255,7 +272,7 @@ export default function Questionnaire({ session, navigate, onEnd }) {
                 <Button
                   variant="primary"
                   className="participant-next"
-                  onClick={() => setStep(0)}
+                  onClick={beginQuestionnaire}
                 >
                   Begin questionnaire
                   <ArrowRight size={20} />

@@ -237,11 +237,11 @@ export default function ReviewResponses({
               </p>
               {sameDayRecordedAppointments.length > 0 && (
                 <p
+                  className="review-associated-meta"
                   style={{
                     marginTop: "8px",
                     paddingTop: "8px",
                     borderTop: "1px solid var(--line-soft)",
-                    fontSize: "0.83rem",
                     color: "var(--muted)",
                   }}
                 >
@@ -364,7 +364,7 @@ export default function ReviewResponses({
                     }}
                   >
                     <Calendar size={18} style={{ color: "var(--category-assessment-ink)" }} />
-                    <strong style={{ fontSize: "0.95rem", color: "var(--ink)" }}>
+                    <strong className="review-associated-title" style={{ color: "var(--ink)" }}>
                       Associated contact outcome
                     </strong>
                   </div>
@@ -375,9 +375,9 @@ export default function ReviewResponses({
                   </Badge>
                 </div>
                 <p
+                  className="review-associated-meta"
                   style={{
                     margin: "0 0 12px 0",
-                    fontSize: "0.83rem",
                     color: "var(--muted)",
                   }}
                 >
@@ -416,8 +416,8 @@ export default function ReviewResponses({
                 {activeAppointment && (
                   <div>
                     <div
+                      className="review-associated-copy"
                       style={{
-                        fontSize: "0.85rem",
                         marginBottom: "12px",
                         padding: "8px 12px",
                         background: "var(--surface)",
@@ -508,13 +508,13 @@ export default function ReviewResponses({
 
             {sameDayRecordedAppointments.length > 0 && (
               <div
+                className="review-associated-copy"
                 style={{
                   background: "var(--status-success-bg)",
                   border: "1px solid var(--status-success-border)",
                   borderRadius: "8px",
                   padding: "10px 14px",
                   margin: "12px 0",
-                  fontSize: "0.85rem",
                   display: "flex",
                   alignItems: "center",
                   gap: "8px",

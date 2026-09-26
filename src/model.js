@@ -4063,6 +4063,7 @@ export function reducer(state, action) {
         nextEpisodeNumber: newEpisodeNumber,
         collectionId: null,
       });
+      const continuingReviewSchedule = episodeReviewSchedule(e, TODAY);
       const newEpisode = {
         id: newEpisodeId,
         number: newEpisodeNumber,
@@ -4073,6 +4074,12 @@ export function reducer(state, action) {
         owner: e.owner || p.owner,
         intakeId: linkedIntake?.id || null,
         previousEpisodeId: e.id,
+        reviewAnchorDate: e.reviewAnchorDate || e.start,
+        reviewSchedule: {
+          confirmed: continuingReviewSchedule.confirmed,
+          outcome: { due: continuingReviewSchedule.outcome.due, history: [] },
+          experience: { due: continuingReviewSchedule.experience.due, history: [] },
+        },
         carePeriods: [period],
         collections: [{
           id: assessmentId,
@@ -4668,6 +4675,8 @@ export function reducer(state, action) {
       c.attempts.push({
         id: uid(),
         date: TODAY,
+        ...(action.channel === "SMS link" ? { preparedAt: recordedAt } : {}),
+        ...(action.channel === "Clinician entry" ? { startedAt: recordedAt } : {}),
         channel: action.channel,
         respondent: c.respondent,
         respondentName: c.respondentName,
@@ -4679,23 +4688,42 @@ export function reducer(state, action) {
         status:
           action.channel === "SMS link"
             ? "Prepared (sample; not sent)"
-            : "Session started (sample)",
+            : action.channel === "Clinic tablet"
+              ? "Ready to begin (sample)"
+              : "Session started (sample)",
       });
       event(
         action.channel === "SMS link"
           ? "Questionnaire link prepared"
-          : "Collection session started",
+          : action.channel === "Clinic tablet"
+            ? "Questionnaire ready to begin"
+            : "Collection session started",
         `${c.respondentName} · ${action.channel} · simulated`,
         { attemptId: c.attempts.at(-1).id, appointmentId: linkedApptId },
       );
       break;
+    case "START_RESPONSE_SESSION": {
+      const attempt = c?.attempts?.at(-1);
+      if (!canAssess(p, e) || !c || !canCollectInEpisode(e, c) ||
+          c.response === "Submitted" || c.assignment !== "Active" || c.link !== "Active" ||
+          !attempt || action.attemptId !== attempt.id ||
+          action.channel !== attempt.channel ||
+          !["SMS link", "Clinic tablet"].includes(attempt.channel) ||
+          attempt.startedAt || attempt.endedAt) return state;
+      attempt.startedAt = recordedAt;
+      attempt.status = "Session started (sample)";
+      event("Collection session started", `${c.respondentName} · ${attempt.channel} · simulated`,
+        { attemptId: attempt.id, appointmentId: attempt.appointmentId });
+      break;
+    }
     case "SAVE_RESPONSE_PROGRESS": {
       const instrument = c && getInstrument(c.version);
       const attempt = c?.attempts?.at(-1);
       if (!canAssess(p, e) || !c || !canCollectInEpisode(e, c) ||
           c.response === "Submitted" || c.assignment !== "Active" || c.link !== "Active" ||
           !instrument || !attempt || action.attemptId !== attempt.id ||
-          action.channel !== attempt.channel || !Array.isArray(action.answers) ||
+          action.channel !== attempt.channel || attempt.endedAt ||
+          !Array.isArray(action.answers) ||
           (attempt.channel === "Clinician entry" &&
             (staff?.role !== "Clinician" || staff.id !== attempt.recorderId))) return state;
       const progress = mergeAnswerSources(instrument, c.draftAnswers, c.draftAnswerSources,
@@ -4706,6 +4734,7 @@ export function reducer(state, action) {
       c.response = "Draft";
       attempt.status = "Progress saved";
       attempt.savedAt = recordedAt;
+      attempt.endedAt = recordedAt;
       event("Questionnaire progress saved", `${c.label} · ${attempt.channel} · ${progress.answers.filter(Boolean).length} answers`);
       break;
     }
@@ -4716,7 +4745,8 @@ export function reducer(state, action) {
         !canCollectInEpisode(e, c) ||
         c.response === "Submitted" ||
         c.assignment !== "Active" ||
-        c.link !== "Active"
+        c.link !== "Active" ||
+        c.attempts.at(-1)?.endedAt
       )
         return state;
       if (
@@ -4781,7 +4811,10 @@ export function reducer(state, action) {
       c.submittedTimestamp = recordedAt;
       c.submittedAttemptId = c.attempts.at(-1)?.id;
       c.submittedAppointmentId = c.attempts.at(-1)?.appointmentId || c.appointmentId || null;
-      if (c.attempts.at(-1)) c.attempts.at(-1).status = "Response submitted";
+      if (c.attempts.at(-1)) {
+        c.attempts.at(-1).status = "Response submitted";
+        c.attempts.at(-1).endedAt = recordedAt;
+      }
       syncMeasureSampleRecord(e, c, staff?.name || "Not recorded");
       if (appointmentOutcome || action.completionMethod) {
         const attempt = c.attempts.at(-1);

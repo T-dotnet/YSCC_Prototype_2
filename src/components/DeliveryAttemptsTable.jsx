@@ -1,9 +1,9 @@
-import { formatDate } from "../model";
+import { formatDate, formatTimestamp } from "../model";
 import { getInstrument, questionnaireState } from "../instruments";
 import { sessionAnswerCounts, sessionContribution } from "../responseSessions";
 import { Badge } from "./UI";
 
-const headings = ["Date", "Delivery contact", "Status / outcome", "Collection method", "Contribution"];
+const headings = ["Attempt / session times", "Delivery contact", "Status / outcome", "Collection method", "Contribution"];
 
 function contactLabel(contact) {
   return contact?.contactType || contact?.appointmentType || contact?.practitionerService || "Service contact";
@@ -20,7 +20,7 @@ export default function DeliveryAttemptsTable({ collection, contacts = [] }) {
   const contactById = new Map(contacts.map((contact) => [contact.id, contact]));
 
   return (
-    <div className="related-records-table has-contribution delivery-attempts-table" role="table" aria-label="Delivery attempts">
+    <div className="related-records-table has-contribution delivery-attempts-table" role="table" aria-label="Delivery attempts" tabIndex={0}>
       <div className="related-records-header" role="row">
         {headings.map((heading) => <span role="columnheader" key={heading}>{heading}</span>)}
       </div>
@@ -31,10 +31,16 @@ export default function DeliveryAttemptsTable({ collection, contacts = [] }) {
         const contribution = sessionContribution(collection, attempt, counts);
         const assistance = attempt.assistance ||
           (attempt.id === collection.submittedAttemptId ? collection.assistance : null);
+        const notStarted = !attempt.startedAt &&
+          (attempt.status?.startsWith("Prepared") || attempt.status?.startsWith("Ready to begin"));
         const values = [
           <span className="delivery-attempt-cell-stack">
             <strong>{attempt.date ? formatDate(attempt.date) : "Date not recorded"}</strong>
             <span>Attempt {index + 1}</span>
+            {attempt.preparedAt && <span>Prepared: {formatTimestamp(attempt.preparedAt)}</span>}
+            {notStarted && <span>Session not started</span>}
+            {attempt.startedAt && <span>Started: {formatTimestamp(attempt.startedAt)}</span>}
+            {attempt.endedAt && <span>Ended: {formatTimestamp(attempt.endedAt)}</span>}
           </span>,
           <span className="delivery-attempt-cell-stack">
             <strong>{contact ? contactLabel(contact) : "None linked"}</strong>

@@ -13,6 +13,61 @@ const deliver = (state, channel, assistance) => reducer(state, {
   ...context, type: "DELIVER", channel, assistance, respondent: "Person",
 });
 
+test("preparing an SMS link is separate from starting and saving a response session", () => {
+  const prepared = deliver(createSeed(), "SMS link", "Independent");
+  const attempt = collection(prepared).attempts.at(-1);
+  assert.ok(Number.isFinite(Date.parse(attempt.preparedAt)));
+  assert.equal(attempt.startedAt, undefined);
+  assert.equal(attempt.endedAt, undefined);
+  assert.equal(attempt.status, "Prepared (sample; not sent)");
+
+  const startAction = { ...context, type: "START_RESPONSE_SESSION", channel: "SMS link", attemptId: attempt.id };
+  const started = reducer(prepared, startAction);
+  const startedAttempt = collection(started).attempts.at(-1);
+  assert.ok(Number.isFinite(Date.parse(startedAttempt.startedAt)));
+  assert.equal(startedAttempt.endedAt, undefined);
+  assert.equal(reducer(started, startAction), started);
+
+  const answers = createSampleAnswers({ participation: "In person" });
+  const saved = reducer(started, {
+    ...context, type: "SAVE_RESPONSE_PROGRESS", channel: "SMS link",
+    attemptId: attempt.id, answers: answers.map((answer, index) => index < 2 ? answer : null),
+  });
+  const savedAttempt = collection(saved).attempts.at(-1);
+  assert.equal(savedAttempt.endedAt, savedAttempt.savedAt);
+  assert.equal(savedAttempt.status, "Progress saved");
+  assert.equal(reducer(saved, startAction), saved);
+  assert.equal(reducer(saved, {
+    ...context, type: "SAVE_RESPONSE_PROGRESS", channel: "SMS link",
+    attemptId: attempt.id, answers,
+  }), saved);
+  assert.equal(reducer(saved, {
+    ...context, type: "SUBMIT", channel: "SMS link",
+    attemptId: attempt.id, answers,
+  }), saved);
+});
+
+test("tablet begins on the questionnaire and clinician entry begins when its form opens", () => {
+  const ready = deliver(createSeed(), "Clinic tablet", "Independent");
+  const tabletAttempt = collection(ready).attempts.at(-1);
+  assert.equal(tabletAttempt.status, "Ready to begin (sample)");
+  assert.equal(tabletAttempt.startedAt, undefined);
+  assert.equal(tabletAttempt.endedAt, undefined);
+  const started = reducer(ready, {
+    ...context, type: "START_RESPONSE_SESSION", channel: "Clinic tablet", attemptId: tabletAttempt.id,
+  });
+  const submitted = reducer(started, {
+    ...context, type: "SUBMIT", channel: "Clinic tablet", attemptId: tabletAttempt.id,
+    answers: createSampleAnswers({ participation: "In person" }),
+  });
+  const completedAttempt = collection(submitted).attempts.at(-1);
+  assert.ok(Number.isFinite(Date.parse(completedAttempt.startedAt)));
+  assert.equal(completedAttempt.endedAt, collection(submitted).submittedTimestamp);
+
+  const clinician = deliver(createSeed(), "Clinician entry", "Transcribed");
+  assert.ok(Number.isFinite(Date.parse(collection(clinician).attempts.at(-1).startedAt)));
+});
+
 test("answers saved in one channel remain attributed to it after completion in another", () => {
   const started = deliver(createSeed(), "SMS link", "Independent");
   const instrument = getInstrument(collection(started).version);

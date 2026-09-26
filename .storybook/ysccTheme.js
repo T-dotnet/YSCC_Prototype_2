@@ -1,0 +1,27 @@
+import { create } from "storybook/theming";
+
+export default create({
+  base: "light",
+  brandTitle: "YSCC · Youth Care components",
+  brandUrl: "/",
+  brandTarget: "_self",
+  fontBase: '"Outfit", "Inter", system-ui, sans-serif',
+  fontCode: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+  colorPrimary: "#1e3510",
+  colorSecondary: "#c63a18",
+  appBg: "#f8f7f4",
+  appContentBg: "#fdfdfb",
+  appPreviewBg: "#fbfbf9",
+  appBorderColor: "#e3e7df",
+  appBorderRadius: 9,
+  textColor: "#111c0c",
+  textInverseColor: "#ffffff",
+  barTextColor: "#5e6b5a",
+  barSelectedColor: "#b93618",
+  barHoverColor: "#1e3510",
+  barBg: "#f8f7f4",
+  inputBg: "#fdfdfb",
+  inputBorder: "#cbd3c5",
+  inputTextColor: "#111c0c",
+  inputBorderRadius: 9,
+});

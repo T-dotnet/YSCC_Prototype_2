@@ -28,12 +28,11 @@ import CareEvents from "./CareEvents";
 import Appointments from "./Appointments";
 import RecordItem from "../components/RecordItem";
 import AssessmentCollectionCard from "../components/AssessmentCollectionCard";
-import EpisodeReviews from "../components/EpisodeReviews";
 import IntakeDetailsModal from "../components/IntakeDetailsModal";
-import CareLevelSection from "../components/CareLevelSection";
+import { CareLevelHistory } from "../components/CareLevelSection";
 import ListFilterBar from "../components/ListFilterBar";
 import TimelineExpandAll from "../components/TimelineExpandAll";
-import { currentCarePeriod, nextDate } from "../carePeriods";
+import { currentCarePeriod, previousDate } from "../carePeriods";
 import Timeline, {
   ChangeLog,
   ClinicalHistory,
@@ -99,6 +98,7 @@ export default function Person({ id, navigate, openModal }) {
   const [tagEditorOpen, setTagEditorOpen] = useState(false);
   const [selectedTag, setSelectedTag] = useState("");
   const [tagError, setTagError] = useState("");
+  const [levelHistoryOpen, setLevelHistoryOpen] = useState(false);
   const [assessmentFilter, setAssessmentFilter] = useState("all");
   const [assessmentQuery, setAssessmentQuery] = useState("");
   const [assessmentMethod, setAssessmentMethod] = useState("all");
@@ -301,8 +301,7 @@ export default function Person({ id, navigate, openModal }) {
     navigate(`/people/${p.id}?${params}`, { scroll: false });
   };
   const currentLevelPeriod = currentCarePeriod(e);
-  const canChangeLevel = e.status === "Active" && currentStaff(state)?.role === "Clinician" &&
-    (!currentLevelPeriod || nextDate(currentLevelPeriod.startDate) <= TODAY);
+  const displayedLevelPeriod = currentLevelPeriod || e.carePeriods?.at(-1);
   const canEditCareProfile = e.status === "Active" && currentStaff(state)?.role === "Clinician";
   return (
     <>
@@ -444,112 +443,6 @@ export default function Person({ id, navigate, openModal }) {
           onChange={setTab}
         />
       ) : null}
-      {tab === "Overview" && (
-      <div className="episode-bar">
-        <div className="episode-context episode-period">
-          {p.episodes.length > 1 ? (
-            <>
-              <label htmlFor="care-episode">Care episode</label>
-              <Select
-                id="care-episode"
-                label="Care episode"
-                value={e.id}
-                onChange={(ev) => {
-                  const params = new URLSearchParams(searchParams.toString());
-                  params.set("episode", ev.target.value);
-                  params.delete("collection");
-                  navigate(`/people/${p.id}?${params}`, { scroll: false });
-                }}
-              >
-                {p.episodes.map((ep) => (
-                  <option key={ep.id} value={ep.id}>
-                    {formatDate(ep.start)} –{" "}
-                    {ep.end
-                      ? formatDate(ep.end)
-                      : ["Closed", "Completed"].includes(ep.status)
-                        ? "end not recorded"
-                        : "present"}{" "}
-                    · {ep.status}
-                  </option>
-                ))}
-              </Select>
-              <small>
-                Overview, Report, assessments and history for this episode.
-              </small>
-            </>
-          ) : (
-            <>
-              <small>
-                {e.status === "Active" ? "Current care episode" : `${e.status} care episode`}
-              </small>
-              <span>
-                Started {formatDate(e.start)}
-                {e.end ? ` · Ended ${formatDate(e.end)}` : ""}
-              </span>
-            </>
-          )}
-        </div>
-        <div className="episode-status">
-          <Badge>{e.status}</Badge>
-        </div>
-        <div className="episode-fact episode-care-level">
-          <small>{e.programStream ? `${e.programStream} stream` : "Program stream"}</small>
-          <div className="episode-care-level-value">
-            <span>{(currentLevelPeriod || e.carePeriods?.at(-1))?.careLevel || "Not recorded"}</span>
-            {canChangeLevel && (
-              <button
-                type="button"
-                className="episode-care-level-change"
-                onClick={() => modal("care-level")}
-                aria-label={currentLevelPeriod ? "Edit stream and care level" : "Record starting care level"}
-              >
-                {currentLevelPeriod ? "Edit" : "Record"}
-              </button>
-            )}
-          </div>
-        </div>
-        <div className="episode-fact episode-next-review">
-          <small>{reviewSchedule.confirmed ? "Next review" : "Proposed next review"}</small>
-          <div className="episode-next-review-value">
-            <span>{reviewSchedule.outcome.due ? formatDate(reviewSchedule.outcome.due) : "Not scheduled"}</span>
-            {reviewSchedule.outcome.due && <small className={reviewSchedule.outcome.due < TODAY ? "status-overdue-text" : undefined}>{reviewTiming(reviewSchedule.outcome.due, TODAY)}</small>}
-          </div>
-        </div>
-        <div className="episode-fact episode-completeness">
-          <small>Required data</small>
-          <div className="episode-completeness-value">
-            <button
-              type="button"
-              className="episode-bar-completeness-link"
-              onClick={() => navigate("/quality")}
-              aria-label={`Open data quality. ${completeness.requiredPercentage}% of required fields complete. ${requiredDataIssues.length} unresolved data ${requiredDataIssues.length === 1 ? "issue" : "issues"}.`}
-            >
-              {completeness.requiredPercentage === 100 && requiredDataIssues.length === 0 && (
-                <CheckCircle2
-                  size={15}
-                  aria-hidden="true"
-                  className="record-completeness-icon"
-                />
-              )}
-              <span>{completeness.requiredPercentage}%</span>
-            </button>
-            {requiredDataIssues.length > 0 && (
-              <div className="episode-required-issues">
-                <button
-                  type="button"
-                  className="episode-required-issue-link"
-                  onClick={() => requiredDataIssues.length === 1
-                    ? openModal({ type: "quality-issue", personId: p.id, issueId: requiredDataIssues[0].id })
-                    : navigate(`/quality?q=${encodeURIComponent(p.name)}`)}
-                >
-                  {requiredDataIssues.length} data {requiredDataIssues.length === 1 ? "issue" : "issues"}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-      )}
       <div
         role={contextualView || hiddenRecordTab ? "region" : "tabpanel"}
         id="person-panel"
@@ -677,17 +570,141 @@ export default function Person({ id, navigate, openModal }) {
                 </div>
               </div>
             </Panel>
-            <CareLevelSection
-              episode={e}
-              canEdit={canEditCareProfile}
-              openModal={(request) => modal(request.type)}
-            />
+            <aside className="overview-side-container" aria-label="Care episode details">
+              <div className="overview-info-panel">
+                    <div className="episode-bar">
+                      <div className="episode-context episode-period">
+                        <h2 className="episode-summary-title">
+                          {e.status === "Active" ? "Current care episode" : `${e.status} care episode`}
+                        </h2>
+                        {p.episodes.length > 1 && (
+                          <>
+                            <label htmlFor="care-episode">Care episode</label>
+                            <Select
+                              id="care-episode"
+                              label="Care episode"
+                              value={e.id}
+                              onChange={(ev) => {
+                                const params = new URLSearchParams(searchParams.toString());
+                                params.set("episode", ev.target.value);
+                                params.delete("collection");
+                                navigate(`/people/${p.id}?${params}`, { scroll: false });
+                              }}
+                            >
+                              {p.episodes.map((ep) => (
+                                <option key={ep.id} value={ep.id}>
+                                  {formatDate(ep.start)} –{" "}
+                                  {ep.end
+                                    ? formatDate(ep.end)
+                                    : ["Closed", "Completed"].includes(ep.status)
+                                      ? "end not recorded"
+                                      : "present"}{" "}
+                                  · {ep.status}
+                                </option>
+                              ))}
+                            </Select>
+                            <small>
+                              Overview, Report, assessments and history for this episode.
+                            </small>
+                          </>
+                        )}
+                      </div>
+                      <div className="episode-status">
+                        <Badge>{e.status}</Badge>
+                      </div>
+                      <div className="episode-fact episode-started">
+                        <small>Started</small>
+                        <span>
+                          {formatDate(e.start)}
+                          {e.end ? ` · Ended ${formatDate(e.end)}` : ""}
+                        </span>
+                      </div>
+                      <div className="episode-fact episode-program-stream">
+                        <small>Program stream</small>
+                        <span>{e.programStream || "Not recorded"}</span>
+                      </div>
+                      <div className="episode-fact episode-care-level">
+                        <small>{e.status === "Active" ? "Care level" : "Last care level"}</small>
+                        <div className="episode-care-level-value">
+                          <span>{displayedLevelPeriod?.careLevel || "Not recorded"}</span>
+                          {canEditCareProfile && (
+                            <button
+                              type="button"
+                              className="episode-care-level-change"
+                              onClick={() => modal("care-level")}
+                              aria-label={currentLevelPeriod ? "Edit stream and care level" : "Record starting care level"}
+                            >
+                              {currentLevelPeriod ? "Edit" : "Record"}
+                            </button>
+                          )}
+                          {e.carePeriods?.length > 0 && (
+                            <button
+                              type="button"
+                              className="episode-care-level-change"
+                              onClick={() => setLevelHistoryOpen(true)}
+                              aria-haspopup="dialog"
+                            >
+                              History
+                            </button>
+                          )}
+                          {displayedLevelPeriod && (
+                            <small className="episode-care-level-context">
+                              {displayedLevelPeriod.deliveringUnit} · {formatDate(displayedLevelPeriod.startDate)}
+                              {displayedLevelPeriod.endDateExclusive
+                                ? `–${formatDate(previousDate(displayedLevelPeriod.endDateExclusive))}`
+                                : "–present"}
+                            </small>
+                          )}
+                        </div>
+                      </div>
+                      <div className="episode-fact episode-next-review">
+                        <small>{reviewSchedule.confirmed ? "Next review" : "Proposed next review"}</small>
+                        <div className="episode-next-review-value">
+                          <span>{reviewSchedule.outcome.due ? formatDate(reviewSchedule.outcome.due) : "Not scheduled"}</span>
+                          {reviewSchedule.outcome.due && <small className={reviewSchedule.outcome.due < TODAY ? "status-overdue-text" : undefined}>{reviewTiming(reviewSchedule.outcome.due, TODAY)}</small>}
+                        </div>
+                      </div>
+                      <div className="episode-fact episode-completeness">
+                        <small>Required data</small>
+                        <div className="episode-completeness-value">
+                          <button
+                            type="button"
+                            className="episode-bar-completeness-link"
+                            onClick={() => navigate("/quality")}
+                            aria-label={`Open data quality. ${completeness.requiredPercentage}% of required fields complete. ${requiredDataIssues.length} unresolved data ${requiredDataIssues.length === 1 ? "issue" : "issues"}.`}
+                          >
+                            {completeness.requiredPercentage === 100 && requiredDataIssues.length === 0 && (
+                              <CheckCircle2
+                                size={15}
+                                aria-hidden="true"
+                                className="record-completeness-icon"
+                              />
+                            )}
+                            <span>{completeness.requiredPercentage}%</span>
+                          </button>
+                          {requiredDataIssues.length > 0 && (
+                            <div className="episode-required-issues">
+                              <button
+                                type="button"
+                                className="episode-required-issue-link"
+                                onClick={() => requiredDataIssues.length === 1
+                                  ? openModal({ type: "quality-issue", personId: p.id, issueId: requiredDataIssues[0].id })
+                                  : navigate(`/quality?q=${encodeURIComponent(p.name)}`)}
+                              >
+                                {requiredDataIssues.length} data {requiredDataIssues.length === 1 ? "issue" : "issues"}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+              </div>
+            </aside>
             </div>
-            <EpisodeReviews key={e.id} episode={e} personId={p.id} commit={commit}
-              canEdit={e.status === "Active" && !p.archivedAt} />
             <div className="person-grid">
               <Panel
                 title="Care timeline"
+                className="overview-timeline"
                 action={
                   <TextLink onClick={() => setTab("History")}>
                     View history
@@ -698,6 +715,7 @@ export default function Person({ id, navigate, openModal }) {
               </Panel>
               <Panel
                 title="Care events"
+                className="overview-care-events"
                 action={
                   <TextLink onClick={() => setTab("Events")}>
                     View all care events
@@ -733,7 +751,7 @@ export default function Person({ id, navigate, openModal }) {
                   ))}
                 </ul>
               </Panel>
-              <Panel title="People involved">
+              <Panel title="People involved" className="overview-people-involved">
                 <div className="panel-body">
                   <div className="involved">
                     <Avatar name={p.owner} />
@@ -759,6 +777,16 @@ export default function Person({ id, navigate, openModal }) {
               </Panel>
             </div>
             <Continuity person />
+            {levelHistoryOpen && (
+              <Modal title="Care level history" onClose={() => setLevelHistoryOpen(false)}>
+                <div className="form-body">
+                  <CareLevelHistory episode={e} expanded />
+                </div>
+                <div className="modal-footer">
+                  <Button type="button" onClick={() => setLevelHistoryOpen(false)}>Close</Button>
+                </div>
+              </Modal>
+            )}
           </>
         )}
         {tab === "Assessment" && (
@@ -775,7 +803,7 @@ export default function Person({ id, navigate, openModal }) {
               />
             )}
             <div className="section-toolbar assessment-ledger-toolbar">
-              <h2>Assessment Ledger</h2>
+              <h2>Assessment ledger</h2>
               <Button
                 variant="primary"
                 disabled={e.status !== "Active" || !canAssess(p, e) || !c.due}

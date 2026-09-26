@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { addCalendarMonths, EPISODE_REVIEW_TYPES, episodeReviewActionError, episodeReviewSchedule, reviewTiming } from "../episodeReviews";
+import { addCalendarMonths, addDays, EPISODE_REVIEW_TYPES, episodeReviewActionError, episodeReviewSchedule, nextRollingOutcomeDate, reviewTiming } from "../episodeReviews";
 import { formatDate, TODAY } from "../model";
 import { Button, Field, Modal, Panel, TextLink, ValidatedForm } from "./UI";
 
@@ -10,10 +10,14 @@ export default function EpisodeReviews({ episode, personId, commit, canEdit }) {
   const [completedDate, setCompletedDate] = useState(TODAY);
   const [nextDue, setNextDue] = useState("");
   const [nextDueEdited, setNextDueEdited] = useState(false);
+  const proposedNextDue = (kind, date) => kind === "outcome"
+    ? nextRollingOutcomeDate(episode.reviewAnchorDate || episode.start,
+      addDays(date > (schedule.outcome.due || "") ? date : schedule.outcome.due, 1))
+    : addCalendarMonths(date, EPISODE_REVIEW_TYPES[kind].months);
   const close = () => { setMode(null); setError(""); };
   const openRecord = (kind) => {
     setCompletedDate(TODAY);
-    setNextDue(addCalendarMonths(TODAY, EPISODE_REVIEW_TYPES[kind].months));
+    setNextDue(proposedNextDue(kind, TODAY));
     setNextDueEdited(false);
     setError("");
     setMode(kind);
@@ -42,7 +46,7 @@ export default function EpisodeReviews({ episode, personId, commit, canEdit }) {
                 <section className="episode-review-track" key={kind} aria-label={config.label}>
                   <div className="episode-review-track-heading">
                     <h3>{config.label}</h3>
-                    <span>{kind === "outcome" ? "About every 90 days" : "Monthly"}</span>
+                    <span>{kind === "outcome" ? "Every 90 days" : "Monthly"}</span>
                   </div>
                   <div className="episode-review-next">
                     <span>{schedule.confirmed ? "Next due" : "Proposed date"}</span>
@@ -87,7 +91,7 @@ export default function EpisodeReviews({ episode, personId, commit, canEdit }) {
               </Field>
               <label className="check-field">
                 <input type="checkbox" name="confirmed" defaultChecked={schedule.confirmed} />
-                Service cadence confirmed for this episode
+                Service cadence confirmed for this care journey
               </label>
               <Field label="Reason for schedule change">
                 <textarea name="reason" rows={3} required />
@@ -112,7 +116,7 @@ export default function EpisodeReviews({ episode, personId, commit, canEdit }) {
                   onChange={(event) => {
                     const date = event.target.value;
                     setCompletedDate(date);
-                    if (!nextDueEdited) setNextDue(addCalendarMonths(date, EPISODE_REVIEW_TYPES[mode].months) || "");
+                    if (!nextDueEdited) setNextDue(proposedNextDue(mode, date) || "");
                   }} />
               </Field>
               <Field label={mode === "outcome" ? "Outcome and next step" : "Experience feedback and next step"}>
