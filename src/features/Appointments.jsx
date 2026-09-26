@@ -120,7 +120,7 @@ function AppointmentCard({ appointment, episode, openModal }) {
             <CalendarDays size={22} aria-hidden="true" />
           </span>
           <span>
-            <strong>{formatDate(when.date)} · {when.time}</strong>
+            <strong className={overdue ? "status-overdue-text" : undefined}>{formatDate(when.date)} · {when.time}</strong>
             <small>{when.label} · {when.duration} min</small>
           </span>
         </>
@@ -259,17 +259,16 @@ export default function Appointments({ episode, openModal }) {
     setFilters((current) => ({ ...current, [key]: value }));
   const addContact = () =>
     openModal({
-      type: "care-event",
+      type: "appointment",
       episodeId: episode.id,
-      initialType: "indirect-activity",
     });
 
   return (
     <div className="stack appointments">
       <div className="section-toolbar">
         <div>
-          <h2>Service contacts</h2>
-          <p>Record planned and actual direct contacts, including attendance.</p>
+          <h2>Contact</h2>
+          <p>Record planned and actual contacts, including SMS, delivery mode and outcome.</p>
         </div>
         <Button variant="primary" disabled={episode.status !== "Active"} onClick={addContact}>
           <Plus size={17} aria-hidden="true" /> Add contact
@@ -355,7 +354,7 @@ export default function Appointments({ episode, openModal }) {
       )}
 
       {overdue.length > 0 && (
-        <Notice tone="amber">
+        <Notice tone="coral">
           <strong>
             {overdue.length} planned{" "}
             {overdue.length === 1 ? "contact is" : "contacts are"} overdue.

@@ -138,7 +138,7 @@ export function careEventError(episode, action, today) {
   }
   if (action.externalAppointment &&
       (!validExternalSlot(action.externalAppointment) || action.externalAppointment.date < today))
-    return "Choose an available external appointment.";
+    return "Choose an available external contact.";
   if (action.eventType === "medication") {
     if (!action.medicationName?.trim()) return "Enter the medication name.";
     if (!LEGACY_MEDICATION_CHANGES.includes(action.medicationChange))
@@ -146,7 +146,7 @@ export function careEventError(episode, action, today) {
   }
   if (action.eventType === "medication-adverse" && !action.medicationName?.trim())
     return "Enter the medication name if it is known.";
-  if (!["medication", "medication-course", "service-period", "goal-milestone"].includes(action.eventType) && !action.summary?.trim())
+  if (!["medication", "medication-course", "service-period", "goal-milestone", "care-transition"].includes(action.eventType) && !action.summary?.trim())
     return "Enter a factual event summary.";
   if (action.type === "CORRECT_CARE_EVENT" && !action.correctionReason?.trim())
     return "Explain why this event is being corrected.";
@@ -158,7 +158,7 @@ const clean = (value) => value?.trim() || null;
 export function careEventContent(action) {
   if (action.eventType === "care-transition")
     return {
-      title: action.summary.trim(),
+      title: clean(action.summary) || (clean(action.periodName) ? `${clean(action.periodName)} · care or service change` : "Care or service change"),
       detail: clean(action.notes) || "Care or service change recorded.",
       fields: {
         periodName: clean(action.periodName),
@@ -223,7 +223,7 @@ export function careEventDetails(event) {
   const fields = event.fields ?? {};
   const reportItem = ["medication-course", "service-period", "goal-milestone"].includes(event.eventType);
   return [
-    ["External appointment", fields.externalAppointment && `${fields.externalAppointment.date} at ${fields.externalAppointment.time} · ${fields.externalAppointment.practitionerService} · ${fields.externalAppointment.deliveryMode}`],
+    ["External contact", fields.externalAppointment && `${fields.externalAppointment.date} at ${fields.externalAppointment.time} · ${fields.externalAppointment.practitionerService} · ${fields.externalAppointment.deliveryMode}`],
     ["Medication", fields.medicationName],
     [reportItem ? "Source or authority" : "Source or observer", fields.source],
     ["Source status", fields.status],

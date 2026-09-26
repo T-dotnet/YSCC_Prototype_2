@@ -11,6 +11,7 @@ import {
   Check,
   ShieldCheck,
   Eye,
+  Copy,
 } from "lucide-react";
 import { useStore } from "../store";
 import {
@@ -26,7 +27,7 @@ import {
   canCollectInEpisode,
   uid,
 } from "../model";
-import { DEMO_INSTRUMENT, INSTRUMENTS, getInstrument } from "../instruments";
+import { DEMO_INSTRUMENT, INITIAL_ASSESSMENT_INSTRUMENT, INSTRUMENTS, getInstrument } from "../instruments";
 import {
   Modal,
   Field,
@@ -55,6 +56,18 @@ import { carePeriodError } from "../carePeriods";
 import ClinicalRecordForm from "./ClinicalRecordForm";
 import QualityIssueForm from "./QualityIssueForm";
 const formValues = (e) => Object.fromEntries(new FormData(e.currentTarget));
+const suggestedAssessmentName = (collections = [], version) => {
+  const instrumentName = getInstrument(version)?.name || "Assessment";
+  const existingNames = new Set(collections.map((collection) => collection.label?.trim()));
+  if (!collections.some((collection) => collection.version === version) &&
+      !existingNames.has(instrumentName)) return instrumentName;
+
+  const followUpName = `${instrumentName} · follow-up`;
+  if (!existingNames.has(followUpName)) return followUpName;
+  let number = 2;
+  while (existingNames.has(`${followUpName} ${number}`)) number += 1;
+  return `${followUpName} ${number}`;
+};
 export default function Forms({
   modal,
   onClose,
@@ -69,6 +82,8 @@ export default function Forms({
   const p = state.people.find((person) => person.id === modal.personId),
     e = p?.episodes.find((episode) => episode.id === modal.episodeId),
     c = e?.collections.find((collection) => collection.id === modal.collectionId);
+  const planningInitialAssessment = e?.collections.some((collection) =>
+    collection.label === "Initial assessment" && collection.response !== "Submitted");
   const [channel, setChannel] = useState(
       modal.collectionDraft?.channel || modal.channel || c?.channel || "SMS link",
     ),
@@ -90,17 +105,32 @@ export default function Forms({
   const [planRespondent, setPlanRespondent] = useState("Person");
   const [planAssistance, setPlanAssistance] = useState("Independent");
   const [planExternalSlot, setPlanExternalSlot] = useState(null);
+  const [plannedCollectionId] = useState(() => uid());
+  const [copyFeedback, setCopyFeedback] = useState("");
   const [formError, setFormError] = useState("");
   const [handoverStatus, setHandoverStatus] = useState("Not applicable");
   const [resolution, setResolution] = useState("Confirmed unchanged");
-  const [collectionType, setCollectionType] = useState("Instrument check-in");
   const [instrumentVersion, setInstrumentVersion] = useState(
     INSTRUMENTS.some((instrument) => instrument.version === modal.initialInstrumentVersion)
       ? modal.initialInstrumentVersion
-      : DEMO_INSTRUMENT.version,
+      : planningInitialAssessment ? INITIAL_ASSESSMENT_INSTRUMENT.version : DEMO_INSTRUMENT.version,
   );
+  const [assessmentName, setAssessmentName] = useState(() =>
+    suggestedAssessmentName(e?.collections, instrumentVersion));
+  const [assessmentNameEdited, setAssessmentNameEdited] = useState(false);
   const selectedInstrument = getInstrument(instrumentVersion);
   const previewTrigger = useRef(null);
+  const planPickerRef = useRef(null);
+  const planSmsRef = useRef(null);
+  const collectionPickerRef = useRef(null);
+  const scrollToPicker = (ref) => {
+    requestAnimationFrame(() => {
+      ref.current?.scrollIntoView({
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+        block: "start",
+      });
+    });
+  };
   const wasPreviewOpen = useRef(false);
   useEffect(() => {
     if (wasPreviewOpen.current && !previewOpen) previewTrigger.current?.focus();
@@ -109,6 +139,10 @@ export default function Forms({
   const selectedCollectionExternalSlot = collectionExternalSlot === undefined
     ? c?.externalAppointment || null
     : collectionExternalSlot;
+  const sampleQuestionnaireLink = modal.type === "plan" && p && e
+    ? `${window.location.origin}/questionnaire?${new URLSearchParams({ person: p.id, episode: e.id, collection: plannedCollectionId })}`
+    : "";
+  const plannedSmsDate = planDue ? addDays(planDue, -5) : "";
   const unresolvedReferrals = (p?.referrals ?? []).filter(
     (referral) =>
       referral.episodeId === e?.id &&
@@ -215,7 +249,7 @@ export default function Forms({
         canCreateAssessment={canAssess(p, e)}
         onClose={onClose}
         onSave={(action) =>
-          save(action, "Appointment or service contact added to this care episode.")
+          save(action, "Contact added to this care episode.")
         }
       />
     );
@@ -254,7 +288,7 @@ export default function Forms({
         error={formError}
         onClose={onClose}
         onSave={(action) =>
-          save(action, "Appointment or service contact outcome recorded.")
+          save(action, "Contact outcome recorded.")
         }
       />
     );
@@ -303,11 +337,14 @@ export default function Forms({
   if (modal.type === "link-assessment-contact") {
     const linkedIds = new Set(contactsForAssessment(e, c?.id).map((item) => item.id));
     const choices = (e?.appointments || []).filter((item) => !linkedIds.has(item.id));
+    const unlinkedAttempts = (c?.attempts || []).filter((item) => !item.appointmentId);
     return (
       <Modal title="Link existing contact" subtitle={c?.label} onClose={onClose}>
         <ValidatedForm onSubmit={(event) => {
           event.preventDefault();
-          save({ type: "LINK_ASSESSMENT_CONTACT", appointmentId: formValues(event).appointmentId },
+          const values = formValues(event);
+          save({ type: "LINK_ASSESSMENT_CONTACT", appointmentId: values.appointmentId,
+            attemptId: values.attemptId || null },
             "Contact linked to assessment.");
         }}>
           <div className="form-body">
@@ -321,7 +358,21 @@ export default function Forms({
                 ))}
               </select>
             </Field>
-            <p>Linking this contact does not change the assessment due date or response source.</p>
+            {unlinkedAttempts.length > 0 && <Field label="Delivery attempt" hint="Optional. Choose an attempt only if this contact was used for that delivery.">
+              <select name="attemptId" defaultValue="">
+                <option value="">Related contact only</option>
+                {unlinkedAttempts.map((attempt) => (
+                  <option key={attempt.id} value={attempt.id}>
+                    Attempt {c.attempts.indexOf(attempt) + 1} · {attempt.date ? formatDate(attempt.date) : "Date not recorded"} · {attempt.channel || "Channel not recorded"} · {attempt.assistance || "Assistance not recorded"}
+                  </option>
+                ))}
+              </select>
+            </Field>}
+            <p>Channel and assistance belong to each delivery attempt. Linking a contact alone does not change the response source or due date.{unlinkedAttempts.some((item) => item.id === c.submittedAttemptId)
+              ? " If you link the submitted attempt, this contact becomes its response source."
+              : unlinkedAttempts.length > 0
+                ? " The submitted response source remains unchanged."
+                : " All recorded delivery attempts already have a contact."}</p>
           </div>
           {footer("Link contact", choices.length === 0)}
         </ValidatedForm>
@@ -436,24 +487,19 @@ export default function Forms({
           onSubmit={(ev) => {
             ev.preventDefault();
             const values = formValues(ev);
-            const label = collectionType === "Custom"
-              ? values.label
-              : collectionType === "Instrument check-in"
-                ? `${selectedInstrument?.name || "Assessment"} · follow-up check-in`
-                : collectionType;
+            const label = String(values.label || "").trim();
             const dueDate = planDue || values.due;
             if (planChannel !== "SMS link" &&
                 (!planExternalSlot || planExternalSlot.date > dueDate)) {
-              setFormError("Choose an available appointment on or before the assessment due date.");
+              setFormError("Choose an available contact on or before the assessment due date.");
               return;
             }
             const externalAppointment = planChannel === "SMS link" ? null : planExternalSlot;
 
-            const generatedColId = uid();
             const result = commit({
               ...modal,
               type: "PLAN",
-              id: generatedColId,
+              id: plannedCollectionId,
               label,
               due: dueDate,
               version: instrumentVersion,
@@ -469,58 +515,17 @@ export default function Forms({
             onClose();
             notify(
               externalAppointment
-                ? "Follow-up linked to an external appointment."
+                ? "Follow-up linked to an external contact."
                 : "Follow-up added to the existing care episode.",
             );
           }}
         >
           <div className="form-body">
             <Notice>
-              This creates a new collection point in care episode {e.number},
+              This creates a new assessment in care episode {e.number},
               preserving the previous responses. Choose Add follow-up to
               save the follow-up.
             </Notice>
-            <Field
-              label="Collection point type"
-              hint="Sample labels only. Choose the due date explicitly below."
-            >
-              <select
-                name={collectionType === "Custom" ? undefined : "label"}
-                value={collectionType}
-                onChange={(event) => setCollectionType(event.target.value)}
-              >
-                <option>Instrument check-in</option>
-                <option>90-day review</option>
-                <option>Custom</option>
-              </select>
-            </Field>
-            {collectionType === "Custom" && (
-              <Field label="Collection point name">
-                <input
-                  name="label"
-                  required
-                  maxLength={60}
-                  placeholder="Describe this follow-up"
-                />
-              </Field>
-            )}
-            <details className="setup-disclosure">
-              <summary>
-                Existing collection plan ({e.collections.length})
-              </summary>
-              <ul>
-                {[...e.collections]
-                  .sort((a, b) => (a.due || "").localeCompare(b.due || ""))
-                  .map((col) => (
-                    <li key={col.id}>
-                      {col.label} · {formatDate(col.due)} ·{" "}
-                      {col.response === "Submitted"
-                        ? "Response received"
-                        : col.assignment}
-                    </li>
-                  ))}
-              </ul>
-            </details>
             <Field
               label="Due date"
               hint="A sample due date is shown. Confirm or change it for this assessment."
@@ -539,7 +544,13 @@ export default function Forms({
                 <select
                   name="version"
                   value={instrumentVersion}
-                  onChange={(event) => setInstrumentVersion(event.target.value)}
+                  onChange={(event) => {
+                    const nextVersion = event.target.value;
+                    setInstrumentVersion(nextVersion);
+                    if (!assessmentNameEdited) {
+                      setAssessmentName(suggestedAssessmentName(e?.collections, nextVersion));
+                    }
+                  }}
                 >
                   {INSTRUMENTS.map((instrument) => (
                     <option key={instrument.version} value={instrument.version}>
@@ -565,6 +576,38 @@ export default function Forms({
                 <ArrowRight size={18} aria-hidden="true" />
               </button>
             </div>
+            <Field
+              label="Assessment name"
+              hint="Suggested from the instrument and existing assessments. You can edit it."
+            >
+              <input
+                name="label"
+                value={assessmentName}
+                onChange={(event) => {
+                  setAssessmentName(event.target.value);
+                  setAssessmentNameEdited(true);
+                }}
+                required
+                maxLength={80}
+              />
+            </Field>
+            <details className="setup-disclosure">
+              <summary>
+                Existing collection plan ({e.collections.length})
+              </summary>
+              <ul>
+                {[...e.collections]
+                  .sort((a, b) => (a.due || "").localeCompare(b.due || ""))
+                  .map((col) => (
+                    <li key={col.id}>
+                      {col.label} · {formatDate(col.due)} ·{" "}
+                      {col.response === "Submitted"
+                        ? "Response received"
+                        : col.assignment}
+                    </li>
+                  ))}
+              </ul>
+            </details>
             <Field label="Respondent">
               <select
                 value={planRespondent}
@@ -608,11 +651,13 @@ export default function Forms({
                     }
                     onChange={() => {
                       setPlanChannel(label);
+                      setCopyFeedback("");
                       setPlanAssistance(
                         label === "Clinician entry"
                           ? "Transcribed"
                           : "Independent",
                       );
+                      scrollToPicker(label === "SMS link" ? planSmsRef : planPickerRef);
                     }}
                   />
                   <Icon size={23} />
@@ -625,8 +670,35 @@ export default function Forms({
               ))}
             </fieldset>
 
+            {planChannel === "SMS link" && (
+              <section ref={planSmsRef} className="sms-plan-panel" aria-label="SMS link details">
+                <strong>SMS link plan</strong>
+                <p>
+                  In the intended service, the SMS link is sent automatically five days before the due date
+                  {plannedSmsDate && <> ({formatDate(plannedSmsDate)})</>}.
+                  {plannedSmsDate && plannedSmsDate < TODAY && " This date has passed; arrange delivery now."}
+                  {" "}A reminder is sent if the response is still outstanding.
+                </p>
+                <p>Saved answer progress and the submitted response appear in the assessment record for the clinician to review.</p>
+                <label className="sms-plan-link-label" htmlFor="planned-sms-link">Sample questionnaire link</label>
+                <div className="sms-plan-link-row">
+                  <input id="planned-sms-link" type="text" readOnly value={sampleQuestionnaireLink} />
+                  <Button type="button" onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(sampleQuestionnaireLink);
+                      setCopyFeedback("Link copied");
+                    } catch {
+                      setCopyFeedback("Could not copy. Select the link and copy it manually.");
+                    }
+                  }}><Copy size={16} aria-hidden="true" /> Copy</Button>
+                </div>
+                <p className="sms-plan-footnote">Save this follow-up before using the link. This browser-local prototype does not send SMS or reminders; the link works in this browser after collection starts.</p>
+                {copyFeedback && <p className="sms-plan-copy-feedback" role="status">{copyFeedback}</p>}
+              </section>
+            )}
             {planChannel !== "SMS link" && <AppointmentSlotPicker
               key={planDue}
+              scrollTargetRef={planPickerRef}
               mode="assessment"
               required
               dueDate={planDue}
@@ -753,6 +825,11 @@ export default function Forms({
                 {c.link === "Expired" ? "Previous link expired" : c.response}
               </Badge>
             </div>
+            {c.draftAnswers?.some(Boolean) && <Notice>
+              Saved answers will open in this session. Each answer keeps the channel
+              of the session that supplied its current value. The respondent is
+              fixed while this draft is in progress.
+            </Notice>}
             {!allowed && (
               <Notice tone="amber">
                 <strong>Collection needs attention</strong>
@@ -783,6 +860,7 @@ export default function Forms({
             <Field label="Who is supplying the answers?">
               <select
                 value={respondent}
+                disabled={!!c.draftAnswers?.some(Boolean)}
                 onChange={(ev) => setRespondent(ev.target.value)}
               >
                 <option value="Person">{displayPersonName(p)}</option>
@@ -827,6 +905,7 @@ export default function Forms({
                           ? "Transcribed"
                           : "Independent",
                       );
+                      if (label !== "SMS link") scrollToPicker(collectionPickerRef);
                     }}
                   />
                   <Icon size={23} />
@@ -852,6 +931,7 @@ export default function Forms({
               </select>
             </Field>
             {channel !== "SMS link" && <AppointmentSlotPicker
+              scrollTargetRef={collectionPickerRef}
               mode="assessment"
               dueDate={c.due}
               selectedSlot={selectedCollectionExternalSlot}

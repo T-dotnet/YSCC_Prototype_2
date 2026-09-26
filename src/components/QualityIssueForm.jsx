@@ -6,7 +6,7 @@ import { Badge, Button, Field, Modal, Notice, StaffPicker, ValidatedForm } from 
 const workflowTabs = {
   Intake: "intake",
   Referrals: "referrals",
-  Appointments: "appointments",
+  Contact: "appointments",
   "Consent & respondents": "consent & respondents",
 };
 

@@ -29,13 +29,19 @@ export function overviewNextStep(person, episode, collection, staff) {
   const daysLate = Math.round(
     (Date.parse(TODAY) - Date.parse(c.due)) / 86400000,
   );
-  const dueText = `${c.due ? `Due ${formatDate(c.due)}` : "Due date not recorded"}${!submitted && status === "Overdue" && episode.status === "Active" ? ` · ${daysLate} ${daysLate === 1 ? "day" : "days"} overdue` : ""}`;
+  const dueDateText = c.due ? `Due ${formatDate(c.due)}` : "Due date not recorded";
+  const overdueText = !submitted && status === "Overdue" && episode.status === "Active"
+    ? `${daysLate} ${daysLate === 1 ? "day" : "days"} overdue`
+    : null;
+  const dueText = `${dueDateText}${overdueText ? ` · ${overdueText}` : ""}`;
   const step = (title, description, primary, badge = status) => ({
     title,
     description,
     primary,
     badge,
     dueText,
+    dueDateText,
+    overdueText,
   });
   const details = {
     label: "View collection details",
@@ -162,7 +168,7 @@ export function overviewNextStep(person, episode, collection, staff) {
   if (c.link === "Expired")
     return step(
       "Replace the expired questionnaire link",
-      `The previous link has expired and no response has been submitted.${c.response === "Draft" ? " A draft was recorded, but it cannot be resumed here." : ""} Confirm the respondent and collection method for another attempt on this collection.`,
+      `The previous link has expired and no response has been submitted.${c.response === "Draft" ? " Saved answers can continue in a new session." : ""} Confirm the respondent and collection method for another attempt on this collection.`,
       { label: collectionSetupLabel(c), modal: "collection" },
     );
 
@@ -178,7 +184,7 @@ export function overviewNextStep(person, episode, collection, staff) {
       status === "Overdue"
         ? "Follow up the unfinished response"
         : "Check the response in progress",
-      "A draft is recorded, but the questionnaire has not been submitted. Check the collection activity and support needed. The sample draft cannot be resumed here.",
+      "Answers are saved, but the questionnaire has not been submitted. Start another collection session to continue, using the same or a different channel.",
       details,
     );
 

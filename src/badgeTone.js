@@ -1,6 +1,6 @@
 const tones = {
-  coral: ["Critical", "High"],
-  amber: ["Medium", "Overdue", "Pending", "Paused", "Sent", "Expired"],
+  coral: ["Critical", "High", "Overdue"],
+  amber: ["Medium", "Pending", "Paused", "Sent", "Expired"],
   purple: ["Ready for review", "Review pending", "Draft", "Preparation"],
   green: [
     "Active", "Accepted", "Reviewed", "Recorded", "Submitted", "Fulfilled",

@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { clinicalHistoryEntries } from "./activity.js";
-import { associatedCareItems, historyCategory, historyItem } from "./historyItem.js";
+import { associatedCareItems, contactCareEventFacts, historyCategory, historyItem } from "./historyItem.js";
+import { measureInstrument } from "./measureQuestionnaires.js";
 
 test("Care events list all explicitly linked assessments and appointments", () => {
   const episode = {
@@ -20,6 +21,38 @@ test("Care events list all explicitly linked assessments and appointments", () =
   assert.deepEqual(assessmentItems.map((item) => item.id), ["visit-1", "visit-2"]);
   assert.equal(assessmentItems[1].date, "2026-09-14");
   assert.deepEqual(associatedCareItems({ type: "assessment", collectionId: "missing" }, episode), []);
+});
+
+test("Care events assessment facts use the submitted date and linked score, not a single collection method", () => {
+  const collection = {
+    id: "measure-1",
+    label: "K10+ check-in",
+    version: measureInstrument("k10-plus").version,
+    due: "2026-09-10",
+    submittedAt: "2026-09-08T10:00:00Z",
+    response: "Submitted",
+    channel: "SMS link",
+  };
+  const episode = {
+    collections: [collection],
+    reportOutcomeMeasures: [{
+      key: "k10-plus",
+      scoreRange: [10, 50],
+      records: [{ sourceCollectionId: collection.id, status: "Complete", value: 27 }],
+    }],
+  };
+  const entry = { type: "assessment", collectionId: collection.id, date: "2026-09-08" };
+  assert.deepEqual(historyItem(entry, episode).primary, [
+    { label: "Due date", value: "2026-09-10" },
+    { label: "Submitted", value: "2026-09-08" },
+    { label: "Score", value: "27 / 50" },
+  ]);
+  assert.deepEqual(historyItem(entry, {
+    collections: [{ ...collection, response: "Not started", submittedAt: null }],
+  }).primary.slice(1), [
+    { label: "Submitted", value: "Not submitted" },
+    { label: "Score", value: "Awaiting response" },
+  ]);
 });
 
 test("History uses the contact date once and keeps appointment provenance available", () => {
@@ -48,6 +81,32 @@ test("History uses the contact date once and keeps appointment provenance availa
   assert.ok(item.more.some(({ label, value }) => label === "Planned date" && value === "2026-08-10"));
   assert.ok(item.more.some(({ label }) => label === "Outcome notes"));
   assert.ok(item.more.some(({ label }) => label === "Recorded at"));
+});
+
+test("Care events contact summary keeps the outcome and plan differences without repeating the timeline date", () => {
+  const appointment = {
+    id: "visit-1",
+    appointmentType: "Care review",
+    plannedDate: "2026-09-08",
+    plannedTime: "10:00",
+    plannedDurationMinutes: 60,
+    actualDate: "2026-09-08",
+    actualTime: "10:05",
+    actualDurationMinutes: 55,
+    attendance: "Attended",
+    practitionerService: "Jess Taylor",
+    deliveryMode: "In person",
+    notes: "Review planned with Jordan.",
+    outcomeNotes: "Next review agreed.",
+    timestamp: "2026-09-02T09:00:00Z",
+    actor: "Jess Taylor",
+  };
+  const episode = { appointments: [appointment], collections: [] };
+  const item = historyItem({ ...appointment, id: "appointment-visit-1", type: "appointment" }, episode);
+  const summary = contactCareEventFacts(item, appointment);
+  assert.deepEqual(summary.primary.map(({ label }) => label), ["Delivery mode", "Duration", "Outcome notes", "Notes"]);
+  assert.equal(summary.primary.find(({ label }) => label === "Duration").value, "55 min");
+  assert.deepEqual(summary.more.map(({ label }) => label), ["Planned time", "Planned duration"]);
 });
 
 test("History keeps event and record provenance while displaying the event date", () => {

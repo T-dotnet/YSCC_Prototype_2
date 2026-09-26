@@ -229,7 +229,7 @@ export function clinicalRecordDetails(record) {
   };
   return [
     ...(specific[record.recordType] ?? []),
-    ["External appointment", fields.externalAppointment && `${fields.externalAppointment.date} at ${fields.externalAppointment.time} · ${fields.externalAppointment.practitionerService} · ${fields.externalAppointment.deliveryMode}`],
+    ["External contact", fields.externalAppointment && `${fields.externalAppointment.date} at ${fields.externalAppointment.time} · ${fields.externalAppointment.practitionerService} · ${fields.externalAppointment.deliveryMode}`],
     ["Source or authority", fields.source],
     ["Impact on care or coordination", fields.impact],
     ["Notes", fields.notes],

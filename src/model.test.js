@@ -2,7 +2,7 @@ import { createSampleAnswers } from "./sampleQuestionnaires.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  createSeed,
+  createSeed as createFixtureSeed,
   reducer,
   getTasks,
   VERSION,
@@ -15,6 +15,7 @@ import {
   collectionActor,
   personEventText,
 } from "./model.js";
+import { emptyDraftSeed as createSeed } from "./testFixtures.js";
 import {
   getInstrument,
   LIKERT_INSTRUMENT,
@@ -75,8 +76,64 @@ test("seed worklist counts represent actual open collection and review work", ()
   assert.equal(tasks.length, 12);
   assert.ok(tasks.some((task) => task.collection?.id === "A-7-life-care-sixteen-weeks"));
   assert.equal(tasks.filter((task) => task.person.id === "YS-DEMO-CLOSE").length, 2);
-  assert.equal(tasks.filter((t) => t.status === "Overdue").length, 2);
+  for (const id of ["A-0-current", "A-4-current"])
+    assert.equal(tasks.find((task) => task.collection?.id === id)?.status, "Overdue");
   assert.equal(tasks.filter((t) => t.status === "Ready for review").length, 2);
+});
+test("fictional records keep intake, consent, draft and tablet-contact dates coherent", () => {
+  const seed = createFixtureSeed();
+  for (const person of seed.people) {
+    for (const intake of person.intakes || []) {
+      if (intake.status !== "Completed") continue;
+      assert.ok(intake.receivedAt, `${person.id} has a receipt date`);
+      assert.ok(intake.reason, `${person.id} has a referral reason`);
+      assert.ok(!intake.nextAction.startsWith("Complete intake"), `${person.id} has a completed next step`);
+      assert.ok(intake.createdAt.slice(0, 10) <= intake.receivedAt.slice(0, 10));
+    }
+    for (const episode of person.episodes || []) {
+      const contacts = new Map((episode.appointments || []).map((item) => [item.id, item]));
+      for (const collection of episode.collections || []) {
+        for (const attempt of collection.attempts || []) {
+          if (!["Clinic tablet", "Clinician entry"].includes(attempt.channel) || !attempt.appointmentId) continue;
+          assert.equal(contacts.get(attempt.appointmentId)?.actualDate, attempt.date, collection.id);
+        }
+      }
+    }
+    if (["YS-1025", "YS-1026", "YS-1028"].includes(person.id)) {
+      const consent = person.consentRequests.find((item) => item.consentId === "assessment-participation");
+      assert.equal(consent.decidedAt, "2026-09-08");
+      assert.ok(consent.history.every((item) => item.at === "2026-09-08"));
+    }
+  }
+  const kai = seed.people.find((person) => person.id === "YS-1024");
+  const draft = kai.episodes[0].collections.find((item) => item.id === "A-0-current");
+  assert.equal(questionnaireState(getInstrument(draft.version), draft.draftAnswers).answered, 3);
+  assert.equal(draft.draftAnswerSources.participation, "D-0");
+  const mia = seed.people.find((person) => person.id === "YS-1029").episodes[0];
+  for (const id of ["A-5-life-care-starting-point", "A-6-everyday-life-starting-point"])
+    assert.equal(mia.collections.find((item) => item.id === id).submittedAppointmentId, "APT-5-starting-check-ins");
+});
+test("the mock data upgrade repairs old placeholders without overwriting edited intake", () => {
+  const saved = createFixtureSeed();
+  delete saved.mockDataRevision;
+  const kai = saved.people.find((person) => person.id === "YS-1024");
+  kai.episodes[0].collections.find((item) => item.id === "A-0-current").draftAnswers = [];
+  const mia = saved.people.find((person) => person.id === "YS-1029").episodes[0];
+  mia.appointments = mia.appointments.filter((item) => item.id !== "APT-5-starting-check-ins");
+  const miaCheckIn = mia.collections.find((item) => item.id === "A-5-life-care-starting-point");
+  miaCheckIn.appointmentId = "APT-5-baseline";
+  miaCheckIn.submittedAppointmentId = "APT-5-baseline";
+  miaCheckIn.attempts[0].appointmentId = "APT-5-baseline";
+  const amelia = saved.people.find((person) => person.id === "YS-1025");
+  amelia.intakes[0].revision = 1;
+  amelia.intakes[0].reason = "Clinician-edited reason";
+  const upgraded = upgradeSampleData(saved);
+  assert.equal(upgraded.people.find((person) => person.id === "YS-1025").intakes[0].reason, "Clinician-edited reason");
+  assert.equal(upgraded.people.find((person) => person.id === "YS-1029").episodes[0]
+    .collections.find((item) => item.id === miaCheckIn.id).submittedAppointmentId, "APT-5-starting-check-ins");
+  assert.equal(questionnaireState(getInstrument(VERSION), upgraded.people[0].episodes[0]
+    .collections.find((item) => item.id === "A-0-current").draftAnswers).answered, 3);
+  assert.equal(upgradeSampleData(upgraded), upgraded);
 });
 test("archiving a person hides active work while retaining a restorable record", () => {
   const seed = createSeed();

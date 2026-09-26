@@ -26,8 +26,7 @@ export default function AppointmentForm({
   onSave,
 }) {
   const [attendance, setAttendance] = useState("Planned");
-  const [plannedDate, setPlannedDate] = useState("");
-  const [actualDate, setActualDate] = useState("");
+  const [contactDate, setContactDate] = useState("");
   const [collectionIds, setCollectionIds] = useState([]);
   const [newAssessmentVersions, setNewAssessmentVersions] = useState([]);
   const [assessmentMenuOpen, setAssessmentMenuOpen] = useState(false);
@@ -47,15 +46,13 @@ export default function AppointmentForm({
   const actualLatestDate =
     episode.end && episode.end < TODAY ? episode.end : TODAY;
   const practitionerServices = practitionerServiceOptions(people);
-  const initialAssessment = person?.intakes?.find((intake) =>
-    intake.episodeId === episode.id && intake.outcome === "Proceed");
   const assessments = [...(episode.collections || [])].sort((a, b) =>
     (b.due || "").localeCompare(a.due || ""));
   const contactDates = {
-    plannedDate,
-    actualDate: attendance === "Attended" ? actualDate : null,
+    plannedDate: contactDate,
+    actualDate: attendance === "Attended" ? contactDate : null,
   };
-  const hasContactDate = Boolean(plannedDate || contactDates.actualDate);
+  const hasContactDate = Boolean(contactDate);
   const assessmentAvailability = (collection) => {
     if (["Cancelled", "Paused"].includes(collection.assignment)) return "Unavailable";
     if (!hasContactDate) return "Choose a contact date";
@@ -72,20 +69,31 @@ export default function AppointmentForm({
 
   return (
     <Modal
-      title="Add appointment or service contact"
+      title="Add contact"
       subtitle={`Care episode ${episode.number} · ${formatDate(episode.start)}–${episode.end ? formatDate(episode.end) : "present"}`}
       onClose={onClose}
     >
       <ValidatedForm
         onSubmit={(event) => {
           event.preventDefault();
-          onSave({ type: "ADD_APPOINTMENT", ...formValues(event), collectionIds, newAssessmentVersions });
+          const values = formValues(event);
+          onSave({
+            type: "ADD_APPOINTMENT",
+            ...values,
+            ...(attendance === "Attended" ? {
+              actualDate: values.plannedDate,
+              actualTime: values.plannedTime,
+              actualDurationMinutes: values.plannedDurationMinutes,
+            } : {}),
+            collectionIds,
+            newAssessmentVersions,
+          });
         }}
       >
         <div className="form-body appointment-form">
           <Notice>
-            Prototype operational record only. This is not an appointment-booking
-            system or an approved PMHC-MDS submission record.
+            Prototype operational record only. This does not book an external
+            contact or submit an approved PMHC-MDS record.
           </Notice>
           <Field label="Record category">
             <select value="appointment" onChange={(event) => onChangeEventType(event.target.value)}>
@@ -113,13 +121,13 @@ export default function AppointmentForm({
                 ))}
               </select>
             </Field>
-            <Field label="Planned date">
-              <input name="plannedDate" type="date" min={episode.start} value={plannedDate} onChange={(event) => { setPlannedDate(event.target.value); setAssessmentDateError(false); }} required />
+            <Field label="Date">
+              <input name="plannedDate" type="date" min={episode.start} max={attendance === "Attended" ? actualLatestDate : undefined} value={contactDate} onChange={(event) => setContactDate(event.target.value)} required />
             </Field>
-            <Field label="Planned time">
+            <Field label="Time">
               <input name="plannedTime" type="time" required />
             </Field>
-            <Field label="Planned duration (minutes)">
+            <Field label="Duration">
               <input
                 name="plannedDurationMinutes"
                 type="number"
@@ -147,43 +155,6 @@ export default function AppointmentForm({
             </Field>
           </div>
           <ContactFields attended={attendance === "Attended"} person={person} />
-          {initialAssessment && (
-            <label className="check-field">
-              <input type="checkbox" name="assessmentIntakeId" value={initialAssessment.id} />
-              Associate this contact with the initial assessment
-            </label>
-          )}
-          {attendance === "Attended" && (
-            <div className="appointment-actual-fields">
-              <h3>Actual contact</h3>
-              <p>Record what happened, not a planned value.</p>
-              <div className="form-grid">
-                <Field label="Actual date">
-                  <input
-                    name="actualDate"
-                    type="date"
-                    min={episode.start}
-                    max={actualLatestDate}
-                    value={actualDate}
-                    onChange={(event) => { setActualDate(event.target.value); setAssessmentDateError(false); }}
-                    required
-                  />
-                </Field>
-                <Field label="Actual time">
-                  <input name="actualTime" type="time" required />
-                </Field>
-                <Field label="Actual duration (minutes)">
-                  <input
-                    name="actualDurationMinutes"
-                    type="number"
-                    min="1"
-                    max="600"
-                    required
-                  />
-                </Field>
-              </div>
-            </div>
-          )}
           <div className="appointment-assessment-picker" ref={assessmentPickerRef}
             onKeyDown={(event) => {
               if (event.key === "Escape" && assessmentMenuOpen) {
@@ -256,21 +227,6 @@ export default function AppointmentForm({
               </div>
             </div>}
           </div>
-          <Field label="Purpose or care context (optional)" hint="Record the reason for this contact if it is known.">
-            <textarea name="purpose" rows="2" />
-          </Field>
-          {attendance === "Attended" && (
-            <Field label="Impact on care or coordination (optional)" hint="Record an observed change or follow-up, without inferring a cause.">
-              <textarea name="impact" rows="3" />
-            </Field>
-          )}
-          <Field label="Notes (optional)">
-            <textarea
-              name="notes"
-              rows="3"
-              placeholder="Record a factual note about the contact, cancellation or non-attendance…"
-            />
-          </Field>
           {error && <p className="field-error">{error}</p>}
         </div>
         <div className="modal-footer">

@@ -25,6 +25,7 @@ import { Modal, Button, Badge, Field, Notice, ValidatedForm } from "./UI";
 import SubmittedAnswers from "./SubmittedAnswers";
 import ResponseHistory from "./ResponseHistory";
 import DiscardChanges from "./DiscardChanges";
+import DeliveryAttemptsTable from "./DeliveryAttemptsTable";
 
 export default function ReviewResponses({
   person,
@@ -51,6 +52,7 @@ export default function ReviewResponses({
   const noteField = useRef(null);
   const returnFocus = useRef(null);
   const c = collection;
+  const submissionSession = c.attempts?.find((attempt) => attempt.id === c.submittedAttemptId);
   const reviewNotRequired = noClinicalReviewRequired(c);
   const reviewed = c.review === "Reviewed" || reviewNotRequired;
   const canReview =
@@ -170,7 +172,7 @@ export default function ReviewResponses({
         onClose();
         notify(
           activeAppointment && appointmentAttendance !== "Planned"
-            ? "Clinical review and associated appointment outcome saved."
+            ? "Clinical review and associated contact outcome saved."
             : "Clinical review saved. Assessment completion remains a separate care decision.",
         );
       }}
@@ -230,7 +232,7 @@ export default function ReviewResponses({
               )}
               <p className="recorded-review-text">
                 {reviewNotRequired
-                  ? `${c.channel}${c.assistance ? ` · ${c.assistance}` : ""}`
+                  ? `${submissionSession?.channel || c.channel}${submissionSession?.assistance || c.assistance ? ` · ${submissionSession?.assistance || c.assistance}` : ""}`
                   : c.reviewNote || "No review note recorded."}
               </p>
               {sameDayRecordedAppointments.length > 0 && (
@@ -238,9 +240,9 @@ export default function ReviewResponses({
                   style={{
                     marginTop: "8px",
                     paddingTop: "8px",
-                    borderTop: "1px solid var(--border-light, #e2e8f0)",
+                    borderTop: "1px solid var(--line-soft)",
                     fontSize: "0.83rem",
-                    color: "var(--muted, #64748b)",
+                    color: "var(--muted)",
                   }}
                 >
                   <strong>Associated contact:</strong>{" "}
@@ -288,7 +290,7 @@ export default function ReviewResponses({
         )}
         <details className="response-disclosure">
           <summary>
-            <span>Answer source</span>
+            <span>Respondent and delivery</span>
             <ChevronDown size={17} aria-hidden="true" />
           </summary>
           <dl className="response-source-grid">
@@ -300,15 +302,11 @@ export default function ReviewResponses({
               <dt>Recorded by</dt>
               <dd>{displayCollectionActor(person, c, "recorder")}</dd>
             </div>
-            <div>
-              <dt>Collection method</dt>
-              <dd>{c.channel || "Not recorded"}</dd>
-            </div>
-            <div>
-              <dt>Assistance</dt>
-              <dd>{c.assistance || "Not recorded"}</dd>
-            </div>
           </dl>
+          {!!c.attempts?.length && <div className="response-delivery-attempts">
+            <h4>Delivery attempts</h4>
+            <DeliveryAttemptsTable collection={c} contacts={episode.appointments || []} />
+          </div>}
         </details>
         {canReview && (
           <section
@@ -340,14 +338,14 @@ export default function ReviewResponses({
             {plannedAppointments.length > 0 && (
               <div
                 style={{
-                  background: "var(--surface-subtle, #f8fafc)",
-                  border: "1px solid var(--border, #cbd5e1)",
+                  background: "var(--surface-subtle)",
+                  border: "1px solid var(--control-border)",
                   borderRadius: "8px",
                   padding: "16px",
                   marginTop: "16px",
                   marginBottom: "16px",
                 }}
-                aria-label="Associated appointment outcome"
+                aria-label="Associated contact outcome"
               >
                 <div
                   style={{
@@ -365,9 +363,9 @@ export default function ReviewResponses({
                       gap: "8px",
                     }}
                   >
-                    <Calendar size={18} style={{ color: "#2563eb" }} />
-                    <strong style={{ fontSize: "0.95rem", color: "#0f172a" }}>
-                      Associated appointment outcome
+                    <Calendar size={18} style={{ color: "var(--category-assessment-ink)" }} />
+                    <strong style={{ fontSize: "0.95rem", color: "var(--ink)" }}>
+                      Associated contact outcome
                     </strong>
                   </div>
                   <Badge>
@@ -380,7 +378,7 @@ export default function ReviewResponses({
                   style={{
                     margin: "0 0 12px 0",
                     fontSize: "0.83rem",
-                    color: "#64748b",
+                    color: "var(--muted)",
                   }}
                 >
                   Capture the service contact outcome alongside your clinical
@@ -422,10 +420,10 @@ export default function ReviewResponses({
                         fontSize: "0.85rem",
                         marginBottom: "12px",
                         padding: "8px 12px",
-                        background: "#ffffff",
+                        background: "var(--surface)",
                         borderRadius: "6px",
-                        border: "1px solid #e2e8f0",
-                        color: "#334155",
+                        border: "1px solid var(--line)",
+                        color: "var(--ink-soft)",
                       }}
                     >
                       <strong>Planned:</strong>{" "}
@@ -511,8 +509,8 @@ export default function ReviewResponses({
             {sameDayRecordedAppointments.length > 0 && (
               <div
                 style={{
-                  background: "var(--surface-subtle, #f0fdf4)",
-                  border: "1px solid #bbf7d0",
+                  background: "var(--status-success-bg)",
+                  border: "1px solid var(--status-success-border)",
                   borderRadius: "8px",
                   padding: "10px 14px",
                   margin: "12px 0",
@@ -520,12 +518,12 @@ export default function ReviewResponses({
                   display: "flex",
                   alignItems: "center",
                   gap: "8px",
-                  color: "#166534",
+                  color: "var(--status-success-ink)",
                 }}
               >
                 <CheckCircle2
                   size={16}
-                  style={{ color: "#16a34a", flexShrink: 0 }}
+                  style={{ color: "var(--status-success-mark)", flexShrink: 0 }}
                 />
                 <span>
                   <strong>

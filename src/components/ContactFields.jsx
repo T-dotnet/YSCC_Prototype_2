@@ -1,11 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Field } from "./UI";
 import {
-  CONTACT_PARTICIPANTS,
   CONTACT_RECIPIENTS,
   CONTACT_TYPES,
-  CONTACT_VENUES,
-  CONTACT_YES_NO,
 } from "../appointments";
 import { DEMO_STAFF } from "../model";
 
@@ -63,42 +60,7 @@ export default function ContactFields({ appointment = {}, attended = false, pers
             <Field label="Other practitioners" hint="Separate names with commas.">
               <input name="additionalPractitioners" defaultValue={appointment.additionalPractitioners?.join(", ") || ""} />
             </Field>
-            <Field label="Participants">
-              <Options name="participants" values={CONTACT_PARTICIPANTS} defaultValue={appointment.participants} />
-            </Field>
           </div>
-        </div>
-      </details>
-      <details className="appointment-more-detail">
-        <summary>Venue, units and reporting details</summary>
-        <div className="form-grid appointment-reporting-fields">
-          <Field label="Venue">
-            <Options name="venue" values={CONTACT_VENUES} defaultValue={appointment.venue} />
-          </Field>
-          <Field label="Contact postcode">
-            <input name="postcode" inputMode="numeric" pattern="[0-9]{4}" maxLength="4" defaultValue={appointment.postcode || ""} placeholder="4 digits" />
-          </Field>
-          <Field label="Registered unit">
-            <input name="registeredUnit" defaultValue={appointment.registeredUnit || ""} placeholder="Site name" />
-          </Field>
-          <Field label="Servicing unit">
-            <input name="servicingUnit" defaultValue={appointment.servicingUnit || ""} placeholder="Site name" />
-          </Field>
-          <Field label="Delivering unit">
-            <input name="deliveringUnit" defaultValue={appointment.deliveringUnit || ""} placeholder="Team or pod" />
-          </Field>
-          <Field label="Interpreter used">
-            <Options name="interpreter" values={CONTACT_YES_NO} defaultValue={appointment.interpreter} />
-          </Field>
-          <Field label="Co-payment">
-            <Options name="copayment" values={CONTACT_YES_NO} defaultValue={appointment.copayment} />
-          </Field>
-          <Field label="Funding source">
-            <input name="fundingSource" defaultValue={appointment.fundingSource || ""} />
-          </Field>
-          <Field label="Final contact">
-            <Options name="finalContact" values={CONTACT_YES_NO} defaultValue={appointment.finalContact} />
-          </Field>
         </div>
       </details>
     </>

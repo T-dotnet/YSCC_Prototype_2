@@ -24,7 +24,7 @@ export default function Questionnaire({ session, navigate, onEnd }) {
     e = p?.episodes.find((e) => e.id === session?.episodeId),
     c = e?.collections.find((c) => c.id === session?.collectionId);
   const [step, setStep] = useState(-1),
-    [answers, setAnswers] = useState([]),
+    [answers, setAnswers] = useState(() => [...(session ? (c?.draftAnswers || []) : [])]),
     [help, setHelp] = useState(false),
     [finished, setFinished] = useState(false),
     [ended, setEnded] = useState(false);
@@ -32,7 +32,7 @@ export default function Questionnaire({ session, navigate, onEnd }) {
   const [returnToReview, setReturnToReview] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [submitError, setSubmitError] = useState("");
-  const answeredCount = answers.filter(Boolean).length;
+  const dirty = answers.some((answer, index) => answer !== (session ? c?.draftAnswers || [] : [])[index]);
   const instrument = session ? getInstrument(c?.version) : DEMO_INSTRUMENT;
   const linkedAppointmentId =
     c?.appointmentId || c?.attempts.at(-1)?.appointmentId;
@@ -62,7 +62,13 @@ export default function Questionnaire({ session, navigate, onEnd }) {
     onEnd();
   };
   const requestEnd = () =>
-    answers.some(Boolean) && !finished ? setConfirmLeave(true) : end();
+    dirty && !finished ? setConfirmLeave(true) : end();
+  const saveProgress = () => {
+    if (!session || unavailable || !dirty || !answers.some(Boolean)) return;
+    const result = commit({ ...session, type: "SAVE_RESPONSE_PROGRESS", answers });
+    if (result.error) return setSubmitError(result.error);
+    end();
+  };
   const submit = (finalAnswers, confirmation) => {
     if (!questionnaireState(instrument, finalAnswers).complete || unavailable)
       return;
@@ -94,14 +100,14 @@ export default function Questionnaire({ session, navigate, onEnd }) {
     document.querySelector(".questionnaire h1")?.focus();
   }, [step, ended, finished, unavailable]);
   useEffect(() => {
-    if (!answeredCount || finished || ended) return;
+    if (!dirty || finished || ended) return;
     const warn = (event) => {
       event.preventDefault();
       event.returnValue = "";
     };
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
-  }, [answeredCount, finished, ended]);
+  }, [dirty, finished, ended]);
   return (
     <div className="participant">
       <header className="participant-header">
@@ -237,8 +243,8 @@ export default function Questionnaire({ session, navigate, onEnd }) {
                       submitting.
                     </li>
                     <li>
-                      Leaving or refreshing before submitting clears your
-                      answers. This sample has no save-and-resume feature.
+                      Save progress to continue in another session. Unsaved
+                      changes are cleared if you leave or refresh.
                     </li>
                     <li>
                       You can ask someone supporting you for help. This demo is
@@ -298,6 +304,9 @@ export default function Questionnaire({ session, navigate, onEnd }) {
             )}
             {!pendingAnswers && (
               <div className="participant-help">
+                {!preview && dirty && answers.some(Boolean) && (
+                  <button onClick={saveProgress}>Save progress and leave</button>
+                )}
                 <button onClick={() => setHelp(true)}>
                   <LifeBuoy size={18} />
                   Need help or a break?
@@ -316,13 +325,13 @@ export default function Questionnaire({ session, navigate, onEnd }) {
       <footer className="participant-footer">YSCC · Care, connected</footer>
       {confirmLeave && (
         <Modal
-          title="Leave and clear your answers?"
+          title="Leave without saving changes?"
           onClose={() => setConfirmLeave(false)}
         >
           <div className="form-body">
             <p>
-              Your answers have not been submitted. Leaving clears this sample
-              session; you cannot resume it later.
+              Your answers have not been submitted. Leaving clears changes
+              made in this session. Previously saved progress remains available.
             </p>
           </div>
           <div className="modal-footer">
@@ -335,7 +344,7 @@ export default function Questionnaire({ session, navigate, onEnd }) {
                 end();
               }}
             >
-              Leave and clear answers
+              Leave without saving
             </Button>
           </div>
         </Modal>
@@ -352,8 +361,8 @@ export default function Questionnaire({ session, navigate, onEnd }) {
               service is connected.
             </Notice>
             <p>
-              If you leave before submitting, the answers in this sample session
-              will be discarded.
+              Save progress before leaving to keep this session’s answers.
+              Previously saved answers remain available in another session.
             </p>
             <div className="actions">
               <Button onClick={() => setHelp(false)}>

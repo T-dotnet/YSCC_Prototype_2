@@ -74,7 +74,7 @@ test("live quality findings catch the required cross-record conditions", () => {
   };
   const types = detectQualityFindings(state, today).map((issue) => issue.type);
   assert.ok(types.includes("Future date"));
-  assert.ok(types.includes("Duplicate appointment"));
+  assert.ok(types.includes("Duplicate contact"));
   assert.ok(types.includes("Invalid outcome measure combination"));
   assert.ok(types.includes("Inconsistent demographic information"));
 });

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { addCalendarMonths, EPISODE_REVIEW_TYPES, episodeReviewActionError, episodeReviewSchedule, reviewTiming } from "../episodeReviews";
 import { formatDate, TODAY } from "../model";
-import { Button, Field, Modal, Notice, Panel, TextLink, ValidatedForm } from "./UI";
+import { Button, Field, Modal, Panel, TextLink, ValidatedForm } from "./UI";
 
 export default function EpisodeReviews({ episode, personId, commit, canEdit }) {
   const schedule = episodeReviewSchedule(episode, TODAY);
@@ -34,11 +34,6 @@ export default function EpisodeReviews({ episode, personId, commit, canEdit }) {
         action={canEdit && <TextLink aria-haspopup="dialog" onClick={() => { setError(""); setMode("schedule"); }}>Edit schedule</TextLink>}
       >
         <div className="panel-body stack">
-          {!schedule.confirmed && (
-            <Notice tone="amber">
-              Planning cadence: about three months for outcome reviews and monthly for experience checks. Confirm the service cadence before marking these dates agreed.
-            </Notice>
-          )}
           <div className="episode-review-grid">
             {Object.entries(EPISODE_REVIEW_TYPES).map(([kind, config]) => {
               const track = schedule[kind];
@@ -52,7 +47,7 @@ export default function EpisodeReviews({ episode, personId, commit, canEdit }) {
                   <div className="episode-review-next">
                     <span>{schedule.confirmed ? "Next due" : "Proposed date"}</span>
                     <strong>{track.due ? <time dateTime={track.due}>{formatDate(track.due)}</time> : "Not scheduled"}</strong>
-                    {schedule.confirmed && <small>{reviewTiming(track.due, TODAY)}</small>}
+                    {schedule.confirmed && <small className={track.due && track.due < TODAY ? "status-overdue-text" : undefined}>{reviewTiming(track.due, TODAY)}</small>}
                   </div>
                   <p>{latest ? `Last recorded ${formatDate(latest.date)} by ${latest.actor}` : "No completed review recorded"}</p>
                   {canEdit && <Button variant="secondary" disabled={!schedule.confirmed} onClick={() => openRecord(kind)}>Record {kind === "outcome" ? "review" : "check"}</Button>}

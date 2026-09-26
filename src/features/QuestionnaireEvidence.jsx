@@ -10,6 +10,7 @@ import {
   responseDate,
 } from "../progress";
 import { Badge, Notice, Select, TextLink } from "../components/UI";
+import { answerSession } from "../responseSessions";
 
 const dateLabel = (c) =>
   responseDate(c)
@@ -85,6 +86,12 @@ export default function QuestionnaireEvidence({
         .toLowerCase()
         .includes(questionSearch.toLowerCase()),
   );
+  const sourceLabel = (collection, questionId) => {
+    const session = answerSession(collection, questionId);
+    if (session) return `Supplied in session ${(collection.attempts || []).findIndex((attempt) => attempt.id === session.id) + 1} · ${formatDate(session.date)} · ${session.channel || "Channel not recorded"}`;
+    if (collection?.answerSources?.[questionId]?.startsWith("edit:")) return "Corrected after submission";
+    return null;
+  };
   const changeCountLabel =
     comparison.changed === 1 ? "1 change" : `${comparison.changed} changes`;
   const show = (type, collection) =>
@@ -317,6 +324,7 @@ export default function QuestionnaireEvidence({
                               data-label={`${selected.label} · ${dateLabel(selected)}`}
                             >
                               {row.before}
+                              {sourceLabel(selected, row.id) && <small className="answer-session-source">{sourceLabel(selected, row.id)}</small>}
                             </td>
                             <td
                               data-label={`${latest.label} · ${dateLabel(latest)} · Latest`}
@@ -327,6 +335,7 @@ export default function QuestionnaireEvidence({
                               }
                             >
                               {row.after}
+                              {sourceLabel(latest, row.id) && <small className="answer-session-source">{sourceLabel(latest, row.id)}</small>}
                             </td>
                             <td data-label="Change">
                               <span

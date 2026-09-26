@@ -25,7 +25,7 @@ export default function AppointmentOutcomeForm({
 
   return (
     <Modal
-      title="Record appointment outcome"
+      title="Record contact outcome"
       subtitle={`${appointment.practitionerService} · planned ${formatDate(appointment.plannedDate)} at ${appointment.plannedTime}`}
       onClose={onClose}
     >
@@ -43,7 +43,7 @@ export default function AppointmentOutcomeForm({
         <div className="form-body appointment-form">
           <Notice tone="amber">
             This records the outcome of the existing planned contact. It does
-            not create or change an external appointment.
+            not create or change an external contact.
           </Notice>
           <dl className="appointment-outcome-plan">
             <div>

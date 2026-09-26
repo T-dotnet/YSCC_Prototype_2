@@ -250,7 +250,7 @@ export function intakeActionError(state, action, staff) {
           (!validExternalSlot(action.externalAppointment) ||
             action.externalAppointment.date < "2026-09-15" ||
             action.externalAppointment.date > action.due))
-        return "Choose an available appointment on or before the assessment due date.";
+        return "Choose an available contact on or before the assessment due date.";
       return "";
     }
     const f = action.values || {};

@@ -1,4 +1,6 @@
 import { isOutstanding } from "../workflow";
+import { assessmentScoreLabel } from "../assessmentGroups";
+import { responseDate } from "../progress";
 import {
   clinicalReviewStatus,
   collectionActorIdentity,
@@ -7,6 +9,7 @@ import {
   noClinicalReviewRequired,
 } from "../model";
 import RecordItem from "./RecordItem";
+import RelatedRecordsAccordion from "./RelatedRecordsAccordion";
 import { Badge, Button, PersonIdentity, TextLink } from "./UI";
 
 export default function AssessmentCollectionCard({
@@ -27,6 +30,8 @@ export default function AssessmentCollectionCard({
   const scoreText = score
     ? ` · Raw score: ${score.value}${score.range ? ` / ${score.range[1]}` : ""}`
     : "";
+  const submittedDate = responseDate(col);
+  const scoreValue = assessmentScoreLabel(col, score);
   return (
     <RecordItem
       title={col.label}
@@ -36,27 +41,15 @@ export default function AssessmentCollectionCard({
       initiallyExpanded={initiallyExpanded}
       selected={col.id === selectedId}
       headingLevel={headingLevel}
-      className={inTimeline ? "record-item-compact assessment-timeline-item" : ""}
+      className={`assessment-collection-card${inTimeline ? " record-item-compact assessment-timeline-item" : ""}`}
       facts={[
         {
           label: "Respondent",
           value: <PersonIdentity name={respondent.name} descriptor={respondent.role} />,
         },
         { label: "Due date", value: formatDate(col.due) },
-        { label: "Collection method", value: col.channel || "Not set up" },
-        ...(relatedContacts.length ? [{
-          label: "Related contacts",
-          wide: true,
-          value: (
-            <ul className="assessment-contact-list">
-              {relatedContacts.map((contact) => (
-                <li key={contact.id}>
-                  {formatDate(contact.actualDate || contact.plannedDate)} · {contact.contactType || contact.appointmentType || "Service contact"} · {contact.attendance}
-                </li>
-              ))}
-            </ul>
-          ),
-        }] : []),
+        { label: "Submitted", value: submittedDate ? formatDate(submittedDate) : "Not submitted" },
+        { label: "Score", value: scoreValue },
       ]}
       secondary={
         <>
@@ -65,16 +58,10 @@ export default function AssessmentCollectionCard({
             <span>Response <Badge>{col.response}</Badge></span>
             <span>Review <Badge>{clinicalReviewStatus(col)}</Badge></span>
           </div>
+          <RelatedRecordsAccordion kind="contacts" records={relatedContacts} collection={col} />
         </>
       }
-      note={
-        col.readOnly
-          ? "Historical assessment · view only · version retained"
-          : col.closureKind && col.attempts.length > 0 &&
-            col.attempts.every((attempt) => attempt.status === "Prepared (sample; not sent)")
-            ? "Sample link prepared · no SMS sent · version pinned at assignment"
-            : <>{col.attempts.length} delivery {col.attempts.length === 1 ? "attempt" : "attempts"} · version pinned at assignment</>
-      }
+      note={col.readOnly ? "Historical assessment · view only · version retained" : null}
       actions={
         <>
           <TextLink aria-haspopup="dialog" onClick={() => onViewDetails(col)}>View details</TextLink>

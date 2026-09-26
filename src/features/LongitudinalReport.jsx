@@ -128,7 +128,7 @@ function RecordDetail({ person, episode, entry, onClose, onOpenSource }) {
             : event?.eventType === "care-transition" && entry.id.startsWith("service-change-") ? "Service period"
             : event?.eventType === "goal-milestone" ? "Goal milestone" : "Care event"
         : entry.sourceType === "appointment"
-          ? "Appointment or service contact"
+          ? "Contact"
           : entry.sourceType === "clinical-record"
             ? clinicalRecordType(clinicalRecord?.recordType)?.label || "Structured care record"
         : entry.sourceType === "service"

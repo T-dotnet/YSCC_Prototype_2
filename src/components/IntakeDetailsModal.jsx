@@ -289,7 +289,7 @@ export default function IntakeDetailsModal({ person, intake, onClose }) {
             <p>{mode === "confirm-edit"
               ? `The updated details for ${person.name} will be saved. The reason will appear in intake history.`
               : mode === "confirm-archive"
-                ? `${person.name} will leave active People and work views. Appointments, assessments and intake history will remain in the record, which can be restored from the Archived filter.`
+                ? `${person.name} will leave active People and work views. Contacts, assessments and intake history will remain in the record, which can be restored from the Archived filter.`
                 : `${person.name} will return to active People and work views with the existing care record preserved.`}</p>
             {mode !== "confirm-edit" && (
               <Field label={mode === "confirm-archive" ? "Reason for archiving" : "Reason for restoring"}>

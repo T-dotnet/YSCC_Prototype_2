@@ -80,18 +80,18 @@ export default function QuestionnaireAppointmentConfirmation({
           ref={headingRef}
         >
           {appointment
-            ? "Confirm completion and appointment"
+            ? "Confirm completion and contact"
             : "Confirm completion"}
         </Heading>
         <p>
           The {collection.label.toLowerCase()} answers are complete. Confirm how
           they were collected
-          {appointment ? " and what happened at the linked appointment" : ""}{" "}
+          {appointment ? " and what happened at the linked contact" : ""}{" "}
           before submitting.
         </p>
         {tablet && appointment && (
           <Notice>
-            Pass the tablet to a clinician to confirm the appointment details.
+            Pass the tablet to a clinician to confirm the contact details.
           </Notice>
         )}
         <section
@@ -146,7 +146,7 @@ export default function QuestionnaireAppointmentConfirmation({
           >
             <div className="questionnaire-confirmation-heading">
               <SectionHeading id="linked-appointment-heading">
-                Linked appointment
+                Linked contact
               </SectionHeading>
               {!editingOutcome && (
                 <button
@@ -197,7 +197,7 @@ export default function QuestionnaireAppointmentConfirmation({
             <SectionHeading id="appointment-status-heading">
               Confirm what happened
             </SectionHeading>
-            <Field label="Appointment status">
+            <Field label="Contact status">
               <select
                 name="attendance"
                 value={attendance}
@@ -299,7 +299,7 @@ export default function QuestionnaireAppointmentConfirmation({
           </Button>
           <Button type="submit" variant="primary">
             {appointment
-              ? "Save response and appointment outcome"
+              ? "Save response and contact outcome"
               : "Save response"}
           </Button>
         </div>

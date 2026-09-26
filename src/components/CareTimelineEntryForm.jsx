@@ -16,9 +16,9 @@ import { prototypeScoreRange } from "../outcomeMeasures";
 export const TIMELINE_RECORD_TYPES = [
   {
     value: "appointment",
-    label: "Appointment or service contact",
+    label: "Contact",
     scope: "appointment",
-    description: "A planned appointment or recorded service contact.",
+    description: "A planned contact or recorded service contact.",
   },
   {
     value: "outcome",
@@ -521,17 +521,12 @@ export default function CareTimelineEntryForm({
             )}
 
             {isStructured && (
-              <>
-                <Field
-                  label="Source or authority"
-                  hint="For example, source clinical record, treating practitioner or completed measure."
-                >
-                  <input name="source" required />
-                </Field>
-                <Field label="Impact on care or coordination (optional)" hint="Record an observed change or follow-up only if it is documented by the source.">
-                  <textarea name="impact" rows="3" />
-                </Field>
-              </>
+              <Field
+                label="Source or authority"
+                hint="For example, source clinical record, treating practitioner or completed measure."
+              >
+                <input name="source" required />
+              </Field>
             )}
 
             {entryType === "medication-adverse" && (
@@ -545,7 +540,7 @@ export default function CareTimelineEntryForm({
               </Field>
             )}
 
-            {!isStructured && !isReportEvent && (
+            {!isStructured && !isReportEvent && entryType !== "care-transition" && (
               <Field label="Factual event summary">
                 <input
                   name="summary"
@@ -560,40 +555,17 @@ export default function CareTimelineEntryForm({
             )}
 
             {!isStructured && (
-              <>
-                <Field
-                  label={isReportEvent || entryType === "care-transition" ? "Source or authority" : "Source or observer (optional)"}
-                  hint="For example, person, treating clinician, hospital update or documented source."
-                >
-                  <input
-                    name="source"
-                    defaultValue={existingEvent?.fields?.source || ""}
-                    required={isReportEvent || entryType === "care-transition"}
-                  />
-                </Field>
-                <Field label="Impact on care or coordination (optional)">
-                  <textarea
-                    name="impact"
-                    rows="3"
-                    defaultValue={existingEvent?.fields?.impact || ""}
-                  />
-                </Field>
-              </>
+              <Field
+                label={isReportEvent || entryType === "care-transition" ? "Source or authority" : "Source or observer (optional)"}
+                hint="For example, person, treating clinician, hospital update or documented source."
+              >
+                <input
+                  name="source"
+                  defaultValue={existingEvent?.fields?.source || ""}
+                  required={isReportEvent || entryType === "care-transition"}
+                />
+              </Field>
             )}
-
-            <Field
-              label={isStructured || isReportEvent ? "Supporting notes (optional)" : "Factual description"}
-              hint={!isStructured ? "Describe what happened and any known outcome. Keep interpretation separate from the facts." : undefined}
-            >
-              <textarea
-                name="notes"
-                rows="3"
-                defaultValue={
-                  !isStructured ? existingEvent?.fields?.notes || "" : ""
-                }
-                required={!isStructured && !isReportEvent && NEW_RECORD_TYPES.includes(entryType)}
-              />
-            </Field>
 
             {isCorrection && (
               <Field label="Reason for correction">

@@ -16,14 +16,17 @@ function fixture(index = 4) {
 
 test("overdue active links lead to inspection, while expired links lead to replacement", () => {
   const active = fixture();
+  const activeDaysLate = Math.round((Date.parse(TODAY) - Date.parse(active.collection.due)) / 86400000);
   assert.equal(active.step().primary.modal, "collection-details");
   assert.match(active.step().description, /link is still active/);
-  assert.match(active.step().dueText, /14 Sep 2026 · 1 day overdue/);
+  assert.equal(active.step().dueText, `Due 14 Sep 2026 · ${activeDaysLate} ${activeDaysLate === 1 ? "day" : "days"} overdue`);
+  assert.equal(active.step().overdueText, `${activeDaysLate} ${activeDaysLate === 1 ? "day" : "days"} overdue`);
   const expired = fixture(0);
+  const expiredDaysLate = Math.round((Date.parse(TODAY) - Date.parse(expired.collection.due)) / 86400000);
   assert.equal(expired.step().primary.modal, "collection");
   assert.equal(expired.step().primary.label, "Replace expired link");
-  assert.match(expired.step().description, /draft.*cannot be resumed/);
-  assert.match(expired.step().dueText, /3 days overdue/);
+  assert.match(expired.step().description, /Saved answers can continue in a new session/);
+  assert.match(expired.step().dueText, new RegExp(`${expiredDaysLate} ${expiredDaysLate === 1 ? "day" : "days"} overdue`));
 });
 
 test("preparing another attempt changes the recommendation without creating a new collection", () => {
@@ -63,11 +66,11 @@ test("an unsent questionnaire can be arranged whether overdue, due today or sche
   }
 });
 
-test("draft and revoked links require inspection without offering a false resume action", () => {
+test("draft answers can continue in a new session while revoked links require inspection", () => {
   const { collection, step } = fixture();
   collection.response = "Draft";
   assert.equal(step().primary.modal, "collection-details");
-  assert.match(step().description, /cannot be resumed/);
+  assert.match(step().description, /Start another collection session to continue/);
   collection.link = "Revoked";
   assert.match(step().title, /revoked/);
   assert.equal(step().primary.modal, "collection-details");

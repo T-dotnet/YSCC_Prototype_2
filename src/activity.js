@@ -215,7 +215,7 @@ export function activityEntries(person, episode, audit = []) {
       date: appointment.actualDate || appointment.plannedDate,
       title: appointmentTitle(appointment),
       detail: appointmentSummary(appointment),
-      scope: "Appointment or service contact",
+      scope: "Contact",
       changes: appointmentChanges(appointment),
     });
   }

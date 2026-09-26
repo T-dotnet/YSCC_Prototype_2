@@ -11,6 +11,7 @@ export const APPOINTMENT_ATTENDANCE = [
 export const APPOINTMENT_DELIVERY_MODES = [
   "In person",
   "Phone",
+  "SMS",
   "Video",
   "Outreach or community",
   "Other",
@@ -79,11 +80,11 @@ const validContact = (action, prior = {}) => {
 export function appointmentError(episode, action, today) {
   if (!episode) return "The selected care episode is unavailable.";
   if (!validDate(action.plannedDate) || !validTime(action.plannedTime))
-    return "Enter a valid planned date and time.";
+    return "Enter a valid contact date and time.";
   if (action.plannedDate < episode.start || (episode.end && action.plannedDate > episode.end))
-    return "The planned contact must be within this care episode.";
+    return "The contact must be within this care episode.";
   if (!validDuration(action.plannedDurationMinutes))
-    return "Enter a planned duration between 1 and 600 minutes.";
+    return "Enter a duration between 1 and 600 minutes.";
   if (!action.practitionerService?.trim())
     return "Enter the practitioner or service.";
   if (!APPOINTMENT_DELIVERY_MODES.includes(action.deliveryMode))
@@ -97,7 +98,7 @@ export function appointmentError(episode, action, today) {
       appointment.practitionerService === action.practitionerService,
   );
   if (duplicate)
-    return "A contact with the same planned date, time and practitioner or service already exists. Check the existing record before adding another.";
+    return "A contact with the same date, time and practitioner or service already exists. Check the existing record before adding another.";
   const collectionIds = action.collectionIds ?? (action.collectionId ? [action.collectionId] : []);
   if (!Array.isArray(collectionIds) || new Set(collectionIds).size !== collectionIds.length)
     return "Choose valid assessments to associate with this contact.";
@@ -120,11 +121,11 @@ export function appointmentError(episode, action, today) {
 
 export function appointmentOutcomeError(episode, appointment, action, today) {
   if (!episode || !appointment)
-    return "The selected appointment or service contact is unavailable.";
+    return "The selected contact is unavailable.";
   if (episode.status !== "Active")
     return "An outcome can only be recorded while this care episode is active.";
   if (appointment.attendance !== "Planned")
-    return "An outcome has already been recorded for this appointment or service contact.";
+    return "An outcome has already been recorded for this contact.";
   if (!APPOINTMENT_ATTENDANCE.includes(action.attendance) || action.attendance === "Planned")
     return "Choose an attended, cancelled or did-not-attend outcome.";
   if (action.attendance !== "Attended") return null;
@@ -228,7 +229,7 @@ export function appointmentIsOverdue(appointment, today) {
 }
 
 export function appointmentTitle(appointment) {
-  const noun = appointment.contactType ? "Service contact" : "Appointment";
+  const noun = appointment.contactType ? "Service contact" : "Contact";
   return appointment.attendance === "Planned"
     ? `Planned ${noun.toLowerCase()}`
     : `${noun} ${appointment.attendance.toLowerCase()}`;

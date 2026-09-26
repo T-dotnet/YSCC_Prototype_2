@@ -15,7 +15,7 @@ export default function ClinicianQuestionnaire({
   onClose,
 }) {
   const { state, commit } = useStore();
-  const [answers, setAnswers] = useState([]);
+  const [answers, setAnswers] = useState(() => [...(collection.draftAnswers || [])]);
   const [discard, setDiscard] = useState(false);
   const [finished, setFinished] = useState(false);
   const [error, setError] = useState("");
@@ -43,9 +43,22 @@ export default function ClinicianQuestionnaire({
     c.recorderId === staff.id &&
     c.attempts.at(-1)?.id === attemptId &&
     !!instrument;
-  const dirty = answers.some(Boolean) && !finished;
+  const dirty = answers.some((answer, index) => answer !== (collection.draftAnswers || [])[index]) && !finished;
   const respondent = collectionActor(person, c, "respondent");
   const requestClose = () => (dirty ? setDiscard(true) : onClose());
+  const saveProgress = () => {
+    const result = commit({
+      type: "SAVE_RESPONSE_PROGRESS",
+      personId: person.id,
+      episodeId: episode.id,
+      collectionId: c.id,
+      channel: "Clinician entry",
+      attemptId,
+      answers,
+    });
+    if (result.error) return setError(result.error);
+    onClose();
+  };
 
   useEffect(() => {
     if (!dirty) return;
@@ -136,8 +149,8 @@ export default function ClinicianQuestionnaire({
             {!pendingAnswers && (
               <Notice>
                 Enter {respondent}’s answers using the questionnaire wording
-                below. Review them before submitting. Unsaved answers are
-                cleared when you leave or refresh.
+                below. Save progress to continue in another session, or review
+                and submit when complete.
               </Notice>
             )}
             {!available ? (
@@ -180,6 +193,11 @@ export default function ClinicianQuestionnaire({
                     headingLevel="h3"
                     clinicianEntry
                   />
+                )}
+                {!pendingAnswers && dirty && answers.some(Boolean) && (
+                  <div className="questionnaire-save-progress">
+                    <Button type="button" onClick={saveProgress}>Save progress and close</Button>
+                  </div>
                 )}
               </div>
             )}

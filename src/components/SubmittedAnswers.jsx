@@ -8,7 +8,8 @@ import {
   describeRule,
 } from "../instruments";
 import { Notice } from "./UI";
-import { collectionActor } from "../model";
+import { collectionActor, formatDate } from "../model";
+import { answerSession } from "../responseSessions";
 import { Undo2 } from "lucide-react";
 
 export default function SubmittedAnswers({
@@ -48,6 +49,14 @@ export default function SubmittedAnswers({
             {title(question)}
           </h4>
           <p className="recorded-answer">{answerLabel(entry)}</p>
+          {answer && (() => {
+            const session = answerSession(collection, question.id);
+            return session ? <p className="answer-session-source">
+              Supplied in session {(collection.attempts || []).findIndex((attempt) => attempt.id === session.id) + 1} · {session.date ? formatDate(session.date) : "date not recorded"} · {session.channel || "Channel not recorded"}
+            </p> : collection.answerSources?.[question.id]?.startsWith("edit:")
+              ? <p className="answer-session-source">Corrected after submission · see response history</p>
+              : null;
+          })()}
           <details className="answer-options-disclosure">
             <summary>Question context & answer options</summary>
             <p>{question.hint}</p>

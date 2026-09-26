@@ -17,7 +17,7 @@ export default class ErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ padding: "40px", textAlign: "center", color: "#b91c1c" }}>
+        <div style={{ padding: "40px", textAlign: "center", color: "var(--validation-text)" }}>
           <h1>Something went wrong.</h1>
           <p>{this.state.error?.toString()}</p>
           <button 

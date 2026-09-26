@@ -7,12 +7,12 @@ import { assessmentsForContact, contactsForAssessment } from "./assessmentContac
 import { DEMO_INSTRUMENT, INITIAL_ASSESSMENT_INSTRUMENT } from "./instruments.js";
 import { createSampleAnswers } from "./sampleQuestionnaires.js";
 import {
-  createSeed,
   practitionerServiceOptions,
   reducer,
   TODAY,
   upgradeSampleData,
 } from "./model.js";
+import { emptyDraftSeed as createSeed } from "./testFixtures.js";
 
 const context = {
   personId: "YS-1024",
@@ -83,6 +83,25 @@ test("an attended appointment retains planned and actual contact details", () =>
     .some((item) => item.id === appointment.id), true);
 });
 
+test("an SMS contact is saved and appears in the contact timeline", () => {
+  const next = reducer(createSeed(), {
+    ...attendedContact,
+    deliveryMode: "SMS",
+    contactType: "Other direct contact",
+    recipientType: "Young person",
+    relatedPersonName: "",
+    actualDurationMinutes: "5",
+  });
+  const person = next.people[0];
+  const episode = person.episodes[0];
+  const contact = episode.appointments.find((item) => item.deliveryMode === "SMS");
+  assert.ok(contact);
+  assert.equal(contact.attendance, "Attended");
+  assert.equal(contact.actualDurationMinutes, 5);
+  assert.ok(activityEntries(person, episode, next.audit)
+    .some((entry) => entry.type === "appointment" && entry.detail.includes("SMS")));
+});
+
 test("a new attended contact retains factual care context in its source details", () => {
   const next = reducer(createSeed(), {
     ...attendedContact,
@@ -126,7 +145,7 @@ test("appointment records appear in care-period history and change log", () => {
   const appointment = history.find((entry) => entry.type === "appointment");
   assert.equal(appointment.title, "Service contact attended");
   assert.match(appointment.detail, /Jess Taylor · Northside Centre/);
-  assert.equal(appointment.scope, "Appointment or service contact");
+  assert.equal(appointment.scope, "Contact");
   const changes = changeLogEntries(person, episode, next.audit).find(
     (entry) => entry.type === "appointment",
   );
@@ -185,8 +204,8 @@ test("a contact can link multiple assessments and an assessment can link multipl
     label === "Associated assignments" && assessments.every((assessment) => value.includes(assessment.label))));
   const entry = careEventEntries(next.people[0], episode, next.audit)
     .find((item) => item.id === `assessment-${assessments[0].id}`);
-  assert.ok(historyItem(entry, episode).primary.some((item) =>
-    item.label === "Related contacts"));
+  assert.ok(associatedCareItems(entry, episode).some((item) =>
+    item.id === appointment.id));
   const second = reducer(next, {
     ...action, id: "APT-second-review", plannedDate: "2026-09-11", plannedTime: "14:00",
   });
@@ -234,6 +253,51 @@ test("a response identifies its source contact while other linked contacts remai
   assert.equal(submitted.people[0].episodes[0].collections
     .find((item) => item.id === context.collectionId).submittedAppointmentId,
     "APT-source-second");
+});
+
+test("linking a contact to an unassigned attempt preserves its channel and assistance", () => {
+  const state = reducer(createSeed(), {
+    ...attendedContact, id: "APT-attempt-contact", plannedTime: "12:00", actualTime: "12:10",
+  });
+  const collection = state.people[0].episodes[0].collections.find((item) => item.id === context.collectionId);
+  collection.attempts.push({
+    id: "attempt-without-contact", date: TODAY, channel: "Clinic tablet",
+    assistance: "Supported", status: "Session started (sample)",
+  });
+  collection.submittedAttemptId = "attempt-without-contact";
+  collection.submittedAppointmentId = null;
+  const planned = reducer(state, {
+    ...plannedContact, id: "APT-not-yet-attended", plannedTime: "15:00", collectionIds: [],
+  });
+  assert.equal(reducer(planned, {
+    ...context, type: "LINK_ASSESSMENT_CONTACT", appointmentId: "APT-not-yet-attended",
+    attemptId: "attempt-without-contact",
+  }), planned);
+  const linked = reducer(state, {
+    ...context, type: "LINK_ASSESSMENT_CONTACT", appointmentId: "APT-attempt-contact",
+    attemptId: "attempt-without-contact",
+  });
+  const updated = linked.people[0].episodes[0].collections.find((item) => item.id === context.collectionId);
+  assert.equal(updated.attempts.at(-1).appointmentId, "APT-attempt-contact");
+  assert.equal(updated.attempts.at(-1).channel, "Clinic tablet");
+  assert.equal(updated.attempts.at(-1).assistance, "Supported");
+  assert.equal(updated.submittedAppointmentId, "APT-attempt-contact");
+  assert.equal(contactsForAssessment(linked.people[0].episodes[0], context.collectionId)
+    .some((item) => item.id === "APT-attempt-contact"), true);
+  const anotherContact = reducer(linked, {
+    ...plannedContact, id: "APT-related-only", plannedTime: "16:00", collectionIds: [],
+  });
+  const relatedOnly = reducer(anotherContact, {
+    ...context, type: "LINK_ASSESSMENT_CONTACT", appointmentId: "APT-related-only",
+  });
+  const relatedCollection = relatedOnly.people[0].episodes[0].collections
+    .find((item) => item.id === context.collectionId);
+  assert.equal(relatedCollection.submittedAppointmentId, "APT-attempt-contact");
+  assert.equal(relatedCollection.attempts.at(-1).appointmentId, "APT-attempt-contact");
+  assert.equal(reducer(linked, {
+    ...context, type: "LINK_ASSESSMENT_CONTACT", appointmentId: "APT-attempt-contact",
+    attemptId: "attempt-without-contact",
+  }), linked);
 });
 
 test("multiple contacts can contribute to the initial assessment without reassigning its questionnaire", () => {
@@ -410,6 +474,7 @@ test("Jordan's fictional full-report fixture shows every appointment status and 
       "In person",
       "Phone",
       "Video",
+      "SMS",
       "Outreach or community",
       "Other",
     ]),
@@ -422,9 +487,17 @@ test("Jordan shows multiple contacts for an assessment and multiple assessments 
   const episode = createSeed().people.find((person) => person.id === "YS-1034").episodes[0];
   const assessment = episode.collections.find((item) => item.id === "A-7-life-care-twelve-weeks");
   assert.deepEqual(new Set(contactsForAssessment(episode, assessment.id).map((item) => item.id)),
-    new Set(["APT-7-twelve-weeks", "APT-7-attended", "APT-7-upcoming-plan"]));
+    new Set(["APT-7-sms-check-in", "APT-7-twelve-weeks", "APT-7-attended", "APT-7-upcoming-plan"]));
   assert.equal(assessment.submittedAppointmentId, "APT-7-twelve-weeks");
   assert.equal(assessment.due, "2026-09-08");
+  assert.deepEqual(assessment.attempts.map((item) => [item.channel, item.assistance]), [
+    ["SMS link", "Independent"], ["Clinic tablet", "Independent"],
+  ]);
+  assert.equal(assessment.attempts[0].appointmentId, "APT-7-sms-check-in");
+  assert.equal(assessment.submittedAttemptId, assessment.attempts[1].id);
+  const sourceIds = Object.values(assessment.answerSources);
+  assert.equal(sourceIds.filter((id) => id === assessment.attempts[0].id).length, 2);
+  assert.equal(sourceIds.filter((id) => id === assessment.attempts[1].id).length, 4);
   assert.deepEqual(new Set(assessmentsForContact(episode, "APT-7-attended").map((item) => item.id)),
     new Set(["A-7-life-care-twelve-weeks", "A-7-everyday-life-twelve-weeks"]));
   assert.deepEqual(assessmentsForContact(episode, "APT-7-upcoming-plan").map((item) => item.id),
@@ -444,7 +517,41 @@ test("saved Jordan data gains missing example links once without replacing custo
   assert.equal(updated.assessmentContactLinks.length, 5);
   assert.equal(contactsForAssessment(updated, "A-7-life-care-eight-weeks")
     .some((item) => item.id === "APT-7-attended"), true);
-  assert.equal(contactsForAssessment(updated, "A-7-life-care-twelve-weeks").length, 3);
+  assert.equal(contactsForAssessment(updated, "A-7-life-care-twelve-weeks").length, 4);
+  assert.equal(upgradeSampleData(upgraded), upgraded);
+});
+
+test("saved Jordan assessment gains the earlier delivery example without replacing custom attempts", () => {
+  const saved = createSeed();
+  const collection = saved.people.find((person) => person.id === "YS-1034")
+    .episodes[0].collections.find((item) => item.id === "A-7-life-care-twelve-weeks");
+  const submittedAttempt = collection.attempts[1];
+  collection.attempts = [submittedAttempt];
+  const upgraded = upgradeSampleData(saved);
+  const updated = upgraded.people.find((person) => person.id === "YS-1034")
+    .episodes[0].collections.find((item) => item.id === collection.id);
+  assert.equal(updated.attempts.length, 2);
+  assert.equal(upgradeSampleData(upgraded), upgraded);
+  const custom = structuredClone(saved);
+  const customCollection = custom.people.find((person) => person.id === "YS-1034")
+    .episodes[0].collections.find((item) => item.id === collection.id);
+  customCollection.attempts.unshift({ id: "user-attempt", date: "2026-09-05", channel: "SMS link" });
+  assert.equal(upgradeSampleData(custom), custom);
+});
+
+test("Jordan's old sample source attribution is normalised to the partial SMS example", () => {
+  const saved = createSeed();
+  const collection = saved.people.find((person) => person.id === "YS-1034")
+    .episodes[0].collections.find((item) => item.id === "A-7-life-care-twelve-weeks");
+  const questionIds = Object.keys(collection.answerSources);
+  for (const id of questionIds.slice(0, 3)) collection.answerSources[id] = collection.attempts[0].id;
+  collection.attempts[0].status = "Progress saved (fictional example)";
+  const upgraded = upgradeSampleData(saved);
+  const updated = upgraded.people.find((person) => person.id === "YS-1034")
+    .episodes[0].collections.find((item) => item.id === collection.id);
+  assert.equal(Object.values(updated.answerSources).filter((id) => id === updated.attempts[0].id).length, 2);
+  assert.equal(Object.values(updated.answerSources).filter((id) => id === updated.submittedAttemptId).length, 4);
+  assert.equal(updated.attempts[0].status, "Progress saved");
   assert.equal(upgradeSampleData(upgraded), upgraded);
 });
 
@@ -458,7 +565,7 @@ test("saved mock data gains Jordan's complete appointment fixture once", () => {
   const migratedJordan = migrated.people.find((person) => person.id === "YS-1034");
   assert.deepEqual(saved, before);
   assert.equal(migrated.sampleRevision, 28);
-  assert.equal(migratedJordan.episodes[0].appointments.length, 9);
+  assert.equal(migratedJordan.episodes[0].appointments.length, 10);
   assert.equal(upgradeSampleData(migrated), migrated);
 });
 
@@ -528,7 +635,8 @@ test("Jordan's non-SMS sample responses retain their attended source contact", (
     assert.equal(appointment.attendance, "Attended");
     assert.ok(appointmentMatchesCollectionDate(appointment, collection));
     assert.equal(collection.appointmentId, appointment.id);
-    assert.equal(collection.attempts[0].appointmentId, appointment.id);
+    assert.equal(collection.attempts.find((item) => item.id === collection.submittedAttemptId)?.appointmentId,
+      appointment.id);
   }
   const review = entries.find((entry) => entry.id === "appointment-APT-7-twelve-weeks");
   assert.deepEqual(associatedCareItems(review, episode).map((item) => item.title),

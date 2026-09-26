@@ -60,6 +60,24 @@ export default function App() {
       sessionStorage.removeItem("yscc-session");
     } catch {}
   };
+  const questionnaireParams = path === "/questionnaire"
+    ? new URLSearchParams(window.location.search)
+    : null;
+  const linkedPersonId = questionnaireParams?.get("person");
+  const linkedEpisodeId = questionnaireParams?.get("episode");
+  const linkedCollectionId = questionnaireParams?.get("collection");
+  const linkedCollection = state.people.find((person) => person.id === linkedPersonId)
+    ?.episodes.find((episode) => episode.id === linkedEpisodeId)
+    ?.collections.find((collection) => collection.id === linkedCollectionId);
+  const linkedQuestionnaireSession = linkedCollection ? {
+    personId: linkedPersonId,
+    episodeId: linkedEpisodeId,
+    collectionId: linkedCollectionId,
+    channel: linkedCollection.channel,
+    respondent: linkedCollection.respondent,
+    assistance: linkedCollection.assistance,
+    attemptId: linkedCollection.attempts?.at(-1)?.id,
+  } : null;
   if (path === "/consent")
     return (
       <ConsentRequest
@@ -72,7 +90,9 @@ export default function App() {
     return (
       <Questionnaire
         key={path}
-        session={path === "/preview" ? null : session || { unavailable: true }}
+        session={path === "/preview" ? null : linkedCollectionId
+          ? linkedQuestionnaireSession || { unavailable: true }
+          : session || { unavailable: true }}
         navigate={navigate}
         onEnd={finishSession}
       />

@@ -485,7 +485,7 @@ function OutcomeRecordDetail({ measure, record, onOpenAssessment }) {
         {record.dueState && (
           <div>
             <dt>Follow-up</dt>
-            <dd>
+            <dd className={record.dueState === "Overdue" ? "status-overdue-text" : undefined}>
               {record.dueState}
               {record.dueDate ? ` · due ${formatDate(record.dueDate)}` : ""}
             </dd>
@@ -564,7 +564,7 @@ function OutcomeMeasureCard({
             </span>
             <ChevronDown className="outcome-card-chevron" size={18} aria-hidden="true" />
           </div>
-          <div className="outcome-card-change">
+          <div className={`outcome-card-change${measure.needsFollowUp && measure.latest.dueState === "Overdue" ? " status-overdue-text" : ""}`}>
             {measure.needsFollowUp ? (
               <>
                 <Clock3 size={15} aria-hidden="true" />

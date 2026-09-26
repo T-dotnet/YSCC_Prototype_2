@@ -10,7 +10,7 @@ import {
   questionnaireState,
   setQuestionAnswer,
 } from "./instruments.js";
-import { createSeed, reducer, responseEditError } from "./model.js";
+import { TODAY, createSeed, reducer, responseEditError } from "./model.js";
 import { compareResponses } from "./progress.js";
 const index = (id) =>
   instrument.questions.findIndex((question) => question.id === id);
@@ -41,7 +41,7 @@ function planned() {
     type: "PLAN",
     ...context,
     label: "Adaptive test",
-    due: "2026-09-15",
+    due: TODAY,
   });
   context.collectionId = state.people[0].episodes[0].collections.at(-1).id;
   state = reducer(state, {

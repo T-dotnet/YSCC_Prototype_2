@@ -73,7 +73,9 @@ export default function ReviewPack({
                   : "No assessment collections are incomplete."}
               </p>
               <small>
-                {nextStep?.dueText || "Current due date not recorded"}
+                {nextStep?.overdueText ? (
+                  <>{nextStep.dueDateText} · <span className="status-overdue-text">{nextStep.overdueText}</span></>
+                ) : nextStep?.dueText || "Current due date not recorded"}
               </small>
             </div>
             {onOpenAssessment && (

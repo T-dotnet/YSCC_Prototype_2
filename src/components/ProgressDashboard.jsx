@@ -16,6 +16,7 @@ import { Badge, Select } from "./UI";
 import LikertTrendCard from "./LikertTrendCard";
 import CareContextVisuals from "./CareContextVisuals";
 import ReportEvidenceCard from "./ReportEvidenceCard";
+import { answerSession } from "../responseSessions";
 
 export default function ProgressDashboard({
   person,
@@ -382,6 +383,9 @@ export default function ProgressDashboard({
                             {visibleLikertTrends.map((trend) => (
                               <LikertTrendCard
                                 key={trend.id}
+                                answerSource={latestLikertResponse && answerSession(latestLikertResponse, trend.id)}
+                                answerSessionNumber={latestLikertResponse?.attempts?.findIndex((attempt) => attempt.id === answerSession(latestLikertResponse, trend.id)?.id) + 1}
+                                corrected={latestLikertResponse?.answerSources?.[trend.id]?.startsWith("edit:")}
                                 trend={{
                                   ...trend,
                                   comparison: comparisonForTrend(trend),

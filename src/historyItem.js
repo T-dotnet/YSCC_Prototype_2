@@ -1,7 +1,9 @@
 import { appointmentDetails, appointmentTitle } from "./appointments.js";
 import { assessmentsForContact, contactsForAssessment } from "./assessmentContacts.js";
+import { assessmentScoreLabel, linkedAssessmentScore } from "./assessmentGroups.js";
 import { careEventDetails, careEventType } from "./careEvents.js";
 import { clinicalRecordDetails, clinicalRecordType } from "./clinicalRecords.js";
+import { responseDate } from "./progress.js";
 
 const CARE_LEVEL_ACTIONS = ["SET_INITIAL_CARE_LEVEL", "CHANGE_CARE_LEVEL", "END_CARE_EPISODE_FOR_LEVEL_CHANGE"];
 
@@ -29,7 +31,7 @@ export const historyCategory = (entry) =>
                 : "care-period";
 
 export const HISTORY_CATEGORIES = {
-  appointment: "Appointments",
+  appointment: "Contact",
   "clinical-record": "Structured care records",
   "contextual-event": "Contextual events",
   assessment: "Assessment activity",
@@ -42,6 +44,32 @@ export const HISTORY_CATEGORIES = {
 
 const fact = (label, value) => ({ label, value });
 const populated = ([, value]) => value !== null && value !== undefined && value !== "";
+
+export function contactCareEventFacts(item, appointment) {
+  const find = (label) => [...item.primary, ...item.more].find((detail) => detail.label === label);
+  const duration = find(appointment.actualDate ? "Actual duration" : "Planned duration");
+  const primary = [
+    find("Delivery mode"),
+    duration && fact("Duration", duration.value),
+    find("Purpose or care context"),
+    find("Impact on care or coordination"),
+    find("Outcome notes"),
+    find("Notes"),
+  ].filter(Boolean);
+  const displayed = new Set(primary.map(({ label }) => label));
+  return {
+    primary,
+    more: item.more.filter(({ label, value }) => {
+      if (displayed.has(label) || label.startsWith("Associated assignment") ||
+          ["Recorded by", "Recorded at", "Direct contact type"].includes(label)) return false;
+      if (["Planned date", "Planned time"].includes(label))
+        return appointment.actualDate && value !== appointment[label === "Planned date" ? "actualDate" : "actualTime"];
+      if (label === "Planned duration")
+        return appointment.actualDate && value !== find("Actual duration")?.value;
+      return true;
+    }),
+  };
+}
 
 export function associatedCareItems(entry, episode) {
   if (entry.type === "appointment") {
@@ -64,7 +92,7 @@ export function associatedCareItems(entry, episode) {
     return contactsForAssessment(episode, collection.id)
       .map((appointment) => ({
         id: appointment.id,
-        type: "Appointment",
+        type: "Contact",
         title: appointmentTitle(appointment),
         subtitle: appointment.contactType || appointment.appointmentType || appointment.practitionerService,
         date: appointment.actualDate || appointment.plannedDate,
@@ -128,20 +156,17 @@ export function historyItem(entry, episode, formatDetail = (value) => value) {
 
   if (entry.type === "assessment") {
     const collection = episode.collections.find((item) => item.id === entry.collectionId);
-    const contacts = collection ? contactsForAssessment(episode, collection.id) : [];
     if (collection) return {
       subtitle: collection.version,
       date: historyDate(entry),
       dateLabel: collection.response === "Submitted" && collection.submittedAt
         ? "Response date" : "Due date",
       primary: [
-        fact("Response", collection.response),
         fact("Due date", collection.due),
-        ...(contacts.length ? [fact("Related contacts", contacts.map((item) =>
-          `${item.contactType || item.appointmentType || "Service contact"} · ${item.actualDate || item.plannedDate}`).join(", "))] : []),
+        fact("Submitted", responseDate(collection) || "Not submitted"),
+        fact("Score", assessmentScoreLabel(collection, linkedAssessmentScore(episode, collection))),
       ],
       more: [
-        fact("Collection method", collection.channel || "Not set up"),
         fact("Assignment", collection.assignment),
         fact("Review", collection.review),
       ],

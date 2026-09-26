@@ -31,7 +31,7 @@ export function careRecordTimelineEntries(episode) {
       sourceType: "appointment",
       scope: "structured",
       type: "appointment",
-      typeLabel: "Appointment or service contact",
+      typeLabel: "Contact",
       date: appointmentDate(appointment),
       time: appointment.actualTime || appointment.plannedTime || null,
       dateLabel: appointment.actualDate ? "Actual contact"

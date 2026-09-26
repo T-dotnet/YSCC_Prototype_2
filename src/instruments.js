@@ -796,7 +796,7 @@ export const INSTRUMENTS = [
   ),
   sampleInstrument(
     "Practical support",
-    "Identify access needs, appointment preferences and help with taking part.",
+    "Identify access needs, contact preferences and help with taking part.",
     [
       ["access", "Getting to your visit"],
       ["communication", "Taking part"],

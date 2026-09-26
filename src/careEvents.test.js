@@ -70,3 +70,23 @@ test("a care or service change retains optional period data in one source event"
   assert.equal(event.fields.status, "Delivered");
   assert.equal(reducer(state, { ...action, endDate: "", periodName: "" }), state);
 });
+
+test("a care or service change saves without a factual summary", () => {
+  const state = createSeed();
+  const action = {
+    type: "ADD_CARE_EVENT",
+    personId: "YS-1024",
+    episodeId: "EP-1024-01",
+    eventType: "care-transition",
+    eventDate: state.people[0].episodes[0].start,
+    source: "Service log",
+    periodName: "Community programme",
+  };
+  const next = reducer(state, action);
+  assert.notEqual(next, state);
+  assert.equal(next.people[0].episodes[0].events[0].title, "Community programme · care or service change");
+
+  const withoutPeriod = reducer(state, { ...action, periodName: "" });
+  assert.notEqual(withoutPeriod, state);
+  assert.equal(withoutPeriod.people[0].episodes[0].events[0].title, "Care or service change");
+});

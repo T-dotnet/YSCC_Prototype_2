@@ -1,12 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  createSeed,
   reducer,
   getTasks,
   collectionActor,
   TODAY,
 } from "./model.js";
+import { emptyDraftSeed as createSeed } from "./testFixtures.js";
 import { createSampleAnswers } from "./sampleQuestionnaires.js";
 
 const context = {

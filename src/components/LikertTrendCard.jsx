@@ -57,6 +57,9 @@ export default function LikertTrendCard({
   trend,
   events = [],
   comparisonPointId,
+  answerSource,
+  answerSessionNumber,
+  corrected = false,
 }) {
   const titleId = useId();
   const descriptionId = useId();
@@ -114,6 +117,8 @@ export default function LikertTrendCard({
         <div className="likert-summary-selected">
           <span>{latest.label || "Selected assessment"} · {formatDate(latest.date)}</span>
           <strong>{latest.answer}</strong>
+          {answerSource && <small className="answer-session-source">Supplied in session {answerSessionNumber} · {formatDate(answerSource.date)} · {answerSource.channel || "Channel not recorded"}</small>}
+          {corrected && <small className="answer-session-source">Corrected after submission · see response history</small>}
         </div>
       </div>
 

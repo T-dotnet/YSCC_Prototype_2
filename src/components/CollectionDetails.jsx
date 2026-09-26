@@ -7,9 +7,12 @@ import {
 } from "../model";
 import { canAssess } from "../intake";
 import { collectionSetupLabel } from "../overview";
-import { Modal, Button, Badge, Notice } from "./UI";
+import { Modal, Button, Badge } from "./UI";
 import { contactsForAssessment } from "../assessmentContacts";
 import { ChevronDown } from "lucide-react";
+import { getInstrument } from "../instruments";
+import { sessionAnswerCounts } from "../responseSessions";
+import DeliveryAttemptsTable from "./DeliveryAttemptsTable";
 
 export default function CollectionDetails({
   person,
@@ -20,8 +23,11 @@ export default function CollectionDetails({
   canCompleteAsClinician = false,
 }) {
   const c = collection;
-  const linkedContacts = contactsForAssessment(episode, c.id);
+  const linkedContacts = contactsForAssessment(episode, c.id).sort((a, b) =>
+    (a.actualDate || a.plannedDate || "").localeCompare(b.actualDate || b.plannedDate || ""));
   const submitted = c.response === "Submitted";
+  const answerCounts = sessionAnswerCounts(c, getInstrument(c.version), !submitted);
+  const savedAnswerCount = [...answerCounts.values()].reduce((sum, count) => sum + count, 0);
   const collectionOpen =
     canCollectInEpisode(episode, c) &&
     !["Paused", "Cancelled"].includes(c.assignment) &&
@@ -32,6 +38,7 @@ export default function CollectionDetails({
       title={c.label}
       subtitle={`${displayPersonName(person)} · Care episode ${episode.number}`}
       onClose={onClose}
+      wide
     >
       <div className="form-body collection-details">
         <section
@@ -47,7 +54,7 @@ export default function CollectionDetails({
           {!submitted && (
             <p>
               {c.response === "Draft"
-                ? "A draft is in progress. This sample draft cannot be resumed; check the collection arrangements before starting another attempt."
+                ? `${savedAnswerCount} ${savedAnswerCount === 1 ? "answer is" : "answers are"} saved. Start another session to continue on the same or a different channel.`
                 : "No response has been submitted. Check delivery activity and contact arrangements before deciding whether another attempt is needed."}
             </p>
           )}
@@ -93,15 +100,11 @@ export default function CollectionDetails({
                 <dt>Respondent</dt>
                 <dd>{displayCollectionActor(person, c, "respondent")}</dd>
               </div>
-              {(submitted || c.attempts.length > 0) && (
+              {submitted && (
                 <>
                   <div>
                     <dt>Recorder</dt>
                     <dd>{displayCollectionActor(person, c, "recorder")}</dd>
-                  </div>
-                  <div>
-                    <dt>Assistance</dt>
-                    <dd>{c.assistance || "Not recorded"}</dd>
                   </div>
                 </>
               )}
@@ -110,49 +113,22 @@ export default function CollectionDetails({
         </details>
         <details className="collection-details-accordion" open>
           <summary>
-            <span>Delivery and contact</span>
+            <span>Delivery attempts</span>
             <ChevronDown size={18} aria-hidden="true" />
           </summary>
           <div className="collection-details-accordion-body">
-            <dl className="metadata">
-              <div>
-                <dt>Channel</dt>
-                <dd>
-                  {c.channel || (submitted ? "Not recorded" : "Not selected")}
-                </dd>
-              </div>
-              {c.externalAppointment && <div>
-                <dt>External appointment</dt>
-                <dd>{c.externalAppointment.date} at {c.externalAppointment.time} · {c.externalAppointment.practitionerService} · {c.externalAppointment.deliveryMode}</dd>
-              </div>}
-              <div>
-                <dt>Related contacts</dt>
-                <dd>
-                  {linkedContacts.length ? linkedContacts.map((contact) => (
-                    <div key={contact.id} className="assessment-related-contact-row">
-                      {formatDate(contact.actualDate || contact.plannedDate)} · {contact.contactType || contact.appointmentType || "Service contact"} · {contact.attendance}
-                      {c.submittedAppointmentId === contact.id && <Badge>Response source</Badge>}
-                    </div>
-                  )) : "None linked"}
-                </dd>
-              </div>
-              {!submitted && (
-                <>
-                  <div>
-                    <dt>Link / session</dt>
-                    <dd>{c.link || "Not recorded"}</dd>
-                  </div>
-                  <div>
-                    <dt>Participation</dt>
-                    <dd>{person.consent}</dd>
-                  </div>
-                  <div>
-                    <dt>Contact suitability</dt>
-                    <dd>{person.contact}</dd>
-                  </div>
-                </>
-              )}
-            </dl>
+            {c.attempts?.length ? (
+              <DeliveryAttemptsTable collection={c} contacts={episode.appointments || []} />
+            ) : <p className="muted">No delivery attempts recorded.</p>}
+            {!c.attempts?.length && (c.channel || c.externalAppointment) && (
+              <dl className="metadata">
+                {c.channel && <div><dt>Planned channel</dt><dd>{c.channel}</dd></div>}
+                {c.externalAppointment && <div>
+                  <dt>External contact</dt>
+                  <dd>{c.externalAppointment.date} at {c.externalAppointment.time} · {c.externalAppointment.practitionerService} · {c.externalAppointment.deliveryMode}</dd>
+                </div>}
+              </dl>
+            )}
           </div>
         </details>
       </div>

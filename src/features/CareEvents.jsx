@@ -16,7 +16,7 @@ export default function CareEvents({ episode, person, audit = [], openModal, eve
       <div className="section-toolbar">
         <div>
           <h2>Care events</h2>
-          <p>Appointments, assessments, contextual events and structured care records from this care period.</p>
+          <p>Contacts, assessments, contextual events and structured care records from this care period.</p>
         </div>
         <Button variant="primary" onClick={() => openModal({ type: "care-timeline-entry", episodeId: episode.id })}>
           <Plus size={17} aria-hidden="true" /> Add event

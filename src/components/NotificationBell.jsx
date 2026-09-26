@@ -24,13 +24,13 @@ const CATEGORY_MAP = {
     label: "Assessment overdue",
     shortLabel: "Assessment overdue",
     Icon: Clock,
-    badgeClass: "amber",
+    badgeClass: "coral",
   },
   appointment_overdue: {
-    label: "Appointment input overdue",
-    shortLabel: "Appointment overdue",
+    label: "Contact input overdue",
+    shortLabel: "Contact overdue",
     Icon: CalendarClock,
-    badgeClass: "amber",
+    badgeClass: "coral",
   },
   assessment_review: {
     label: "Assessment ready for review",
@@ -102,7 +102,7 @@ export default function NotificationBell({ navigate }) {
     { key: "all", label: "All", count: counts.all },
     { key: "data_quality", label: "Data quality", count: counts.data_quality },
     { key: "assessment_overdue", label: "Assessment overdue", count: counts.assessment_overdue },
-    { key: "appointment_overdue", label: "Appointment overdue", count: counts.appointment_overdue },
+    { key: "appointment_overdue", label: "Contact overdue", count: counts.appointment_overdue },
     { key: "assessment_review", label: "Ready for review", count: counts.assessment_review },
   ];
 

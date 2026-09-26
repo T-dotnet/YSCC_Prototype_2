@@ -53,6 +53,7 @@ import { EPISODE_REVIEW_TYPES, episodeReviewActionError, episodeReviewSchedule }
 import { K10_SCORING_METHOD } from "./k10.js";
 import { MEASURE_INSTRUMENTS, measureInstrument, sampleMeasureTotal } from "./measureQuestionnaires.js";
 import { QUALITY_STATUSES, getQualityIssues, validISODate } from "./dataQuality.js";
+import { mergeAnswerSources } from "./responseSessions.js";
 
 export const PERSON_TAG_OPTIONS = [
   "Follow-up needed",
@@ -123,7 +124,7 @@ export const CONSENT_LIBRARY = [
   {
     id: "contact-about-care",
     title: "Contact about care",
-    description: "Receiving messages about appointments and care activities.",
+    description: "Receiving messages about contacts and care activities.",
     version: "Consent v1.0",
     scope: "This care episode",
   },
@@ -363,12 +364,174 @@ function withSampleCareLevels(state) {
   return next;
 }
 
+const sampleIntakeStories = {
+  "YS-1024": ["Primary care referral", "Support with daily routines and wellbeing", "Phone"],
+  "YS-1025": ["School wellbeing team", "Initial assessment requested", "SMS"],
+  "YS-1026": ["Primary care referral", "Initial assessment and support planning requested", "Phone"],
+  "YS-1027": ["Community referral", "Continuing support and wellbeing review", "Phone"],
+  "YS-1028": ["Youth service referral", "Initial assessment and safe contact arrangements", "SMS"],
+  "YS-1029": ["Community referral", "Support with daily routines and participation", "Phone"],
+  "YS-1034": ["Primary care referral", "Starting assessment and ongoing support requested", "Phone"],
+};
+
+// Repair only the known, untouched fictional placeholders. Saved clinical or
+// user-edited records must not be rewritten as part of a demo data refresh.
+function ensureCoherentMockData(state) {
+  if (state.mockDataRevision === 2) return state;
+  const next = structuredClone(state);
+  let updated = false;
+  for (const person of next.people || []) {
+    const story = sampleIntakeStories[person.id];
+    if (story && person.name === (person.id === "YS-1034"
+      ? "Jordan Ellis" : seeds[Number(person.id.slice(3)) - 1024]?.[0])) {
+      for (const intake of person.intakes || []) {
+        const episode = person.episodes?.find((item) => item.id === intake.episodeId);
+        if (!episode || intake.status !== "Completed" || intake.outcome !== "Proceed" ||
+            intake.createdBy !== "Sample fixture" || (intake.revision ?? 0) !== 0) continue;
+        const received = `${previousDate(episode.start)}T14:00:00`;
+        const nextAssessment = episode.collections?.find((item) => item.due >= episode.start);
+        if (!intake.receivedAt) intake.receivedAt = received;
+        if (intake.createdAt?.slice(0, 10) === episode.start)
+          intake.createdAt = received;
+        if (intake.source === "Unknown") intake.source = story[0];
+        if (!intake.reason) intake.reason = story[1];
+        if (intake.contactMethod === "Not yet discussed") intake.contactMethod = story[2];
+        if (!intake.safeContact) intake.safeContact = "Confirmed at intake";
+        if (intake.authority === "Not yet reviewed") intake.authority = "Reviewed at intake";
+        if (intake.checkEvidence === "Fictional continuing-care fixture; completed intake supplied for the demo." ||
+            intake.checkEvidence === "Fictional full-report fixture; no real clinical decision.")
+          intake.checkEvidence = "Fictional referral, participation permission, safe contact and triage checks reviewed by Jess Taylor.";
+        if (!intake.summary || ["Sample intake reviewed before this care episode.",
+          "Sample intake reviewed before this care period."].includes(intake.summary))
+          intake.summary = "Referral and required checks reviewed; proceed decision recorded before assessment.";
+        if (intake.nextAction === "Complete intake and resolve required checks")
+          intake.nextAction = "Begin the initial assessment and agree follow-up";
+        if (intake.reviewDate === SAMPLE_DATE)
+          intake.reviewDate = nextAssessment?.due || episode.start;
+        if (!intake.history?.some((entry) => entry.title === "Intake received")) {
+          intake.history ??= [];
+          intake.history.unshift({
+            id: `${intake.id}-received-fixture`,
+            timestamp: intake.receivedAt,
+            actor: "Sample fixture",
+            title: "Intake received",
+            detail: `${intake.source}; ${intake.reason}.`,
+          });
+        }
+        updated = true;
+      }
+      // Earlier sample consent dates were fixed at June even for September
+      // registrations. Keep any edited consent history as it was recorded.
+      const currentStart = person.episodes?.find((item) => item.status === "Active")?.start;
+      for (const request of person.consentRequests || []) {
+        if (!currentStart || request.id !== `CR-${person.id.slice(3)}-assessment` ||
+            request.sentAt !== "2026-06-15" || request.decidedAt !== "2026-06-15" ||
+            request.history?.length !== 2 ||
+            request.history.some((item) => item.at !== "2026-06-15") ||
+            currentStart === "2026-06-15") continue;
+        request.sentAt = currentStart;
+        request.decidedAt = currentStart;
+        request.history.forEach((item) => { item.at = currentStart; });
+        updated = true;
+      }
+    }
+  }
+
+  for (const [personId, expectedName] of [
+    ["YS-1033", "Jordan Lee"], ["YS-DEMO-CLOSE", "Leila Morgan"],
+  ]) {
+    const person = next.people?.find((item) => item.id === personId && item.name === expectedName);
+    const intake = person?.intakes?.find((item) => item.createdBy === "Sample fixture" &&
+      item.status === "Completed" && item.outcome === "Proceed" && (item.revision ?? 0) === 0);
+    const episode = person?.episodes?.find((item) => item.id === intake?.episodeId);
+    if (!intake || !episode) continue;
+    if (intake.createdAt?.slice(0, 10) > intake.receivedAt?.slice(0, 10)) {
+      intake.createdAt = intake.receivedAt;
+      updated = true;
+    }
+    if (intake.nextAction === "Complete intake and resolve required checks") {
+      intake.nextAction = "Begin the initial assessment and agree follow-up";
+      updated = true;
+    }
+    if (intake.reviewDate === SAMPLE_DATE) {
+      intake.reviewDate = episode.collections?.find((item) =>
+        item.due >= episode.start && !item.closureKind)?.due || episode.start;
+      updated = true;
+    }
+    if (!intake.history?.some((entry) => entry.title === "Intake received")) {
+      intake.history ??= [];
+      intake.history.unshift({
+        id: `${intake.id}-received-fixture`,
+        timestamp: intake.receivedAt,
+        actor: "Sample fixture",
+        title: "Intake received",
+        detail: `${intake.source}; ${intake.reason}.`,
+      });
+      updated = true;
+    }
+  }
+
+  const kai = next.people?.find((person) => person.id === "YS-1024" && person.name === "Kai Thompson");
+  const draft = kai?.episodes?.find((item) => item.id === "EP-1024-01")
+    ?.collections.find((item) => item.id === "A-0-current");
+  if (draft?.response === "Draft" && (draft.revision ?? 0) === 0 &&
+      !draft.draftAnswers?.some(Boolean) && draft.attempts?.length === 1 &&
+      draft.attempts[0].id === "D-0" && draft.attempts[0].channel === "SMS link") {
+    const instrument = getInstrument(draft.version);
+    const complete = sampleAnswersFor(0);
+    const initial = questionnaireState(instrument, complete).entries
+      .filter((entry) => entry.status === "visible").slice(0, 3);
+    draft.draftAnswers = questionnaireState(instrument, complete.map((answer, index) =>
+      initial.some((entry) => entry.index === index) ? answer : null)).answers;
+    draft.draftAnswerSources = Object.fromEntries(initial.map((entry) => [entry.question.id, "D-0"]));
+    draft.attempts[0].status = "Progress saved before link expired";
+    draft.attempts[0].respondentName = kai.name;
+    draft.respondentName = kai.name;
+    updated = true;
+  }
+
+  const mia = next.people?.find((person) => person.id === "YS-1029" && person.name === "Mia Robinson");
+  const miaEpisode = mia?.episodes?.find((item) => item.id === "EP-1029-01");
+  const followUp = sampleAppointmentsForSeed(5).find((item) => item.id === "APT-5-starting-check-ins");
+  if (miaEpisode && followUp && !miaEpisode.appointments?.some((item) => item.id === followUp.id)) {
+    miaEpisode.appointments ??= [];
+    miaEpisode.appointments.push(followUp);
+    updated = true;
+  }
+  for (const id of ["A-5-life-care-starting-point", "A-6-everyday-life-starting-point"]) {
+    const collection = miaEpisode?.collections.find((item) => item.id === id);
+    const attempt = collection?.attempts?.find((item) => item.id === `${id}-sample-session`);
+    if (!collection || !attempt || collection.response !== "Submitted" ||
+        (collection.revision ?? 0) !== 0 || collection.due !== "2026-06-16" ||
+        attempt.date !== "2026-06-16" || attempt.channel !== "Clinic tablet") continue;
+    if (collection.appointmentId === "APT-5-baseline") {
+      collection.appointmentId = followUp.id;
+      updated = true;
+    }
+    if (collection.submittedAppointmentId === "APT-5-baseline") {
+      collection.submittedAppointmentId = followUp.id;
+      updated = true;
+    }
+    if (attempt.appointmentId === "APT-5-baseline") {
+      attempt.appointmentId = followUp.id;
+      updated = true;
+    }
+  }
+  if (!updated) return state;
+  next.mockDataRevision = 2;
+  return next;
+}
+
 const withSampleFixtures = (state) =>
-  ensureJordanAssessmentContactExamples(
-    ensureJordanFutureAssessment(
-      repairJordanAssessmentAppointments(withSampleCareLevels(withSamplePersonTags(state))),
+  ensureCoherentMockData(ensureJordanPartialSmsExample(
+    ensureJordanDeliveryAttemptExamples(
+      ensureJordanAssessmentContactExamples(
+        ensureJordanFutureAssessment(
+          repairJordanAssessmentAppointments(withSampleCareLevels(withSamplePersonTags(state))),
+        ),
+      ),
     ),
-  );
+  ));
 
 export function sampleAppointmentsForSeed(seedIndex) {
   switch (seedIndex) {
@@ -465,7 +628,7 @@ export function sampleAppointmentsForSeed(seedIndex) {
           actualDate: "2026-06-15",
           actualTime: "11:05",
           actualDurationMinutes: 55,
-          notes: "Baseline assessment appointment — completed on clinic tablet.",
+          notes: "Baseline assessment contact — completed on clinic tablet.",
           outcomeNotes:
             "Questionnaire completed independently; care plan initiated.",
           outcomeRecordedAt: "2026-06-15T12:30:00Z",
@@ -529,6 +692,27 @@ export function sampleAppointmentsForSeed(seedIndex) {
           outcomeRecordedAt: "2026-06-15T11:00:00Z",
           outcomeRecordedBy: "Jess Taylor",
           timestamp: "2026-06-10T09:00:00Z",
+          actor: "Sample fixture",
+          role: "Clinician",
+        },
+        {
+          id: "APT-5-starting-check-ins",
+          appointmentType: "Assessment follow-up",
+          plannedDate: "2026-06-16",
+          plannedTime: "09:30",
+          plannedDurationMinutes: 45,
+          practitionerService: "Jess Taylor · Northside Centre",
+          location: "Northside Centre",
+          deliveryMode: "In person",
+          attendance: "Attended",
+          actualDate: "2026-06-16",
+          actualTime: "09:30",
+          actualDurationMinutes: 45,
+          notes: "Follow-up session to complete the starting life and everyday check-ins on a clinic tablet.",
+          outcomeNotes: "Both starting check-ins were submitted; clinical reviews were recorded on 18 Jun.",
+          outcomeRecordedAt: "2026-06-16T11:00:00Z",
+          outcomeRecordedBy: "Jess Taylor",
+          timestamp: "2026-06-15T12:00:00Z",
           actor: "Sample fixture",
           role: "Clinician",
         },
@@ -608,7 +792,7 @@ export function sampleAppointmentsForSeed(seedIndex) {
           location: "Northside Centre",
           deliveryMode: "In person",
           attendance: "Planned",
-          notes: "Upcoming fortnightly care review.",
+          notes: "Fortnightly care review booked; attendance and outcome still need to be recorded.",
           timestamp: "2026-09-12T09:00:00Z",
           actor: "Sample fixture",
           role: "Clinician",
@@ -626,7 +810,7 @@ function sampleContextEventsForSeed(seedIndex) {
       title: "School timetable changed",
       eventType: "other",
       detail: "Kai reported a new afternoon class timetable. The care team will confirm a suitable time for the planned review.",
-      fields: { source: "Kai (self-report)", impact: "Check appointment time with Kai before rescheduling." },
+      fields: { source: "Kai (self-report)", impact: "Check contact time with Kai before rescheduling." },
     },
     3: {
       date: "2026-08-27",
@@ -921,7 +1105,7 @@ const samplePointAppointmentId = (idPrefix, key) => {
     return null;
   }
   if (idPrefix.startsWith("A-5") || idPrefix.startsWith("A-6")) {
-    if (key === "starting-point") return "APT-5-baseline";
+    if (key === "starting-point") return "APT-5-starting-check-ins";
     if (key === "four-weeks") return "APT-5-four-weeks";
     if (key === "eight-weeks") return "APT-5-eight-weeks";
     if (key === "twelve-weeks") return "APT-5-twelve-weeks";
@@ -1461,7 +1645,7 @@ function createMockFullReportPerson() {
           location: "Northside Centre",
           deliveryMode: "In person",
           attendance: "Planned",
-          notes: "Clinic attendance record still awaiting reconciliation after the planned review time.",
+          notes: "Care review booked at Northside Centre; confirm attendance and record the outcome after the session.",
           timestamp: "2026-09-04T09:20:00Z",
           actor: "Sample fixture",
           role: "Clinician",
@@ -1706,6 +1890,131 @@ function ensureJordanAssessmentContactExamples(state) {
     .episodes.find((item) => item.id === "EP-1034-01");
   for (const [collectionId, appointmentId] of missing)
     addAssessmentContactLink(updated, collectionId, appointmentId);
+  return next;
+}
+
+function ensureJordanDeliveryAttemptExamples(state) {
+  const collection = state.people.find((person) =>
+    person.id === "YS-1034" && person.fixtureLabel === "Fictional full-report example",
+  )?.episodes.find((item) => item.id === "EP-1034-01")
+    ?.collections.find((item) => item.id === "A-7-life-care-twelve-weeks");
+  const submittedId = "A-7-life-care-twelve-weeks-sample-session";
+  const earlierId = `${collection?.id}-earlier-sms-attempt`;
+  const needsEarlierAttempt = collection?.attempts?.length === 1 &&
+    collection.attempts[0].id === submittedId && collection.submittedAttemptId === submittedId;
+  const isSamplePair = collection?.attempts?.length === 2 &&
+    collection.attempts[0].id === earlierId && collection.attempts[1].id === submittedId &&
+    collection.submittedAttemptId === submittedId;
+  const sampleAnswers = collection && questionnaireState(getInstrument(collection.version), collection.answers).entries
+    .filter((entry) => entry.answer);
+  const needsSourceCorrection = isSamplePair && (collection.revision ?? 0) === 0 &&
+    collection.attempts[0].status === "Progress saved (fictional example)" &&
+    sampleAnswers?.every((entry, index) =>
+      collection.answerSources?.[entry.question.id] === (index < 3 ? earlierId : submittedId));
+  const needsStatusCorrection = isSamplePair && !!collection.answerSources &&
+    collection.attempts[1].status === "Session started (sample)";
+  if (!needsEarlierAttempt && !(isSamplePair && !collection.answerSources &&
+      (collection.revision ?? 0) === 0) && !needsStatusCorrection && !needsSourceCorrection) return state;
+  const next = structuredClone(state);
+  const updated = next.people.find((person) => person.id === "YS-1034")
+    .episodes.find((item) => item.id === "EP-1034-01")
+    .collections.find((item) => item.id === collection.id);
+  if (needsEarlierAttempt) {
+    updated.attempts[0].assistance = updated.attempts[0].assistance || updated.assistance;
+    updated.attempts.unshift({
+      id: earlierId,
+      date: "2026-09-06",
+      channel: "SMS link",
+      assistance: "Supported",
+      status: "Opened (sample; not submitted)",
+      respondentName: "Jordan Ellis",
+    });
+  }
+  if ((updated.revision ?? 0) === 0 && !updated.answerSources) {
+    const instrument = getInstrument(updated.version);
+    const answered = questionnaireState(instrument, updated.answers).entries.filter((entry) => entry.answer);
+    updated.answerSources = Object.fromEntries(answered.map((entry) => [
+      entry.question.id, submittedId,
+    ]));
+    updated.attempts[1].status = "Response submitted (fictional example)";
+  }
+  if (needsSourceCorrection) {
+    updated.answerSources = Object.fromEntries(sampleAnswers.map((entry) => [entry.question.id, submittedId]));
+    updated.attempts[0].status = "Opened (sample; not submitted)";
+  }
+  if (needsStatusCorrection)
+    updated.attempts[1].status = "Response submitted (fictional example)";
+  return next;
+}
+
+function ensureJordanPartialSmsExample(state) {
+  const episode = state.people.find((person) =>
+    person.id === "YS-1034" && person.fixtureLabel === "Fictional full-report example",
+  )?.episodes.find((item) => item.id === "EP-1034-01");
+  const collection = episode?.collections.find((item) => item.id === "A-7-life-care-twelve-weeks");
+  const earlierId = "A-7-life-care-twelve-weeks-earlier-sms-attempt";
+  const submittedId = "A-7-life-care-twelve-weeks-sample-session";
+  const smsContactId = "APT-7-sms-check-in";
+  const earlier = collection?.attempts?.find((attempt) => attempt.id === earlierId);
+  const submitted = collection?.attempts?.find((attempt) => attempt.id === submittedId);
+  if (!collection || collection.response !== "Submitted" || (collection.revision ?? 0) !== 0 ||
+      collection.attempts.length !== 2 || !earlier || !submitted ||
+      collection.submittedAttemptId !== submittedId ||
+      (earlier.appointmentId && earlier.appointmentId !== smsContactId)) return state;
+  const answered = questionnaireState(getInstrument(collection.version), collection.answers)
+    .entries.filter((entry) => entry.answer);
+  const allTabletSources = answered.every((entry) =>
+    collection.answerSources?.[entry.question.id] === submittedId);
+  const splitSources = answered.every((entry, index) =>
+    collection.answerSources?.[entry.question.id] === (index < 2 ? earlierId : submittedId));
+  if (answered.length !== 6 || (!allTabletSources && !splitSources)) return state;
+  const contact = episode.appointments.find((item) => item.id === smsContactId);
+  if (contact && contact.actor !== "Sample fixture") return state;
+  const alreadyUpdated = !!contact && earlier.date === "2026-09-07" &&
+    earlier.appointmentId === smsContactId && earlier.assistance === "Independent" &&
+    answered.slice(0, 2).every((entry) => collection.answerSources[entry.question.id] === earlierId);
+  if (alreadyUpdated) return state;
+
+  const next = structuredClone(state);
+  const updatedEpisode = next.people.find((person) => person.id === "YS-1034")
+    .episodes.find((item) => item.id === "EP-1034-01");
+  const updatedCollection = updatedEpisode.collections.find((item) => item.id === collection.id);
+  const updatedEarlier = updatedCollection.attempts.find((attempt) => attempt.id === earlierId);
+  if (!contact) updatedEpisode.appointments.push({
+    id: smsContactId,
+    appointmentType: "Assessment check-in",
+    contactType: "Assessment",
+    recipientType: "Young person",
+    primaryPractitioner: "Jess Taylor",
+    practitionerService: "Jess Taylor · Northside Centre",
+    venue: "Telehealth",
+    participants: "Individual",
+    deliveryMode: "SMS",
+    plannedDate: "2026-09-07",
+    plannedTime: "16:00",
+    plannedDurationMinutes: 12,
+    attendance: "Attended",
+    actualDate: "2026-09-07",
+    actualTime: "16:00",
+    actualDurationMinutes: 12,
+    notes: "Two-way SMS check-in with a secure questionnaire link.",
+    outcomeNotes: "Jordan saved two of six answers and agreed to finish the check-in at the 8 Sep care review.",
+    outcomeRecordedAt: "2026-09-07T16:30:00+05:30",
+    outcomeRecordedBy: "Jess Taylor",
+    timestamp: "2026-09-06T10:00:00+05:30",
+    actor: "Sample fixture",
+    role: "Clinician",
+  });
+  Object.assign(updatedEarlier, {
+    date: "2026-09-07",
+    channel: "SMS link",
+    appointmentId: smsContactId,
+    assistance: "Independent",
+    status: "Progress saved",
+  });
+  updatedCollection.answerSources = Object.fromEntries(answered.map((entry, index) => [
+    entry.question.id, index < 2 ? earlierId : submittedId,
+  ]));
   return next;
 }
 
@@ -2269,6 +2578,15 @@ export function upgradeSampleData(state) {
   const jordanFixture = state.people.find(
     (person) => person.id === "YS-1034" && person.fixtureLabel === "Fictional full-report example",
   );
+  const overdueContact = jordanFixture?.episodes.find((episode) => episode.id === "EP-1034-01")
+    ?.appointments.find((appointment) => appointment.id === "APT-7-overdue-plan");
+  if (overdueContact?.notes === "Clinic attendance record still awaiting reconciliation after the planned review time.") {
+    state = JSON.parse(JSON.stringify(state));
+    state.people.find((person) => person.id === "YS-1034")
+      .episodes.find((episode) => episode.id === "EP-1034-01")
+      .appointments.find((appointment) => appointment.id === "APT-7-overdue-plan").notes =
+        "Care review booked at Northside Centre; confirm attendance and record the outcome after the session.";
+  }
   if (jordanFixture?.dob === "2008-02-12") {
     state = JSON.parse(JSON.stringify(state));
     state.people.find((person) => person.id === "YS-1034").dob = "2009-02-12";
@@ -2567,6 +2885,9 @@ function prepareSeed(state) {
         for (const [key, oldValue] of Object.entries(legacyNotes)) {
           if (existing[key] === oldValue) existing[key] = appointment[key];
         }
+        if (existing.id === "APT-7-overdue-plan" &&
+            existing.notes === "Clinic attendance record still awaiting reconciliation after the planned review time.")
+          existing.notes = appointment.notes;
         if (existing.id === "APT-7-attended" && existing.appointmentType === "Care review")
           existing.appointmentType = appointment.appointmentType;
         if (["APT-7-attended", "APT-7-cancelled", "APT-7-dna"].includes(existing.id) &&
@@ -3894,13 +4215,27 @@ export function reducer(state, action) {
     case "LINK_ASSESSMENT_CONTACT": {
       const collection = e?.collections?.find((item) => item.id === action.collectionId);
       const appointment = e?.appointments?.find((item) => item.id === action.appointmentId);
+      const attempt = action.attemptId
+        ? collection?.attempts?.find((item) => item.id === action.attemptId)
+        : null;
+      const alreadyLinked = assessmentContactLinks(e).some((link) =>
+        link.collectionId === collection?.id && link.appointmentId === appointment?.id);
       if (e?.status !== "Active" || !collection || !appointment ||
           ["Cancelled", "Paused"].includes(collection.assignment) ||
-          assessmentContactLinks(e).some((link) =>
-            link.collectionId === collection.id && link.appointmentId === appointment.id)) return state;
+          (action.attemptId && (!attempt || attempt.appointmentId ||
+            ["Cancelled", "Did not attend"].includes(appointment.attendance))) ||
+          (attempt?.id === collection.submittedAttemptId && appointment.attendance !== "Attended") ||
+          (alreadyLinked && !attempt)) return state;
       addAssessmentContactLink(e, collection.id, appointment.id);
+      if (attempt) {
+        attempt.appointmentId = appointment.id;
+        collection.appointmentId ??= appointment.id;
+        if (collection.submittedAttemptId === attempt.id)
+          collection.submittedAppointmentId = appointment.id;
+      }
       event("Assessment contact linked", `${collection.label} · ${formatDate(appointment.actualDate || appointment.plannedDate)}`, {
         collectionId: collection.id, appointmentId: appointment.id,
+        attemptId: attempt?.id || null,
       });
       break;
     }
@@ -4121,6 +4456,13 @@ export function reducer(state, action) {
       const priorRevision = c.revision ?? 0;
       c.originalAnswers ??= priorAnswers;
       c.answers = nextPath.answers;
+      c.answerSources = Object.fromEntries(instrument.questions.flatMap((question, index) => {
+        if (!nextPath.answers[index]) return [];
+        const source = nextPath.answers[index] !== priorAnswers[index]
+          ? `edit:${priorRevision + 1}`
+          : c.answerSources?.[question.id] || c.submittedAttemptId;
+        return source ? [[question.id, source]] : [];
+      }));
       syncMeasureSampleRecord(e, c, staff.name);
       c.revision = priorRevision + 1;
       c.needsReview = c.review === "Reviewed" || !!c.needsReview;
@@ -4268,6 +4610,8 @@ export function reducer(state, action) {
       )
         return state;
       if (action.respondent === "Family respondent" && !p.family) return state;
+      if (c.draftAnswers?.some(Boolean) && action.respondent !== c.respondent)
+        return state;
       if (
         action.channel === "Clinician entry" &&
         currentStaff(state)?.role !== "Clinician"
@@ -4345,6 +4689,26 @@ export function reducer(state, action) {
         { attemptId: c.attempts.at(-1).id, appointmentId: linkedApptId },
       );
       break;
+    case "SAVE_RESPONSE_PROGRESS": {
+      const instrument = c && getInstrument(c.version);
+      const attempt = c?.attempts?.at(-1);
+      if (!canAssess(p, e) || !c || !canCollectInEpisode(e, c) ||
+          c.response === "Submitted" || c.assignment !== "Active" || c.link !== "Active" ||
+          !instrument || !attempt || action.attemptId !== attempt.id ||
+          action.channel !== attempt.channel || !Array.isArray(action.answers) ||
+          (attempt.channel === "Clinician entry" &&
+            (staff?.role !== "Clinician" || staff.id !== attempt.recorderId))) return state;
+      const progress = mergeAnswerSources(instrument, c.draftAnswers, c.draftAnswerSources,
+        action.answers, attempt.id);
+      if (!progress.answers.some(Boolean)) return state;
+      c.draftAnswers = progress.answers;
+      c.draftAnswerSources = progress.sources;
+      c.response = "Draft";
+      attempt.status = "Progress saved";
+      attempt.savedAt = recordedAt;
+      event("Questionnaire progress saved", `${c.label} · ${attempt.channel} · ${progress.answers.filter(Boolean).length} answers`);
+      break;
+    }
     case "SUBMIT":
       if (
         !canAssess(p, e) ||
@@ -4356,6 +4720,8 @@ export function reducer(state, action) {
       )
         return state;
       if (
+        (c.draftAnswers?.some(Boolean) &&
+          (action.attemptId !== c.attempts.at(-1)?.id || action.channel !== c.attempts.at(-1)?.channel)) ||
         (action.attemptId && action.attemptId !== c.attempts.at(-1)?.id) ||
         (action.channel && action.channel !== c.channel) ||
         (c.channel === "Clinician entry" &&
@@ -4401,10 +4767,12 @@ export function reducer(state, action) {
         )
           return state;
       }
-      c.answers = questionnaireState(
-        getInstrument(c.version),
-        action.answers,
-      ).answers;
+      const completed = mergeAnswerSources(getInstrument(c.version),
+        c.draftAnswers, c.draftAnswerSources, action.answers, c.attempts.at(-1)?.id);
+      c.answers = completed.answers;
+      c.answerSources = completed.sources;
+      delete c.draftAnswers;
+      delete c.draftAnswerSources;
       c.response = "Submitted";
       c.assessmentProgress = "Completed";
       c.assignment = "Fulfilled";
@@ -4413,6 +4781,7 @@ export function reducer(state, action) {
       c.submittedTimestamp = recordedAt;
       c.submittedAttemptId = c.attempts.at(-1)?.id;
       c.submittedAppointmentId = c.attempts.at(-1)?.appointmentId || c.appointmentId || null;
+      if (c.attempts.at(-1)) c.attempts.at(-1).status = "Response submitted";
       syncMeasureSampleRecord(e, c, staff?.name || "Not recorded");
       if (appointmentOutcome || action.completionMethod) {
         const attempt = c.attempts.at(-1);

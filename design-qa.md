@@ -38,3 +38,13 @@ The same white canvas, compact headings, warm-neutral dividers, forest accents, 
 The priority assessment panel, clinical review notice, participant introduction, and Help guidance retain subtle surface treatment because each serves a distinct reading or decision point. Their typography, colour, edges, and spacing follow the shared system.
 
 `npm run lint`, `npm run build`, and `git diff --check` pass after this pass. The build still reports its non-failing future native-config and bundle-size advisories.
+
+## Person header and colour tokens — 26 Sep 2026
+
+The selected header reference is `/Users/danielenicoletti/.codex/generated_images/01a0dc14-a8b9-7230-80d7-23d1dd65684f/exec-51f5f820-be70-4900-be4b-b8664b94aa0b.png`. The local result is at `http://127.0.0.1:3000/people/YS-1024`. The shared person header uses the reference's larger name and supporting type, divided attention row, and readable tabs. The existing page bodies remain in place. The care episode summary follows the tabs on Overview only.
+
+Overdue now has one semantic text token and a coral badge tone. The Overview's `14 days overdue`, Assessment's next due value, Care events status, Contact date and status, People status and detail, My work date and status, overdue notifications, and overdue review timing were checked for consistent red text or badges. Validation and destructive-action literals were consolidated into named tokens; old cool-grey text and border values in notification and review UI now use the shared palette tokens. Artwork and data-series colours remain specific to their purpose.
+
+The rendered Overview was reviewed at the normal panel width and at 390 × 844. Assessment's grouped table and accordion, Care events' timeline, People, and My work were also checked in the browser. The phone viewport was reset after review, and the Overview route remains open. `npm run build`, `npm run lint`, `git diff --check`, and the 14 focused badge/Overview tests pass. The existing Vite config and bundle-size advisories remain non-failing.
+
+**Final result: passed.**

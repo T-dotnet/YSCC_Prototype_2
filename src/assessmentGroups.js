@@ -26,6 +26,12 @@ export function linkedAssessmentScore(episode, collection) {
   return record ? { value: Number(record.value), range: measure.scoreRange || null } : null;
 }
 
+export function assessmentScoreLabel(collection, score) {
+  if (score) return `${score.value}${score.range ? ` / ${score.range[1]}` : ""}`;
+  if (!assessmentType(collection).measureKey) return "Not scored";
+  return collection.response === "Submitted" ? "Unavailable" : "Awaiting response";
+}
+
 export function assessmentTypeGroups(episode, visibleCollections) {
   const allByType = new Map();
   for (const collection of episode.collections || []) {

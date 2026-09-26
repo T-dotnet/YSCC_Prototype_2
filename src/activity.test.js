@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createSeed, reducer, TODAY } from "./model.js";
+import { reducer, TODAY } from "./model.js";
+import { emptyDraftSeed as createSeed } from "./testFixtures.js";
 import { createSampleAnswers } from "./sampleQuestionnaires.js";
 import {
   activityEntries,
@@ -9,7 +10,7 @@ import {
   clinicalHistoryEntries,
   careEventEntries,
 } from "./activity.js";
-import { historyItem } from "./historyItem.js";
+import { associatedCareItems, historyItem } from "./historyItem.js";
 
 const context = {
   personId: "YS-1024",
@@ -258,10 +259,8 @@ test("Care events projects Jordan's appointment and assessment lists once each",
   const baseline = events.find((entry) => entry.collectionId === "A-7-life-care-starting-point");
   assert.equal(baseline.date, episode.collections.find((collection) => collection.id === baseline.collectionId).submittedAt);
   assert.equal(baseline.appointmentId, "APT-7-baseline");
-  assert.deepEqual(
-    historyItem(baseline, episode).primary.find((fact) => fact.label === "Related contacts"),
-    { label: "Related contacts", value: "Initial assessment · 2026-06-16" },
-  );
+  assert.ok(associatedCareItems(baseline, episode).some((item) =>
+    item.id === "APT-7-baseline"));
   assert.ok(history.some((entry) => entry.type === "appointment"));
   assert.ok(history.some((entry) => entry.collectionId));
 });

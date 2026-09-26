@@ -20,6 +20,7 @@ import {
   CheckCircle2,
   FileCheck2,
   CalendarClock,
+  CircleAlert,
 } from "lucide-react";
 import { useStore } from "../store";
 import RecordTwo from "./RecordTwo";
@@ -72,7 +73,7 @@ import {
   ValidatedForm,
 } from "../components/UI";
 
-const hiddenRecordTabs = ["Appointments", "History", "Change log"];
+const hiddenRecordTabs = ["Contact", "History", "Change log"];
 
 function PersonRecordNavigation({ tabs, value, onChange }) {
   return (
@@ -164,7 +165,7 @@ export default function Person({ id, navigate, openModal }) {
     (["progress", "analysis", "record 2"].includes(searchParams.get("tab"))
       ? "Report"
       : null) ||
-    (searchParams.get("tab") === "appointments" ? "Appointments" : null) ||
+    (["appointments", "contact"].includes(searchParams.get("tab")) ? "Contact" : null) ||
     (tabs.map((item) => typeof item === "string" ? item : item.value)
       .find((value) => value.toLowerCase() === searchParams.get("tab"))) ||
     "Overview";
@@ -204,8 +205,9 @@ export default function Person({ id, navigate, openModal }) {
   }));
   const visibleCollections = orderedCollections.filter((col) =>
     (assessmentFilter === "all" || collectionStatus(col) === assessmentFilter) &&
-    (assessmentMethod === "all" || (col.channel || "Not set up") === assessmentMethod) &&
-    `${col.label} ${col.version} ${col.assignment} ${col.response} ${collectionStatus(col)}`
+    (assessmentMethod === "all" || (col.channel || "Not set up") === assessmentMethod ||
+      col.attempts?.some((attempt) => attempt.channel === assessmentMethod)) &&
+    `${col.label} ${col.version} ${col.assignment} ${col.response} ${collectionStatus(col)} ${col.attempts?.map((attempt) => attempt.channel).join(" ") || ""}`
       .toLowerCase().includes(assessmentQuery.trim().toLowerCase()),
   );
   const chronologicalCollections = [...visibleCollections].sort((a, b) =>
@@ -378,10 +380,11 @@ export default function Person({ id, navigate, openModal }) {
       )}
       {attentionItems.length > 0 && (
         <button type="button" className="care-event-attention" onClick={toggleAttention}>
-          <CalendarClock size={18} aria-hidden="true" />
-          <span className="care-event-attention-summary"><strong>Needs attention</strong><span>{attentionSummary}</span></span>
+          <CircleAlert size={20} aria-hidden="true" />
+          <span className="care-event-attention-summary"><strong>{attentionItems.length} {attentionItems.length === 1 ? "thing needs" : "things need"} attention</strong><span>{attentionSummary}</span></span>
           <span className="care-event-attention-action">
-            {attentionOnly ? "Show all records" : `Show ${attentionItems.length} ${attentionItems.length === 1 ? "item" : "items"}`}
+            {attentionOnly ? "Show all records" : "View all"}
+            <ArrowRight size={16} aria-hidden="true" />
           </span>
         </button>
       )}
@@ -429,6 +432,19 @@ export default function Person({ id, navigate, openModal }) {
           </ValidatedForm>
         </Modal>
       )}
+      <div className={`person-content-surface person-open-surface${tab === "Assessment" ? " assessment-ledger-surface" : ""}`}>
+      {contextualView === "Referrals" ? (
+        <div className="section-toolbar">
+          <h2 id="person-context-heading">{contextualView}</h2>
+        </div>
+      ) : !contextualView ? (
+        <PersonRecordNavigation
+          tabs={tabs}
+          value={tab}
+          onChange={setTab}
+        />
+      ) : null}
+      {tab === "Overview" && (
       <div className="episode-bar">
         <div className="episode-context episode-period">
           {p.episodes.length > 1 ? (
@@ -476,23 +492,6 @@ export default function Person({ id, navigate, openModal }) {
         <div className="episode-status">
           <Badge>{e.status}</Badge>
         </div>
-        <div className="episode-fact episode-registration">
-          <small>Intake decision</small>
-          <div className="episode-registration-value">
-            <span>{episodeIntake?.outcome || "Not recorded"}</span>
-            {episodeIntake && (
-              <button
-                type="button"
-                className="episode-registration-details"
-                aria-label="View registration details"
-                aria-haspopup="dialog"
-                onClick={() => setIntakeDetailsOpen(true)}
-              >
-                View details
-              </button>
-            )}
-          </div>
-        </div>
         <div className="episode-fact episode-care-level">
           <small>{e.programStream ? `${e.programStream} stream` : "Program stream"}</small>
           <div className="episode-care-level-value">
@@ -513,7 +512,7 @@ export default function Person({ id, navigate, openModal }) {
           <small>{reviewSchedule.confirmed ? "Next review" : "Proposed next review"}</small>
           <div className="episode-next-review-value">
             <span>{reviewSchedule.outcome.due ? formatDate(reviewSchedule.outcome.due) : "Not scheduled"}</span>
-            {reviewSchedule.outcome.due && <small>{reviewTiming(reviewSchedule.outcome.due, TODAY)}</small>}
+            {reviewSchedule.outcome.due && <small className={reviewSchedule.outcome.due < TODAY ? "status-overdue-text" : undefined}>{reviewTiming(reviewSchedule.outcome.due, TODAY)}</small>}
           </div>
         </div>
         <div className="episode-fact episode-completeness">
@@ -550,18 +549,7 @@ export default function Person({ id, navigate, openModal }) {
           </div>
         </div>
       </div>
-      <div className={`person-content-surface person-open-surface${tab === "Assessment" ? " assessment-ledger-surface" : ""}`}>
-      {contextualView === "Referrals" ? (
-        <div className="section-toolbar">
-          <h2 id="person-context-heading">{contextualView}</h2>
-        </div>
-      ) : !contextualView ? (
-        <PersonRecordNavigation
-          tabs={tabs}
-          value={tab}
-          onChange={setTab}
-        />
-      ) : null}
+      )}
       <div
         role={contextualView || hiddenRecordTab ? "region" : "tabpanel"}
         id="person-panel"
@@ -572,7 +560,7 @@ export default function Person({ id, navigate, openModal }) {
               ? undefined
               : `person-tab-${tabs.filter((item) => !hiddenRecordTabs.includes(typeof item === "string" ? item : item.value)).findIndex((item) => (typeof item === "string" ? item : item.value) === tab)}`
         }
-        aria-label={hiddenRecordTab ? (tab === "Appointments" ? "Service contacts" : tab) : undefined}
+        aria-label={hiddenRecordTab ? (tab === "Contact" ? "Contact" : tab) : undefined}
       >
         {!canAssess(p, e) && (
           <Notice tone="amber">
@@ -615,7 +603,9 @@ export default function Person({ id, navigate, openModal }) {
                   <h2>{c.label}</h2>
                 </div>
                 <p className="overview-assessment-context">
-                  {nextStep.dueText}
+                  {nextStep.overdueText ? (
+                    <>{nextStep.dueDateText} · <span className="status-overdue-text">{nextStep.overdueText}</span></>
+                  ) : nextStep.dueText}
                 </p>
               </header>
               <div className="panel-body">
@@ -840,7 +830,7 @@ export default function Person({ id, navigate, openModal }) {
               advanced={
                 <Select label="Collection method" value={assessmentMethod} onChange={(event) => setAssessmentMethod(event.target.value)}>
                   <option value="all">All methods</option>
-                  {[...new Set(orderedCollections.map((col) => col.channel || "Not set up"))].map((method) => (
+                  {[...new Set(orderedCollections.flatMap((col) => [col.channel || "Not set up", ...(col.attempts || []).map((attempt) => attempt.channel)].filter(Boolean)))].map((method) => (
                     <option key={method} value={method}>{method}</option>
                   ))}
                 </Select>
@@ -915,7 +905,7 @@ export default function Person({ id, navigate, openModal }) {
                           <small className="assessment-ledger-mobile-label">Next due</small>
                             {nextDue ? (
                               <>
-                                <strong className={nextDue.due < TODAY ? "assessment-ledger-unscheduled" : undefined}>
+                                <strong className={nextDue.due < TODAY ? "status-overdue-text" : undefined}>
                                   {nextDue.due < TODAY && "Overdue · "}<time dateTime={nextDue.due}>{formatDate(nextDue.due)}</time>
                                 </strong>
                                 <small>{nextDue.label}</small>
@@ -1002,7 +992,7 @@ export default function Person({ id, navigate, openModal }) {
             </Notice>
           </div>
         )}
-        {tab === "Appointments" && (
+        {tab === "Contact" && (
           <Appointments
             episode={e}
             openModal={(appointmentModal) =>
@@ -1140,7 +1130,7 @@ export default function Person({ id, navigate, openModal }) {
               <div>
                 <h2>History</h2>
                 <p>
-                  Assessment responses and reviews, appointments, contextual events and
+                  Assessment responses and reviews, contacts, contextual events and
                   structured care records in this care episode.
                 </p>
               </div>

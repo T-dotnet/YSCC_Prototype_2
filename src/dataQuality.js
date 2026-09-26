@@ -336,12 +336,12 @@ export function detectQualityFindings(state, today) {
               ruleKey: `invalid-appointment-${appointment.id}`,
               severity: "High",
               type: "Invalid date",
-              title: "Actual appointment date is not a valid date",
+              title: "Actual contact date is not a valid date",
               description:
-                "The actual appointment date cannot be read as a calendar date.",
+                "The actual contact date cannot be read as a calendar date.",
               remediation:
-                "Check the source record, then correct the actual appointment date.",
-              workflow: "Appointments",
+                "Check the source record, then correct the actual contact date.",
+              workflow: "Contact",
               blocking: true,
             }),
           );
@@ -351,12 +351,12 @@ export function detectQualityFindings(state, today) {
               ruleKey: `future-appointment-${appointment.id}`,
               severity: "High",
               type: "Future date",
-              title: "Actual appointment date is in the future",
+              title: "Actual contact date is in the future",
               description:
                 "An attended contact cannot have an actual date after the sample reporting date.",
               remediation:
-                "Check the source record, then correct the actual appointment date.",
-              workflow: "Appointments",
+                "Check the source record, then correct the actual contact date.",
+              workflow: "Contact",
               blocking: true,
             }),
           );
@@ -368,12 +368,12 @@ export function detectQualityFindings(state, today) {
           finding(person, {
             ruleKey: `duplicate-appointment-${key}`,
             severity: "High",
-            type: "Duplicate appointment",
-            title: "Possible duplicate appointment",
+            type: "Duplicate contact",
+            title: "Possible duplicate contact",
             description: `${matches.length} contacts share the same planned date, time and practitioner or service.`,
             remediation:
               "Check whether the contacts represent one event; retain a correction rather than silently deleting a record.",
-            workflow: "Appointments",
+            workflow: "Contact",
             blocking: true,
           }),
         );
@@ -391,7 +391,7 @@ export function detectQualityFindings(state, today) {
                 "The structured record date cannot be read as a calendar date.",
               remediation:
                 "Check the source record, then correct the recorded date.",
-              workflow: "Appointments",
+              workflow: "Contact",
               blocking: true,
             }),
           );
@@ -406,7 +406,7 @@ export function detectQualityFindings(state, today) {
                 "The structured record date cannot be after the sample reporting date.",
               remediation:
                 "Check the source record, then correct the recorded date.",
-              workflow: "Appointments",
+              workflow: "Contact",
               blocking: true,
             }),
           );
@@ -427,7 +427,7 @@ export function detectQualityFindings(state, today) {
               "A complete outcome needs a recorded value; an incomplete outcome cannot retain one as a completed value.",
             remediation:
               "Correct the recorded outcome status or value and retain the source of the correction.",
-            workflow: "Appointments",
+            workflow: "Contact",
             blocking: true,
           }),
         );

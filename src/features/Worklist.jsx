@@ -96,13 +96,13 @@ export default function Worklist({ navigate, openModal }) {
           .filter((apt) => appointmentIsOverdue(apt, TODAY))
           .map((apt) => ({
             id: `apto-${apt.id}`,
-            category: "Appointment input overdue",
-            categoryKey: "Appointments",
+            category: "Contact input overdue",
+            categoryKey: "Contact",
             title: `${apt.practitionerService || "Planned contact"} attendance missing`,
             person: { name: person.name, id: person.id },
             owner: episode.owner || person.owner,
             detail: `Planned for ${apt.plannedDate} at ${apt.plannedTime || "unspecified time"} · Attendance input required`,
-            badgeColor: "amber",
+            badgeColor: "coral",
             icon: CalendarX,
             actionLabel: "Record outcome",
             href: `/people/${encodeURIComponent(person.id)}?tab=appointments`,
@@ -118,7 +118,7 @@ export default function Worklist({ navigate, openModal }) {
   const alertFiltersList = [
     "All",
     "Errors",
-    "Appointments",
+    "Contact",
   ];
 
   const filteredAlerts = allAlerts.filter((alert) => {
@@ -320,7 +320,7 @@ export default function Worklist({ navigate, openModal }) {
                           {c.response === "Submitted" ? (
                             <span className="muted">Response received · review pending</span>
                           ) : (
-                            formatDate(c.due)
+                            <span className={status === "Overdue" ? "status-overdue-text" : undefined}>{formatDate(c.due)}</span>
                           )}
                         </QueueCell>
                         <QueueCell label="Status" slot="state">
@@ -405,7 +405,7 @@ export default function Worklist({ navigate, openModal }) {
                   ? allAlerts.length
                   : val === "Errors"
                     ? allAlerts.filter((alert) => alert.categoryKey === "Errors").length
-                    : allAlerts.filter((alert) => alert.categoryKey === "Appointments").length,
+                    : allAlerts.filter((alert) => alert.categoryKey === "Contact").length,
             }))}
           />
           <div role="tabpanel" id="alerts-panel">
@@ -440,7 +440,7 @@ export default function Worklist({ navigate, openModal }) {
                 <article className="alert-card-item" key={alert.id}>
                   <div className="alert-card-header">
                     <Badge tone={alert.badgeColor}>{alert.category}</Badge>
-                    <span className="small-text muted">{formatDate(alert.date)}</span>
+                    <span className={`small-text${alert.categoryKey === "Contact" ? " status-overdue-text" : " muted"}`}>{formatDate(alert.date)}</span>
                   </div>
                   <div className="alert-card-body">
                     <strong className="alert-card-title">{alert.title}</strong>

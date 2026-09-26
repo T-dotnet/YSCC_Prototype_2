@@ -2,7 +2,7 @@ import { useState } from "react";
 import { addDays, assessmentSlots, availableExternalSlots } from "../externalAppointmentSlots";
 import { formatDate, TODAY } from "../model";
 
-export default function AppointmentSlotPicker({ mode, dueDate, selectedSlot, onSelect, required = false }) {
+export default function AppointmentSlotPicker({ mode, dueDate, selectedSlot, onSelect, required = false, scrollTargetRef }) {
   const [range, setRange] = useState("7");
   const [from, setFrom] = useState(TODAY);
   const [to, setTo] = useState(addDays(TODAY, 6));
@@ -25,9 +25,9 @@ export default function AppointmentSlotPicker({ mode, dueDate, selectedSlot, onS
     ? Object.entries(groups).slice(0, 3)
     : Object.entries(groups);
 
-  return <section className={`appointment-slot-picker${assessment ? " assessment-mode" : ""}`} aria-label="Available external appointments">
+  return <section ref={scrollTargetRef} className={`appointment-slot-picker${assessment ? " assessment-mode" : ""}`} aria-label="Available external contacts">
     <div className="appointment-slot-heading">
-      <strong>Available appointments</strong>
+      <strong>Available contacts</strong>
       <small>{`Sample availability from an external scheduling system. YSSC records the link only${assessment && !required ? "; selection is optional" : ""}.`}</small>
     </div>
     {assessment ? <p className="appointment-slot-hint">Showing available sessions on or before {dueDate ? formatDate(dueDate) : "the due date"}, closest first.</p> : <>
@@ -64,6 +64,6 @@ export default function AppointmentSlotPicker({ mode, dueDate, selectedSlot, onS
         onClick={() => setShowEarlierDates((value) => !value)}>
         {showEarlierDates ? "Show closest dates only" : "Show earlier available dates"}
       </button>}
-    </div> : <p className="appointment-slot-empty">No available appointments in this range.</p>}
+    </div> : <p className="appointment-slot-empty">No available contacts in this range.</p>}
   </section>;
 }

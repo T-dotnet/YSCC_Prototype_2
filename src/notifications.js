@@ -71,14 +71,14 @@ export function getNotifications(state, today = TODAY) {
         }
       }
 
-      // 3. Appointment input overdue
+      // 3. Contact input overdue
       for (const apt of episode.appointments || []) {
         if (appointmentIsOverdue(apt, today)) {
           notifications.push({
             id: `aptdue-${person.id}-${apt.id}`,
             category: "appointment_overdue",
-            categoryLabel: "Appointment input overdue",
-            title: "Appointment input overdue",
+            categoryLabel: "Contact input overdue",
+            title: "Contact input overdue",
             detail: `${person.name} · Planned ${formatDate(apt.plannedDate)}${apt.plannedTime ? ` ${apt.plannedTime}` : ""} (${apt.practitionerService || "Contact"})`,
             personName: person.name,
             personId: person.id,

@@ -360,7 +360,7 @@ export function careTimelineData(episode) {
         label: "Care setting and intensity",
         entries: services,
       },
-      { id: "contacts", label: "Appointments and contacts", entries: appointments },
+      { id: "contacts", label: "Contacts", entries: appointments },
       { id: "medication", label: "Medication context", entries: medication },
       { id: "records", label: "Structured care records", entries: structured },
       { id: "k10", label: "K10 · raw total", entries: k10 },

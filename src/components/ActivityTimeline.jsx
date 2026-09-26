@@ -22,11 +22,13 @@ import {
   clinicalHistoryEntries,
 } from "../activity";
 import { collectionStatus, formatDate, formatTimestamp, personEventText, TODAY } from "../model";
-import { associatedCareItems, historyCategory, HISTORY_CATEGORIES, historyDate, historyItem } from "../historyItem";
+import { contactCareEventFacts, historyCategory, HISTORY_CATEGORIES, historyDate, historyItem } from "../historyItem";
 import { SearchInput, Select, Button, Empty, FilterTabs } from "./UI";
 import RecordItem from "./RecordItem";
 import ListFilterBar from "./ListFilterBar";
 import TimelineExpandAll from "./TimelineExpandAll";
+import RelatedRecordsAccordion from "./RelatedRecordsAccordion";
+import { assessmentsForContact, contactsForAssessment } from "../assessmentContacts";
 
 const displayValue = (value) =>
   value === true
@@ -46,7 +48,7 @@ const CARE_EVENT_QUICK_TYPES = [
 ];
 
 const EVENT_CATEGORY_DISPLAY = {
-  appointment: { label: "Appointment", icon: CalendarDays },
+  appointment: { label: "Contact", icon: CalendarDays },
   assessment: { label: "Assessment", icon: ClipboardCheck },
   "contextual-event": { label: "Contextual event", icon: Flag },
   "clinical-record": { label: "Care record", icon: FileText },
@@ -213,24 +215,18 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordA
         const collection = entry.type === "assessment"
           ? episode.collections.find((candidate) => candidate.id === entry.collectionId)
           : null;
-        const associatedItems = showCategories ? associatedCareItems(entry, episode) : [];
+        const relatedAssessments = showCategories && appointment
+          ? assessmentsForContact(episode, appointment.id) : [];
+        const relatedContacts = showCategories && collection
+          ? contactsForAssessment(episode, collection.id) : [];
+        const contactSummary = showCategories && appointment
+          ? contactCareEventFacts(item, appointment) : null;
         const primaryFacts = showCategories && collection
           ? item.primary.filter(({ label }) => label !== "Associated appointment")
+          : contactSummary
+            ? contactSummary.primary.filter(({ label }) => !["Notes", "Outcome notes"].includes(label))
           : item.primary;
-        const moreFacts = showCategories && appointment
-          ? item.more.filter(({ label }) => !label.startsWith("Associated assignment"))
-          : item.more;
-        const associatedList = associatedItems.length > 0 && (
-          <ul className="history-associated-list">
-            {associatedItems.map((associated) => (
-              <li key={`${associated.type}-${associated.id}`}>
-                <span className="history-associated-type">{associated.type}</span>
-                <strong>{associated.title}</strong>
-                <small>{[associated.subtitle, associated.date && `${associated.dateLabel} ${formatDate(associated.date)}`].filter(Boolean).join(" · ")}</small>
-              </li>
-            ))}
-          </ul>
-        );
+        const moreFacts = contactSummary ? [] : showCategories && collection ? [] : item.more;
         const datedAction = showCategories && episode.status === "Active"
           ? appointment?.attendance === "Planned" && onRecordAppointmentOutcome
             ? <Button variant="secondary" aria-haspopup="dialog" onClick={() => onRecordAppointmentOutcome(appointment.id)}>Record outcome</Button>
@@ -245,7 +241,9 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordA
           : null;
         const toFact = ({ label, value }) => ({
           label,
-          value: label === "Recorded at" ? formatTimestamp(value) : label.toLowerCase().includes("date") ? formatDate(value) : value,
+          value: label === "Recorded at" ? formatTimestamp(value)
+            : ((label.toLowerCase().includes("date") || label === "Submitted") && /^\d{4}-\d{2}-\d{2}$/.test(value || ""))
+              ? formatDate(value) : value,
           wide: ["Summary", "Notes", "Outcome notes"].includes(label) ||
             label.startsWith("Associated assignment"),
         });
@@ -275,29 +273,21 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordA
                 appointment?.attendance === "Planned" ||
                 (collection && collection.response !== "Submitted") ||
                 isSelectedSource}
-              title={completedCollection ? `${completedCollection.label} questionnaire completed` : entry.title || "Recorded event"}
-              subtitle={item.subtitle}
+              title={contactSummary ? appointment.contactType || appointment.appointmentType || "Contact"
+                : completedCollection ? `${completedCollection.label} questionnaire completed` : entry.title || "Recorded event"}
+              subtitle={contactSummary ? appointment.practitionerService : item.subtitle}
               status={collection ? collectionStatus(collection)
-                : showCategories && appointment?.attendance === "Planned" && appointment.plannedDate <= TODAY
-                  ? appointment.plannedDate < TODAY ? "Overdue" : "Today"
+                : contactSummary
+                  ? appointment.attendance === "Planned" && appointment.plannedDate <= TODAY
+                    ? appointment.plannedDate < TODAY ? "Overdue" : "Today"
+                    : appointment.attendance
                   : undefined}
               className={`record-item-compact${isSelectedSource ? " care-event-selected" : ""}`}
               facts={primaryFacts.map(toFact)}
-              secondary={(associatedItems.length > 0 || moreFacts.length > 0) && (
+              secondary={(relatedAssessments.length > 0 || relatedContacts.length > 0 || moreFacts.length > 0) && (
                 <>
-                  {associatedItems.length > 0 && (
-                    appointment ? (
-                      <details className="appointment-more-detail history-associated-details">
-                        <summary>Linked {associatedItems.length === 1 ? "assessment" : "assessments"} · {associatedItems.length}</summary>
-                        {associatedList}
-                      </details>
-                    ) : (
-                      <details className="appointment-more-detail history-associated-details">
-                        <summary>Associated items · {associatedItems.length}</summary>
-                        {associatedList}
-                      </details>
-                    )
-                  )}
+                  <RelatedRecordsAccordion kind="assessments" records={relatedAssessments} contactId={appointment?.id} />
+                  <RelatedRecordsAccordion kind="contacts" records={relatedContacts} collection={collection} />
                   {moreFacts.length > 0 && (
                     <details className="appointment-more-detail history-more-details">
                       <summary>
@@ -691,7 +681,7 @@ export function ChangeLog({ episode, person, audit = [], entries: suppliedEntrie
     .filter((value) => value !== "all").length + Number(Boolean(filters.startDate)) + Number(Boolean(filters.endDate));
 
   return (
-    <div className={`change-log${isGlobal ? " global-change-log care-events" : ""}`} id="change-log-timeline" ref={timelineRef}>
+    <div className={`change-log care-events${isGlobal ? " global-change-log" : ""}`} id="change-log-timeline" ref={timelineRef}>
       <ListFilterBar
         id={isGlobal ? "global-change-scope" : "person-change-scope"}
         label="Change scope"
@@ -750,7 +740,7 @@ export function ChangeLog({ episode, person, audit = [], entries: suppliedEntrie
       />
 
       {visibleEntries.length ? (
-        <ol className="record-timeline" aria-label="Field change log">
+        <ol className="record-timeline clinical-continuous-timeline" aria-label="Field change log">
           {visibleEntries.map((entry) => {
             const changes = activityChangeDetails(entry);
             const entryTimestamp =
@@ -773,15 +763,18 @@ export function ChangeLog({ episode, person, audit = [], entries: suppliedEntrie
               ...(isGlobal ? [["Source", entry.source || "Not recorded"]] : entry.source ? [["Source", entry.source]] : []),
             ];
             return (
-              <li className="record-timeline-entry" key={`${entry.person?.id || person?.id}:${entry.id}`}>
-                {isGlobal ? (
-                  <div className="record-timeline-meta">
-                    <span className="record-timeline-category">{entry.scope || "Scope not recorded"}</span>
-                    <TimelineDate timestamp={entryTimestamp} date={entry.date} dateLabel={entry.person?.name || "Person not recorded"} emphasized />
-                  </div>
-                ) : <TimelineDate timestamp={entryTimestamp} date={entry.date} />}
+              <li className="record-timeline-entry" data-category="change" key={`${entry.person?.id || person?.id}:${entry.id}`}>
+                <div className="record-timeline-meta">
+                  <span className="record-timeline-category">{entry.scope || "Record change"}</span>
+                  <TimelineDate
+                    timestamp={entryTimestamp}
+                    date={entry.date}
+                    dateLabel={isGlobal ? entry.person?.name || "Person not recorded" : undefined}
+                    emphasized
+                  />
+                </div>
                 <span className="record-timeline-icon" aria-hidden="true">
-                  <Clock3 size={22} />
+                  <ArrowRightLeft size={22} />
                 </span>
                 <RecordItem
                   collapsible
@@ -794,12 +787,15 @@ export function ChangeLog({ episode, person, audit = [], entries: suppliedEntrie
                     value,
                     wide: label === "Reason" || label === "Source",
                   }))}
-                  secondary={<details className="activity-change-details">
-                    <summary>Show more · {changes.length} {changes.length === 1 ? "change" : "changes"}</summary>
+                  secondary={<details className="appointment-more-detail history-more-details activity-change-details">
+                    <summary>
+                      <span className="history-more-closed">Show more · {changes.length} {changes.length === 1 ? "change" : "changes"}</span>
+                      <span className="history-more-open">Show less</span>
+                    </summary>
                     {changes.map((change) => (
                       <section key={change.key}>
                         <h3>{change.label}</h3>
-                        <dl className="history-answer-comparison report-wording-comparison">
+                        <dl className="activity-change-values">
                           <div>
                             <dt>Before</dt>
                             <dd>{displayValue(change.before)}</dd>
