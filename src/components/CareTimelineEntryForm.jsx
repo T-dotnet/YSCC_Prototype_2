@@ -233,10 +233,11 @@ export default function CareTimelineEntryForm({
             >
               <option value="" disabled>Choose category</option>
               {NEW_RECORD_TYPES.filter((type) =>
-                (!isCorrection || type !== "appointment") &&
-                (!simpleAssessments || type !== "outcome" || entryType === type)
+                !isCorrection || type !== "appointment"
               ).map((type) => (
-                <option key={type} value={type}>{recordCategoryLabel(type)}</option>
+                <option key={type} value={type}>
+                  {simpleAssessments && type === "outcome" ? "Score collection" : recordCategoryLabel(type)}
+                </option>
               ))}
               {isUnlistedType && (
                 <option value={entryType}>{selectedType?.label || existingEvent?.title || "Original event type"}</option>

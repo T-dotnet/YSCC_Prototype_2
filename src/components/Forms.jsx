@@ -240,8 +240,12 @@ export default function Forms({
         episode={e}
         people={state.people}
         person={p}
-        recordTypes={NEW_RECORD_TYPES.filter((value) => !simpleAssessments || value !== "outcome")
-          .map((value) => ({ value, label: recordCategoryLabel(value) }))}
+        recordTypes={NEW_RECORD_TYPES.map((value) => ({
+          value,
+          label: simpleAssessments && value === "outcome"
+            ? "Score collection"
+            : recordCategoryLabel(value),
+        }))}
         onChangeEventType={(initialType) => openModal({
           type: "care-timeline-entry",
           personId: modal.personId,
