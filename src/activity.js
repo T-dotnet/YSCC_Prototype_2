@@ -346,7 +346,7 @@ export function clinicalHistoryEntries(person, episode, audit = []) {
   );
 }
 
-export function careEventEntries(person, episode, audit = []) {
+export function careEventEntries(person, episode, audit = [], { simpleAssessments = false, today = null } = {}) {
   const records = clinicalHistoryEntries(person, episode, audit).filter(
     (entry) =>
       entry.type === "appointment" ||
@@ -354,14 +354,16 @@ export function careEventEntries(person, episode, audit = []) {
       (entry.eventDate &&
         ["ADD_CARE_EVENT", "CORRECT_CARE_EVENT"].includes(entry.actionType)),
   );
-  const assessments = (episode.collections ?? []).map((collection) => ({
+  const assessments = (episode.collections ?? [])
+    .filter((collection) => !simpleAssessments || collection.response === "Submitted" && !!collection.submittedAt)
+    .map((collection) => ({
     ...collection,
     id: `assessment-${collection.id}`,
     type: "assessment",
     collectionId: collection.id,
     date: collection.response === "Submitted" && collection.submittedAt
       ? collection.submittedAt
-      : collection.due,
+      : simpleAssessments ? collection.createdAt?.slice(0, 10) || null : collection.due,
     title: collection.label,
   }));
   // Existing demonstration periods and milestones are source records in the
@@ -395,7 +397,12 @@ export function careEventEntries(person, episode, audit = []) {
       actor: milestone.recordedBy || "Sample fixture",
     })),
   ].filter((entry) => entry.id && entry.eventDate);
-  return [...records, ...assessments, ...reportSources].sort((a, b) =>
+  const entries = [...records, ...assessments, ...reportSources];
+  return (simpleAssessments
+    ? entries.filter((entry) =>
+      !(entry.type === "appointment" && entry.attendance === "Planned") &&
+      (!today || !historyDate(entry) || historyDate(entry).slice(0, 10) <= today))
+    : entries).sort((a, b) =>
     (historyDate(b) || "").localeCompare(historyDate(a) || "") ||
     (b.timestamp || "").localeCompare(a.timestamp || ""),
   );

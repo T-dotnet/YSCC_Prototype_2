@@ -570,7 +570,7 @@ export function applyIntakeAction(
             title: "Initial assessment added after intake",
             detail: "Instrument added automatically after the proceed decision; due date and program stream need planning.",
           }],
-          collections: [initialAssessmentCollection(i, p, version, uid)],
+          collections: [{ ...initialAssessmentCollection(i, p, version, uid), createdAt: timestamp }],
         });
       }
     }
@@ -630,6 +630,7 @@ export function applyIntakeAction(
       collections: [
         {
           ...initialAssessmentCollection(i, p, version, uid),
+          createdAt: timestamp,
           due: action.due,
           externalAppointment: action.externalAppointment || null,
         },

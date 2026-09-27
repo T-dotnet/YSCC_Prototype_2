@@ -15,7 +15,7 @@ const colors = [
   ["Data violet", "--data-violet", "Report series"],
 ];
 
-const spacing = [1, 2, 3, 4, 5, 6, 8, 10];
+const spacing = ["half", 1, 2, 3, 4, 5, 6, 8, 10, 12];
 
 const typographyRoles = [
   ["Page title", "type-page", "--type-page", "One page heading · Outfit · 700", "A connected care record"],
@@ -86,7 +86,7 @@ export const SpacingAndShape = {
   render: () => (
     <div className="ds-story">
       <h2>Spacing and shape</h2>
-      <p>The 4–40 px scale is used in component and layout spacing.</p>
+      <p>The 2–48 px scale is used in component and layout spacing.</p>
       <div className="ds-stack">
         {spacing.map((step) => (
           <div className="ds-measure" key={step} style={{ "--measure": `var(--space-${step})` }}>
@@ -94,7 +94,7 @@ export const SpacingAndShape = {
           </div>
         ))}
       </div>
-      <div className="ds-row" style={{ marginTop: 32 }}>
+      <div className="ds-row" style={{ marginTop: "var(--space-8)" }}>
         {["--control-radius", "--radius", "--radius-lg"].map((token) => (
           <div key={token} className="ds-example" style={{ borderRadius: `var(${token})` }}>
             <code>{token}</code>

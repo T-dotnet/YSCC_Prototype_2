@@ -17,6 +17,16 @@ export const APPOINTMENT_DELIVERY_MODES = [
   "Other",
 ];
 
+export const DRAFT_CONTACT_DELIVERY_MODES = [
+  "In person",
+  "Phone",
+  "SMS",
+  "Video",
+  "Clinic tablet",
+  "Clinician entry",
+  "Other",
+];
+
 // Candidate prototype values. The approved program and PMHC-MDS mappings are still pending.
 export const CONTACT_RECIPIENTS = ["Young person", "Related person"];
 export const CONTACT_TYPES = [
@@ -87,7 +97,7 @@ export function appointmentError(episode, action, today) {
     return "Enter a duration between 1 and 600 minutes.";
   if (!action.practitionerService?.trim())
     return "Enter the practitioner or service.";
-  if (!APPOINTMENT_DELIVERY_MODES.includes(action.deliveryMode))
+  if (![...APPOINTMENT_DELIVERY_MODES, ...DRAFT_CONTACT_DELIVERY_MODES].includes(action.deliveryMode))
     return "Choose a delivery mode.";
   if (!APPOINTMENT_ATTENDANCE.includes(action.attendance))
     return "Choose the contact status.";

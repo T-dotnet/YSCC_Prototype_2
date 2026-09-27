@@ -16,7 +16,7 @@ import ReportingIndicator from "../components/ReportingIndicator";
 import { GOVERNED_MEASURES } from "../measureGovernance";
 import { collectionStatus, formatDate } from "../model";
 import { currentCollection } from "../workflow";
-import { REPORT_FIELDS } from "../report";
+import { useStore } from "../store";
 import {
   episodeOutcomeRecords,
   isCompletedScore,
@@ -972,14 +972,20 @@ function Risk() {
 }
 
 export default function RecordTwo({ person, episode, navigate }) {
+  const { state } = useStore();
+  const simpleAssessments = !!state.settings?.simpleAssessments;
   const isFixture = Boolean(person.fixtureLabel) &&
     person.fixtureLabel !== "Fictional closed episode with patient follow-up";
   const hasOutcomeMeasures = episodeOutcomeRecords(episode).some(
     (measure) => measure.records?.length,
   );
-  const isEmptyReport = !isFixture && !hasOutcomeMeasures && !hasCareTimelineEntries(episode);
+  const isEmptyReport = !isFixture && !hasOutcomeMeasures && !hasCareTimelineEntries(episode, { simpleAssessments });
   const nextAssessment = currentCollection(episode);
-  const nextAssessmentStatus = nextAssessment ? collectionStatus(nextAssessment) : null;
+  const nextAssessmentStatus = nextAssessment
+    ? simpleAssessments
+      ? nextAssessment.response === "Submitted" ? "Completed" : nextAssessment.response === "Draft" ? "Draft" : "Created"
+      : collectionStatus(nextAssessment)
+    : null;
   const openAssessment = () => {
     const params = new URLSearchParams({ tab: "assessment", episode: episode.id });
     if (nextAssessment?.id) params.set("collection", nextAssessment.id);
@@ -1015,23 +1021,6 @@ export default function RecordTwo({ person, episode, navigate }) {
           </Button>
         )}
       </div>
-      {episode.progressReport && (
-        <Panel title="Saved episode report">
-          <div className="panel-body stack">
-            <p className="muted">
-              Recorded {formatDate(episode.progressReport.timestamp?.slice(0, 10))} by {episode.progressReport.actor || "Not recorded"} · {episode.progressReport.sources?.length || 0} submitted assessment sources. This saved version is view only.
-            </p>
-            <dl className="metadata">
-              {REPORT_FIELDS.map(({ key, label }) => (
-                <div key={key}>
-                  <dt>{label}</dt>
-                  <dd>{episode.progressReport.content?.[key] || "Not recorded"}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-        </Panel>
-      )}
       {isEmptyReport ? (
         <section className="report-empty-state" aria-labelledby="report-empty-title">
           <div className="report-empty-main">
@@ -1059,7 +1048,7 @@ export default function RecordTwo({ person, episode, navigate }) {
           >
             <div className="panel-body">
               <h3>{nextAssessment?.label || "Initial assessment"}</h3>
-              {nextAssessment?.due && <p>Due {formatDate(nextAssessment.due)}</p>}
+              {!simpleAssessments && nextAssessment?.due && <p>Due {formatDate(nextAssessment.due)}</p>}
               <div className="actions">
                 <Button variant="primary" onClick={openAssessment}>Open assessment</Button>
                 <TextLink
@@ -1078,6 +1067,7 @@ export default function RecordTwo({ person, episode, navigate }) {
               person={person}
               episode={episode}
               navigate={navigate}
+              simpleAssessments={simpleAssessments}
               isVisible={careTimelineVisible}
               onToggle={() => setCareTimelineVisible((visible) => !visible)}
             />
@@ -1096,6 +1086,7 @@ export default function RecordTwo({ person, episode, navigate }) {
               person={person}
               episode={episode}
               navigate={navigate}
+              simpleAssessments={simpleAssessments}
               isVisible={careTimelineVisible}
               onToggle={() => setCareTimelineVisible((visible) => !visible)}
             />

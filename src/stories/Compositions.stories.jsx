@@ -130,7 +130,7 @@ export const DialogAndForm = {
       <div className="ds-story">
         <h2>Dialog and form</h2>
         <Button variant="primary" onClick={() => { setOpen(true); setSaved(false); }}>Add contact</Button>
-        {saved && <p className="ds-caption" role="status" style={{ marginTop: 16 }}>Example contact recorded in this story.</p>}
+        {saved && <p className="ds-caption" role="status" style={{ marginTop: "var(--space-4)" }}>Example contact recorded in this story.</p>}
         {open && (
           <Modal title="Add direct service contact" subtitle="Record work done with the young person." onClose={() => setOpen(false)}>
             <form onSubmit={(event) => { event.preventDefault(); setOpen(false); setSaved(true); }}>

@@ -30,7 +30,7 @@ export const SearchAndClear = {
       <div className="ds-story ds-form">
         <h2>Search and clear</h2>
         <SearchInput value={query} onChange={setQuery} placeholder="Search people by name or ID" />
-        <p className="ds-caption" style={{ marginTop: 16 }}>Current query: {query || "None"}</p>
+        <p className="ds-caption" style={{ marginTop: "var(--space-4)" }}>Current query: {query || "None"}</p>
       </div>
     );
   },

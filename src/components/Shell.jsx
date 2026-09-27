@@ -19,6 +19,7 @@ import { Logo, Avatar } from "./UI";
 import NotificationBell from "./NotificationBell";
 import { useStore } from "../store";
 import { currentStaff } from "../model";
+import { patientIdentifier, patientSecondaryDetail } from "../patientIdentity";
 const links = [
   ["/", "My work", House],
   ["/people", "People", Users],
@@ -88,7 +89,8 @@ export default function Shell({
     document.addEventListener("mousedown", handlePointerDown);
     return () => document.removeEventListener("mousedown", handlePointerDown);
   }, [searchOpen]);
-  const active = path.startsWith("/people") ? "/people" : path;
+  const active = path.startsWith("/people") ? "/people"
+    : path.startsWith("/administration/") ? "/administration" : path;
   const go = (p) => {
     navigate(p);
     setMobile(false);
@@ -309,8 +311,8 @@ export default function Shell({
                         onMouseEnter={() => setActiveSearchIndex(index)}
                         onClick={() => selectPerson(person)}
                       >
-                        <span>{person.name}</span>
-                        <small>{person.id}</small>
+                        <span>{patientIdentifier(person)}</span>
+                        {patientSecondaryDetail(person) && <small>{patientSecondaryDetail(person)}</small>}
                       </button>
                     ))
                   ) : (

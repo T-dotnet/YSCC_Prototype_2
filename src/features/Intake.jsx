@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ChevronDown } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useStore } from "../store";
+import { patientIdentifier, patientSecondaryDetail } from "../patientIdentity";
 import AppointmentSlotPicker from "../components/AppointmentSlotPicker";
 import { PROGRAM_STREAMS } from "../carePeriods";
 import {
@@ -9,7 +10,6 @@ import {
   currentStaff,
   formatDate,
   formatTimestamp,
-  age,
   displayPersonName,
 } from "../model";
 import {
@@ -727,7 +727,7 @@ export function IntakePanel({ person, intake, navigate, mobileReferrals }) {
           </Panel>
         </div>
         <div className="stack">
-          <Panel title="Required intake checks">
+          <Panel title="Required intake checks" className="intake-required-checks-panel">
             <div className="panel-body stack">
               <p className="muted">
                 Sample review categories. Staff apply the approved service
@@ -812,6 +812,7 @@ export function IntakePanel({ person, intake, navigate, mobileReferrals }) {
 
 export function IntakeAssessmentPanel({ person, intake, navigate, onReopen, reopenError }) {
   const { state, commit } = useStore();
+  const simpleAssessments = !!state.settings?.simpleAssessments;
   const [due, setDue] = useState(TODAY);
   const [programStream, setProgramStream] = useState("");
   const [error, setError] = useState("");
@@ -848,7 +849,14 @@ export function IntakeAssessmentPanel({ person, intake, navigate, onReopen, reop
             <div><dt>Receiving assessment owner</dt><dd>{intake.assessmentOwner || "Not assigned"}</dd></div>
             <div><dt>Respondent</dt><dd>{intake.respondentPreference || "Not recorded"}</dd></div>
           </dl>
-          {ready ? (
+          {ready && simpleAssessments ? (
+            <div className="stack">
+              <Notice>The initial assessment was created when intake proceeded. Open it to save a draft or complete the response.</Notice>
+              <Button variant="primary" onClick={() => navigate(`/people/${person.id}?episode=${intake.episodeId}&tab=assessment`)}>
+                Open assessment
+              </Button>
+            </div>
+          ) : ready ? (
             assessmentPlanned ? (
               <Button
                 variant="primary"
@@ -921,12 +929,24 @@ export default function IntakeWorkspace({ person, navigate, openModal }) {
     </section>
   );
   const returnTo = safeReturnTo(params.get("returnTo"));
-  const tabs = ["Overview", "Assessment", { value: "Events", label: "Care events" },
-    "Report", { value: "Consent & respondents", label: "Consent" }];
+  const recordTabsUnlocked = intakeReady(intake);
+  const lockedTab = (value, label = value) => ({
+    value,
+    label,
+    disabled: !recordTabsUnlocked,
+    title: !recordTabsUnlocked ? "Available after a Proceed outcome is saved" : undefined,
+  });
+  const tabs = ["Overview", lockedTab("Assessment"), lockedTab("Events", "Care events"),
+    lockedTab("Report"), lockedTab("Consent & respondents", "Consent")];
   const requestedTab = params.get("tab")?.toLowerCase();
   const tab = tabs.find((item) => (typeof item === "string" ? item : item.value).toLowerCase() === requestedTab);
-  const selectedTab = typeof tab === "string" ? tab : tab?.value || "Overview";
-  const setTab = (value) => navigate(`/people/${person.id}${value === "Overview" ? "" : `?tab=${encodeURIComponent(value.toLowerCase())}`}`, { scroll: false });
+  const selectedTab = tab && (typeof tab === "string" || !tab.disabled)
+    ? (typeof tab === "string" ? tab : tab.value)
+    : "Overview";
+  const setTab = (value) => {
+    if (!recordTabsUnlocked && value !== "Overview") return;
+    navigate(`/people/${person.id}${value === "Overview" ? "" : `?tab=${encodeURIComponent(value.toLowerCase())}`}`, { scroll: false });
+  };
   const lastUpdatedAt = [
     intake.createdAt,
     ...(intake.history || []).map((entry) => entry.timestamp),
@@ -941,12 +961,8 @@ export default function IntakeWorkspace({ person, navigate, openModal }) {
       </button>
       <div className="person-heading">
         <div>
-          <h1>{person.name || "Name not recorded"}</h1>
-          <p>
-            {person.id}
-            <span>·</span>
-            {person.dob ? `${age(person.dob)} years` : "Date of birth unknown"}
-          </p>
+          <h1>{patientIdentifier(person)}</h1>
+          {patientSecondaryDetail(person) && <p>{patientSecondaryDetail(person)}</p>}
         </div>
         <Badge>{intake.status}</Badge>
       </div>

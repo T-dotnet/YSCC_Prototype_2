@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { reducer } from "./model.js";
+import { reducer, TODAY } from "./model.js";
+import { DRAFT_CONTACT_DELIVERY_MODES } from "./appointments.js";
 import { emptyDraftSeed as createSeed } from "./testFixtures.js";
 import { getInstrument, questionnaireState } from "./instruments.js";
 import { createSampleAnswers } from "./sampleQuestionnaires.js";
@@ -45,6 +46,77 @@ test("preparing an SMS link is separate from starting and saving a response sess
     ...context, type: "SUBMIT", channel: "SMS link",
     attemptId: attempt.id, answers,
   }), saved);
+});
+
+test("saving a draft can attribute its answers to an existing attended contact", () => {
+  const ready = deliver(createSeed(), "Clinic tablet", "Independent");
+  const episode = ready.people[0].episodes[0];
+  episode.appointments.push({ id: "contact-for-draft", attendance: "Attended", actualDate: TODAY });
+  const attempt = collection(ready).attempts.at(-1);
+  const answers = createSampleAnswers({ participation: "In person" });
+  const saved = reducer(ready, {
+    ...context, type: "SAVE_RESPONSE_PROGRESS", channel: "Clinic tablet",
+    attemptId: attempt.id, answers,
+    contactLink: { kind: "existing", appointmentId: "contact-for-draft" },
+  });
+  const draft = collection(saved);
+  assert.equal(draft.response, "Draft");
+  assert.equal(draft.attempts.at(-1).appointmentId, "contact-for-draft");
+  assert.ok(contactsForAssessment(saved.people[0].episodes[0], draft.id)
+    .some((contact) => contact.id === "contact-for-draft"));
+  assert.equal(contactContribution(draft, "contact-for-draft", getInstrument(draft.version)).status, "Partial");
+});
+
+test("saving a draft confirms its collection method and records a corrected method", () => {
+  const ready = deliver(createSeed(), "Clinic tablet", "Independent");
+  const attempt = collection(ready).attempts.at(-1);
+  const answers = createSampleAnswers({ participation: "In person" });
+  const action = {
+    ...context, type: "SAVE_RESPONSE_PROGRESS", channel: "Clinic tablet",
+    attemptId: attempt.id, answers, contactLink: { kind: "none" },
+  };
+
+  assert.equal(reducer(ready, { ...action, completionMethod: "SMS link" }), ready);
+  const saved = reducer(ready, { ...action, completionMethod: "Clinician entry" });
+  const draft = collection(saved);
+  assert.equal(draft.response, "Draft");
+  assert.equal(draft.channel, "Clinician entry");
+  assert.equal(draft.attempts.at(-1).channel, "Clinician entry");
+  assert.equal(draft.attempts.at(-1).startedChannel, "Clinic tablet");
+  assert.equal(draft.attempts.at(-1).methodConfirmedBy, "Jess Taylor");
+  assert.ok(Number.isFinite(Date.parse(draft.attempts.at(-1).methodConfirmedAt)));
+});
+
+test("saving a draft can create and link a recorded attended contact atomically", () => {
+  assert.ok(DRAFT_CONTACT_DELIVERY_MODES.includes("Clinic tablet"));
+  assert.ok(DRAFT_CONTACT_DELIVERY_MODES.includes("Clinician entry"));
+  assert.ok(!DRAFT_CONTACT_DELIVERY_MODES.includes("Outreach or community"));
+  const ready = deliver(createSeed(), "Clinic tablet", "Independent");
+  const attempt = collection(ready).attempts.at(-1);
+  const answers = createSampleAnswers({ participation: "In person" });
+  const contact = {
+    attendance: "Attended", plannedDate: TODAY, actualDate: TODAY,
+    plannedTime: "10:00", actualTime: "10:00",
+    plannedDurationMinutes: "30", actualDurationMinutes: "30",
+    practitionerService: "Northside clinician", primaryPractitioner: "Jess Taylor",
+    deliveryMode: "Clinic tablet", recipientType: "Young person", contactType: "Assessment",
+  };
+  const saved = reducer(ready, {
+    ...context, type: "SAVE_RESPONSE_PROGRESS", channel: "Clinic tablet",
+    attemptId: attempt.id, answers, contactLink: { kind: "new", contact },
+  });
+  const episode = saved.people[0].episodes[0];
+  const draft = collection(saved);
+  const linked = episode.appointments.find((item) => item.id === draft.attempts.at(-1).appointmentId);
+  assert.equal(draft.response, "Draft");
+  assert.equal(linked.attendance, "Attended");
+  assert.equal(linked.actualDate, TODAY);
+  assert.equal(contactContribution(draft, linked.id, getInstrument(draft.version)).status, "Partial");
+  assert.equal(reducer(ready, {
+    ...context, type: "SAVE_RESPONSE_PROGRESS", channel: "Clinic tablet",
+    attemptId: attempt.id, answers,
+    contactLink: { kind: "new", contact: { ...contact, actualDate: "2030-01-01" } },
+  }), ready);
 });
 
 test("tablet begins on the questionnaire and clinician entry begins when its form opens", () => {

@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { Plus, ArrowRight, CalendarX } from "lucide-react";
 import { useStore } from "../store";
+import { patientIdentifier } from "../patientIdentity";
 import {
   getTasks,
   formatDate,
@@ -48,6 +49,7 @@ const workRecord = (task) =>
   };
 export default function Worklist({ navigate, openModal }) {
   const { state } = useStore();
+  const simpleAssessments = !!state.settings?.simpleAssessments;
   const view = useQueueView();
   const query = view.params.get("q") || "";
   const filter = filters.includes(view.params.get("filter"))
@@ -284,7 +286,7 @@ export default function Worklist({ navigate, openModal }) {
                   <tr>
                     <SortableHeader label="Person" sortKey="name" sort={sortConfig} onSort={toggleSort} />
                     <SortableHeader label="Work item" sortKey="item" sort={sortConfig} onSort={toggleSort} />
-                    <SortableHeader label="Due / review date" sortKey="due" sort={sortConfig} onSort={toggleSort} />
+                    <SortableHeader label={simpleAssessments ? "Progress / review" : "Due / review date"} sortKey="due" sort={sortConfig} onSort={toggleSort} />
                     <SortableHeader label="Status" sortKey="status" sort={sortConfig} onSort={toggleSort} />
                     <th>Next action</th>
                   </tr>
@@ -305,9 +307,8 @@ export default function Worklist({ navigate, openModal }) {
                                   openPerson(p);
                                 }}
                               >
-                                {p.name}
+                                {patientIdentifier(p)}
                               </button>
-                              <small>{p.id}</small>
                             </span>
                           </div>
                         </QueueCell>
@@ -316,8 +317,10 @@ export default function Worklist({ navigate, openModal }) {
                             ? `Intake - ${intakeStage(task.record)}`
                             : c.label}
                         </QueueCell>
-                        <QueueCell label="Due / review date" slot="date">
-                          {c.response === "Submitted" ? (
+                        <QueueCell label={simpleAssessments ? "Progress / review" : "Due / review date"} slot="date">
+                          {simpleAssessments && task.collection ? (
+                            <span className="muted">{status === "Draft" ? "Draft saved" : "Assessment created"}</span>
+                          ) : c.response === "Submitted" ? (
                             <span className="muted">Response received · review pending</span>
                           ) : (
                             <span className={status === "Overdue" ? "status-overdue-text" : undefined}>{formatDate(c.due)}</span>
@@ -333,7 +336,7 @@ export default function Worklist({ navigate, openModal }) {
                               e.stopPropagation();
                               openTask(task);
                             }}
-                            aria-label={`${action} · ${p.name} · ${c.label}`}
+                            aria-label={`${action} · ${patientIdentifier(p)} · ${c.label}`}
                           >
                             {action}
                             <ArrowRight size={16} />
@@ -450,7 +453,7 @@ export default function Worklist({ navigate, openModal }) {
                           className="name-link"
                           onClick={() => openPerson(alert.person)}
                         >
-                          {alert.person.name} <small>({alert.person.id})</small>
+                          {patientIdentifier(alert.person)}
                         </button>
                       </div>
                     ) : (

@@ -22,6 +22,7 @@ export default function AppointmentForm({
   onChangeEventType,
   error,
   canCreateAssessment,
+  simpleAssessments = false,
   onClose,
   onSave,
 }) {
@@ -85,8 +86,8 @@ export default function AppointmentForm({
               actualTime: values.plannedTime,
               actualDurationMinutes: values.plannedDurationMinutes,
             } : {}),
-            collectionIds,
-            newAssessmentVersions,
+            collectionIds: simpleAssessments ? [] : collectionIds,
+            newAssessmentVersions: simpleAssessments ? [] : newAssessmentVersions,
           });
         }}
       >
@@ -155,7 +156,7 @@ export default function AppointmentForm({
             </Field>
           </div>
           <ContactFields attended={attendance === "Attended"} person={person} />
-          <div className="appointment-assessment-picker" ref={assessmentPickerRef}
+          {!simpleAssessments && <div className="appointment-assessment-picker" ref={assessmentPickerRef}
             onKeyDown={(event) => {
               if (event.key === "Escape" && assessmentMenuOpen) {
                 event.stopPropagation();
@@ -226,7 +227,7 @@ export default function AppointmentForm({
                 </div>
               </div>
             </div>}
-          </div>
+          </div>}
           {error && <p className="field-error">{error}</p>}
         </div>
         <div className="modal-footer">

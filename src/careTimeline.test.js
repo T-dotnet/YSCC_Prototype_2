@@ -3,6 +3,20 @@ import test from "node:test";
 import { careTimelineData, timelineExtent, timelinePosition } from "./careTimeline.js";
 import { createSeed, reducer, TODAY } from "./model.js";
 
+test("simple assessments omit planned review marks from the report timeline", () => {
+  const episode = {
+    collections: [
+      { id: "planned", label: "90-day review", response: "Not started", due: "2026-08-30" },
+      { id: "done", label: "Initial assessment", response: "Submitted", submittedAt: "2026-08-01T10:00:00Z" },
+    ],
+  };
+  const standard = careTimelineData(episode);
+  const simple = careTimelineData(episode, { simpleAssessments: true });
+  assert.ok(standard.lanes.some((lane) => lane.entries.some((entry) => entry.kind === "planned")));
+  assert.ok(simple.lanes.every((lane) => lane.entries.every((entry) => entry.kind !== "planned")));
+  assert.ok(simple.lanes.some((lane) => lane.entries.some((entry) => entry.id === "response-done")));
+});
+
 test("care context timeline keeps significant events together in one lane", () => {
   const timeline = careTimelineData({
     start: "2026-06-01",

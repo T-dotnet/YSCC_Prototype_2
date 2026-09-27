@@ -17,7 +17,7 @@ export default class ErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ padding: "40px", textAlign: "center", color: "var(--validation-text)" }}>
+        <div style={{ padding: "var(--space-10)", textAlign: "center", color: "var(--validation-text)" }}>
           <h1>Something went wrong.</h1>
           <p>{this.state.error?.toString()}</p>
           <button 
@@ -25,7 +25,7 @@ export default class ErrorBoundary extends React.Component {
               localStorage.clear();
               window.location.reload();
             }}
-            style={{ marginTop: "20px", padding: "10px 20px", cursor: "pointer" }}
+            style={{ marginTop: "var(--space-5)", padding: "var(--space-3) var(--space-5)", cursor: "pointer" }}
           >
             Clear data and reset
           </button>

@@ -36,7 +36,7 @@ export default function ListFilterBar({
       />
       <div className="care-event-search-row">
         <SearchInput value={query} onChange={onQueryChange} placeholder={placeholder} />
-        <button
+        {advanced && <button
           type="button"
           className={`care-event-more-filters${activeAdvancedCount ? " has-active-filters" : ""}`}
           aria-expanded={open}
@@ -48,11 +48,11 @@ export default function ListFilterBar({
           <span className="care-event-more-label-short">Filters</span>
           {activeAdvancedCount > 0 && <span className="care-event-more-count">{activeAdvancedCount}</span>}
           <ChevronDown size={16} aria-hidden="true" />
-        </button>
+        </button>}
       </div>
-      <div id={`${id}-advanced-filters`} className="care-event-advanced-filters" hidden={!open}>
+      {advanced && <div id={`${id}-advanced-filters`} className="care-event-advanced-filters" hidden={!open}>
         {advanced}
-      </div>
+      </div>}
       <p className="care-event-results-count" aria-live="polite">
         <span>Showing {shown} of {total} {noun}</span>
         {shown !== total && onClear && (

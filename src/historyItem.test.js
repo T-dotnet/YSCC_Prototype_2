@@ -55,6 +55,34 @@ test("Care events assessment facts use the submitted date and linked score, not 
   ]);
 });
 
+test("simple assessment history shows progress without due dates or assignment", () => {
+  const collection = {
+    id: "assessment-1", label: "Review", version: "Review v1",
+    createdAt: "2026-09-01T09:00:00Z", due: "2026-09-20",
+    response: "Draft", assignment: "Planned",
+  };
+  const item = historyItem({ type: "assessment", collectionId: collection.id, date: collection.due },
+    { collections: [collection] }, undefined, true);
+  assert.equal(item.date, "2026-09-01");
+  assert.equal(item.dateLabel, "Created");
+  assert.deepEqual(item.primary.map(({ label }) => label), ["Created", "Completed", "Score"]);
+  assert.deepEqual(item.more, []);
+});
+
+test("simple assessment history keeps Created first when its date is unavailable", () => {
+  const collection = {
+    id: "assessment-2", label: "Review", version: "Review v1",
+    response: "Submitted", submittedAt: "2026-09-08T10:00:00Z",
+  };
+  const item = historyItem({ type: "assessment", collectionId: collection.id, date: "2026-09-08" },
+    { collections: [collection] }, undefined, true);
+  assert.deepEqual(item.primary.map(({ label, value }) => [label, value]), [
+    ["Created", "Not recorded"],
+    ["Completed", "2026-09-08"],
+    ["Score", "Not scored"],
+  ]);
+});
+
 test("History uses the contact date once and keeps appointment provenance available", () => {
   const appointment = {
     id: "visit-1",

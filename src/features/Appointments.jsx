@@ -23,6 +23,7 @@ import {
   Select,
 } from "../components/UI";
 import RecordItem from "../components/RecordItem";
+import { useStore } from "../store";
 
 const EMPTY_FILTERS = {
   attendance: "all",
@@ -94,7 +95,7 @@ const appointmentWhen = (appointment) => {
   };
 };
 
-function AppointmentCard({ appointment, episode, openModal }) {
+function AppointmentCard({ appointment, episode, openModal, simpleAssessments }) {
   const overdue = appointmentIsOverdue(appointment, TODAY);
   const when = appointmentWhen(appointment);
   const status = overdue ? "Overdue" : appointment.attendance;
@@ -140,7 +141,8 @@ function AppointmentCard({ appointment, episode, openModal }) {
           <summary>More detail</summary>
           <dl className="appointment-details">
             {appointmentDetails(appointment, episode)
-              .filter(([label]) => !label.toLocaleLowerCase().includes("note"))
+              .filter(([label]) => !label.toLocaleLowerCase().includes("note") &&
+                (!simpleAssessments || label !== "Initial assessment" && !label.startsWith("Associated assignment")))
               .map(([label, value]) => (
                 <div key={label}>
                   <dt>{label}</dt>
@@ -197,6 +199,7 @@ function AppointmentSection({
   appointments,
   episode,
   openModal,
+  simpleAssessments,
   defaultOpen = true,
 }) {
   if (appointments.length === 0) return null;
@@ -220,6 +223,7 @@ function AppointmentSection({
               appointment={appointment}
               episode={episode}
               openModal={openModal}
+              simpleAssessments={simpleAssessments}
             />
           </li>
         ))}
@@ -229,6 +233,8 @@ function AppointmentSection({
 }
 
 export default function Appointments({ episode, openModal }) {
+  const { state } = useStore();
+  const simpleAssessments = !!state.settings?.simpleAssessments;
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const appointments = episode.appointments || [];
@@ -383,6 +389,7 @@ export default function Appointments({ episode, openModal }) {
             appointments={overdue}
             episode={episode}
             openModal={openModal}
+            simpleAssessments={simpleAssessments}
           />
           <AppointmentSection
             title="Upcoming planned contacts"
@@ -390,6 +397,7 @@ export default function Appointments({ episode, openModal }) {
             appointments={upcoming}
             episode={episode}
             openModal={openModal}
+            simpleAssessments={simpleAssessments}
           />
           <AppointmentSection
             title="Recorded contacts"
@@ -397,6 +405,7 @@ export default function Appointments({ episode, openModal }) {
             appointments={recorded}
             episode={episode}
             openModal={openModal}
+            simpleAssessments={simpleAssessments}
           />
         </div>
       )}

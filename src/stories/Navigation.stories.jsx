@@ -86,7 +86,7 @@ export const QuickFilters = {
       <div className="ds-story">
         <h2>Quick filters</h2>
         <FilterTabs id="story-filter-tabs" label="Assessment status" items={["All", "Due", "Ready for review", "Completed"]} value={active} onChange={setActive} />
-        <p id="story-filter-tabs-panel" className="ds-caption" style={{ marginTop: 20 }}>Showing: {active}</p>
+        <p id="story-filter-tabs-panel" className="ds-caption" style={{ marginTop: "var(--space-5)" }}>Showing: {active}</p>
       </div>
     );
   },

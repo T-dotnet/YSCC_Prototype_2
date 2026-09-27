@@ -7,6 +7,7 @@ import Forms from "./components/Forms";
 import Worklist from "./features/Worklist";
 import People from "./features/People";
 import Person from "./features/Person";
+import SampleClientPreview from "./features/SampleClientPreview";
 import AssessmentReviewRecord from "./features/AssessmentReviewRecord";
 import { Quality, Administration, Help } from "./features/Operations";
 import GlobalChangeLog from "./features/GlobalChangeLog";
@@ -104,11 +105,14 @@ export default function App() {
   const assessmentReviewMatch = path.match(
     /^\/people\/([^/]+)\/assessment-review\/([^/]+)$/,
   );
+  const sampleClientMatch = path.match(/^\/(?:administration|people)\/sample\/([^/]+)$/);
   let page =
     path === "/" ? (
       <Worklist {...shared} />
     ) : path === "/people" ? (
       <People {...shared} />
+    ) : sampleClientMatch ? (
+      <SampleClientPreview id={sampleClientMatch[1]} navigate={navigate} />
     ) : assessmentReviewMatch ? (
       <AssessmentReviewRecord
         personId={assessmentReviewMatch[1]}

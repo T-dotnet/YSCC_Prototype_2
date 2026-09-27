@@ -78,6 +78,7 @@ export default function Forms({
   notify,
 }) {
   const { state, dispatch, commit } = useStore();
+  const simpleAssessments = !!state.settings?.simpleAssessments;
   const staff = currentStaff(state);
   const p = state.people.find((person) => person.id === modal.personId),
     e = p?.episodes.find((episode) => episode.id === modal.episodeId),
@@ -215,6 +216,7 @@ export default function Forms({
             : "structured"
         }
         initialType={modal.initialType}
+        simpleAssessments={simpleAssessments}
         error={formError}
         onClose={onClose}
         onSelectAppointment={() => openModal({
@@ -238,7 +240,8 @@ export default function Forms({
         episode={e}
         people={state.people}
         person={p}
-        recordTypes={NEW_RECORD_TYPES.map((value) => ({ value, label: recordCategoryLabel(value) }))}
+        recordTypes={NEW_RECORD_TYPES.filter((value) => !simpleAssessments || value !== "outcome")
+          .map((value) => ({ value, label: recordCategoryLabel(value) }))}
         onChangeEventType={(initialType) => openModal({
           type: "care-timeline-entry",
           personId: modal.personId,
@@ -247,6 +250,7 @@ export default function Forms({
         })}
         error={formError}
         canCreateAssessment={canAssess(p, e)}
+        simpleAssessments={simpleAssessments}
         onClose={onClose}
         onSave={(action) =>
           save(action, "Contact added to this care episode.")
@@ -285,6 +289,7 @@ export default function Forms({
         episode={e}
         appointment={appointment}
         person={p}
+        simpleAssessments={simpleAssessments}
         error={formError}
         onClose={onClose}
         onSave={(action) =>
@@ -300,6 +305,7 @@ export default function Forms({
       <CareTimelineEntryForm
         episode={e}
         event={event}
+        simpleAssessments={simpleAssessments}
         error={formError}
         onClose={onClose}
         onSave={(action) =>
@@ -335,6 +341,7 @@ export default function Forms({
       </Modal>
     );
   if (modal.type === "link-assessment-contact") {
+    if (simpleAssessments || c?.scheduleFree) return null;
     const linkedIds = new Set(contactsForAssessment(e, c?.id).map((item) => item.id));
     const choices = (e?.appointments || []).filter((item) => !linkedIds.has(item.id));
     const unlinkedAttempts = (c?.attempts || []).filter((item) => !item.appointmentId);
@@ -385,6 +392,7 @@ export default function Forms({
         person={p}
         episode={e}
         collection={c}
+        simpleAssessments={simpleAssessments || !!c?.scheduleFree}
         canCompleteAsClinician={staff?.role === "Clinician" && canAssess(p, e)}
         onClose={onClose}
         onAction={(type) => {
@@ -472,7 +480,7 @@ export default function Forms({
   if (modal.type === "plan")
     return (
       <Modal
-        title={previewOpen ? "Questionnaire preview" : "Plan a follow-up"}
+        title={previewOpen ? "Questionnaire preview" : simpleAssessments ? "Create assessment" : "Plan a follow-up"}
         subtitle={
           previewOpen
             ? `${selectedInstrument.version} · ${displayPersonName(p)}`
@@ -488,13 +496,13 @@ export default function Forms({
             ev.preventDefault();
             const values = formValues(ev);
             const label = String(values.label || "").trim();
-            const dueDate = planDue || values.due;
-            if (planChannel !== "SMS link" &&
+            const dueDate = simpleAssessments ? "" : planDue || values.due;
+            if (!simpleAssessments && planChannel !== "SMS link" &&
                 (!planExternalSlot || planExternalSlot.date > dueDate)) {
               setFormError("Choose an available contact on or before the assessment due date.");
               return;
             }
-            const externalAppointment = planChannel === "SMS link" ? null : planExternalSlot;
+            const externalAppointment = simpleAssessments || planChannel === "SMS link" ? null : planExternalSlot;
 
             const result = commit({
               ...modal,
@@ -504,7 +512,7 @@ export default function Forms({
               due: dueDate,
               version: instrumentVersion,
               respondent: planRespondent,
-              channel: planChannel,
+              channel: simpleAssessments ? undefined : planChannel,
               assistance: planAssistance,
               externalAppointment,
             });
@@ -514,7 +522,7 @@ export default function Forms({
             }
             onClose();
             notify(
-              externalAppointment
+              simpleAssessments ? "Assessment created." : externalAppointment
                 ? "Follow-up linked to an external contact."
                 : "Follow-up added to the existing care episode.",
             );
@@ -522,11 +530,11 @@ export default function Forms({
         >
           <div className="form-body">
             <Notice>
-              This creates a new assessment in care episode {e.number},
-              preserving the previous responses. Choose Add follow-up to
-              save the follow-up.
+              {simpleAssessments
+                ? `Create an assessment in care episode ${e.number}. Answers can be saved as a draft and then completed.`
+                : `This creates a new assessment in care episode ${e.number}, preserving the previous responses. Choose Add follow-up to save the follow-up.`}
             </Notice>
-            <Field
+            {!simpleAssessments && <Field
               label="Due date"
               hint="A sample due date is shown. Confirm or change it for this assessment."
             >
@@ -538,7 +546,7 @@ export default function Forms({
                 onChange={(event) => { setPlanDue(event.target.value); setPlanExternalSlot(null); }}
                 required
               />
-            </Field>
+            </Field>}
             <div className="instrument-field">
               <Field label="Instrument" hint={selectedInstrument.description}>
                 <select
@@ -591,7 +599,7 @@ export default function Forms({
                 maxLength={80}
               />
             </Field>
-            <details className="setup-disclosure">
+            {!simpleAssessments && <details className="setup-disclosure">
               <summary>
                 Existing collection plan ({e.collections.length})
               </summary>
@@ -607,7 +615,7 @@ export default function Forms({
                     </li>
                   ))}
               </ul>
-            </details>
+            </details>}
             <Field label="Respondent">
               <select
                 value={planRespondent}
@@ -625,7 +633,7 @@ export default function Forms({
               </select>
             </Field>
 
-            <fieldset className="channel-options">
+            {!simpleAssessments && <fieldset className="channel-options">
               <legend>How will this follow-up be collected?</legend>
               {[
                 ["SMS link", "Account-free sample link", MessageSquare],
@@ -668,9 +676,9 @@ export default function Forms({
                   <span className="radio-dot" />
                 </label>
               ))}
-            </fieldset>
+            </fieldset>}
 
-            {planChannel === "SMS link" && (
+            {!simpleAssessments && planChannel === "SMS link" && (
               <section ref={planSmsRef} className="sms-plan-panel" aria-label="SMS link details">
                 <strong>SMS link plan</strong>
                 <p>
@@ -696,7 +704,7 @@ export default function Forms({
                 {copyFeedback && <p className="sms-plan-copy-feedback" role="status">{copyFeedback}</p>}
               </section>
             )}
-            {planChannel !== "SMS link" && <AppointmentSlotPicker
+            {!simpleAssessments && planChannel !== "SMS link" && <AppointmentSlotPicker
               key={planDue}
               scrollTargetRef={planPickerRef}
               mode="assessment"
@@ -716,7 +724,7 @@ export default function Forms({
               Cancel
             </Button>
             <Button variant="primary" type="submit">
-              Add follow-up
+              {simpleAssessments ? "Start assessment" : "Add follow-up"}
             </Button>
           </div>
         </ValidatedForm>
@@ -772,7 +780,7 @@ export default function Forms({
           onSubmit={(ev) => {
             ev.preventDefault();
             if (!allowed) return;
-            if (modal.collectResponse && channel !== "SMS link" &&
+            if (!simpleAssessments && !c.scheduleFree && modal.collectResponse && channel !== "SMS link" &&
                 !selectedCollectionExternalSlot && responseContacts.length > 1 && !responseContactId) {
               setFormError("Choose the contact that supplied this response.");
               return;
@@ -783,8 +791,8 @@ export default function Forms({
               channel,
               respondent,
               assistance,
-              appointmentId: modal.collectResponse && channel !== "SMS link" ? responseContactId || undefined : undefined,
-              externalAppointment: channel === "SMS link" ? null : selectedCollectionExternalSlot,
+              appointmentId: !simpleAssessments && !c.scheduleFree && modal.collectResponse && channel !== "SMS link" ? responseContactId || undefined : null,
+              externalAppointment: simpleAssessments || c.scheduleFree || channel === "SMS link" ? null : selectedCollectionExternalSlot,
             });
             if (result.error) {
               setFormError(result.error);
@@ -930,14 +938,14 @@ export default function Forms({
                 ))}
               </select>
             </Field>
-            {channel !== "SMS link" && <AppointmentSlotPicker
+            {!simpleAssessments && !c.scheduleFree && channel !== "SMS link" && <AppointmentSlotPicker
               scrollTargetRef={collectionPickerRef}
               mode="assessment"
               dueDate={c.due}
               selectedSlot={selectedCollectionExternalSlot}
               onSelect={(slot) => { setCollectionExternalSlot(slot); setFormError(""); }}
             />}
-            {modal.collectResponse && channel !== "SMS link" && !selectedCollectionExternalSlot && responseContacts.length > 0 && (
+            {!simpleAssessments && !c.scheduleFree && modal.collectResponse && channel !== "SMS link" && !selectedCollectionExternalSlot && responseContacts.length > 0 && (
               <Field label="Contact for this response" hint="Choose which related contact supplied these answers.">
                 <select value={responseContactId} onChange={(ev) => setResponseContactId(ev.target.value)}>
                   <option value="">{responseContacts.length > 1 ? "Choose a contact" : "Choose automatically"}</option>
@@ -1700,8 +1708,9 @@ export default function Forms({
       <>
         <p>
           Questions adapt to earlier answers. Hidden questions are excluded from
-          completion and comparison. Follow-ups require a named collection point
-          and an explicit due date inside an active episode.
+          completion and comparison. {simpleAssessments
+            ? "Assessments are created without a schedule or contact link. A response can be saved as a draft and completed later."
+            : "Follow-ups require a named collection point and an explicit due date inside an active episode."}
         </p>
         <p>
           Reissuing adds a delivery attempt to the same assignment. Submission
@@ -1818,10 +1827,10 @@ export default function Forms({
       "Log out",
       "End workspace session",
       <>
-        <p style={{ margin: "0 0 16px" }}>
+        <p style={{ margin: "0 0 var(--space-4)" }}>
           Are you sure you want to log out of <strong>{staff?.name || "Workspace Session"}</strong>?
         </p>
-        <div style={{ display: "flex", gap: "10px" }}>
+        <div style={{ display: "flex", gap: "var(--space-3)" }}>
           <Button
             variant="primary"
             onClick={() => {

@@ -4,8 +4,11 @@ import { Button } from "../components/UI";
 import { ClinicalHistory } from "../components/ActivityTimeline";
 import { careEventEntries } from "../activity";
 import { canAssess } from "../intake";
+import { useStore } from "../store";
+import { TODAY } from "../model";
 
 export default function CareEvents({ episode, person, audit = [], openModal, eventId, attentionIds = [], attentionOnly = false, onClearAttention }) {
+  const { state } = useStore();
   useEffect(() => {
     if (attentionOnly && attentionIds.length > 0)
       document.getElementById("care-event-results")?.scrollIntoView({ behavior: "auto", block: "start" });
@@ -27,7 +30,7 @@ export default function CareEvents({ episode, person, audit = [], openModal, eve
         episode={episode}
         person={person}
         audit={audit}
-        entries={careEventEntries(person, episode, audit)}
+        entries={careEventEntries(person, episode, audit, { simpleAssessments: !!state.settings?.simpleAssessments, today: TODAY })}
         selectedEventId={eventId}
         attentionIds={attentionIds}
         attentionOnly={attentionOnly}

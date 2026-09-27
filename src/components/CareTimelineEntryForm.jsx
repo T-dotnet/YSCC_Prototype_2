@@ -133,6 +133,7 @@ export default function CareTimelineEntryForm({
   onClose,
   onSave,
   onSelectAppointment,
+  simpleAssessments = false,
 }) {
   const isCorrection = Boolean(existingEvent);
   const [entryType, setEntryType] = useState(
@@ -231,7 +232,10 @@ export default function CareTimelineEntryForm({
               required
             >
               <option value="" disabled>Choose category</option>
-              {NEW_RECORD_TYPES.filter((type) => !isCorrection || type !== "appointment").map((type) => (
+              {NEW_RECORD_TYPES.filter((type) =>
+                (!isCorrection || type !== "appointment") &&
+                (!simpleAssessments || type !== "outcome" || entryType === type)
+              ).map((type) => (
                 <option key={type} value={type}>{recordCategoryLabel(type)}</option>
               ))}
               {isUnlistedType && (

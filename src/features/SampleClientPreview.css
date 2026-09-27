@@ -1,0 +1,135 @@
+.sample-client-preview .sample-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.sample-client-preview .sample-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem 1.25rem;
+  margin: 0;
+}
+
+.sample-client-preview .sample-facts div,
+.sample-client-preview .sample-source-fields div {
+  min-width: 0;
+}
+
+.sample-client-preview dt {
+  color: var(--text-muted, #61706a);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.sample-client-preview dd {
+  margin: 0.2rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+.sample-client-preview .sample-missing-list {
+  margin: 0 0 1rem;
+  padding-left: 1.25rem;
+}
+
+.sample-client-preview .sample-missing-list li + li {
+  margin-top: 0.55rem;
+}
+
+.sample-client-preview .sample-episode-panel {
+  margin-bottom: 1rem;
+}
+
+.sample-client-preview .sample-episode-facts {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.sample-client-preview .sample-episode-panel h3 {
+  margin: 1.5rem 0 0.75rem;
+  font-size: 1rem;
+}
+
+.sample-client-preview .sample-source-disclosure {
+  max-width: 100%;
+}
+
+.sample-client-preview .sample-source-disclosure > summary,
+.sample-client-preview .sample-event-evidence summary {
+  color: #145b48;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.sample-client-preview .sample-source-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem 1rem;
+  margin: 0.7rem 0 0;
+}
+
+.sample-client-preview .sample-source-fields dt {
+  overflow-wrap: anywhere;
+}
+
+.sample-client-preview .sample-source-toggle {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #145b48;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+}
+
+.sample-client-preview .sample-source-toggle:hover {
+  text-decoration: underline;
+}
+
+.sample-client-preview .sample-event-source-row > td {
+  padding: 1rem;
+  background: #f5f8f6;
+}
+
+.sample-client-preview .sample-event-source-row .sample-source-fields {
+  gap: 0.9rem 1.5rem;
+}
+
+.sample-client-preview .sample-events-scroll {
+  overflow-x: auto;
+}
+
+.sample-client-preview .sample-events-table {
+  width: 100%;
+  min-width: 720px;
+}
+
+.sample-client-preview .sample-events-table td {
+  vertical-align: top;
+}
+
+.sample-client-preview .sample-events-table td small,
+.sample-client-preview .sample-event-evidence > span {
+  display: block;
+}
+
+.sample-client-preview .sample-event-evidence > * + * {
+  margin-top: 0.3rem;
+}
+
+.sample-client-preview .sample-event-evidence ul {
+  margin: 0.4rem 0 0;
+  padding-left: 1.2rem;
+}
+
+@media (max-width: 800px) {
+  .sample-client-preview .sample-preview-grid,
+  .sample-client-preview .sample-facts,
+  .sample-client-preview .sample-episode-facts {
+    grid-template-columns: 1fr;
+  }
+}

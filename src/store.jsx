@@ -15,9 +15,10 @@ export function StoreProvider({ children }) {
       action.type === "COMMIT_LOCAL" ? action.state : reducer(state, action),
     null,
     () => {
+      let initialState;
       try {
         const s = JSON.parse(localStorage.getItem(STORAGE_KEY));
-        return s?.schema === 1 &&
+        initialState = s?.schema === 1 &&
           Array.isArray(s.people) &&
           s.people.length &&
           Array.isArray(s.issues) &&
@@ -25,8 +26,14 @@ export function StoreProvider({ children }) {
           ? upgradeSampleData(s)
           : createSeed();
       } catch {
-        return createSeed();
+        initialState = createSeed();
       }
+      const requestedMode = new URLSearchParams(window.location.search).get("simpleAssessments");
+      if (requestedMode !== "off") return initialState;
+      return {
+        ...initialState,
+        settings: { ...initialState.settings, simpleAssessments: false },
+      };
     },
   );
   useEffect(() => {

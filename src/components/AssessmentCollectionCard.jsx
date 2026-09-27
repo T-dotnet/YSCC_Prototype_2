@@ -21,6 +21,7 @@ export default function AssessmentCollectionCard({
   onReview,
   onCollect,
   relatedContacts = [],
+  simpleAssessments = false,
   inTimeline = false,
   initiallyExpanded = inTimeline,
   headingLevel = inTimeline ? 4 : 3,
@@ -32,17 +33,22 @@ export default function AssessmentCollectionCard({
     : "";
   const submittedDate = responseDate(col);
   const scoreValue = assessmentScoreLabel(col, score);
+  const simpleStatus = col.response === "Submitted" ? "Completed" : col.response === "Draft" ? "Draft" : "Created";
   return (
     <RecordItem
       title={col.label}
-      subtitle={`${formatDate(col.due)} · ${col.version}${scoreText}`}
-      status={collectionStatus(col)}
-      collapsible={inTimeline || isPrior}
-      initiallyExpanded={initiallyExpanded}
+      subtitle={simpleAssessments ? col.version : `${formatDate(col.due)} · ${col.version}${scoreText}`}
+      status={simpleAssessments ? simpleStatus : collectionStatus(col)}
+      collapsible={simpleAssessments || inTimeline || isPrior}
+      initiallyExpanded={simpleAssessments ? col.response !== "Submitted" : initiallyExpanded}
       selected={col.id === selectedId}
       headingLevel={headingLevel}
       className={`assessment-collection-card${inTimeline ? " record-item-compact assessment-timeline-item" : ""}`}
-      facts={[
+      facts={simpleAssessments ? [
+        { label: "Created", value: col.createdAt ? formatDate(col.createdAt.slice(0, 10)) : "Recorded" },
+        { label: "Completed", value: submittedDate ? formatDate(submittedDate) : "—" },
+        { label: "Score", value: scoreValue },
+      ] : [
         {
           label: "Respondent",
           value: <PersonIdentity name={respondent.name} descriptor={respondent.role} />,
@@ -51,7 +57,7 @@ export default function AssessmentCollectionCard({
         { label: "Submitted", value: submittedDate ? formatDate(submittedDate) : "Not submitted" },
         { label: "Score", value: scoreValue },
       ]}
-      secondary={
+      secondary={simpleAssessments ? null :
         <>
           <div className="record-item-statuses">
             <span>Assignment <Badge>{col.assignment}</Badge></span>
@@ -62,10 +68,10 @@ export default function AssessmentCollectionCard({
         </>
       }
       note={col.readOnly ? "Historical assessment · view only · version retained" : null}
-      actions={
+      actions={(!simpleAssessments || col.response !== "Submitted") && (
         <>
-          <TextLink aria-haspopup="dialog" onClick={() => onViewDetails(col)}>View details</TextLink>
-          {col.response === "Submitted" &&
+          {!simpleAssessments && <TextLink aria-haspopup="dialog" onClick={() => onViewDetails(col)}>View details</TextLink>}
+          {!simpleAssessments && col.response === "Submitted" &&
             (!noClinicalReviewRequired(col) || collectionStatus(col) === "Completed") && (
               <Button variant="secondary" onClick={() => onReview(col)}>
                 {col.needsReview
@@ -76,12 +82,12 @@ export default function AssessmentCollectionCard({
               </Button>
             )}
           {col.response !== "Submitted" && (
-            <Button variant="secondary" disabled={!col.due} aria-haspopup="dialog" onClick={() => onCollect(col)}>
+            <Button variant="secondary" disabled={!col.due && !simpleAssessments && !col.scheduleFree} onClick={() => onCollect(col)}>
               Collect response
             </Button>
           )}
         </>
-      }
+      )}
     />
   );
 }

@@ -53,7 +53,7 @@ export const ButtonStates = {
           <Button variant="primary"><Plus size={16} aria-hidden="true" /> Create assessment</Button>
           <Button variant="ghost"><Trash2 size={16} aria-hidden="true" /> Remove</Button>
         </div>
-        <p className="ds-caption" aria-live="polite" style={{ marginTop: 20 }}>Add contact clicked {count} times.</p>
+        <p className="ds-caption" aria-live="polite" style={{ marginTop: "var(--space-5)" }}>Add contact clicked {count} times.</p>
       </div>
     );
   },
@@ -82,7 +82,7 @@ export const StatusBadges = {
         ].map(([label, values]) => (
           <div className="ds-example" key={label}>
             <strong>{label}</strong>
-            <div className="ds-row" style={{ marginTop: 12 }}>
+            <div className="ds-row" style={{ marginTop: "var(--space-3)" }}>
               {values.map((value) => <Badge key={value}>{value}</Badge>)}
             </div>
           </div>
@@ -102,7 +102,7 @@ export const IdentityAndTextAction = {
         <Avatar name="Jordan Ellis" tone="lavender" large />
         <PersonIdentity name="Jordan Ellis" descriptor="YS-1034 · Active episode" />
       </div>
-      <div className="ds-row" style={{ marginTop: 24 }}>
+      <div className="ds-row" style={{ marginTop: "var(--space-6)" }}>
         <TextLink type="button">View details</TextLink>
         <Button variant="secondary">Continue <ArrowRight size={16} aria-hidden="true" /></Button>
       </div>

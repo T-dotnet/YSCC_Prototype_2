@@ -1,4 +1,5 @@
 import { Fragment, useState, useMemo, useEffect, useRef } from "react";
+import { patientIdentifier } from "../patientIdentity";
 import {
   ArrowRightLeft,
   Building2,
@@ -29,6 +30,7 @@ import ListFilterBar from "./ListFilterBar";
 import TimelineExpandAll from "./TimelineExpandAll";
 import RelatedRecordsAccordion from "./RelatedRecordsAccordion";
 import { assessmentsForContact, contactsForAssessment } from "../assessmentContacts";
+import { useStore } from "../store";
 
 const displayValue = (value) =>
   value === true
@@ -105,22 +107,22 @@ const displayDate = (value) =>
 const actorLabel = (entry) =>
   `${entry.actor || "Editor not recorded"}${entry.role ? ` · ${entry.role}` : ""}`;
 
-function TimelineDate({ timestamp, date, time, dateLabel, emphasized = false }) {
+function TimelineDate({ timestamp, date, time, dateLabel, emphasized = false, hideContextLabel = false }) {
   const parts = !time && !dateLabel && timestamp && timestamp === date
     ? timelineTimestamp(timestamp)
     : null;
   if (!emphasized) return (
     <time className="record-timeline-date" dateTime={time && date ? `${date.slice(0, 10)}T${time}` : parts ? timestamp : date || undefined}>
       {parts ? parts.date : displayDate(date)}
-      {(time || dateLabel || parts) && <small>
-        {time ? `${time} · ${dateLabel}` : dateLabel || (parts ? (
+      {(time || (!hideContextLabel && (dateLabel || parts))) && <small>
+        {time ? hideContextLabel ? time : `${time} · ${dateLabel}` : dateLabel || (parts ? (
           <>{parts.time}{parts.zone && <><br />{parts.zone}</>}</>
         ) : null)}
       </small>}
     </time>
   );
   const clock = time || parts?.time;
-  const context = dateLabel || parts?.zone;
+  const context = hideContextLabel ? null : dateLabel || parts?.zone;
   return (
     <time className="record-timeline-date" dateTime={time && date ? `${date.slice(0, 10)}T${time}` : parts ? timestamp : date || undefined}>
       {context && <span className="record-timeline-date-label">{context}</span>}
@@ -189,15 +191,17 @@ export default function ActivityTimeline({ episode, person, audit = [] }) {
   );
 }
 
-function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordAppointmentOutcome, onCollectAssessmentResponse, canCollectAssessment, selectedEventId, careEventsOnly, showCategories = false }) {
+function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordAppointmentOutcome, onCollectAssessmentResponse, canCollectAssessment, selectedEventId, careEventsOnly, showCategories = false, simpleAssessments = false }) {
   if (!entries.length)
     return <p className="history-empty">{careEventsOnly ? "No care events or structured records have been recorded." : "No clinical activity has been recorded."}</p>;
   const firstPastIndex = showCategories ? entries.findIndex((entry) => (historyDate(entry) || "").slice(0, 10) <= TODAY) : -1;
   return (
     <ol className="record-timeline clinical-continuous-timeline" aria-label={careEventsOnly ? "Care events and structured records" : "Continuous clinical history"}>
       {entries.map((entry, index) => {
-        const item = historyItem(entry, episode, (value) => personEventText(person, value));
+        const item = historyItem(entry, episode, (value) => personEventText(person, value), simpleAssessments);
         const category = historyCategory(entry);
+        const hideContextLabel = simpleAssessments && showCategories;
+        const dateLabel = hideContextLabel ? null : item.dateLabel;
         const categoryDisplay = showCategories ? EVENT_CATEGORY_DISPLAY[category] : null;
         const MarkerIcon = category === "contextual-event" && showCategories
           ? CONTEXTUAL_EVENT_ICONS[entry.eventType] || Flag
@@ -226,7 +230,11 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordA
           : contactSummary
             ? contactSummary.primary.filter(({ label }) => !["Notes", "Outcome notes"].includes(label))
           : item.primary;
-        const moreFacts = contactSummary ? [] : showCategories && collection ? [] : item.more;
+        const visiblePrimaryFacts = simpleAssessments && appointment
+          ? primaryFacts.filter(({ label }) => label !== "Initial assessment" && !label.startsWith("Associated assignment"))
+          : primaryFacts;
+        const moreFacts = (contactSummary ? [] : showCategories && collection ? [] : item.more)
+          .filter(({ label }) => !simpleAssessments || label !== "Initial assessment" && !label.startsWith("Associated assignment"));
         const datedAction = showCategories && episode.status === "Active"
           ? appointment?.attendance === "Planned" && onRecordAppointmentOutcome
             ? <Button variant="secondary" aria-haspopup="dialog" onClick={() => onRecordAppointmentOutcome(appointment.id)}>Record outcome</Button>
@@ -242,7 +250,7 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordA
         const toFact = ({ label, value }) => ({
           label,
           value: label === "Recorded at" ? formatTimestamp(value)
-            : ((label.toLowerCase().includes("date") || label === "Submitted") && /^\d{4}-\d{2}-\d{2}$/.test(value || ""))
+            : ((label.toLowerCase().includes("date") || ["Submitted", "Created", "Completed"].includes(label)) && /^\d{4}-\d{2}-\d{2}$/.test(value || ""))
               ? formatDate(value) : value,
           wide: ["Summary", "Notes", "Outcome notes"].includes(label) ||
             label.startsWith("Associated assignment"),
@@ -258,10 +266,10 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordA
             {categoryDisplay ? (
               <div className="record-timeline-meta">
                 <span className="record-timeline-category">{categoryDisplay.label}</span>
-                <TimelineDate timestamp={entry.timestamp} date={item.date} time={item.time} dateLabel={item.dateLabel} emphasized />
+                <TimelineDate timestamp={entry.timestamp} date={item.date} time={item.time} dateLabel={dateLabel} hideContextLabel={hideContextLabel} emphasized />
               </div>
             ) : (
-              <TimelineDate timestamp={entry.timestamp} date={item.date} time={item.time} dateLabel={item.dateLabel} />
+              <TimelineDate timestamp={entry.timestamp} date={item.date} time={item.time} dateLabel={dateLabel} hideContextLabel={hideContextLabel} />
             )}
             <span className="record-timeline-icon" aria-hidden="true">
               <MarkerIcon size={22} />
@@ -276,15 +284,17 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordA
               title={contactSummary ? appointment.contactType || appointment.appointmentType || "Contact"
                 : completedCollection ? `${completedCollection.label} questionnaire completed` : entry.title || "Recorded event"}
               subtitle={contactSummary ? appointment.practitionerService : item.subtitle}
-              status={collection ? collectionStatus(collection)
+              status={collection ? simpleAssessments
+                  ? collection.response === "Submitted" ? "Completed" : collection.response === "Draft" ? "Draft" : "Created"
+                  : collectionStatus(collection)
                 : contactSummary
                   ? appointment.attendance === "Planned" && appointment.plannedDate <= TODAY
                     ? appointment.plannedDate < TODAY ? "Overdue" : "Today"
                     : appointment.attendance
                   : undefined}
               className={`record-item-compact${isSelectedSource ? " care-event-selected" : ""}`}
-              facts={primaryFacts.map(toFact)}
-              secondary={(relatedAssessments.length > 0 || relatedContacts.length > 0 || moreFacts.length > 0) && (
+              facts={visiblePrimaryFacts.map(toFact)}
+              secondary={!(simpleAssessments && showCategories) && (relatedAssessments.length > 0 || relatedContacts.length > 0 || moreFacts.length > 0) && (
                 <>
                   <RelatedRecordsAccordion kind="assessments" records={relatedAssessments} contactId={appointment?.id} />
                   <RelatedRecordsAccordion kind="contacts" records={relatedContacts} collection={collection} />
@@ -335,6 +345,8 @@ export function ClinicalHistory({
   onClearAttention,
   selectedEventId,
 }) {
+  const { state } = useStore();
+  const simpleAssessments = !!state.settings?.simpleAssessments;
   const entries = providedEntries ?? clinicalHistoryEntries(person, episode, audit);
   const timelineRef = useRef(null);
 
@@ -357,7 +369,7 @@ export function ClinicalHistory({
       if (attentionActive && !attentionIdSet.has(entry.id)) return false;
       if (filters.query) {
         const q = filters.query.trim().toLowerCase();
-        const item = historyItem(entry, episode, (value) => personEventText(person, value));
+        const item = historyItem(entry, episode, (value) => personEventText(person, value), simpleAssessments);
         const text = [
           entry.title,
           entry.detail,
@@ -367,11 +379,12 @@ export function ClinicalHistory({
           entry.scope,
           item.subtitle,
           ...[...item.primary, ...item.more].flatMap(({ label, value }) => [label, value]),
-          ...(quickFilters ? associatedCareItems(entry, episode).flatMap(({ type, title, subtitle }) => [type, title, subtitle]) : []),
+          ...(quickFilters && !simpleAssessments ? associatedCareItems(entry, episode).flatMap(({ type, title, subtitle }) => [type, title, subtitle]) : []),
         ].filter(Boolean).join(" ").toLowerCase();
         if (!text.includes(q)) return false;
       }
-      const entryDate = historyDate(entry);
+      const entryDate = simpleAssessments && entry.type === "assessment"
+        ? historyItem(entry, episode, undefined, true).date : historyDate(entry);
       if (filters.period === "upcoming" && (!entryDate || entryDate.slice(0, 10) <= TODAY)) return false;
       if (filters.period === "past" && (!entryDate || entryDate.slice(0, 10) > TODAY)) return false;
       if (filters.startDate && (!entryDate || entryDate.slice(0, 10) < filters.startDate)) return false;
@@ -381,7 +394,7 @@ export function ClinicalHistory({
       }
       return true;
     });
-  }, [entries, filters, episode, person, attentionActive, attentionIdSet, quickFilters]);
+  }, [entries, filters, episode, person, attentionActive, attentionIdSet, quickFilters, simpleAssessments]);
 
   const hasFilters = attentionActive || Object.entries(filters).some(
     ([key, value]) => value !== "all" && value !== "",
@@ -421,12 +434,12 @@ export function ClinicalHistory({
   const results = visibleEntries.length === 0 ? (
     <Empty title="No timeline records match these filters">
       Try a different search, type or date range.
-      <div style={{ marginTop: "12px" }}>
+      <div style={{ marginTop: "var(--space-3)" }}>
         <Button variant="secondary" onClick={resetFilters}>Clear filters</Button>
       </div>
     </Empty>
   ) : (
-    <ContinuousHistory entries={visibleEntries} episode={episode} person={person} onCorrectEvent={onCorrectEvent} onRecordAppointmentOutcome={onRecordAppointmentOutcome} onCollectAssessmentResponse={onCollectAssessmentResponse} canCollectAssessment={canCollectAssessment} selectedEventId={selectedEventId} careEventsOnly={careEventsOnly} showCategories={quickFilters} />
+    <ContinuousHistory entries={visibleEntries} episode={episode} person={person} onCorrectEvent={onCorrectEvent} onRecordAppointmentOutcome={onRecordAppointmentOutcome} onCollectAssessmentResponse={onCollectAssessmentResponse} canCollectAssessment={canCollectAssessment} selectedEventId={selectedEventId} careEventsOnly={careEventsOnly} showCategories={quickFilters} simpleAssessments={simpleAssessments} />
   );
 
   return (
@@ -754,7 +767,7 @@ export function ChangeLog({ episode, person, audit = [], entries: suppliedEntrie
                     navigate(event.currentTarget.getAttribute("href"));
                   }}
                 >
-                  {entry.person.name}
+                  {patientIdentifier(entry.person)}
                 </a>
               )]] : []),
               ["Changed by", actorLabel(entry)],
@@ -825,7 +838,7 @@ export function ChangeLog({ episode, person, audit = [], entries: suppliedEntrie
           {hasFilters ? (
             <>
               Try different filters or a different search.
-              <div style={{ marginTop: "12px" }}>
+              <div style={{ marginTop: "var(--space-3)" }}>
                 <Button variant="secondary" onClick={clearFilters}>
                   Clear filters
                 </Button>

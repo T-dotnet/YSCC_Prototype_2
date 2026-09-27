@@ -50,6 +50,7 @@ import {
 import { carePeriodError, currentCarePeriod, nextDate, previousDate } from "./carePeriods.js";
 import { addAssessmentContactLink, assessmentContactLinks } from "./assessmentContacts.js";
 import { EPISODE_REVIEW_TYPES, episodeReviewActionError, episodeReviewSchedule } from "./episodeReviews.js";
+import { careJourneyForEpisode, episodeLinkReason } from "./ysccModel.js";
 import { K10_SCORING_METHOD } from "./k10.js";
 import { MEASURE_INSTRUMENTS, measureInstrument, sampleMeasureTotal } from "./measureQuestionnaires.js";
 import { QUALITY_STATUSES, getQualityIssues, validISODate } from "./dataQuality.js";
@@ -522,8 +523,63 @@ function ensureCoherentMockData(state) {
   return next;
 }
 
+const sampleFutureDate = () =>
+  new Date(Date.parse(`${TODAY}T12:00:00Z`) + 90 * 86400000)
+    .toISOString().slice(0, 10);
+
+// Refresh only open, untouched fictional schedule items. Historical responses,
+// attended contacts and dates entered by a user remain as recorded.
+function refreshOpenSampleDates(state) {
+  const next = structuredClone(state);
+  const due = sampleFutureDate();
+  let changed = false;
+  for (const person of next.people) {
+    if (["YS-1031", "YS-1032"].includes(person.id)) {
+      for (const intake of person.intakes || []) {
+        if (intake.createdBy === "Sample fixture" && intake.reviewDate < due &&
+            (intake.revision ?? 0) === 0) {
+          intake.reviewDate = due;
+          changed = true;
+        }
+      }
+    }
+    const isSeedPerson = seeds.some((seed, index) =>
+      person.id === `YS-${1024 + index}` && person.name === seed[0]);
+    if (!isSeedPerson && !person.fixtureLabel &&
+        !(person.id === "YS-1033" && person.name === "Jordan Lee")) continue;
+    for (const episode of person.episodes || []) {
+      for (const collection of episode.collections || []) {
+        if (episode.status === "Active" && collection.due < due &&
+            collection.response !== "Submitted" &&
+            !["Fulfilled", "Cancelled", "Paused"].includes(collection.assignment) &&
+            (collection.revision ?? 0) === 0)
+          { collection.due = due; changed = true; }
+      }
+      for (const appointment of episode.appointments || []) {
+        if (episode.status === "Active" && appointment.attendance === "Planned" &&
+            appointment.actor === "Sample fixture" && appointment.plannedDate < due)
+          { appointment.plannedDate = due; changed = true; }
+      }
+      for (const measure of episode.reportOutcomeMeasures || []) {
+        for (const record of measure.records || []) {
+          if (record.dueState === "Overdue") {
+            record.dueState = "Scheduled";
+            record.dueDate = due;
+            changed = true;
+          }
+        }
+      }
+    }
+  }
+  for (const issue of next.issues || []) {
+    if (["DQ-001", "DQ-002"].includes(issue.id) && issue.status === "Open" && issue.dueDate < due)
+      { issue.dueDate = due; changed = true; }
+  }
+  return changed ? next : state;
+}
+
 const withSampleFixtures = (state) =>
-  ensureCoherentMockData(ensureJordanPartialSmsExample(
+  refreshOpenSampleDates(ensureCoherentMockData(ensureJordanPartialSmsExample(
     ensureJordanDeliveryAttemptExamples(
       ensureJordanAssessmentContactExamples(
         ensureJordanFutureAssessment(
@@ -531,7 +587,7 @@ const withSampleFixtures = (state) =>
         ),
       ),
     ),
-  ));
+  )));
 
 export function sampleAppointmentsForSeed(seedIndex) {
   switch (seedIndex) {
@@ -3558,6 +3614,7 @@ function prepareIntakes(next) {
 export function createSeed() {
   return withSampleFixtures(prepareQualityState(prepareSeed({
     schema: 1,
+    settings: { simpleAssessments: true },
     terminologyRevision: 1,
     people: [
       ...seeds.map((s, i) => ({
@@ -3807,20 +3864,28 @@ export function getTasks(state) {
               (c) =>
                 canCollectInEpisode(e, c) &&
                 !["Cancelled", "Paused"].includes(c.assignment) &&
-                (c.response !== "Submitted" || hasPendingClinicalReview(c)),
+                (state.settings?.simpleAssessments
+                  ? c.response !== "Submitted"
+                  : c.response !== "Submitted" || hasPendingClinicalReview(c)),
             )
             .map((c) => ({
               person: p,
               episode: e,
               collection: c,
-              status: collectionStatus(c),
-              action: nextAction(c),
+              status: state.settings?.simpleAssessments
+                ? c.response === "Draft" ? "Draft" : "Created"
+                : collectionStatus(c),
+              action: state.settings?.simpleAssessments ? "Open assessment" : nextAction(c),
             })),
         ),
     ),
   ];
 }
 export function reducer(state, action) {
+  if (action.type === "SET_SIMPLE_ASSESSMENTS") {
+    if (typeof action.enabled !== "boolean" || state.settings?.simpleAssessments === action.enabled) return state;
+    return { ...state, settings: { ...state.settings, simpleAssessments: action.enabled } };
+  }
   if (action.type === "RESET") return createSeed();
   if (action.type === "RESET_INTAKE_EXAMPLES") {
     const ids = new Set(["YS-1031", "YS-1032"]);
@@ -4074,6 +4139,7 @@ export function reducer(state, action) {
         owner: e.owner || p.owner,
         intakeId: linkedIntake?.id || null,
         previousEpisodeId: e.id,
+        careJourneyKey: careJourneyForEpisode(p, e)?.key || e.id,
         reviewAnchorDate: e.reviewAnchorDate || e.start,
         reviewSchedule: {
           confirmed: continuingReviewSchedule.confirmed,
@@ -4116,6 +4182,7 @@ export function reducer(state, action) {
           role: staff.role,
         }],
       };
+      newEpisode.linkReason = episodeLinkReason(newEpisode, e);
       newEpisode.events[0].changes = careChanges(null, newEpisode);
       p.episodes.unshift(newEpisode);
       break;
@@ -4162,6 +4229,8 @@ export function reducer(state, action) {
       break;
     }
     case "ADD_APPOINTMENT": {
+      if (state.settings?.simpleAssessments &&
+          ((action.collectionIds?.length || action.collectionId) || action.newAssessmentVersions?.length || action.assessmentIntakeId)) return state;
       if (action.assessmentIntakeId && !p?.intakes?.some((intake) =>
         intake.id === action.assessmentIntakeId &&
         intake.episodeId === e?.id && intake.outcome === "Proceed"))
@@ -4221,6 +4290,7 @@ export function reducer(state, action) {
     }
     case "LINK_ASSESSMENT_CONTACT": {
       const collection = e?.collections?.find((item) => item.id === action.collectionId);
+      if (state.settings?.simpleAssessments || collection?.scheduleFree) return state;
       const appointment = e?.appointments?.find((item) => item.id === action.appointmentId);
       const attempt = action.attemptId
         ? collection?.attempts?.find((item) => item.id === action.attemptId)
@@ -4247,6 +4317,7 @@ export function reducer(state, action) {
       break;
     }
     case "RECORD_APPOINTMENT_OUTCOME": {
+      if (state.settings?.simpleAssessments && action.assessmentIntakeId) return state;
       if (action.assessmentIntakeId && !p?.intakes?.some((intake) =>
         intake.id === action.assessmentIntakeId &&
         intake.episodeId === e?.id && intake.outcome === "Proceed"))
@@ -4525,8 +4596,8 @@ export function reducer(state, action) {
         !INSTRUMENTS.some(
           (instrument) => instrument.version === (action.version ?? VERSION),
         ) ||
-        !/^\d{4}-\d{2}-\d{2}$/.test(action.due || "") ||
-        action.due < TODAY ||
+        (!state.settings?.simpleAssessments && (!/^\d{4}-\d{2}-\d{2}$/.test(action.due || "") || action.due < TODAY)) ||
+        (state.settings?.simpleAssessments && (action.due || action.externalAppointment || action.appointmentId)) ||
         (action.externalAppointment &&
           (!validExternalSlot(action.externalAppointment) ||
             action.externalAppointment.date < TODAY ||
@@ -4540,15 +4611,17 @@ export function reducer(state, action) {
       e.collections.push({
         id: plannedCollectionId,
         label: action.label.trim(),
-        due: action.due,
+        due: state.settings?.simpleAssessments ? "" : action.due,
+        scheduleFree: !!state.settings?.simpleAssessments,
+        createdAt: recordedAt,
         version: action.version ?? VERSION,
         assignment: "Planned",
         response: "Not started",
         review: "Pending",
         link: "Not sent",
         channel: action.channel || undefined,
-        appointmentId: action.appointmentId || null,
-        externalAppointment: action.externalAppointment || null,
+        appointmentId: state.settings?.simpleAssessments ? null : action.appointmentId || null,
+        externalAppointment: state.settings?.simpleAssessments ? null : action.externalAppointment || null,
         attempts: [],
         answers: [],
         respondent: action.respondent || "Person",
@@ -4556,14 +4629,14 @@ export function reducer(state, action) {
         assistance: action.assistance || "Independent",
       });
       event(
-        "Follow-up planned",
-        `${action.label} · due ${formatDate(action.due)} · same care episode`,
-        { collectionId: plannedCollectionId, appointmentId: action.appointmentId || null },
+        state.settings?.simpleAssessments ? "Assessment created" : "Follow-up planned",
+        state.settings?.simpleAssessments ? `${action.label} · same care episode` : `${action.label} · due ${formatDate(action.due)} · same care episode`,
+        { collectionId: plannedCollectionId, appointmentId: state.settings?.simpleAssessments ? null : action.appointmentId || null },
       );
       break;
     case "SAVE_COLLECTION_SETUP":
       if (
-        !canAssess(p, e) || !c || !c.due || !canCollectInEpisode(e, c) ||
+        !canAssess(p, e) || !c || (!c.due && !state.settings?.simpleAssessments && !c.scheduleFree) || !canCollectInEpisode(e, c) ||
         p.consent !== "Recorded" || p.contact !== "Suitable" ||
         !getInstrument(c.version) || c.response === "Submitted" ||
         ["Paused", "Cancelled"].includes(c.assignment) ||
@@ -4579,11 +4652,12 @@ export function reducer(state, action) {
             action.externalAppointment.date < TODAY ||
             action.externalAppointment.date > c.due))
       ) return state;
+      if ((state.settings?.simpleAssessments || c.scheduleFree) && action.externalAppointment) return state;
       c.channel = action.channel;
       c.respondent = action.respondent;
       c.respondentName = action.respondent === "Person" ? p.name : p.family;
       c.assistance = action.assistance;
-      c.externalAppointment = action.channel === "SMS link"
+      c.externalAppointment = state.settings?.simpleAssessments || c.scheduleFree || action.channel === "SMS link"
         ? null : action.externalAppointment || null;
       c.setupSavedAt = recordedAt;
       event("Collection setup saved", `${c.label} · ${c.channel}`, { collectionId: c.id });
@@ -4592,7 +4666,7 @@ export function reducer(state, action) {
       if (
         !canAssess(p, e) ||
         !c ||
-        !c.due ||
+        (!c.due && !state.settings?.simpleAssessments && !c.scheduleFree) ||
         !canCollectInEpisode(e, c) ||
         p.consent !== "Recorded" ||
         p.contact !== "Suitable" ||
@@ -4624,6 +4698,7 @@ export function reducer(state, action) {
         currentStaff(state)?.role !== "Clinician"
       )
         return state;
+      if ((state.settings?.simpleAssessments || c.scheduleFree) && (action.externalAppointment || action.appointmentId)) return state;
       if (action.externalAppointment &&
           (!validExternalSlot(action.externalAppointment) ||
             action.externalAppointment.date < TODAY ||
@@ -4638,8 +4713,8 @@ export function reducer(state, action) {
       c.respondent = action.respondent;
       c.respondentName = action.respondent === "Person" ? p.name : p.family;
       c.channel = action.channel;
-      if (hasExternalSelection)
-        c.externalAppointment = action.channel === "SMS link"
+      if (hasExternalSelection || state.settings?.simpleAssessments || c.scheduleFree)
+        c.externalAppointment = state.settings?.simpleAssessments || c.scheduleFree || action.channel === "SMS link"
           ? null
           : action.externalAppointment || null;
       c.assistance = action.assistance;
@@ -4651,7 +4726,7 @@ export function reducer(state, action) {
         action.channel === "Clinician entry" ? c.recorder : c.respondentName;
       c.recorderId =
         action.channel === "Clinician entry" ? currentStaff(state).id : null;
-      const linkedApptId = action.channel === "SMS link" || c.externalAppointment ? null :
+      const linkedApptId = state.settings?.simpleAssessments || c.scheduleFree || action.channel === "SMS link" || c.externalAppointment || action.appointmentId === null ? null :
         action.appointmentId ||
         (action.channel !== "SMS link"
           ? e.appointments?.find(
@@ -4726,16 +4801,79 @@ export function reducer(state, action) {
           !Array.isArray(action.answers) ||
           (attempt.channel === "Clinician entry" &&
             (staff?.role !== "Clinician" || staff.id !== attempt.recorderId))) return state;
+      if ((state.settings?.simpleAssessments || c.scheduleFree) && action.contactLink && action.contactLink.kind !== "none") return state;
+      if (action.completionMethod &&
+          (!["Clinic tablet", "Clinician entry"].includes(attempt.channel) ||
+            !["Clinic tablet", "Clinician entry"].includes(action.completionMethod) ||
+            (action.completionMethod === "Clinician entry" && staff?.role !== "Clinician"))) return state;
+      const confirmedChannel = action.completionMethod || attempt.channel;
+      if (action.assistance !== undefined &&
+          (!(state.settings?.simpleAssessments || c.scheduleFree) ||
+            confirmedChannel !== "Clinic tablet" ||
+            !["Independent", "Supported"].includes(action.assistance))) return state;
+      let linkedContactId = null;
+      if (action.contactLink) {
+        if (action.contactLink.kind === "existing") {
+          const contact = e.appointments?.find((item) => item.id === action.contactLink.appointmentId);
+          if (!contact || contact.attendance !== "Attended" ||
+              !contact.actualDate || contact.actualDate > TODAY) return state;
+          linkedContactId = contact.id;
+        } else if (action.contactLink.kind === "new") {
+          const contactAction = { ...action.contactLink.contact, collectionIds: [c.id] };
+          if (e.status !== "Active" || contactAction.attendance !== "Attended" ||
+              appointmentError(e, contactAction, TODAY)) return state;
+          const contact = {
+            id: uid(),
+            ...appointmentContent(contactAction),
+            timestamp: recordedAt,
+            actor: confirmedChannel === "Clinician entry" ? staff.name : c.respondentName,
+            actorId: confirmedChannel === "Clinician entry" ? staff.id : null,
+            role: confirmedChannel === "Clinician entry" ? staff.role : "Respondent",
+          };
+          e.appointments ??= [];
+          e.appointments.unshift(contact);
+          linkedContactId = contact.id;
+        } else if (action.contactLink.kind !== "none") return state;
+        attempt.appointmentId = linkedContactId;
+        if (linkedContactId) {
+          addAssessmentContactLink(e, c.id, linkedContactId);
+          c.appointmentId ??= linkedContactId;
+        }
+      }
       const progress = mergeAnswerSources(instrument, c.draftAnswers, c.draftAnswerSources,
         action.answers, attempt.id);
       if (!progress.answers.some(Boolean)) return state;
       c.draftAnswers = progress.answers;
       c.draftAnswerSources = progress.sources;
       c.response = "Draft";
+      if (action.completionMethod) {
+        if (confirmedChannel !== c.channel) {
+          attempt.startedChannel = attempt.channel;
+          c.channel = confirmedChannel;
+          c.assistance = confirmedChannel === "Clinician entry" ? "Transcribed" : "Independent";
+          c.recorder = confirmedChannel === "Clinician entry" ? staff.name : c.respondent;
+          c.recorderName = confirmedChannel === "Clinician entry" ? staff.name : c.respondentName;
+          c.recorderId = confirmedChannel === "Clinician entry" ? staff.id : null;
+          Object.assign(attempt, {
+            channel: confirmedChannel,
+            assistance: c.assistance,
+            recorderName: c.recorderName,
+            recorderId: c.recorderId,
+          });
+        }
+        attempt.methodConfirmedAt = recordedAt;
+        attempt.methodConfirmedBy = staff?.name || "Not recorded";
+      }
+      if (action.assistance !== undefined) {
+        c.assistance = action.assistance;
+        attempt.assistance = action.assistance;
+        attempt.assistanceConfirmedAt = recordedAt;
+      }
       attempt.status = "Progress saved";
       attempt.savedAt = recordedAt;
       attempt.endedAt = recordedAt;
-      event("Questionnaire progress saved", `${c.label} · ${attempt.channel} · ${progress.answers.filter(Boolean).length} answers`);
+      event("Questionnaire progress saved", `${c.label} · ${attempt.channel} · ${progress.answers.filter(Boolean).length} answers`,
+        linkedContactId ? { appointmentId: linkedContactId } : {});
       break;
     }
     case "SUBMIT":
@@ -4765,10 +4903,32 @@ export function reducer(state, action) {
         !questionnaireState(getInstrument(c.version), action.answers).complete
       )
         return state;
-      const questionnaireAppointmentId =
-        c.attempts.at(-1)?.appointmentId || c.appointmentId;
+      const contactLink = action.contactLink;
+      if (state.settings?.simpleAssessments && contactLink && contactLink.kind !== "none") return state;
+      let selectedContact = null;
+      if (contactLink?.kind === "existing") {
+        selectedContact = e.appointments?.find((item) => item.id === contactLink.appointmentId);
+        if (!selectedContact || !["Planned", "Attended"].includes(selectedContact.attendance) ||
+            (selectedContact.attendance === "Attended" &&
+              (!selectedContact.actualDate || selectedContact.actualDate > TODAY))) return state;
+      } else if (contactLink?.kind === "new") {
+        if (e.status !== "Active" || contactLink.contact?.attendance !== "Attended" ||
+            appointmentError(e, { ...contactLink.contact, collectionIds: [c.id] }, TODAY)) return state;
+      } else if (contactLink && contactLink.kind !== "none") return state;
+      const questionnaireAppointmentId = contactLink?.kind === "existing"
+        ? selectedContact.id
+        : c.attempts.at(-1)?.appointmentId || c.appointmentId;
       const appointmentOutcome = action.appointmentOutcome;
+      if (selectedContact?.attendance === "Planned" &&
+          (!appointmentOutcome || appointmentOutcome.attendance !== "Attended")) return state;
+      if (selectedContact?.attendance === "Attended" && appointmentOutcome) return state;
+      if (contactLink?.kind === "new" && appointmentOutcome) return state;
+      if (state.settings?.simpleAssessments && (appointmentOutcome || action.completionMethod)) return state;
       const confirmedChannel = action.completionMethod || appointmentOutcome?.completionMethod || c.channel;
+      if (action.assistance !== undefined &&
+          (!(state.settings?.simpleAssessments || c.scheduleFree) ||
+            confirmedChannel !== "Clinic tablet" ||
+            !["Independent", "Supported"].includes(action.assistance))) return state;
       const appointmentToConfirm = appointmentOutcome
         ? e.appointments?.find((item) => item.id === questionnaireAppointmentId)
         : null;
@@ -4799,6 +4959,24 @@ export function reducer(state, action) {
       }
       const completed = mergeAnswerSources(getInstrument(c.version),
         c.draftAnswers, c.draftAnswerSources, action.answers, c.attempts.at(-1)?.id);
+      if (contactLink?.kind === "new") {
+        const contact = {
+          id: uid(),
+          ...appointmentContent({ ...contactLink.contact, collectionIds: [c.id] }),
+          timestamp: recordedAt,
+          actor: confirmedChannel === "Clinician entry" ? staff.name : c.respondentName,
+          actorId: confirmedChannel === "Clinician entry" ? staff.id : null,
+          role: confirmedChannel === "Clinician entry" ? staff.role : "Respondent",
+        };
+        e.appointments ??= [];
+        e.appointments.unshift(contact);
+        selectedContact = contact;
+      }
+      if (selectedContact) {
+        c.attempts.at(-1).appointmentId = selectedContact.id;
+        c.appointmentId ??= selectedContact.id;
+        addAssessmentContactLink(e, c.id, selectedContact.id);
+      }
       c.answers = completed.answers;
       c.answerSources = completed.sources;
       delete c.draftAnswers;
@@ -4834,6 +5012,12 @@ export function reducer(state, action) {
         }
         attempt.methodConfirmedAt = recordedAt;
         attempt.methodConfirmedBy = staff?.name || "Not recorded";
+      }
+      if (action.assistance !== undefined) {
+        c.assistance = action.assistance;
+        const attempt = c.attempts.at(-1);
+        attempt.assistance = action.assistance;
+        attempt.assistanceConfirmedAt = recordedAt;
       }
       if (appointmentOutcome?.attendance !== "Planned" && appointmentToConfirm) {
         Object.assign(

@@ -102,7 +102,7 @@ export function associatedCareItems(entry, episode) {
   return [];
 }
 
-export function historyItem(entry, episode, formatDetail = (value) => value) {
+export function historyItem(entry, episode, formatDetail = (value) => value, simpleAssessments = false) {
   const appointment = entry.type === "appointment"
     ? episode.appointments?.find((item) => `appointment-${item.id}` === entry.id)
     : null;
@@ -156,6 +156,21 @@ export function historyItem(entry, episode, formatDetail = (value) => value) {
 
   if (entry.type === "assessment") {
     const collection = episode.collections.find((item) => item.id === entry.collectionId);
+    if (collection && simpleAssessments) {
+      const submitted = responseDate(collection);
+      const created = collection.createdAt?.slice(0, 10) || null;
+      return {
+        subtitle: collection.version,
+        date: submitted || created,
+        dateLabel: submitted ? "Completed" : created ? "Created" : "Date not recorded",
+        primary: [
+          fact("Created", created || "Not recorded"),
+          fact("Completed", submitted || "—"),
+          fact("Score", assessmentScoreLabel(collection, linkedAssessmentScore(episode, collection))),
+        ],
+        more: [],
+      };
+    }
     if (collection) return {
       subtitle: collection.version,
       date: historyDate(entry),

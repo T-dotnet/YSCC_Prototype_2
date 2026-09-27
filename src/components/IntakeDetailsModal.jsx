@@ -3,6 +3,7 @@ import { INTAKE_CHECKS, INTAKE_DETAIL_FIELDS, intakeActionError } from "../intak
 import { currentStaff, formatDate, formatTimestamp, TODAY } from "../model";
 import { IntakeHistory } from "../features/Intake";
 import { useStore } from "../store";
+import { patientIdentifier } from "../patientIdentity";
 import { Badge, Button, Field, FormErrorSummary, Modal, ValidatedForm } from "./UI";
 
 const recorded = (value) => value === true ? "Yes" : value === false ? "No" : value || "Not recorded";
@@ -155,7 +156,7 @@ export default function IntakeDetailsModal({ person, intake, onClose }) {
   return (
     <Modal
       title="Intake information"
-      subtitle={`${person.name || "Name not recorded"} · ${person.id}`}
+      subtitle={patientIdentifier(person)}
       onClose={onClose}
       wide
       className="intake-details-dialog"
@@ -287,10 +288,10 @@ export default function IntakeDetailsModal({ person, intake, onClose }) {
           <div className="form-body">
             <h3>{mode === "confirm-edit" ? "Save intake changes?" : mode === "confirm-archive" ? "Archive this patient?" : "Restore this patient?"}</h3>
             <p>{mode === "confirm-edit"
-              ? `The updated details for ${person.name} will be saved. The reason will appear in intake history.`
+              ? `The updated details for ${patientIdentifier(person)} will be saved. The reason will appear in intake history.`
               : mode === "confirm-archive"
-                ? `${person.name} will leave active People and work views. Contacts, assessments and intake history will remain in the record, which can be restored from the Archived filter.`
-                : `${person.name} will return to active People and work views with the existing care record preserved.`}</p>
+                ? `${patientIdentifier(person)} will leave active People and work views. Contacts, assessments and intake history will remain in the record, which can be restored from the Archived filter.`
+                : `${patientIdentifier(person)} will return to active People and work views with the existing care record preserved.`}</p>
             {mode !== "confirm-edit" && (
               <Field label={mode === "confirm-archive" ? "Reason for archiving" : "Reason for restoring"}>
                 <textarea rows={3} required value={reason} onChange={(event) => setReason(event.target.value)} />

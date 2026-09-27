@@ -17,12 +17,15 @@ import {
 } from "../instruments";
 import QuestionnaireFlow from "../components/QuestionnaireFlow";
 import QuestionnaireAppointmentConfirmation from "../components/QuestionnaireAppointmentConfirmation";
+import TabletAssistanceConfirmation from "../components/TabletAssistanceConfirmation";
+import DraftContactForm from "../components/DraftContactForm";
 import { Logo, Button, Success, Modal, Notice } from "../components/UI";
 export default function Questionnaire({ session, navigate, onEnd }) {
   const { state, commit, storageError } = useStore();
   const p = state.people.find((p) => p.id === session?.personId),
     e = p?.episodes.find((e) => e.id === session?.episodeId),
     c = e?.collections.find((c) => c.id === session?.collectionId);
+  const simpleAssessments = !!state.settings?.simpleAssessments || !!c?.scheduleFree;
   const [step, setStep] = useState(-1),
     [answers, setAnswers] = useState(() => [...(session ? (c?.draftAnswers || []) : [])]),
     [help, setHelp] = useState(false),
@@ -31,16 +34,18 @@ export default function Questionnaire({ session, navigate, onEnd }) {
   const [pendingAnswers, setPendingAnswers] = useState(null);
   const [returnToReview, setReturnToReview] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const [saveContactOpen, setSaveContactOpen] = useState(false);
+  const [savedDraftContact, setSavedDraftContact] = useState(null);
   const [submitError, setSubmitError] = useState("");
   const dirty = answers.some((answer, index) => answer !== (session ? c?.draftAnswers || [] : [])[index]);
   const instrument = session ? getInstrument(c?.version) : DEMO_INSTRUMENT;
-  const linkedAppointmentId =
-    c?.appointmentId || c?.attempts.at(-1)?.appointmentId;
+  const linkedAppointmentId = simpleAssessments ? null :
+    c?.attempts.at(-1)?.appointmentId || c?.appointmentId;
   const linkedAppointment =
-    c?.channel === "Clinic tablet"
+    ["Clinic tablet", "Clinician entry"].includes(c?.channel)
       ? e?.appointments?.find(
           (item) =>
-            item.id === linkedAppointmentId && item.attendance === "Planned",
+            item.id === linkedAppointmentId && ["Planned", "Attended"].includes(item.attendance),
         )
       : null;
   const preview = !session,
@@ -80,10 +85,12 @@ export default function Questionnaire({ session, navigate, onEnd }) {
     setSubmitError("");
     setStep(0);
   };
-  const saveProgress = () => {
+  const saveProgress = (contactLink, completionMethod, assistance) => {
     if (!session || unavailable || !dirty || !answers.some(Boolean)) return;
-    const result = commit({ ...session, type: "SAVE_RESPONSE_PROGRESS", answers });
+    const result = commit({ ...session, type: "SAVE_RESPONSE_PROGRESS", answers, contactLink, completionMethod, assistance });
     if (result.error) return setSubmitError(result.error);
+    setSavedDraftContact(simpleAssessments ? "simple" : contactLink.kind);
+    setSaveContactOpen(false);
     end();
   };
   const submit = (finalAnswers, confirmation) => {
@@ -106,7 +113,12 @@ export default function Questionnaire({ session, navigate, onEnd }) {
     setStep(4);
   };
   const completeQuestions = (finalAnswers) => {
-    if (c?.channel === "Clinic tablet") {
+    if (simpleAssessments && c?.channel === "Clinic tablet") {
+      setPendingAnswers(finalAnswers);
+      setSubmitError("");
+      return;
+    }
+    if (!simpleAssessments && c?.channel === "Clinic tablet") {
       setPendingAnswers(finalAnswers);
       setSubmitError("");
       return;
@@ -139,7 +151,7 @@ export default function Questionnaire({ session, navigate, onEnd }) {
         {ended ? (
           <Success
             heading="h1"
-            title="This session has ended"
+            title={savedDraftContact ? "Draft saved" : "This session has ended"}
             action={
               <Button
                 variant="primary"
@@ -154,8 +166,9 @@ export default function Questionnaire({ session, navigate, onEnd }) {
               </Button>
             }
           >
-            The participant view has been cleared. In a live service, staff
-            would sign in again before opening the workspace.
+            {savedDraftContact
+              ? simpleAssessments ? "Your draft is saved on the assessment. You can continue it in another session." : `Your answers are saved on the assessment. ${savedDraftContact === "none" ? "No contact was linked." : "The contact is linked under Related contacts."} You can continue the questionnaire in another session.`
+              : "The participant view has been cleared. In a live service, staff would sign in again before opening the workspace."}
           </Success>
         ) : finished ? (
           <Success
@@ -282,7 +295,15 @@ export default function Questionnaire({ session, navigate, onEnd }) {
                 </p>
               </>
             ) : pendingAnswers ? (
-              <QuestionnaireAppointmentConfirmation
+              simpleAssessments ? <TabletAssistanceConfirmation
+                error={submitError}
+                onBack={() => {
+                  setReturnToReview(true);
+                  setPendingAnswers(null);
+                  setSubmitError("");
+                }}
+                onConfirm={(confirmation) => submit(pendingAnswers, confirmation)}
+              /> : <QuestionnaireAppointmentConfirmation
                 appointment={linkedAppointment}
                 collection={c}
                 episode={e}
@@ -304,14 +325,16 @@ export default function Questionnaire({ session, navigate, onEnd }) {
                 onSubmit={completeQuestions}
                 submitLabel={
                   c?.channel === "Clinic tablet"
-                    ? "Continue to completion details"
+                    ? simpleAssessments ? "Confirm tablet assistance" : "Continue to completion details"
                     : undefined
                 }
                 completionNote={
-                  c?.channel === "Clinic tablet" && linkedAppointment
-                    ? `Next, review the linked appointment on ${formatDate(linkedAppointment.plannedDate)} at ${linkedAppointment.plannedTime}, confirm the collection method and record its outcome. Your answers have not been submitted yet.`
-                    : c?.channel === "Clinic tablet"
-                      ? "Next, confirm whether the answers were completed on a tablet or by a clinician. Your answers have not been submitted yet."
+                  simpleAssessments && c?.channel === "Clinic tablet"
+                    ? "Next, confirm whether the tablet answers were completed independently or with assistance. Your answers have not been submitted yet."
+                    : !simpleAssessments && c?.channel === "Clinic tablet" && linkedAppointment
+                    ? `Next, choose the linked appointment on ${formatDate(linkedAppointment.plannedDate)} at ${linkedAppointment.plannedTime}, another existing contact, or a new contact. Your answers have not been submitted yet.`
+                    : !simpleAssessments && c?.channel === "Clinic tablet"
+                      ? "Next, confirm the collection method and choose an existing or new attended contact. Your answers have not been submitted yet."
                       : undefined
                 }
                 initialReview={returnToReview}
@@ -322,7 +345,7 @@ export default function Questionnaire({ session, navigate, onEnd }) {
             {!pendingAnswers && (
               <div className="participant-help">
                 {!preview && dirty && answers.some(Boolean) && (
-                  <button onClick={saveProgress}>Save progress and leave</button>
+                  <button onClick={() => { setSubmitError(""); setSaveContactOpen(true); }}>Save as draft and leave</button>
                 )}
                 <button onClick={() => setHelp(true)}>
                   <LifeBuoy size={18} />
@@ -340,6 +363,19 @@ export default function Questionnaire({ session, navigate, onEnd }) {
         )}
       </main>
       <footer className="participant-footer">YSCC · Care, connected</footer>
+      {saveContactOpen && (
+        <Modal title={simpleAssessments ? "Save draft" : "Save draft and link contact"} onClose={() => setSaveContactOpen(false)} wide>
+          <DraftContactForm
+            episode={e}
+            collection={c}
+            error={submitError}
+            showContactChoice={!simpleAssessments}
+            confirmTabletAssistance={simpleAssessments}
+            onCancel={() => setSaveContactOpen(false)}
+            onSave={saveProgress}
+          />
+        </Modal>
+      )}
       {confirmLeave && (
         <Modal
           title="Leave without saving changes?"

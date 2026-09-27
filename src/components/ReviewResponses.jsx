@@ -239,8 +239,8 @@ export default function ReviewResponses({
                 <p
                   className="review-associated-meta"
                   style={{
-                    marginTop: "8px",
-                    paddingTop: "8px",
+                    marginTop: "var(--space-2)",
+                    paddingTop: "var(--space-2)",
                     borderTop: "1px solid var(--line-soft)",
                     color: "var(--muted)",
                   }}
@@ -341,9 +341,9 @@ export default function ReviewResponses({
                   background: "var(--surface-subtle)",
                   border: "1px solid var(--control-border)",
                   borderRadius: "8px",
-                  padding: "16px",
-                  marginTop: "16px",
-                  marginBottom: "16px",
+                  padding: "var(--space-4)",
+                  marginTop: "var(--space-4)",
+                  marginBottom: "var(--space-4)",
                 }}
                 aria-label="Associated contact outcome"
               >
@@ -352,15 +352,15 @@ export default function ReviewResponses({
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
-                    gap: "10px",
-                    marginBottom: "6px",
+                    gap: "var(--space-3)",
+                    marginBottom: "var(--space-2)",
                   }}
                 >
                   <div
                     style={{
                       display: "flex",
                       alignItems: "center",
-                      gap: "8px",
+                      gap: "var(--space-2)",
                     }}
                   >
                     <Calendar size={18} style={{ color: "var(--category-assessment-ink)" }} />
@@ -377,7 +377,7 @@ export default function ReviewResponses({
                 <p
                   className="review-associated-meta"
                   style={{
-                    margin: "0 0 12px 0",
+                    margin: "0 0 var(--space-3) 0",
                     color: "var(--muted)",
                   }}
                 >
@@ -418,8 +418,8 @@ export default function ReviewResponses({
                     <div
                       className="review-associated-copy"
                       style={{
-                        marginBottom: "12px",
-                        padding: "8px 12px",
+                        marginBottom: "var(--space-3)",
+                        padding: "var(--space-2) var(--space-3)",
                         background: "var(--surface)",
                         borderRadius: "6px",
                         border: "1px solid var(--line)",
@@ -434,7 +434,7 @@ export default function ReviewResponses({
                       {activeAppointment.deliveryMode}
                     </div>
 
-                    <div className="form-grid" style={{ marginBottom: "12px" }}>
+                    <div className="form-grid" style={{ marginBottom: "var(--space-3)" }}>
                       <Field label="Contact outcome">
                         <select
                           value={appointmentAttendance}
@@ -513,11 +513,11 @@ export default function ReviewResponses({
                   background: "var(--status-success-bg)",
                   border: "1px solid var(--status-success-border)",
                   borderRadius: "8px",
-                  padding: "10px 14px",
-                  margin: "12px 0",
+                  padding: "var(--space-3) var(--space-4)",
+                  margin: "var(--space-3) 0",
                   display: "flex",
                   alignItems: "center",
-                  gap: "8px",
+                  gap: "var(--space-2)",
                   color: "var(--status-success-ink)",
                 }}
               >
@@ -627,7 +627,7 @@ export default function ReviewResponses({
             <h1>{title}</h1>
             <p>{`${displayPersonName(person)} · ${c.label} · ${c.version}`}</p>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
             {canEdit && onEdit && (
               <Button type="button" onClick={() => onEdit(note)}>
                 <Pencil size={16} aria-hidden="true" />

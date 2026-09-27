@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { useStore } from "../store";
+import { patientIdentifier } from "../patientIdentity";
 import { canAssess } from "../intake";
 import { collectionActor, currentStaff, formatDate } from "../model";
 import { getInstrument } from "../instruments";
 import { Modal, Button, Notice, Success } from "./UI";
 import QuestionnaireFlow from "./QuestionnaireFlow";
 import QuestionnaireAppointmentConfirmation from "./QuestionnaireAppointmentConfirmation";
+import DraftContactForm from "./DraftContactForm";
 import DiscardChanges from "./DiscardChanges";
 
 export default function ClinicianQuestionnaire({
@@ -15,22 +17,24 @@ export default function ClinicianQuestionnaire({
   onClose,
 }) {
   const { state, commit } = useStore();
+  const simpleAssessments = !!state.settings?.simpleAssessments || !!collection.scheduleFree;
   const [answers, setAnswers] = useState(() => [...(collection.draftAnswers || [])]);
   const [discard, setDiscard] = useState(false);
   const [finished, setFinished] = useState(false);
   const [error, setError] = useState("");
   const [pendingAnswers, setPendingAnswers] = useState(null);
   const [returnToReview, setReturnToReview] = useState(false);
+  const [saveContactOpen, setSaveContactOpen] = useState(false);
   // Pin this form to the attempt that opened it. Reissued sessions cannot
   // silently submit answers against a different respondent or recorder.
   const [attemptId] = useState(collection.attempts.at(-1)?.id);
   const c = collection;
   const staff = currentStaff(state);
   const instrument = getInstrument(c.version);
-  const linkedAppointmentId =
-    c.appointmentId || c.attempts.at(-1)?.appointmentId;
+  const linkedAppointmentId = simpleAssessments ? null :
+    c.attempts.at(-1)?.appointmentId || c.appointmentId;
   const linkedAppointment = episode.appointments?.find(
-    (item) => item.id === linkedAppointmentId && item.attendance === "Planned",
+    (item) => item.id === linkedAppointmentId && ["Planned", "Attended"].includes(item.attendance),
   );
   const available =
     canAssess(person, episode) &&
@@ -45,8 +49,10 @@ export default function ClinicianQuestionnaire({
     !!instrument;
   const dirty = answers.some((answer, index) => answer !== (collection.draftAnswers || [])[index]) && !finished;
   const respondent = collectionActor(person, c, "respondent");
-  const requestClose = () => (dirty ? setDiscard(true) : onClose());
-  const saveProgress = () => {
+  const requestClose = () => saveContactOpen
+    ? setSaveContactOpen(false)
+    : dirty ? setDiscard(true) : onClose();
+  const saveProgress = (contactLink, completionMethod, assistance) => {
     const result = commit({
       type: "SAVE_RESPONSE_PROGRESS",
       personId: person.id,
@@ -55,6 +61,9 @@ export default function ClinicianQuestionnaire({
       channel: "Clinician entry",
       attemptId,
       answers,
+      contactLink,
+      completionMethod,
+      assistance,
     });
     if (result.error) return setError(result.error);
     onClose();
@@ -91,6 +100,7 @@ export default function ClinicianQuestionnaire({
     setAnswers([]);
   };
   const completeQuestions = (finalAnswers) => {
+    if (simpleAssessments) return submit(finalAnswers);
     setPendingAnswers(finalAnswers);
     setError("");
   };
@@ -100,15 +110,27 @@ export default function ClinicianQuestionnaire({
       title={
         finished
           ? "Questionnaire submitted"
-          : pendingAnswers
+          : saveContactOpen
+            ? simpleAssessments ? "Save draft" : "Save draft and link contact"
+            : pendingAnswers
             ? "Completion details"
             : "Complete questionnaire as clinician"
       }
-      subtitle={`${person.name} · ${c.label} · ${c.version}`}
+      subtitle={`${patientIdentifier(person)} · ${c.label} · ${c.version}`}
       onClose={requestClose}
       wide
     >
-      <div className="form-body">
+      {saveContactOpen ? (
+        <DraftContactForm
+          episode={episode}
+          collection={c}
+          error={error}
+          showContactChoice={!simpleAssessments}
+          confirmTabletAssistance={simpleAssessments}
+          onCancel={() => { setSaveContactOpen(false); setError(""); }}
+          onSave={saveProgress}
+        />
+      ) : <div className="form-body">
         {finished ? (
           <Success
             title="Response saved"
@@ -183,11 +205,11 @@ export default function ClinicianQuestionnaire({
                       setError("");
                     }}
                     onSubmit={completeQuestions}
-                    submitLabel="Continue to completion details"
-                    completionNote={
+                    submitLabel={simpleAssessments ? "Complete assessment" : "Continue to completion details"}
+                    completionNote={simpleAssessments ? undefined :
                       linkedAppointment
-                        ? `Next, review the linked appointment on ${formatDate(linkedAppointment.plannedDate)} at ${linkedAppointment.plannedTime}, confirm the collection method and record its outcome. Your answers have not been submitted yet.`
-                        : "Next, confirm whether the answers were completed on a tablet or by a clinician. Your answers have not been submitted yet."
+                        ? `Next, choose the linked appointment on ${formatDate(linkedAppointment.plannedDate)} at ${linkedAppointment.plannedTime}, another existing contact, or a new contact. Your answers have not been submitted yet.`
+                        : "Next, confirm the collection method and choose an existing or new attended contact. Your answers have not been submitted yet."
                     }
                     initialReview={returnToReview}
                     headingLevel="h3"
@@ -196,7 +218,7 @@ export default function ClinicianQuestionnaire({
                 )}
                 {!pendingAnswers && dirty && answers.some(Boolean) && (
                   <div className="questionnaire-save-progress">
-                    <Button type="button" onClick={saveProgress}>Save progress and close</Button>
+                    <Button type="button" onClick={() => { setError(""); setSaveContactOpen(true); }}>Save as draft</Button>
                   </div>
                 )}
               </div>
@@ -208,7 +230,7 @@ export default function ClinicianQuestionnaire({
             )}
           </>
         )}
-      </div>
+      </div>}
       {discard && (
         <DiscardChanges
           onKeepEditing={() => setDiscard(false)}

@@ -10,6 +10,7 @@ export default function AppointmentOutcomeForm({
   episode,
   appointment,
   person,
+  simpleAssessments = false,
   error,
   onClose,
   onSave,
@@ -36,7 +37,7 @@ export default function AppointmentOutcomeForm({
             type: "RECORD_APPOINTMENT_OUTCOME",
             appointmentId: appointment.id,
             ...formValues(event),
-            assessmentIntakeId: linkedToInitialAssessment ? initialAssessment?.id : null,
+            assessmentIntakeId: !simpleAssessments && linkedToInitialAssessment ? initialAssessment?.id : null,
           });
         }}
       >
@@ -73,7 +74,7 @@ export default function AppointmentOutcomeForm({
             </select>
           </Field>
           <ContactFields appointment={appointment} attended={attendance === "Attended"} person={person} />
-          {initialAssessment && (
+          {!simpleAssessments && initialAssessment && (
             <label className="check-field">
               <input type="checkbox" checked={linkedToInitialAssessment}
                 onChange={(event) => setLinkedToInitialAssessment(event.target.checked)} />

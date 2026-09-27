@@ -119,7 +119,7 @@ export function timelineExtent(entries) {
   return { start: dates[0] || null, end: dates.at(-1) || null };
 }
 
-export function careTimelineData(episode) {
+export function careTimelineData(episode, { simpleAssessments = false } = {}) {
   const events = recordedCareEvents(episode);
   const reportEvents = events.filter((event) =>
     ["service-period", "medication-course", "goal-milestone"].includes(event.eventType),
@@ -175,7 +175,7 @@ export function careTimelineData(episode) {
             ]
           : [];
       const planned =
-        collection.response !== "Submitted" &&
+        !simpleAssessments && collection.response !== "Submitted" &&
         /review/i.test(collection.label || "") &&
         isRecordedDate(collection.due)
           ? [

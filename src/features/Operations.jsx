@@ -20,6 +20,7 @@ import {
   BookOpen,
 } from "lucide-react";
 import { useStore } from "../store";
+import { patientIdentifier } from "../patientIdentity";
 import { currentStaff, formatDate, TODAY } from "../model";
 import { sortQueueRows } from "../queueSort";
 import { ActiveFilters, SortableHeader, useQueueSort } from "../components/QueueControls";
@@ -288,7 +289,7 @@ export function Quality({ openModal, navigate }) {
                                 navigate(`/people/${person.id}`);
                               }}
                             >
-                              {person.name}
+                              {patientIdentifier(person)}
                             </button>
                             <small>{person.id}</small>
                           </span>
@@ -310,7 +311,7 @@ export function Quality({ openModal, navigate }) {
                       <QueueCell label="Manage" slot="action" className="quality-manage-cell">
                         <Button
                           variant="secondary"
-                          aria-label={`Manage ${issue.type} for ${person.name}`}
+                          aria-label={`Manage ${issue.type} for ${patientIdentifier(person)}`}
                           onClick={(e) => {
                             e.stopPropagation();
                             openModal({
@@ -345,8 +346,8 @@ export function Quality({ openModal, navigate }) {
     </>
   );
 }
-export function Administration({ openModal }) {
-  const { state } = useStore();
+export function Administration({ openModal, navigate }) {
+  const { state, commit } = useStore();
   const staff = currentStaff(state);
   return (
     <>
@@ -359,6 +360,18 @@ export function Administration({ openModal }) {
         approval, and live permissions are not connected.
       </Notice>
       <Panel title="Workspace configuration" className="admin-panel">
+        <div className="admin-row">
+          <span className="admin-icon"><SlidersHorizontal size={24} /></span>
+          <div>
+            <h3>Simple assessments</h3>
+            <p>Record assessment creation, saved drafts and completion without assessment scheduling or contact links.</p>
+          </div>
+          <label className="admin-setting-toggle">
+            <input type="checkbox" role="switch" aria-label="Simple assessments" checked={!!state.settings?.simpleAssessments}
+              onChange={(event) => commit({ type: "SET_SIMPLE_ASSESSMENTS", enabled: event.target.checked })} />
+            <span>{state.settings?.simpleAssessments ? "On" : "Off"}</span>
+          </label>
+        </div>
         {[
           [
             BookOpen,
@@ -403,6 +416,21 @@ export function Administration({ openModal }) {
             </Button>
           </div>
         ))}
+      </Panel>
+      <Panel title="Sample data" className="admin-panel">
+        <div className="admin-row">
+          <span className="admin-icon">
+            <FileCheck2 size={24} />
+          </span>
+          <div>
+            <h3>Supplied CSV sample</h3>
+            <p>Review one imported client and its recorded evidence, separate from editable people.</p>
+          </div>
+          <Button onClick={() => navigate("/administration/sample/YSCC01-C0001")}>
+            Open read-only preview
+            <ArrowRight size={17} />
+          </Button>
+        </div>
       </Panel>
       <div className="reset-panel">
         <div>

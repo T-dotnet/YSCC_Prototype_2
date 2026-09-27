@@ -76,8 +76,8 @@ function reportLanes(timeline) {
   ];
 }
 
-export function hasCareTimelineEntries(episode) {
-  const timeline = careTimelineData(episode);
+export function hasCareTimelineEntries(episode, { simpleAssessments = false } = {}) {
+  const timeline = careTimelineData(episode, { simpleAssessments });
   return reportLanes(timeline).some((lane) => lane.entries.length > 0) ||
     timeline.lanes.some((lane) => lane.id === "k10" && lane.entries.length > 0);
 }
@@ -864,8 +864,8 @@ function CareAndMedicationChart({ timeline }) {
   );
 }
 
-export function CareTimeline({ person, episode, navigate, isVisible, onToggle }) {
-  const timeline = careTimelineData(episode);
+export function CareTimeline({ person, episode, navigate, isVisible, onToggle, simpleAssessments = false }) {
+  const timeline = careTimelineData(episode, { simpleAssessments });
   const evidence = reportEvidence(person, episode);
 
   const openSource = (entry) => {

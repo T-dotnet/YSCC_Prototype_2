@@ -2,6 +2,7 @@ import { collectionStatus, formatDate } from "../model";
 import { getInstrument } from "../instruments";
 import { contactContribution } from "../responseSessions";
 import { Badge } from "./UI";
+import { useStore } from "../store";
 
 const contactName = (contact) =>
   contact.contactType || contact.appointmentType || contact.practitionerService || "Service contact";
@@ -16,6 +17,8 @@ const contributionCell = (contribution) => (
 );
 
 export default function RelatedRecordsAccordion({ kind, records = [], collection, contactId, showEmpty = false }) {
+  const { state } = useStore();
+  if (state.settings?.simpleAssessments || collection?.scheduleFree) return null;
   if (!records.length && !showEmpty) return null;
   const contacts = kind === "contacts";
   const title = contacts ? "Related contacts" : "Linked assessments";

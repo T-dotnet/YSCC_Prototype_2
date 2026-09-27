@@ -254,3 +254,73 @@ test("completion confirms the collection method without a linked appointment", (
     "Clinician entry",
   );
 });
+
+test("completion can use another attended contact without changing its outcome", () => {
+  const seed = createSeed();
+  const episode = seed.people[0].episodes[0];
+  episode.appointments.push({
+    id: "APT-already-attended", attendance: "Attended", actualDate: TODAY,
+    plannedDate: TODAY, plannedTime: "09:00", actualTime: "09:00",
+    plannedDurationMinutes: 30, actualDurationMinutes: 30,
+    practitionerService: "Northside Centre", primaryPractitioner: "Jess Taylor",
+    deliveryMode: "Clinic tablet", recipientType: "Young person", contactType: "Assessment",
+  });
+  const started = begin(seed);
+  const saved = reducer(started, {
+    ...submission(started), completionMethod: "Clinician entry",
+    contactLink: { kind: "existing", appointmentId: "APT-already-attended" },
+  });
+  assert.equal(collection(saved).submittedAppointmentId, "APT-already-attended");
+  assert.equal(collection(saved).attempts.at(-1).appointmentId, "APT-already-attended");
+  assert.equal(saved.people[0].episodes[0].appointments.length, episode.appointments.length);
+  assert.equal(reducer(started, {
+    ...submission(started), contactLink: { kind: "existing", appointmentId: "missing" },
+  }), started);
+});
+
+test("completion can create a new attended contact with the response", () => {
+  const started = begin(createSeed());
+  const contact = {
+    attendance: "Attended", plannedDate: TODAY, actualDate: TODAY,
+    plannedTime: "11:30", actualTime: "11:30",
+    plannedDurationMinutes: 40, actualDurationMinutes: 40,
+    practitionerService: "Northside Centre", primaryPractitioner: "Jess Taylor",
+    deliveryMode: "Clinician entry", recipientType: "Young person", contactType: "Assessment",
+  };
+  const invalid = reducer(started, {
+    ...submission(started), completionMethod: "Clinician entry",
+    contactLink: { kind: "new", contact: { ...contact, actualDate: "2030-01-01" } },
+  });
+  assert.equal(invalid, started);
+  const saved = reducer(started, {
+    ...submission(started), completionMethod: "Clinician entry",
+    contactLink: { kind: "new", contact },
+  });
+  const id = collection(saved).submittedAppointmentId;
+  const recorded = saved.people[0].episodes[0].appointments.find((item) => item.id === id);
+  assert.equal(collection(saved).response, "Submitted");
+  assert.equal(recorded.attendance, "Attended");
+  assert.equal(recorded.deliveryMode, "Clinician entry");
+  assert.equal(collection(saved).attempts.at(-1).appointmentId, id);
+});
+
+test("a planned contact must have an attended outcome before completion links it", () => {
+  const seed = reducer(createSeed(), {
+    type: "ADD_APPOINTMENT", personId: context.personId, episodeId: context.episodeId,
+    id: "APT-planned-completion", plannedDate: TODAY, plannedTime: "12:00",
+    plannedDurationMinutes: 45, practitionerService: "Northside Centre",
+    deliveryMode: "In person", attendance: "Planned",
+  });
+  const started = begin(seed, { appointmentId: "APT-planned-completion" });
+  const base = { ...submission(started), completionMethod: "Clinician entry",
+    contactLink: { kind: "existing", appointmentId: "APT-planned-completion" } };
+  assert.equal(reducer(started, base), started);
+  const saved = reducer(started, { ...base, appointmentOutcome: {
+    appointmentId: "APT-planned-completion", attendance: "Attended",
+    recipientType: "Young person", contactType: "Assessment",
+    primaryPractitioner: "Jess Taylor", actualDate: TODAY,
+    actualTime: "12:10", actualDurationMinutes: 45,
+  } });
+  assert.equal(collection(saved).response, "Submitted");
+  assert.equal(saved.people[0].episodes[0].appointments.find((item) => item.id === "APT-planned-completion").actualTime, "12:10");
+});

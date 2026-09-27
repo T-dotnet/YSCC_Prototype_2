@@ -77,8 +77,33 @@ test("seed worklist counts represent actual open collection and review work", ()
   assert.ok(tasks.some((task) => task.collection?.id === "A-7-life-care-sixteen-weeks"));
   assert.equal(tasks.filter((task) => task.person.id === "YS-DEMO-CLOSE").length, 2);
   for (const id of ["A-0-current", "A-4-current"])
-    assert.equal(tasks.find((task) => task.collection?.id === id)?.status, "Overdue");
+    assert.equal(tasks.find((task) => task.collection?.id === id)?.status, "Scheduled");
+  assert.equal(tasks.filter((task) => task.status === "Overdue").length, 0);
   assert.equal(tasks.filter((t) => t.status === "Ready for review").length, 2);
+});
+test("starting a planned questionnaire without a selected contact does not infer one", () => {
+  const seed = createSeed();
+  const person = seed.people.find((item) => item.id === "YS-1034");
+  const episode = person.episodes[0];
+  const planned = episode.collections.find((item) => item.id === "A-7-life-care-sixteen-weeks");
+  episode.appointments.push({ id: "APT-same-day", plannedDate: planned.due, attendance: "Planned" });
+  const next = reducer(seed, {
+    type: "DELIVER",
+    personId: person.id,
+    episodeId: episode.id,
+    collectionId: planned.id,
+    channel: "Clinic tablet",
+    respondent: planned.respondent || "Person",
+    assistance: planned.assistance || "Independent",
+    appointmentId: null,
+  });
+  const opened = next.people.find((item) => item.id === person.id).episodes[0]
+    .collections.find((item) => item.id === planned.id);
+  assert.equal(opened.assignment, "Active");
+  assert.equal(opened.link, "Active");
+  assert.equal(opened.attempts.length, 1);
+  assert.equal(opened.appointmentId, null);
+  assert.equal(opened.attempts[0].appointmentId, null);
 });
 test("fictional records keep intake, consent, draft and tablet-contact dates coherent", () => {
   const seed = createFixtureSeed();

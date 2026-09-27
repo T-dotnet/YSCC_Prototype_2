@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { APPOINTMENT_ATTENDANCE, CONTACT_TYPES } from "../appointments";
-import { currentStaff, formatDate, TODAY } from "../model";
-import { useStore } from "../store";
+import { CONTACT_RECIPIENTS, CONTACT_TYPES, DRAFT_CONTACT_DELIVERY_MODES } from "../appointments";
+import { formatDate, TODAY } from "../model";
 import { Button, Field, Notice, ValidatedForm } from "./UI";
+import CollectionMethodChoice from "./CollectionMethodChoice";
 
 export default function QuestionnaireAppointmentConfirmation({
   appointment,
@@ -13,22 +13,19 @@ export default function QuestionnaireAppointmentConfirmation({
   onConfirm,
   tablet = false,
 }) {
-  const { state } = useStore();
-  const [attendance, setAttendance] = useState("Attended");
-  const [recipient, setRecipient] = useState("Young person");
   const [method, setMethod] = useState(collection.channel);
-  const [editingOutcome, setEditingOutcome] = useState(false);
+  const [contactChoice, setContactChoice] = useState("");
+  const [existingId, setExistingId] = useState("");
+  const [recipient, setRecipient] = useState("Young person");
   const headingRef = useRef(null);
   const latestDate = episode.end && episode.end < TODAY ? episode.end : TODAY;
-  const contactType =
-    appointment?.contactType ||
-    (appointment?.appointmentType === "Care review"
-      ? "Care review"
-      : "Assessment");
-  const practitioner =
-    appointment?.primaryPractitioner ||
-    appointment?.practitionerService?.split(" · ")[0] ||
-    "";
+  const contacts = (episode.appointments || [])
+    .filter((item) => ["Planned", "Attended"].includes(item.attendance))
+    .sort((a, b) => (b.actualDate || b.plannedDate).localeCompare(a.actualDate || a.plannedDate));
+  const otherContacts = contacts.filter((item) => item.id !== appointment?.id);
+  const selectedContact = contactChoice === "linked"
+    ? contacts.find((item) => item.id === appointment?.id)
+    : contacts.find((item) => item.id === existingId);
   const Heading = tablet ? "h1" : "h3";
   const SectionHeading = tablet ? "h2" : "h4";
 
@@ -38,270 +35,124 @@ export default function QuestionnaireAppointmentConfirmation({
     headingRef.current?.focus({ preventScroll: true });
   }, [tablet]);
 
+  const submit = (event) => {
+    event.preventDefault();
+    const values = Object.fromEntries(new FormData(event.currentTarget));
+    const contact = {
+      attendance: "Attended",
+      plannedDate: values.contactDate,
+      plannedTime: values.contactTime,
+      plannedDurationMinutes: values.duration,
+      actualDate: values.contactDate,
+      actualTime: values.contactTime,
+      actualDurationMinutes: values.duration,
+      practitionerService: values.practitionerService,
+      primaryPractitioner: values.primaryPractitioner,
+      deliveryMode: values.deliveryMode,
+      recipientType: values.recipientType,
+      relatedPersonName: values.relatedPersonName,
+      contactType: values.contactType,
+    };
+    onConfirm({
+      completionMethod: values.completionMethod,
+      contactLink: contactChoice === "new"
+        ? { kind: "new", contact }
+        : { kind: "existing", appointmentId: selectedContact?.id },
+      ...(contactChoice !== "new" && selectedContact?.attendance === "Planned"
+        ? { appointmentOutcome: {
+            appointmentId: selectedContact.id,
+            attendance: "Attended",
+            recipientType: values.outcomeRecipient,
+            relatedPersonName: values.outcomeRelatedPerson,
+            contactType: values.outcomeContactType,
+            primaryPractitioner: values.outcomePractitioner,
+            actualDate: values.outcomeDate,
+            actualTime: values.outcomeTime,
+            actualDurationMinutes: values.outcomeDuration,
+          } }
+        : {}),
+    });
+  };
+
   return (
-    <ValidatedForm
-      onSubmit={(event) => {
-        event.preventDefault();
-        const values = Object.fromEntries(new FormData(event.currentTarget));
-        const { completionMethod, ...appointmentValues } = values;
-        const defaultOutcome = {
-          attendance: "Attended",
-          recipientType: "Young person",
-          contactType,
-          primaryPractitioner: practitioner,
-          actualDate:
-            appointment?.plannedDate <= latestDate
-              ? appointment.plannedDate
-              : latestDate,
-          actualTime: appointment?.plannedTime,
-          actualDurationMinutes: appointment?.plannedDurationMinutes,
-        };
-        onConfirm({
-          completionMethod,
-          ...(appointment
-            ? {
-                appointmentOutcome: {
-                  appointmentId: appointment.id,
-                  ...defaultOutcome,
-                  ...(editingOutcome ? appointmentValues : {}),
-                },
-              }
-            : {}),
-        });
-      }}
-    >
-      <section
-        className="questionnaire-appointment-confirmation"
-        aria-labelledby="appointment-confirmation-heading"
-      >
-        <Heading
-          id="appointment-confirmation-heading"
-          tabIndex={-1}
-          ref={headingRef}
-        >
-          {appointment
-            ? "Confirm completion and contact"
-            : "Confirm completion"}
+    <ValidatedForm onSubmit={submit}>
+      <section className="questionnaire-appointment-confirmation" aria-labelledby="appointment-confirmation-heading">
+        <Heading id="appointment-confirmation-heading" tabIndex={-1} ref={headingRef}>
+          Confirm completion and contact
         </Heading>
-        <p>
-          The {collection.label.toLowerCase()} answers are complete. Confirm how
-          they were collected
-          {appointment ? " and what happened at the linked contact" : ""}{" "}
-          before submitting.
-        </p>
-        {tablet && appointment && (
-          <Notice>
-            Pass the tablet to a clinician to confirm the contact details.
-          </Notice>
-        )}
-        <section
-          className="questionnaire-confirmation-panel"
-          aria-labelledby="collection-method-heading"
-        >
-          <SectionHeading id="collection-method-heading">
-            Confirm collection method
-          </SectionHeading>
-          <p>Select how these answers were completed.</p>
-          <div
-            className="collection-method-cards"
-            role="radiogroup"
-            aria-labelledby="collection-method-heading"
-          >
-            {[
-              ["Clinic tablet", "Tablet", "Answers entered on a clinic device"],
-              [
-                "Clinician entry",
-                "Clinician",
-                "Answers entered by the clinician",
-              ],
-            ].map(([value, label, description]) => (
-              <label
-                className={`collection-method-card ${method === value ? "selected" : ""}`}
-                key={value}
-              >
-                <input
-                  type="radio"
-                  name="completionMethod"
-                  value={value}
-                  checked={method === value}
-                  onChange={() => setMethod(value)}
-                  disabled={
-                    value === "Clinician entry" &&
-                    currentStaff(state)?.role !== "Clinician"
-                  }
-                  required
-                />
-                <span>
-                  <strong>{label}</strong>
-                  <small>{description}</small>
-                </span>
-              </label>
-            ))}
-          </div>
-        </section>
-        {appointment && (
-          <section
-            className="questionnaire-confirmation-panel"
-            aria-labelledby="linked-appointment-heading"
-          >
-            <div className="questionnaire-confirmation-heading">
-              <SectionHeading id="linked-appointment-heading">
-                Linked contact
-              </SectionHeading>
-              {!editingOutcome && (
-                <button
-                  type="button"
-                  className="inline-link"
-                  onClick={() => setEditingOutcome(true)}
-                >
-                  Edit
-                </button>
-              )}
-            </div>
-            <dl className="appointment-outcome-plan">
-              <div>
-                <dt>Planned contact</dt>
-                <dd>
-                  {formatDate(appointment.plannedDate)} at{" "}
-                  {appointment.plannedTime}
-                </dd>
-              </div>
-              <div>
-                <dt>Planned duration</dt>
-                <dd>{appointment.plannedDurationMinutes} min</dd>
-              </div>
-              <div>
-                <dt>Practitioner or service</dt>
-                <dd>{appointment.practitionerService}</dd>
-              </div>
-              <div>
-                <dt>Delivery mode</dt>
-                <dd>{appointment.deliveryMode}</dd>
-              </div>
-              <div>
-                <dt>Outcome</dt>
-                <dd>
-                  {attendance}
-                  {!editingOutcome && " (default)"}
-                </dd>
-              </div>
-            </dl>
-          </section>
-        )}
-        {appointment && editingOutcome && (
-          <section
-            id="appointment-outcome-editor"
-            className="questionnaire-confirmation-panel"
-            aria-labelledby="appointment-status-heading"
-          >
-            <SectionHeading id="appointment-status-heading">
-              Confirm what happened
-            </SectionHeading>
-            <Field label="Contact status">
-              <select
-                name="attendance"
-                value={attendance}
-                onChange={(event) => setAttendance(event.target.value)}
-              >
-                {APPOINTMENT_ATTENDANCE.filter(
-                  (value) => value !== "Planned",
-                ).map((value) => (
-                  <option key={value}>{value}</option>
-                ))}
-                <option value="Planned">Leave as planned for later</option>
+        <p>The {collection.label.toLowerCase()} answers are complete. Confirm how they were collected and which contact supplied them before submitting.</p>
+        {tablet && <Notice>Pass the tablet to a clinician to confirm the contact details.</Notice>}
+        <CollectionMethodChoice method={method} onChange={setMethod} headingLevel={tablet ? "h2" : "h4"} />
+        <section className="questionnaire-confirmation-panel" aria-labelledby="response-contact-heading">
+          <SectionHeading id="response-contact-heading">Related contact</SectionHeading>
+          <p>Use the appointment linked when collection started, choose another contact, or record a new one.</p>
+          <fieldset className="draft-contact-choices">
+            <legend>Which contact supplied these answers?</legend>
+            {appointment && <label><input type="radio" name="contactChoice" value="linked" checked={contactChoice === "linked"}
+              onChange={() => setContactChoice("linked")} required /> Use the appointment linked to this assessment · {formatDate(appointment.actualDate || appointment.plannedDate)} · {appointment.attendance}</label>}
+            <label><input type="radio" name="contactChoice" value="existing" checked={contactChoice === "existing"}
+              onChange={() => setContactChoice("existing")} required /> Choose another existing contact</label>
+            <label><input type="radio" name="contactChoice" value="new" checked={contactChoice === "new"}
+              onChange={() => setContactChoice("new")} required /> Record a new attended contact</label>
+          </fieldset>
+          {contactChoice === "existing" && (
+            <Field label="Existing contact">
+              <select value={existingId} onChange={(event) => setExistingId(event.target.value)} required>
+                <option value="">Choose a contact</option>
+                {otherContacts.map((item) => <option value={item.id} key={item.id}>
+                  {formatDate(item.actualDate || item.plannedDate)} · {item.contactType || item.appointmentType || "Contact"} · {item.attendance}
+                </option>)}
               </select>
             </Field>
-            {attendance === "Attended" && (
+          )}
+          {contactChoice === "existing" && !otherContacts.length && <Notice>No other eligible contact is recorded. Record a new one if a contact took place.</Notice>}
+          {["linked", "existing"].includes(contactChoice) && selectedContact?.attendance === "Planned" && (
+            <>
+              <Notice>This contact is still planned. Enter what actually happened before linking it to the completed response.</Notice>
               <div className="form-grid">
-                <Field label="Contact recipient">
-                  <select
-                    name="recipientType"
-                    value={recipient}
-                    onChange={(event) => setRecipient(event.target.value)}
-                    required
-                  >
-                    <option>Young person</option>
-                    <option>Related person</option>
-                  </select>
-                </Field>
-                {recipient === "Related person" && (
-                  <Field label="Related person name">
-                    <input name="relatedPersonName" required />
-                  </Field>
-                )}
-                <Field label="Direct contact type">
-                  <select
-                    name="contactType"
-                    defaultValue={contactType}
-                    required
-                  >
-                    {CONTACT_TYPES.map((value) => (
-                      <option key={value}>{value}</option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="Primary practitioner">
-                  <input
-                    name="primaryPractitioner"
-                    defaultValue={practitioner}
-                    required
-                  />
-                </Field>
-                <Field label="Actual date">
-                  <input
-                    name="actualDate"
-                    type="date"
-                    min={episode.start}
-                    max={latestDate}
-                    defaultValue={
-                      appointment.plannedDate <= latestDate
-                        ? appointment.plannedDate
-                        : latestDate
-                    }
-                    required
-                  />
-                </Field>
-                <Field label="Actual time">
-                  <input
-                    name="actualTime"
-                    type="time"
-                    defaultValue={appointment.plannedTime}
-                    required
-                  />
-                </Field>
-                <Field label="Actual duration (minutes)">
-                  <input
-                    name="actualDurationMinutes"
-                    type="number"
-                    min="1"
-                    max="600"
-                    defaultValue={appointment.plannedDurationMinutes}
-                    required
-                  />
-                </Field>
+                <Field label="Actual date"><input name="outcomeDate" type="date" min={episode.start} max={latestDate} required /></Field>
+                <Field label="Actual time"><input name="outcomeTime" type="time" required /></Field>
+                <Field label="Actual duration (minutes)"><input name="outcomeDuration" type="number" min="1" max="600" required /></Field>
+                <Field label="Contact recipient"><select name="outcomeRecipient" value={recipient} onChange={(event) => setRecipient(event.target.value)} required>
+                  {CONTACT_RECIPIENTS.map((value) => <option key={value}>{value}</option>)}
+                </select></Field>
+                {recipient === "Related person" && <Field label="Related person name"><input name="outcomeRelatedPerson" required /></Field>}
+                <Field label="Direct contact type"><select name="outcomeContactType" defaultValue={selectedContact.contactType || "Assessment"} required>
+                  {CONTACT_TYPES.map((value) => <option key={value}>{value}</option>)}
+                </select></Field>
+                <Field label="Primary practitioner"><input name="outcomePractitioner" defaultValue={selectedContact.primaryPractitioner || ""} required /></Field>
               </div>
-            )}
-            {attendance !== "Planned" && (
-              <Field label="Outcome notes (optional)">
-                <textarea name="outcomeNotes" rows="2" />
-              </Field>
-            )}
-          </section>
-        )}
-        {error && (
-          <p className="field-error" role="alert">
-            {error}
-          </p>
-        )}
+            </>
+          )}
+          {contactChoice === "new" && (
+            <>
+              <Notice>Record a new contact only if it actually happened. This saves an attended contact with the response.</Notice>
+              <div className="form-grid">
+                <Field label="Contact date"><input type="date" name="contactDate" min={episode.start} max={latestDate} required /></Field>
+                <Field label="Time"><input type="time" name="contactTime" required /></Field>
+                <Field label="Duration (minutes)"><input type="number" name="duration" min="1" max="600" required /></Field>
+                <Field label="Delivery mode"><select name="deliveryMode" defaultValue="" required>
+                  <option value="">Choose a mode</option>
+                  {DRAFT_CONTACT_DELIVERY_MODES.map((value) => <option key={value}>{value}</option>)}
+                </select></Field>
+                <Field label="Recipient"><select name="recipientType" value={recipient} onChange={(event) => setRecipient(event.target.value)} required>
+                  {CONTACT_RECIPIENTS.map((value) => <option key={value}>{value}</option>)}
+                </select></Field>
+                {recipient === "Related person" && <Field label="Related person name"><input name="relatedPersonName" required /></Field>}
+                <Field label="Direct contact type"><select name="contactType" defaultValue="" required>
+                  <option value="">Choose a type</option>
+                  {CONTACT_TYPES.map((value) => <option key={value}>{value}</option>)}
+                </select></Field>
+                <Field label="Practitioner or service"><input name="practitionerService" required /></Field>
+                <Field label="Primary practitioner"><input name="primaryPractitioner" required /></Field>
+              </div>
+            </>
+          )}
+        </section>
+        {error && <p className="field-error" role="alert">{error}</p>}
         <div className="question-controls">
-          <Button type="button" onClick={onBack}>
-            Back to answer review
-          </Button>
-          <Button type="submit" variant="primary">
-            {appointment
-              ? "Save response and contact outcome"
-              : "Save response"}
-          </Button>
+          <Button type="button" onClick={onBack}>Back to answer review</Button>
+          <Button type="submit" variant="primary">Save response and contact</Button>
         </div>
       </section>
     </ValidatedForm>

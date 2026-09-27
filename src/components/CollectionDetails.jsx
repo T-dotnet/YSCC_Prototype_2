@@ -21,6 +21,7 @@ export default function CollectionDetails({
   onClose,
   onAction,
   canCompleteAsClinician = false,
+  simpleAssessments = false,
 }) {
   const c = collection;
   const linkedContacts = contactsForAssessment(episode, c.id).sort((a, b) =>
@@ -48,33 +49,37 @@ export default function CollectionDetails({
           <div className="collection-details-summary-heading">
             <div>
               <h3>Response status</h3>
-              <Badge>{c.response}</Badge>
+              <Badge>{simpleAssessments ? submitted ? "Completed" : c.response === "Draft" ? "Draft" : "Created" : c.response}</Badge>
             </div>
           </div>
           {!submitted && (
             <p>
               {c.response === "Draft"
                 ? `${savedAnswerCount} ${savedAnswerCount === 1 ? "answer is" : "answers are"} saved. Start another session to continue on the same or a different channel.`
-                : "No response has been submitted. Check delivery activity and contact arrangements before deciding whether another attempt is needed."}
+                : simpleAssessments
+                  ? "No draft has been saved yet. Start the assessment when ready."
+                  : "No response has been submitted. Check delivery activity and contact arrangements before deciding whether another attempt is needed."}
             </p>
           )}
           <dl className="collection-details-status-facts">
-            <div>
+            {!simpleAssessments && <div>
               <dt>Due date</dt>
               <dd>{formatDate(c.due)}</dd>
-            </div>
-            <div>
+            </div>}
+            {!simpleAssessments && <div>
               <dt>Assignment</dt>
               <dd>
                 <Badge>{c.assignment}</Badge>
               </dd>
-            </div>
-            <div>
+            </div>}
+            {!simpleAssessments && <div>
               <dt>Clinical review</dt>
               <dd>
                 <Badge>{clinicalReviewStatus(c)}</Badge>
               </dd>
-            </div>
+            </div>}
+            {simpleAssessments && <div><dt>Created</dt><dd>{c.createdAt ? formatDate(c.createdAt.slice(0, 10)) : "Recorded"}</dd></div>}
+            {simpleAssessments && <div><dt>Draft</dt><dd>{c.response === "Draft" ? "Saved" : "—"}</dd></div>}
             {submitted && (
               <div>
                 <dt>Submitted on</dt>
@@ -111,7 +116,7 @@ export default function CollectionDetails({
             </dl>
           </div>
         </details>
-        <details className="collection-details-accordion" open>
+        {!simpleAssessments && <details className="collection-details-accordion" open>
           <summary>
             <span>Delivery attempts</span>
             <ChevronDown size={18} aria-hidden="true" />
@@ -130,11 +135,11 @@ export default function CollectionDetails({
               </dl>
             )}
           </div>
-        </details>
+        </details>}
       </div>
       <div className="modal-footer">
         <Button onClick={onClose}>Close</Button>
-        {episode.status === "Active" && !["Cancelled", "Paused"].includes(c.assignment) &&
+        {!simpleAssessments && episode.status === "Active" && !["Cancelled", "Paused"].includes(c.assignment) &&
           (episode.appointments || []).length > linkedContacts.length && (
             <Button onClick={() => onAction("link-assessment-contact")}>Link existing contact</Button>
           )}

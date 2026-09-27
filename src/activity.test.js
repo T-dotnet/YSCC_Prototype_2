@@ -265,6 +265,33 @@ test("Care events projects Jordan's appointment and assessment lists once each",
   assert.ok(history.some((entry) => entry.collectionId));
 });
 
+test("simple Care events exclude planned, due and future records", () => {
+  const person = { id: "P-1" };
+  const episode = {
+    id: "EP-1",
+    events: [
+      { id: "past-event", actionType: "ADD_CARE_EVENT", eventDate: "2026-09-20", title: "Past event" },
+      { id: "future-event", actionType: "ADD_CARE_EVENT", eventDate: "2026-10-20", title: "Future event" },
+    ],
+    appointments: [
+      { id: "planned-past", attendance: "Planned", plannedDate: "2026-09-20" },
+      { id: "planned-future", attendance: "Planned", plannedDate: "2026-10-20" },
+      { id: "attended", attendance: "Attended", plannedDate: "2026-09-20", actualDate: "2026-09-21" },
+    ],
+    collections: [
+      { id: "due", label: "Due assessment", response: "Draft", due: "2026-10-20", createdAt: "2026-09-20T10:00:00Z", attempts: [] },
+      { id: "completed", label: "Completed assessment", response: "Submitted", submittedAt: "2026-09-22T10:00:00Z", attempts: [] },
+      { id: "future-completed", label: "Future assessment", response: "Submitted", submittedAt: "2026-10-22T10:00:00Z", attempts: [] },
+    ],
+  };
+  const all = careEventEntries(person, episode);
+  const simple = careEventEntries(person, episode, [], { simpleAssessments: true, today: "2026-09-27" });
+  assert.equal(all.length, 8);
+  assert.deepEqual(simple.map((entry) => entry.id).sort(), [
+    "appointment-attended", "assessment-completed", "past-event",
+  ]);
+});
+
 test("Zoe's assessment-rich sample also retains a compliance correction", () => {
   const state = createSeed();
   const zoe = state.people.find((person) => person.name === "Zoe Patel");
