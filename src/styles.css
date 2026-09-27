@@ -16252,7 +16252,7 @@ h6 {
   font-weight: var(--type-weight-semibold);
   line-height: var(--type-leading-title);
 }
-#clinical-history-timeline .care-event-day-list > .care-event-day-heading h3 {
+:is(#clinical-history-timeline, #change-log-timeline) .care-event-day-list > .care-event-day-heading h3 {
   font-size: var(--type-body);
   line-height: 1.35;
   letter-spacing: -0.025em;
