@@ -16253,8 +16253,9 @@ h6 {
   line-height: var(--type-leading-title);
 }
 #clinical-history-timeline .care-event-day-list > .care-event-day-heading h3 {
-  font-size: var(--type-feature);
-  line-height: 1.25;
+  font-size: var(--type-body);
+  line-height: 1.35;
+  letter-spacing: -0.025em;
 }
 .care-event-day-heading > span {
   color: var(--muted);
