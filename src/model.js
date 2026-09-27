@@ -579,7 +579,7 @@ function refreshOpenSampleDates(state) {
 }
 
 const withSampleFixtures = (state) =>
-  refreshOpenSampleDates(ensureCoherentMockData(ensureJordanPartialSmsExample(
+  ensureSampleAssessmentCreatedDates(refreshOpenSampleDates(ensureCoherentMockData(ensureJordanPartialSmsExample(
     ensureJordanDeliveryAttemptExamples(
       ensureJordanAssessmentContactExamples(
         ensureJordanFutureAssessment(
@@ -587,7 +587,7 @@ const withSampleFixtures = (state) =>
         ),
       ),
     ),
-  )));
+  ))));
 
 export function sampleAppointmentsForSeed(seedIndex) {
   switch (seedIndex) {
@@ -1919,6 +1919,74 @@ function ensureJordanFutureAssessment(state) {
       recorder: "Person",
       assistance: "Independent",
     });
+  return next;
+}
+
+// Explicit fictional creation dates for sample assessment ledgers. These are
+// fixture values, not dates inferred from a response or a due date.
+const sampleAssessmentCreatedDates = new Map([
+  ...["life-care", "everyday-life"].flatMap((type) => [
+    ["starting-point", "2026-06-15"],
+    ["four-weeks", "2026-07-07"],
+    ["eight-weeks", "2026-08-04"],
+    ["twelve-weeks", "2026-09-01"],
+  ].map(([phase, date]) => [`A-7-${type}-${phase}`, date])),
+  ...MEASURE_INSTRUMENTS.flatMap((instrument) => [
+    ["baseline", "2026-06-15"],
+    ["review", "2026-08-04"],
+    ["latest", "2026-09-01"],
+  ].map(([phase, date]) => [measureSampleCollectionId(instrument.measureKey, phase), date])),
+  ["A-7-life-care-sixteen-weeks", "2026-09-22"],
+  ["A-0-baseline", "2026-06-15"],
+  ["A-0-current", "2026-09-14"],
+  ["A-1-current", "2026-09-08"],
+  ["A-2-current", "2026-09-10"],
+  ["A-3-baseline", "2026-06-15"],
+  ["A-3-current", "2026-09-08"],
+  ["A-3-history-baseline", "2025-02-10"],
+  ["A-3-history-discharge", "2025-06-05"],
+  ["A-4-current", "2026-09-10"],
+  ["A-5-baseline", "2026-06-15"],
+  ...["A-5-life-care", "A-6-everyday-life"].flatMap((prefix) => [
+    ["starting-point", "2026-06-15"],
+    ["four-weeks", "2026-07-07"],
+    ["eight-weeks", "2026-08-04"],
+    ["twelve-weeks", "2026-09-01"],
+  ].map(([phase, date]) => [`${prefix}-${phase}`, date])),
+  ["A-5-current", "2026-09-22"],
+  ["A-YS-1033-initial", "2026-09-10"],
+  ["A-EP-YS-DEMO-CLOSE-01-closure-assessment", "2026-09-20"],
+  ["A-EP-YS-DEMO-CLOSE-01-closure-feedback", "2026-09-20"],
+  ["A-YS-DEMO-CLOSE-initial", "2026-08-12"],
+  ["A-YS-DEMO-CLOSE-midpoint", "2026-08-26"],
+  ["A-YS-DEMO-CLOSE-k10-start", "2026-08-12"],
+  ["A-YS-DEMO-CLOSE-k10-review", "2026-08-26"],
+]);
+
+function isSampleAssessmentPerson(person) {
+  const seedIndex = Number(person.id.slice(3)) - 1024;
+  return (person.id === `YS-${1024 + seedIndex}` && person.name === seeds[seedIndex]?.[0]) ||
+    (person.id === "YS-1033" && person.name === "Jordan Lee") ||
+    (person.id === "YS-1034" && person.fixtureLabel === "Fictional full-report example") ||
+    (person.id === "YS-DEMO-CLOSE" &&
+      person.fixtureLabel === "Fictional closed episode with patient follow-up");
+}
+
+function ensureSampleAssessmentCreatedDates(state) {
+  const missing = state.people.some((person) => isSampleAssessmentPerson(person) &&
+    (person.episodes || []).some((episode) => (episode.collections || []).some((col) =>
+      !col.createdAt && sampleAssessmentCreatedDates.has(col.id))));
+  if (!missing) return state;
+  const next = structuredClone(state);
+  for (const person of next.people) {
+    if (!isSampleAssessmentPerson(person)) continue;
+    for (const episode of person.episodes || []) {
+      for (const col of episode.collections || []) {
+        const date = sampleAssessmentCreatedDates.get(col.id);
+        if (!col.createdAt && date) col.createdAt = `${date}T09:00:00Z`;
+      }
+    }
+  }
   return next;
 }
 

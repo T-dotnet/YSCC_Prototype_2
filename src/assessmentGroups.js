@@ -17,6 +17,26 @@ const newestFirst = (a, b) =>
   (b.submittedAt || "").localeCompare(a.submittedAt || "") ||
   b.id.localeCompare(a.id);
 
+export const simpleAssessmentDate = (collection) => responseDate(collection) ||
+  (collection.response === "Draft" ? collection.attempts?.at(-1)?.savedAt?.slice(0, 10) : null) ||
+  collection.createdAt?.slice(0, 10) || null;
+
+export function prioritizeSimpleAssessmentGroups(groups, visibleCollections) {
+  const visibleIds = new Set(visibleCollections.map((collection) => collection.id));
+  const isPending = (collection) => collection.response !== "Submitted";
+  return groups.map((group, originalIndex) => ({
+    ...group,
+    originalIndex,
+    records: group.collections.filter((collection) => visibleIds.has(collection.id))
+      .sort((a, b) =>
+        Number(isPending(b)) - Number(isPending(a)) ||
+        (simpleAssessmentDate(b) || "").localeCompare(simpleAssessmentDate(a) || "") ||
+        b.id.localeCompare(a.id)),
+  })).sort((a, b) =>
+    Number(b.records.some(isPending)) - Number(a.records.some(isPending)) ||
+    a.originalIndex - b.originalIndex);
+}
+
 export function linkedAssessmentScore(episode, collection) {
   const measureKey = assessmentType(collection).measureKey;
   if (!measureKey) return null;

@@ -38,7 +38,7 @@ import Timeline, {
   ChangeLog,
   ClinicalHistory,
 } from "../components/ActivityTimeline";
-import { assessmentTypeGroups, linkedAssessmentScore } from "../assessmentGroups";
+import { assessmentScoreLabel, assessmentTypeGroups, linkedAssessmentScore, prioritizeSimpleAssessmentGroups, simpleAssessmentDate } from "../assessmentGroups";
 import { responseDate } from "../progress";
 import { daysAgoLabel } from "../relativeDate";
 import { contactsForAssessment } from "../assessmentContacts";
@@ -107,7 +107,7 @@ export default function Person({ id, navigate, openModal }) {
   const [assessmentFilter, setAssessmentFilter] = useState("all");
   const [assessmentQuery, setAssessmentQuery] = useState("");
   const [assessmentMethod, setAssessmentMethod] = useState("all");
-  const [groupAssessmentsByType, setGroupAssessmentsByType] = useState(true);
+  const groupAssessmentsByType = true;
   const [expandedAssessmentTypes, setExpandedAssessmentTypes] = useState([]);
   const assessmentListRef = useRef(null);
   const [startAssessmentOpen, setStartAssessmentOpen] = useState(false);
@@ -318,10 +318,8 @@ export default function Person({ id, navigate, openModal }) {
     `${col.label} ${col.version} ${col.assignment} ${col.response} ${assessmentState(col)} ${col.attempts?.map((attempt) => attempt.channel).join(" ") || ""}`
       .toLowerCase().includes(assessmentQuery.trim().toLowerCase()),
   );
-  const simpleAssessmentDate = (col) => responseDate(col) ||
-    (col.response === "Draft" ? col.attempts?.at(-1)?.savedAt?.slice(0, 10) : null) ||
-    col.createdAt?.slice(0, 10) || null;
   const chronologicalCollections = [...visibleCollections].sort((a, b) =>
+    (simpleAssessments ? Number(a.response === "Submitted") - Number(b.response === "Submitted") : 0) ||
     (simpleAssessments ? simpleAssessmentDate(b) || "" : responseDate(b) || b.due || "")
       .localeCompare(simpleAssessments ? simpleAssessmentDate(a) || "" : responseDate(a) || a.due || "") ||
     a.id.localeCompare(b.id),
@@ -331,11 +329,15 @@ export default function Person({ id, navigate, openModal }) {
     return Boolean(date) && date <= TODAY;
   });
   const groupedAssessments = assessmentTypeGroups(e, visibleCollections);
-  const renderAssessmentCard = (collection, inTimeline = false, headingLevel = 4, initiallyExpanded = inTimeline) => (
+  const simpleGroupedAssessments = simpleAssessments && groupAssessmentsByType
+    ? prioritizeSimpleAssessmentGroups(groupedAssessments, visibleCollections)
+    : [];
+  const renderAssessmentCard = (collection, inTimeline = false, headingLevel = 4, initiallyExpanded = inTimeline, compactGrouped = false) => (
     <AssessmentCollectionCard
       key={collection.id}
       collection={collection}
       simpleAssessments={simpleAssessments || !!collection.scheduleFree}
+      compactGrouped={compactGrouped}
       person={p}
       relatedContacts={simpleAssessments ? [] : [...new Map([
         ...contactsForAssessment(e, collection.id),
@@ -998,20 +1000,11 @@ export default function Person({ id, navigate, openModal }) {
               onClear={() => { setAssessmentFilter("all"); setAssessmentQuery(""); setAssessmentMethod("all"); }}
               resultAction={
                 <span className="assessment-result-actions">
-                  {simpleAssessments && <label className="assessment-group-toggle">
-                    <input
-                      type="checkbox"
-                      role="switch"
-                      checked={groupAssessmentsByType}
-                      onChange={(event) => setGroupAssessmentsByType(event.target.checked)}
-                    />
-                    <span className="assessment-group-toggle-track" aria-hidden="true" />
-                    <span className="assessment-group-toggle-copy">Group by assessment type</span>
-                  </label>}
                   <TimelineExpandAll
                     containerRef={assessmentListRef}
                     containerId="assessment-list"
-                    itemCount={visibleCollections.length}
+                    itemCount={simpleAssessments && groupAssessmentsByType ? groupedAssessments.length : visibleCollections.length}
+                    detailsSelector={simpleAssessments && groupAssessmentsByType ? "details.assessment-simple-group" : undefined}
                     groupsExpanded={simpleAssessments || !groupAssessmentsByType || groupedAssessments.every((group) =>
                       expandedAssessmentTypes === null || expandedAssessmentTypes.includes(group.key))}
                     onToggleAll={!simpleAssessments && groupAssessmentsByType ? (expand) => setExpandedAssessmentTypes(expand ? null : []) : undefined}
@@ -1029,17 +1022,35 @@ export default function Person({ id, navigate, openModal }) {
             />
             <div className={`assessment-list${!simpleAssessments && groupAssessmentsByType ? " assessment-ledger-list" : ""}`} id="assessment-list" ref={assessmentListRef}>
               {simpleAssessments && groupAssessmentsByType
-                ? <div className="stack">{groupedAssessments.map((group) => {
-                    const records = group.collections.filter((col) => visibleCollections.some((item) => item.id === col.id));
-                    const counts = ["Created", "Draft", "Completed"].map((status) =>
-                      `${records.filter((col) => assessmentState(col) === status).length} ${status.toLowerCase()}`);
-                    return <section className="assessment-simple-group" key={group.key} aria-label={`${group.name} assessments`}>
-                      <header className="assessment-simple-group-header">
+                ? <div className="stack">{simpleGroupedAssessments.map((group, index) => {
+                    const records = group.records;
+                    const statusCounts = ["Draft", "Created", "Completed"].map((status) =>
+                      ({ status, count: records.filter((col) => assessmentState(col) === status).length }))
+                      .filter(({ count }) => count > 0);
+                    const latestScore = group.lastDone
+                      ? assessmentScoreLabel(group.lastDone, linkedAssessmentScore(e, group.lastDone))
+                      : "Awaiting response";
+                    return <details className="assessment-simple-group" key={`${assessmentFilter}:${assessmentQuery}:${group.key}`} open={index === 0 || assessmentFilter !== "all" || !!assessmentQuery.trim()}>
+                      <summary className="assessment-simple-group-header">
+                        <ChevronDown size={18} aria-hidden="true" />
                         <h3>{group.name}</h3>
-                        <p>{records.length} assessment{records.length === 1 ? "" : "s"} · {counts.join(" · ")}</p>
-                      </header>
-                      <div className="stack">{records.map((col) => renderAssessmentCard(col, false, 4))}</div>
-                    </section>;
+                        <span className="assessment-simple-group-meta">
+                          <span className="assessment-simple-group-count">
+                            {statusCounts.map(({ status, count }) =>
+                              <Badge key={status} tone={status === "Draft" ? "purple" : status === "Completed" ? "green" : "neutral"}>{count} {status}</Badge>)}
+                          </span>
+                          <span className="assessment-simple-group-score">Latest score <strong>{latestScore}</strong></span>
+                        </span>
+                      </summary>
+                      <div className="assessment-simple-group-records">
+                        <div className="assessment-simple-group-columns" aria-hidden="true">
+                          <span>Assessment</span>
+                          <span>Status</span>
+                          <span><span>Created</span><span>Completed</span><span>Score / next step</span></span>
+                        </div>
+                        {records.map((col) => renderAssessmentCard(col, false, 4, false, true))}
+                      </div>
+                    </details>;
                   })}</div>
                 : groupAssessmentsByType
                 ? <>

@@ -22,6 +22,7 @@ export default function AssessmentCollectionCard({
   onCollect,
   relatedContacts = [],
   simpleAssessments = false,
+  compactGrouped = false,
   inTimeline = false,
   initiallyExpanded = inTimeline,
   headingLevel = inTimeline ? 4 : 3,
@@ -34,6 +35,23 @@ export default function AssessmentCollectionCard({
   const submittedDate = responseDate(col);
   const scoreValue = assessmentScoreLabel(col, score);
   const simpleStatus = col.response === "Submitted" ? "Completed" : col.response === "Draft" ? "Draft" : "Created";
+  if (compactGrouped) return (
+    <article className={`assessment-grouped-record${col.id === selectedId ? " selected-collection" : ""}`}>
+      <div className="assessment-grouped-record-title">
+        <h4>{col.label}</h4>
+        {col.readOnly && <small>Historical assessment · view only · version retained</small>}
+      </div>
+      <Badge>{simpleStatus}</Badge>
+      <dl className="assessment-grouped-record-facts">
+        <div><dt>Created</dt><dd>{col.createdAt ? formatDate(col.createdAt.slice(0, 10)) : "Not recorded"}</dd></div>
+        <div><dt>Completed</dt><dd>{submittedDate ? formatDate(submittedDate) : "—"}</dd></div>
+        <div>
+          <dt>{col.response === "Submitted" ? "Score" : "Next step"}</dt>
+          <dd>{col.response === "Submitted" ? scoreValue : <Button variant="secondary" onClick={() => onCollect(col)}>Collect response</Button>}</dd>
+        </div>
+      </dl>
+    </article>
+  );
   return (
     <RecordItem
       title={col.label}
@@ -45,7 +63,7 @@ export default function AssessmentCollectionCard({
       headingLevel={headingLevel}
       className={`assessment-collection-card${inTimeline ? " record-item-compact assessment-timeline-item" : ""}`}
       facts={simpleAssessments ? [
-        { label: "Created", value: col.createdAt ? formatDate(col.createdAt.slice(0, 10)) : "Recorded" },
+        { label: "Created", value: col.createdAt ? formatDate(col.createdAt.slice(0, 10)) : "Not recorded" },
         { label: "Completed", value: submittedDate ? formatDate(submittedDate) : "—" },
         { label: "Score", value: scoreValue },
       ] : [

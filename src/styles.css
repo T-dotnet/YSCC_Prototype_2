@@ -17371,27 +17371,248 @@ thead th,
 .assessment-start-choices label small {
   color: var(--muted);
 }
+.assessment-list > .stack:has(> .assessment-simple-group) {
+  gap: 0;
+  border-top: 1px solid var(--line);
+}
+
 .assessment-simple-group {
   border: 0;
+  border-bottom: 1px solid var(--line-soft);
   border-radius: 0;
   padding: 0;
   background: transparent;
 }
 
 .assessment-simple-group-header {
-  margin-bottom: 0.75rem;
-  padding: 0 0 0.75rem;
-  border-bottom: 1px solid var(--line-soft);
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) minmax(0, 60%);
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 52px;
+  padding: var(--space-3) 0 var(--space-3) var(--space-2);
+  list-style: none;
+  cursor: pointer;
+}
+
+.assessment-simple-group-header::-webkit-details-marker {
+  display: none;
+}
+
+.assessment-simple-group-header:hover {
+  background: var(--surface-inset);
+}
+
+.assessment-simple-group[open] > .assessment-simple-group-header,
+.assessment-simple-group[open] > .assessment-simple-group-header:hover {
+  background: #edf6f0;
+}
+
+.assessment-simple-group[open] > .assessment-simple-group-header h3,
+.assessment-simple-group[open] > .assessment-simple-group-header > svg {
+  color: var(--orygen-forest);
+}
+
+.assessment-simple-group-header:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: -3px;
 }
 
 .assessment-simple-group-header h3 {
   margin: 0;
+  font-size: var(--type-title);
+  line-height: 1.35;
 }
 
-.assessment-simple-group-header p {
-  margin: 0.25rem 0 0;
-  color: var(--text-muted, #5d6664);
-  font-size: 0.875rem;
+.assessment-simple-group-meta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 200px;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.assessment-simple-group-count,
+.assessment-simple-group-score {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--type-supporting);
+}
+
+.assessment-simple-group-count {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-half) var(--space-2);
+}
+
+.assessment-simple-group-count .badge {
+  padding: 2px var(--space-2);
+}
+
+.assessment-simple-group-score strong {
+  color: var(--ink);
+  font-weight: var(--type-weight-semibold);
+}
+
+.assessment-simple-group-score {
+  padding-left: var(--space-4);
+  border-left: 1px solid var(--line-soft);
+  white-space: nowrap;
+}
+
+.assessment-simple-group-header > svg {
+  align-self: center;
+  color: var(--muted);
+  transform: rotate(-90deg);
+  transition: transform .16s ease;
+}
+
+.assessment-simple-group[open] .assessment-simple-group-header > svg {
+  transform: rotate(0);
+}
+
+.assessment-simple-group-records {
+  container: assessment-group / inline-size;
+  --assessment-record-columns: minmax(210px, 1.8fr) 96px minmax(340px, 2.5fr);
+  --assessment-record-inset: calc(var(--space-2) + 18px + var(--space-3));
+  border-top: 1px solid var(--line);
+}
+
+.assessment-simple-group-columns {
+  display: grid;
+  grid-template-columns: var(--assessment-record-columns);
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0 var(--space-2) var(--assessment-record-inset);
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--muted);
+  font-size: var(--type-data-label);
+  font-weight: var(--type-weight-semibold);
+}
+
+.assessment-simple-group-columns > span:last-child {
+  display: grid;
+  grid-template-columns: minmax(70px, .9fr) minmax(95px, 1fr) minmax(145px, 1.3fr);
+  gap: var(--space-2);
+}
+
+@media (max-width: 600px) {
+  .assessment-simple-group-records { --assessment-record-inset: calc(18px + var(--space-2) + var(--space-2)); }
+  .assessment-simple-group-header {
+    grid-template-columns: 18px minmax(0, 1fr);
+    gap: var(--space-half) var(--space-2);
+  }
+  .assessment-simple-group-header h3 { grid-column: 2; grid-row: 1; }
+  .assessment-simple-group-meta { grid-column: 2; grid-row: 2; grid-template-columns: minmax(0, 1fr); gap: var(--space-half); }
+  .assessment-simple-group-score { padding-left: 0; border-left: 0; }
+  .assessment-simple-group-header > svg { grid-column: 1; grid-row: 1; align-self: center; }
+}
+
+.assessment-simple-group .assessment-grouped-record {
+  display: grid;
+  grid-template-columns: var(--assessment-record-columns);
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  min-height: 60px;
+  padding: var(--space-2) 0 var(--space-2) var(--assessment-record-inset);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.assessment-grouped-record-title {
+  min-width: 0;
+}
+
+.assessment-grouped-record-title h4 {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--type-body);
+  font-weight: var(--type-weight-semibold);
+  line-height: 1.35;
+}
+
+.assessment-grouped-record-title small {
+  display: block;
+  margin-top: var(--space-half);
+  color: var(--muted);
+  font-size: var(--type-data-label);
+  line-height: 1.35;
+}
+
+.assessment-grouped-record > .badge {
+  justify-self: start;
+}
+
+.assessment-grouped-record-facts {
+  display: grid;
+  grid-template-columns: minmax(70px, .9fr) minmax(95px, 1fr) minmax(145px, 1.3fr);
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+}
+
+.assessment-grouped-record-facts > div {
+  min-width: 0;
+}
+
+.assessment-grouped-record-facts dt {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.assessment-grouped-record-facts dd {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--type-supporting);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.assessment-grouped-record-facts .button {
+  white-space: nowrap;
+}
+
+@container assessment-group (max-width: 700px) {
+  .assessment-simple-group-columns { display: none; }
+  .assessment-simple-group .assessment-grouped-record {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-2) var(--space-3);
+    padding: var(--space-3) 0 var(--space-3) var(--assessment-record-inset);
+  }
+  .assessment-grouped-record-title { grid-column: 1; grid-row: 1; }
+  .assessment-grouped-record > .badge { grid-column: 2; grid-row: 1; }
+  .assessment-grouped-record-facts {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    align-items: start;
+  }
+  .assessment-grouped-record-facts dt {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
+    white-space: normal;
+    color: var(--muted);
+    font-size: var(--type-data-label);
+    line-height: 1.35;
+  }
+  .assessment-grouped-record-facts dd { margin-top: var(--space-half); }
+}
+
+@container assessment-group (max-width: 430px) {
+  .assessment-simple-group .assessment-grouped-record {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .assessment-grouped-record-title { grid-column: 1; grid-row: 1; }
+  .assessment-grouped-record > .badge { grid-column: 1; grid-row: 2; }
+  .assessment-grouped-record-facts { grid-column: 1; grid-row: 3; }
+  .assessment-grouped-record-facts:has(.button) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .assessment-grouped-record-facts:has(.button) > div:last-child { grid-column: 1 / -1; }
 }
 
 .admin-setting-toggle {

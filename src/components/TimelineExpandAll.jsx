@@ -1,26 +1,26 @@
 import { useEffect, useState } from "react";
 import { ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 
-export default function TimelineExpandAll({ containerRef, containerId, itemCount, groupsExpanded = true, onToggleAll }) {
+export default function TimelineExpandAll({ containerRef, containerId, itemCount, groupsExpanded = true, onToggleAll, detailsSelector = "details.record-item" }) {
   const [allExpanded, setAllExpanded] = useState(true);
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
     const update = () => {
-      const cards = [...container.querySelectorAll("details.record-item")];
+      const cards = [...container.querySelectorAll(detailsSelector)];
       setAllExpanded(groupsExpanded && cards.every((card) => card.open));
     };
     const observer = new MutationObserver(update);
     observer.observe(container, { attributes: true, attributeFilter: ["open"], childList: true, subtree: true });
     update();
     return () => observer.disconnect();
-  }, [containerRef, groupsExpanded, itemCount]);
+  }, [containerRef, groupsExpanded, itemCount, detailsSelector]);
 
   const toggleAll = () => {
     const expand = !allExpanded;
     onToggleAll?.(expand);
-    containerRef.current?.querySelectorAll("details.record-item").forEach((card) => {
+    containerRef.current?.querySelectorAll(detailsSelector).forEach((card) => {
       card.open = expand;
     });
     setAllExpanded(expand);

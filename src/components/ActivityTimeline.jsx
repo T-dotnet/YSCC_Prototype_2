@@ -107,7 +107,7 @@ const displayDate = (value) =>
 const actorLabel = (entry) =>
   `${entry.actor || "Editor not recorded"}${entry.role ? ` · ${entry.role}` : ""}`;
 
-function TimelineDate({ timestamp, date, time, dateLabel, emphasized = false, hideContextLabel = false }) {
+function TimelineDate({ timestamp, date, time, dateLabel, emphasized = false, hideContextLabel = false, hideDate = false }) {
   const parts = !time && !dateLabel && timestamp && timestamp === date
     ? timelineTimestamp(timestamp)
     : null;
@@ -124,11 +124,11 @@ function TimelineDate({ timestamp, date, time, dateLabel, emphasized = false, hi
   const clock = time || parts?.time;
   const context = hideContextLabel ? null : dateLabel || parts?.zone;
   return (
-    <time className="record-timeline-date" dateTime={time && date ? `${date.slice(0, 10)}T${time}` : parts ? timestamp : date || undefined}>
+    <time className={`record-timeline-date${hideDate ? " record-timeline-date-repeated" : ""}`} dateTime={time && date ? `${date.slice(0, 10)}T${time}` : parts ? timestamp : date || undefined}>
       {context && <span className="record-timeline-date-label">{context}</span>}
       <strong className="record-timeline-when">
-        {parts ? parts.date : displayDate(date)}
-        {clock && <> · {clock}</>}
+        <span className={hideDate ? "sr-only" : undefined}>{parts ? parts.date : displayDate(date)}</span>
+        {clock && <>{hideDate ? "" : " · "}{clock}</>}
       </strong>
     </time>
   );
@@ -199,6 +199,8 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordA
     <ol className="record-timeline clinical-continuous-timeline" aria-label={careEventsOnly ? "Care events and structured records" : "Continuous clinical history"}>
       {entries.map((entry, index) => {
         const item = historyItem(entry, episode, (value) => personEventText(person, value), simpleAssessments);
+        const previousDate = index > 0 ? historyDate(entries[index - 1])?.slice(0, 10) : null;
+        const hideRepeatedDate = simpleAssessments && showCategories && Boolean(item.date && item.date.slice(0, 10) === previousDate);
         const category = historyCategory(entry);
         const hideContextLabel = simpleAssessments && showCategories;
         const dateLabel = hideContextLabel ? null : item.dateLabel;
@@ -266,7 +268,7 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordA
             {categoryDisplay ? (
               <div className="record-timeline-meta">
                 <span className="record-timeline-category">{categoryDisplay.label}</span>
-                <TimelineDate timestamp={entry.timestamp} date={item.date} time={item.time} dateLabel={dateLabel} hideContextLabel={hideContextLabel} emphasized />
+                <TimelineDate timestamp={entry.timestamp} date={item.date} time={item.time} dateLabel={dateLabel} hideContextLabel={hideContextLabel} hideDate={hideRepeatedDate} emphasized />
               </div>
             ) : (
               <TimelineDate timestamp={entry.timestamp} date={item.date} time={item.time} dateLabel={dateLabel} hideContextLabel={hideContextLabel} />

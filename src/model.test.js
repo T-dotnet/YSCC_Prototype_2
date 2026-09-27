@@ -81,6 +81,30 @@ test("seed worklist counts represent actual open collection and review work", ()
   assert.equal(tasks.filter((task) => task.status === "Overdue").length, 0);
   assert.equal(tasks.filter((t) => t.status === "Ready for review").length, 2);
 });
+test("fictional assessment creation dates backfill missing saved fixture dates", () => {
+  const saved = createFixtureSeed();
+  const sampleCollections = saved.people.flatMap((person) =>
+    person.episodes.flatMap((item) => item.collections));
+  assert.ok(sampleCollections.every((col) => col.createdAt), "all sample assessments have creation dates");
+  const episode = saved.people.find((person) => person.id === "YS-1034").episodes[0];
+  assert.equal(episode.collections.length, 24);
+
+  const existing = episode.collections.find((col) => col.id === "A-7-life-care-twelve-weeks");
+  existing.createdAt = "2026-08-31T11:00:00Z";
+  const missing = episode.collections.find((col) => col.id === "A-7-life-care-sixteen-weeks");
+  delete missing.createdAt;
+  const miaMissing = saved.people.find((person) => person.id === "YS-1029").episodes[0]
+    .collections.find((col) => col.id === "A-5-life-care-four-weeks");
+  delete miaMissing.createdAt;
+
+  const upgraded = upgradeSampleData(saved);
+  const collections = upgraded.people.find((person) => person.id === "YS-1034").episodes[0].collections;
+  assert.equal(collections.find((col) => col.id === existing.id).createdAt, existing.createdAt);
+  assert.equal(collections.find((col) => col.id === missing.id).createdAt, "2026-09-22T09:00:00Z");
+  assert.equal(upgraded.people.find((person) => person.id === "YS-1029").episodes[0]
+    .collections.find((col) => col.id === miaMissing.id).createdAt, "2026-07-07T09:00:00Z");
+  assert.equal(upgradeSampleData(upgraded), upgraded);
+});
 test("starting a planned questionnaire without a selected contact does not infer one", () => {
   const seed = createSeed();
   const person = seed.people.find((item) => item.id === "YS-1034");
