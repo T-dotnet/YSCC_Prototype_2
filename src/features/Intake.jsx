@@ -5,6 +5,7 @@ import { useStore } from "../store";
 import { patientIdentifier, patientSecondaryDetail } from "../patientIdentity";
 import AppointmentSlotPicker from "../components/AppointmentSlotPicker";
 import { PROGRAM_STREAMS } from "../carePeriods";
+import { assessmentSchedulingEnabled, assessmentContactLinkingEnabled } from "../assessmentFeatures";
 import {
   TODAY,
   currentStaff,
@@ -812,7 +813,8 @@ export function IntakePanel({ person, intake, navigate, mobileReferrals }) {
 
 export function IntakeAssessmentPanel({ person, intake, navigate, onReopen, reopenError }) {
   const { state, commit } = useStore();
-  const simpleAssessments = !!state.settings?.simpleAssessments;
+  const scheduleAssessments = assessmentSchedulingEnabled(state.settings);
+  const linkAssessmentAppointments = assessmentContactLinkingEnabled(state.settings);
   const [due, setDue] = useState(TODAY);
   const [programStream, setProgramStream] = useState("");
   const [error, setError] = useState("");
@@ -831,7 +833,7 @@ export function IntakeAssessmentPanel({ person, intake, navigate, onReopen, reop
       revision: intake.revision,
       due,
       programStream,
-      externalAppointment: externalSlot,
+      externalAppointment: linkAssessmentAppointments ? externalSlot : null,
     };
     const problem = intakeActionError(state, action, currentStaff(state));
     if (problem) return setError(problem);
@@ -849,7 +851,7 @@ export function IntakeAssessmentPanel({ person, intake, navigate, onReopen, reop
             <div><dt>Receiving assessment owner</dt><dd>{intake.assessmentOwner || "Not assigned"}</dd></div>
             <div><dt>Respondent</dt><dd>{intake.respondentPreference || "Not recorded"}</dd></div>
           </dl>
-          {ready && simpleAssessments ? (
+          {ready && !scheduleAssessments ? (
             <div className="stack">
               <Notice>The initial assessment was created when intake proceeded. Open it to save a draft or complete the response.</Notice>
               <Button variant="primary" onClick={() => navigate(`/people/${person.id}?episode=${intake.episodeId}&tab=assessment`)}>
@@ -885,7 +887,7 @@ export function IntakeAssessmentPanel({ person, intake, navigate, onReopen, reop
                     {PROGRAM_STREAMS.map((stream) => <option key={stream} value={stream}>{stream}</option>)}
                   </select>
                 </Field>
-                <AppointmentSlotPicker key={due} mode="assessment" dueDate={due} selectedSlot={externalSlot} onSelect={setExternalSlot} />
+                {linkAssessmentAppointments && <AppointmentSlotPicker key={due} mode="assessment" dueDate={due} selectedSlot={externalSlot} onSelect={setExternalSlot} />}
                 {error && <p role="alert" className="field-error">{error}</p>}
                 <div className="intake-assessment-actions">
                   <Button type="submit" variant="primary">Create assessment plan</Button>

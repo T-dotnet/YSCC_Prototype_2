@@ -9,6 +9,7 @@ import {
   LifeBuoy,
 } from "lucide-react";
 import { useStore } from "../store";
+import { assessmentContactLinkingEnabled, assessmentSmsEnabled } from "../assessmentFeatures";
 import { canCollectInEpisode, displayFamilyName, displayPersonName, formatDate } from "../model";
 import {
   DEMO_INSTRUMENT,
@@ -25,7 +26,7 @@ export default function Questionnaire({ session, navigate, onEnd }) {
   const p = state.people.find((p) => p.id === session?.personId),
     e = p?.episodes.find((e) => e.id === session?.episodeId),
     c = e?.collections.find((c) => c.id === session?.collectionId);
-  const simpleAssessments = !!state.settings?.simpleAssessments || !!c?.scheduleFree;
+  const simpleAssessments = !assessmentContactLinkingEnabled(state.settings);
   const [step, setStep] = useState(-1),
     [answers, setAnswers] = useState(() => [...(session ? (c?.draftAnswers || []) : [])]),
     [help, setHelp] = useState(false),
@@ -55,6 +56,7 @@ export default function Questionnaire({ session, navigate, onEnd }) {
         !c ||
         !instrument ||
         c.channel === "Clinician entry" ||
+        (c.channel === "SMS link" && !assessmentSmsEnabled(state.settings)) ||
         c.assignment !== "Active" ||
         c.link !== "Active" ||
         (session.attemptId && session.attemptId !== c.attempts.at(-1)?.id) ||
@@ -66,6 +68,13 @@ export default function Questionnaire({ session, navigate, onEnd }) {
     setAnswers([]);
     setEnded(true);
     onEnd();
+  };
+  const returnToStaff = () => {
+    if (!session?.personId) return navigate("/");
+    const params = new URLSearchParams({ tab: "assessment" });
+    if (session.episodeId) params.set("episode", session.episodeId);
+    if (session.collectionId) params.set("collection", session.collectionId);
+    navigate(`/people/${encodeURIComponent(session.personId)}?${params}`);
   };
   const requestEnd = () =>
     dirty && !finished ? setConfirmLeave(true) : end();
@@ -155,11 +164,7 @@ export default function Questionnaire({ session, navigate, onEnd }) {
             action={
               <Button
                 variant="primary"
-                onClick={() =>
-                  navigate(
-                    session?.personId ? `/people/${session.personId}` : "/",
-                  )
-                }
+                onClick={returnToStaff}
               >
                 Return to staff demo
                 <ArrowRight size={18} />

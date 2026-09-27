@@ -11,6 +11,8 @@ import {
 } from "../progress";
 import { Badge, Notice, Select, TextLink } from "../components/UI";
 import { answerSession } from "../responseSessions";
+import { useStore } from "../store";
+import { assessmentSmsEnabled } from "../assessmentFeatures";
 
 const dateLabel = (c) =>
   responseDate(c)
@@ -24,6 +26,8 @@ export default function QuestionnaireEvidence({
   questionnaireVersion,
   initialLatestId = null,
 }) {
+  const { state } = useStore();
+  const showSms = assessmentSmsEnabled(state.settings);
   const [latestId, setLatestId] = useState(initialLatestId);
   const [earlierId, setEarlierId] = useState(null);
   const [questionSearch, setQuestionSearch] = useState("");
@@ -88,7 +92,7 @@ export default function QuestionnaireEvidence({
   );
   const sourceLabel = (collection, questionId) => {
     const session = answerSession(collection, questionId);
-    if (session) return `Supplied in session ${(collection.attempts || []).findIndex((attempt) => attempt.id === session.id) + 1} · ${formatDate(session.date)} · ${session.channel || "Channel not recorded"}`;
+    if (session && (showSms || session.channel !== "SMS link")) return `Supplied in session ${(collection.attempts || []).findIndex((attempt) => attempt.id === session.id) + 1} · ${formatDate(session.date)} · ${session.channel || "Channel not recorded"}`;
     if (collection?.answerSources?.[questionId]?.startsWith("edit:")) return "Corrected after submission";
     return null;
   };
@@ -366,7 +370,7 @@ export default function QuestionnaireEvidence({
                         : "Changes are shown per answer; there is no combined clinical score."}
                     </span>
                   </div>
-                  {(selected.channel !== latest.channel ||
+                  {(showSms || (selected.channel !== "SMS link" && latest.channel !== "SMS link")) && (selected.channel !== latest.channel ||
                     selected.assistance !== latest.assistance) && (
                     <p className="progress-source-note">
                       Collection context changed:{" "}

@@ -4,7 +4,7 @@ import { useStore } from "../store";
 export default function CollectionMethodChoice({ method, onChange, headingLevel = "h4" }) {
   const { state } = useStore();
   const Heading = headingLevel;
-  const selectable = ["Clinic tablet", "Clinician entry"].includes(method);
+  const selectable = !method || ["Clinic tablet", "Clinician entry"].includes(method);
 
   return (
     <section className="questionnaire-confirmation-panel" aria-labelledby="collection-method-heading">

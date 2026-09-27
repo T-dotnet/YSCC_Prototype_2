@@ -5,6 +5,7 @@ import {
   ChartNoAxesColumnIncreasing,
   History,
   Settings,
+  SlidersHorizontal,
   CircleHelp,
   ChevronLeft,
   ChevronRight,
@@ -26,6 +27,7 @@ const links = [
   ["/quality", "Data quality", ChartNoAxesColumnIncreasing],
   ["/change-log", "Change log", History],
   ["/administration", "Administration", Settings],
+  ["/assessment-features", "Assessment features", SlidersHorizontal],
 ];
 export default function Shell({
   path,

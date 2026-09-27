@@ -423,11 +423,27 @@ export const INITIAL_ASSESSMENT_INSTRUMENT = {
   ],
 };
 
+export const NINETY_DAY_REVIEW_INSTRUMENT = sampleInstrument(
+  "90-day review",
+  "An unscored check-in on progress, support and next steps at a care review.",
+  [["progress", "Looking back"], ["support", "Support now"], ["next", "Looking ahead"]],
+  [
+    choice("review-change", "progress", "How have things been going since your last check-in?", ["Better", "About the same", "More difficult", "Not sure"]),
+    choice("review-helpful", "progress", "What has been most helpful recently?", ["Conversations with staff", "Support from people around me", "Practical help", "Trying my own steps", "I am not sure yet"]),
+    choice("review-goals", "progress", "How do you feel about the steps you wanted to take?", ["I have made progress", "I have made some progress", "I have not made progress yet", "My priorities have changed", "Not sure"]),
+    choice("review-support", "support", "Does the support you are receiving still fit what you need?", ["Yes", "Some changes would help", "No", "Not sure"]),
+    choice("review-change-support", "support", "What would you like to change about your support?", ["What we focus on", "How often we meet", "How I take part", "Who is involved", "Talk through the options"], when("review-support", "Some changes would help", "No")),
+    choice("review-priority", "next", "What matters most for the next part of your care?", ["Keep working on the same goals", "Choose a new goal", "Get practical support", "Review my options", "Not sure yet"]),
+    choice("review-next", "next", "What would be a useful next step?", ["Agree a small action", "Talk with someone I trust", "Review the care plan together", "Take more time to decide"]),
+  ],
+);
+
 export const INSTRUMENTS = [
   INITIAL_ASSESSMENT_INSTRUMENT,
   DEMO_INSTRUMENT,
   LIKERT_INSTRUMENT,
   ...MEASURE_INSTRUMENTS,
+  NINETY_DAY_REVIEW_INSTRUMENT,
   sampleInstrument(
     "Episode closure assessment",
     "A final, unscored check-in about progress and support after care ends.",
@@ -871,6 +887,20 @@ export const INSTRUMENTS = [
       ),
     ],
   ),
+];
+
+const REVIEW_INSTRUMENT_VERSIONS = [
+  NINETY_DAY_REVIEW_INSTRUMENT.version,
+  "Episode closure assessment v1.0",
+  "Care experience feedback v1.0",
+];
+const reviewVersions = new Set(REVIEW_INSTRUMENT_VERSIONS);
+export const INSTRUMENT_GROUPS = [
+  { label: "Intake", instruments: [INITIAL_ASSESSMENT_INSTRUMENT] },
+  { label: "Assessments", instruments: INSTRUMENTS.filter((instrument) =>
+    instrument !== INITIAL_ASSESSMENT_INSTRUMENT && !reviewVersions.has(instrument.version)) },
+  { label: "Review", instruments: REVIEW_INSTRUMENT_VERSIONS.map((version) =>
+    INSTRUMENTS.find((instrument) => instrument.version === version)) },
 ];
 
 export const getInstrument = (version) =>

@@ -42,6 +42,7 @@ import { assessmentScoreLabel, assessmentTypeGroups, linkedAssessmentScore, prio
 import { responseDate } from "../progress";
 import { daysAgoLabel } from "../relativeDate";
 import { contactsForAssessment } from "../assessmentContacts";
+import { assessmentSchedulingEnabled, assessmentContactLinkingEnabled, assessmentSmsEnabled } from "../assessmentFeatures";
 import { episodeReviewSchedule, reviewTiming } from "../episodeReviews";
 import { careJourneyForEpisode } from "../ysccModel";
 import {
@@ -97,6 +98,8 @@ function PersonRecordNavigation({ tabs, value, onChange }) {
 export default function Person({ id, navigate, openModal }) {
   const { state, commit } = useStore();
   const simpleAssessments = !!state.settings?.simpleAssessments;
+  const scheduleAssessments = assessmentSchedulingEnabled(state.settings);
+  const linkAssessmentAppointments = assessmentContactLinkingEnabled(state.settings);
   const p = state.people.find((p) => p.id === id);
   const searchParams = useSearchParams();
   const [intakeDetailsOpen, setIntakeDetailsOpen] = useState(false);
@@ -110,8 +113,6 @@ export default function Person({ id, navigate, openModal }) {
   const groupAssessmentsByType = true;
   const [expandedAssessmentTypes, setExpandedAssessmentTypes] = useState([]);
   const assessmentListRef = useRef(null);
-  const [startAssessmentOpen, setStartAssessmentOpen] = useState(false);
-  const [selectedStartId, setSelectedStartId] = useState("");
   const [consentFilter, setConsentFilter] = useState("all");
   const [consentQuery, setConsentQuery] = useState("");
   const [consentChannel, setConsentChannel] = useState("all");
@@ -157,7 +158,7 @@ export default function Person({ id, navigate, openModal }) {
       e.collections.find((col) => col.id === searchParams.get("collection")) ||
       currentCollection(e),
     nextStep = overviewNextStep(p, e, c, currentStaff(state));
-  const overviewStep = simpleAssessments ? {
+  const overviewStep = !scheduleAssessments ? {
     badge: c.response === "Submitted" ? "Completed" : c.response === "Draft" ? "Draft" : "Created",
     title: c.response === "Submitted" ? "Assessment completed" : c.response === "Draft" ? "Continue draft" : "Start assessment",
     description: c.response === "Submitted" ? "The completed response is recorded in Assessment."
@@ -217,24 +218,6 @@ export default function Person({ id, navigate, openModal }) {
           ? 1
           : 0) || compareCollections(a, b),
   );
-  const startableCollections = orderedCollections.filter((collection) => {
-    const channel = collection.channel || "Clinic tablet";
-    const respondent = collection.respondent || "Person";
-    const instrument = getInstrument(collection.version);
-    const linkedContact = collection.appointmentId
-      ? e.appointments?.find((item) => item.id === collection.appointmentId)
-      : null;
-    return canAssess(p, e) && canCollectInEpisode(e, collection) &&
-      (simpleAssessments || collection.scheduleFree || !!collection.due) &&
-      collection.response !== "Submitted" &&
-      !["Cancelled", "Paused"].includes(collection.assignment) &&
-      p.consent === "Recorded" && p.contact === "Suitable" &&
-      !!instrument?.respondents.includes(respondent) &&
-      (channel !== "Clinician entry" || currentStaff(state)?.role === "Clinician") &&
-      (!linkedContact || !["Cancelled", "Did not attend"].includes(linkedContact.attendance)) &&
-      (channel === "SMS link" || !collection.externalAppointment ||
-        (collection.externalAppointment.date >= TODAY && collection.externalAppointment.date <= collection.due));
-  });
   const context = { personId: p.id, episodeId: e.id, collectionId: c.id };
   const openReview = (collection) =>
     navigate(`/people/${p.id}/assessment-review/${collection.id}`, {
@@ -249,7 +232,7 @@ export default function Person({ id, navigate, openModal }) {
       channel: collection.channel || "Clinic tablet",
       collectResponse: true,
     });
-    if (!canAssess(p, e) || (!collection.due && !simpleAssessments && !collection.scheduleFree) || !getInstrument(collection.version) ||
+    if (!canAssess(p, e) || (!collection.due && !collection.scheduleFree) || !getInstrument(collection.version) ||
         collection.response === "Submitted" ||
         ["Cancelled", "Paused"].includes(collection.assignment) ||
         p.consent !== "Recorded" || p.contact !== "Suitable") {
@@ -270,7 +253,7 @@ export default function Person({ id, navigate, openModal }) {
       latestAttempt && !latestAttempt.endedAt && latestAttempt.channel === channel &&
       (channel !== "Clinician entry" || latestAttempt.recorderId === currentStaff(state)?.id);
     if (!reusableAttempt) {
-      if (!simpleAssessments && !collection.scheduleFree && collection.externalAppointment &&
+      if (linkAssessmentAppointments && collection.externalAppointment &&
           (collection.externalAppointment.date < TODAY || collection.externalAppointment.date > collection.due)) {
         openSetup();
         return;
@@ -283,7 +266,7 @@ export default function Person({ id, navigate, openModal }) {
         channel,
         respondent,
         assistance,
-        appointmentId: simpleAssessments || collection.scheduleFree ? null : collection.appointmentId || null,
+        appointmentId: linkAssessmentAppointments ? collection.appointmentId || null : null,
       });
       if (result.error) {
         openSetup();
@@ -301,8 +284,9 @@ export default function Person({ id, navigate, openModal }) {
   };
   const modal = (type) =>
     type === "review" ? openReview(c) : openModal({ type, ...context });
-  const consentRequests = p.consentRequests || [];
-  const assessmentState = (col) => simpleAssessments
+  const consentRequests = (p.consentRequests || []).filter((request) =>
+    assessmentSmsEnabled(state.settings) || request.channel !== "SMS link");
+  const assessmentState = (col) => !scheduleAssessments
     ? col.response === "Submitted" ? "Completed" : col.response === "Draft" ? "Draft" : "Created"
     : collectionStatus(col);
   const assessmentStatuses = [...new Set(orderedCollections.map(assessmentState))];
@@ -319,13 +303,13 @@ export default function Person({ id, navigate, openModal }) {
       .toLowerCase().includes(assessmentQuery.trim().toLowerCase()),
   );
   const chronologicalCollections = [...visibleCollections].sort((a, b) =>
-    (simpleAssessments ? Number(a.response === "Submitted") - Number(b.response === "Submitted") : 0) ||
-    (simpleAssessments ? simpleAssessmentDate(b) || "" : responseDate(b) || b.due || "")
-      .localeCompare(simpleAssessments ? simpleAssessmentDate(a) || "" : responseDate(a) || a.due || "") ||
+    (!scheduleAssessments ? Number(a.response === "Submitted") - Number(b.response === "Submitted") : 0) ||
+    (!scheduleAssessments ? simpleAssessmentDate(b) || "" : responseDate(b) || b.due || "")
+      .localeCompare(!scheduleAssessments ? simpleAssessmentDate(a) || "" : responseDate(a) || a.due || "") ||
     a.id.localeCompare(b.id),
   );
   const firstPastAssessmentIndex = chronologicalCollections.findIndex((col) => {
-    const date = responseDate(col) || col.due;
+    const date = responseDate(col) || (scheduleAssessments ? col.due : null);
     return Boolean(date) && date <= TODAY;
   });
   const groupedAssessments = assessmentTypeGroups(e, visibleCollections);
@@ -336,12 +320,14 @@ export default function Person({ id, navigate, openModal }) {
     <AssessmentCollectionCard
       key={collection.id}
       collection={collection}
-      simpleAssessments={simpleAssessments || !!collection.scheduleFree}
+      simpleAssessments={simpleAssessments}
+      scheduleAssessments={scheduleAssessments}
+      linkAssessmentAppointments={linkAssessmentAppointments}
       compactGrouped={compactGrouped}
       person={p}
-      relatedContacts={simpleAssessments ? [] : [...new Map([
+      relatedContacts={[...new Map([
         ...contactsForAssessment(e, collection.id),
-        ...(collection.label === "Initial assessment" ? initialAssessmentContacts : []),
+        ...(linkAssessmentAppointments && collection.label === "Initial assessment" ? initialAssessmentContacts : []),
       ].map((contact) => [contact.id, contact])).values()]}
       score={linkedAssessmentScore(e, collection)}
       selectedId={searchParams.get("collection")}
@@ -380,9 +366,9 @@ export default function Person({ id, navigate, openModal }) {
     issue.personId === p.id && !["Resolved", "Closed"].includes(issue.status));
   const attentionItems = e.status === "Active" ? [
     ...(e.appointments || [])
-      .filter((appointment) => appointment.attendance === "Planned" && appointment.plannedDate && appointment.plannedDate <= TODAY)
+      .filter((appointment) => (assessmentSmsEnabled(state.settings) || appointment.deliveryMode !== "SMS") && appointment.attendance === "Planned" && appointment.plannedDate && appointment.plannedDate <= TODAY)
       .map((appointment) => ({ id: `appointment-${appointment.id}`, type: "appointment", date: appointment.plannedDate })),
-    ...(!simpleAssessments ? e.collections || [] : [])
+    ...(scheduleAssessments ? e.collections || [] : [])
       .filter((collection) => collection.due && collection.due <= TODAY && collection.response !== "Submitted" && !["Cancelled", "Paused"].includes(collection.assignment))
       .map((collection) => ({ id: `assessment-${collection.id}`, type: "assessment", date: collection.due })),
   ] : [];
@@ -600,7 +586,7 @@ export default function Person({ id, navigate, openModal }) {
                 <div className="overview-assessment-title">
                   <h2>{c.label}</h2>
                 </div>
-                {!simpleAssessments && <p className="overview-assessment-context">
+                {scheduleAssessments && !simpleAssessments && <p className="overview-assessment-context">
                   {nextStep.overdueText ? (
                     <>{nextStep.dueDateText} · <span className="status-overdue-text">{nextStep.overdueText}</span></>
                   ) : nextStep.dueText}
@@ -903,7 +889,7 @@ export default function Person({ id, navigate, openModal }) {
         )}
         {tab === "Assessment" && (
           <div className="stack">
-            {!simpleAssessments && initialIntake && !e.collections?.[0]?.due && (
+            {scheduleAssessments && initialIntake && !e.collections?.[0]?.due && (
               <IntakeAssessmentPanel
                 person={p}
                 intake={initialIntake}
@@ -918,71 +904,19 @@ export default function Person({ id, navigate, openModal }) {
               <h2>Assessment ledger</h2>
               <div className="button-row assessment-ledger-actions">
                 <Button
-                  variant={simpleAssessments ? "primary" : "secondary"}
-                  disabled={e.status !== "Active" || !canAssess(p, e) || (!c.due && !simpleAssessments)}
+                  variant="primary"
+                  disabled={e.status !== "Active" || !canAssess(p, e) || (scheduleAssessments && !c.due && !c.scheduleFree)}
                   onClick={() => modal("plan")}
                 >
-                  {simpleAssessments ? "Create assessment" : "Plan follow-up"}
+                  {scheduleAssessments ? "Schedule assessment" : "New assessment"}
                 </Button>
-                {!simpleAssessments && <Button
-                  variant="primary"
-                  onClick={() => {
-                    setSelectedStartId(startableCollections[0]?.id || "");
-                    setStartAssessmentOpen(true);
-                  }}
-                >
-                  Start assessment
-                </Button>}
               </div>
               <p>
                 {simpleAssessments
-                  ? `${orderedCollections.length} assessments in care episode ${e.number}. Records show creation, draft and completion.`
+                  ? `${orderedCollections.length} assessments in care episode ${e.number}. ${scheduleAssessments ? "Records show scheduling, drafts and completion." : "Records show creation, drafts and completion."}`
                   : `${orderedCollections.length} assessments in care episode ${e.number}. Each is a separate collection point. Closure assessment and feedback stay linked after this episode closes.`}
               </p>
             </div>
-            {!simpleAssessments && startAssessmentOpen && (
-              <Modal
-                title="Start assessment"
-                subtitle={`${displayPersonName(p)} · Care episode ${e.number}`}
-                onClose={() => setStartAssessmentOpen(false)}
-              >
-                <ValidatedForm onSubmit={(event) => {
-                  event.preventDefault();
-                  const selected = startableCollections.find((collection) => collection.id === selectedStartId);
-                  if (!selected) return;
-                  setStartAssessmentOpen(false);
-                  collectAssessmentResponse(selected);
-                }}>
-                  <div className="form-body">
-                    <p>Choose an assessment to start now. Saved drafts can be continued.</p>
-                    {startableCollections.length ? (
-                      <fieldset className="assessment-start-choices">
-                        <legend>Assessment</legend>
-                        {startableCollections.map((collection) => (
-                          <label key={collection.id}>
-                            <input type="radio" name="assessmentToStart" value={collection.id}
-                              checked={selectedStartId === collection.id}
-                              onChange={() => setSelectedStartId(collection.id)} required />
-                            <span>
-                              <strong>{collection.label}</strong>
-                              <small>{collection.version} · {collection.due ? `Due ${formatDate(collection.due)}` : "No due date"} · {collection.response === "Draft" ? "Continue draft" : "Not started"}</small>
-                            </span>
-                          </label>
-                        ))}
-                      </fieldset>
-                    ) : (
-                      <Notice>{simpleAssessments
-                        ? "No assessment is ready to start. Create an assessment first."
-                        : "No assessment is ready to start. Plan a follow-up to create the next collection point."}</Notice>
-                    )}
-                  </div>
-                  <div className="modal-footer">
-                    <Button type="button" onClick={() => setStartAssessmentOpen(false)}>Cancel</Button>
-                    <Button type="submit" variant="primary" disabled={!selectedStartId}>Start assessment</Button>
-                  </div>
-                </ValidatedForm>
-              </Modal>
-            )}
             <ListFilterBar
               id="assessment-status"
               className={`assessment-filter-bar${simpleAssessments ? " assessment-filter-bar-simple" : ""}`}
@@ -1014,26 +948,27 @@ export default function Person({ id, navigate, openModal }) {
               advanced={simpleAssessments ? null :
                 <Select label="Collection method" value={assessmentMethod} onChange={(event) => setAssessmentMethod(event.target.value)}>
                   <option value="all">All methods</option>
-                  {[...new Set(orderedCollections.flatMap((col) => [col.channel || "Not set up", ...(col.attempts || []).map((attempt) => attempt.channel)].filter(Boolean)))].map((method) => (
+                  {[...new Set(orderedCollections.flatMap((col) => [col.channel || "Not set up", ...(col.attempts || []).map((attempt) => attempt.channel)])
+                    .filter((method) => method && (assessmentSmsEnabled(state.settings) || method !== "SMS link")))].map((method) => (
                     <option key={method} value={method}>{method}</option>
                   ))}
                 </Select>
               }
             />
-            <div className={`assessment-list${!simpleAssessments && groupAssessmentsByType ? " assessment-ledger-list" : ""}`} id="assessment-list" ref={assessmentListRef}>
+            <div className={`assessment-list${!simpleAssessments && groupAssessmentsByType ? " assessment-ledger-list" : ""}${!scheduleAssessments ? " assessment-ledger-no-due" : ""}`} id="assessment-list" ref={assessmentListRef}>
               {simpleAssessments && groupAssessmentsByType
                 ? <div className="stack">{simpleGroupedAssessments.map((group) => {
                     const records = group.records;
-                    const statusCounts = ["Draft", "Created", "Completed"].map((status) =>
+                    const statusCounts = [...new Set(records.map(assessmentState))].map((status) =>
                       ({ status, count: records.filter((col) => assessmentState(col) === status).length }))
                       .filter(({ count }) => count > 0);
                     const latestScore = group.lastDone
-                      ? assessmentScoreLabel(group.lastDone, linkedAssessmentScore(e, group.lastDone))
-                      : "Awaiting response";
+                      ? assessmentScoreLabel(linkedAssessmentScore(e, group.lastDone))
+                      : "Not scored";
                     return <details className="assessment-simple-group" key={`${assessmentFilter}:${assessmentQuery}:${group.key}`} open={assessmentFilter !== "all" || !!assessmentQuery.trim()}>
                       <summary className="assessment-simple-group-header">
                         <ChevronDown size={18} aria-hidden="true" />
-                        <h3>{group.name}</h3>
+                        <h3>{group.collections.length === 1 ? group.collections[0].label : group.name}</h3>
                         <span className="assessment-simple-group-meta">
                           <span className="assessment-simple-group-count">
                             {statusCounts.map(({ status, count }) =>
@@ -1043,11 +978,6 @@ export default function Person({ id, navigate, openModal }) {
                         </span>
                       </summary>
                       <div className="assessment-simple-group-records">
-                        <div className="assessment-simple-group-columns" aria-hidden="true">
-                          <span>Assessment</span>
-                          <span>Status</span>
-                          <span><span>Created</span><span>Completed</span><span>Score / next step</span></span>
-                        </div>
                         {records.map((col) => renderAssessmentCard(col, false, 4, false, true))}
                       </div>
                     </details>;
@@ -1056,7 +986,7 @@ export default function Person({ id, navigate, openModal }) {
                 ? <>
                   {groupedAssessments.length > 0 && (
                     <div className="assessment-ledger-columns" aria-hidden="true">
-                      <span /><span>Assessment type</span><span>Status</span><span>Latest submitted</span><span>Latest score</span><span>Next due</span>
+                      <span /><span>Assessment type</span><span>Status</span><span>Latest submitted</span><span>Latest score</span>{scheduleAssessments && <span>Next due</span>}
                     </div>
                   )}
                   {groupedAssessments.map((group, index) => {
@@ -1068,11 +998,11 @@ export default function Person({ id, navigate, openModal }) {
                         !["Paused", "Cancelled"].includes(col.assignment))
                       .sort((a, b) => a.due.localeCompare(b.due) || a.id.localeCompare(b.id))[0];
                     const firstPastHistoryIndex = group.collections.findIndex((col) => {
-                      const date = responseDate(col) || col.due;
+                      const date = responseDate(col) || (scheduleAssessments ? col.due : null);
                       return Boolean(date) && date <= TODAY;
                     });
                     return (
-                      <article className={`assessment-ledger-row${nextDue?.due < TODAY ? " assessment-ledger-row-overdue" : ""}`} key={group.key}>
+                      <article className={`assessment-ledger-row${scheduleAssessments && nextDue?.due < TODAY ? " assessment-ledger-row-overdue" : ""}`} key={group.key}>
                         <button
                           type="button"
                           className="assessment-ledger-expand"
@@ -1106,7 +1036,7 @@ export default function Person({ id, navigate, openModal }) {
                           <small className="assessment-ledger-mobile-label">Latest score</small>
                           <strong>{group.score !== null
                             ? `${group.score}${group.scoreRange ? ` / ${group.scoreRange[1]}` : ""}`
-                            : group.measureKey ? group.lastDone ? "Unavailable" : "Awaiting response" : "Not scored"}</strong>
+                            : "Not scored"}</strong>
                           {group.scoreChange !== null ? (
                             <small
                               className={`assessment-ledger-score-change${group.scoreChange > 0 ? " is-positive" : group.scoreChange < 0 ? " is-negative" : ""}`}
@@ -1116,7 +1046,7 @@ export default function Person({ id, navigate, openModal }) {
                             </small>
                           ) : <small>{group.measureKey ? "Linked sample measure result" : "This questionnaire has no clinical score"}</small>}
                         </div>
-                        <div className="assessment-ledger-due">
+                        {scheduleAssessments && <div className="assessment-ledger-due">
                           <small className="assessment-ledger-mobile-label">Next due</small>
                             {nextDue ? (
                               <>
@@ -1143,12 +1073,12 @@ export default function Person({ id, navigate, openModal }) {
                                 )}
                               </>
                             )}
-                        </div>
+                        </div>}
                         <div id={historyId} className="assessment-type-history" hidden={!expanded}>
                           <p>All assessments of this type in care episode {e.number}, including records outside the current filters.</p>
                           <ol className="assessment-type-timeline">
                             {group.collections.map((col, historyIndex) => {
-                              const date = responseDate(col) || col.due;
+                              const date = responseDate(col) || (scheduleAssessments ? col.due : col.createdAt?.slice(0, 10));
                               return (
                                 <Fragment key={col.id}>
                                   {historyIndex === firstPastHistoryIndex && historyIndex > 0 && (
@@ -1158,7 +1088,7 @@ export default function Person({ id, navigate, openModal }) {
                                   )}
                                   <li>
                                     <div className="assessment-type-timeline-meta">
-                                      <span>{col.response === "Submitted" ? "Submitted" : "Due"} {formatDate(date)}</span>
+                                      <span>{col.response === "Submitted" ? "Submitted" : scheduleAssessments ? "Due" : "Created"} {formatDate(date)}</span>
                                     </div>
                                     {renderAssessmentCard(col, true, 4)}
                                   </li>
@@ -1176,7 +1106,7 @@ export default function Person({ id, navigate, openModal }) {
                     {chronologicalCollections.map((col, index) => {
                       const submittedDate = responseDate(col);
                       const savedDate = col.response === "Draft" ? col.attempts?.at(-1)?.savedAt?.slice(0, 10) : null;
-                      const date = simpleAssessments ? simpleAssessmentDate(col) : submittedDate || col.due;
+                      const date = !scheduleAssessments ? simpleAssessmentDate(col) : submittedDate || col.due;
                       return (
                         <Fragment key={col.id}>
                           {!simpleAssessments && index === firstPastAssessmentIndex && index > 0 && (
@@ -1186,13 +1116,13 @@ export default function Person({ id, navigate, openModal }) {
                           )}
                           <li className="record-timeline-entry">
                             <time className="record-timeline-date" dateTime={date || undefined}>
-                              <span className="record-timeline-date-label">{simpleAssessments
+                              <span className="record-timeline-date-label">{!scheduleAssessments
                                 ? submittedDate ? "Completed" : savedDate ? "Draft" : date ? "Created" : "Date not recorded"
                                 : submittedDate ? "Submitted" : date ? "Due" : "Date not set"}</span>
                               {date && <strong className="record-timeline-when">{formatDate(date)}</strong>}
                             </time>
                             <span className="record-timeline-icon" aria-hidden="true">
-                              {submittedDate ? <FileCheck2 size={22} /> : simpleAssessments ? <FileText size={22} /> : <CalendarClock size={22} />}
+                              {submittedDate ? <FileCheck2 size={22} /> : !scheduleAssessments ? <FileText size={22} /> : <CalendarClock size={22} />}
                             </span>
                             {renderAssessmentCard(col, true, 3)}
                           </li>

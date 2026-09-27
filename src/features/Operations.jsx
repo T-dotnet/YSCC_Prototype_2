@@ -20,6 +20,7 @@ import {
   BookOpen,
 } from "lucide-react";
 import { useStore } from "../store";
+import { assessmentSmsEnabled } from "../assessmentFeatures";
 import { patientIdentifier } from "../patientIdentity";
 import { currentStaff, formatDate, TODAY } from "../model";
 import { sortQueueRows } from "../queueSort";
@@ -347,7 +348,7 @@ export function Quality({ openModal, navigate }) {
   );
 }
 export function Administration({ openModal, navigate }) {
-  const { state, commit } = useStore();
+  const { state } = useStore();
   const staff = currentStaff(state);
   return (
     <>
@@ -360,18 +361,6 @@ export function Administration({ openModal, navigate }) {
         approval, and live permissions are not connected.
       </Notice>
       <Panel title="Workspace configuration" className="admin-panel">
-        <div className="admin-row">
-          <span className="admin-icon"><SlidersHorizontal size={24} /></span>
-          <div>
-            <h3>Simple assessments</h3>
-            <p>Record assessment creation, saved drafts and completion without assessment scheduling or contact links.</p>
-          </div>
-          <label className="admin-setting-toggle">
-            <input type="checkbox" role="switch" aria-label="Simple assessments" checked={!!state.settings?.simpleAssessments}
-              onChange={(event) => commit({ type: "SET_SIMPLE_ASSESSMENTS", enabled: event.target.checked })} />
-            <span>{state.settings?.simpleAssessments ? "On" : "Off"}</span>
-          </label>
-        </div>
         {[
           [
             BookOpen,
@@ -401,7 +390,8 @@ export function Administration({ openModal, navigate }) {
             "scope",
             "View workspace",
           ],
-        ].map(([Icon, title, desc, type, action]) => (
+        ].filter(([, , , type]) => type !== "messages" || assessmentSmsEnabled(state.settings))
+          .map(([Icon, title, desc, type, action]) => (
           <div className="admin-row" key={title}>
             <span className="admin-icon">
               <Icon size={24} />

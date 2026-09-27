@@ -3,6 +3,7 @@ import { Plus } from "lucide-react";
 import { Button } from "../components/UI";
 import { ClinicalHistory } from "../components/ActivityTimeline";
 import { careEventEntries } from "../activity";
+import { assessmentSchedulingEnabled } from "../assessmentFeatures";
 import { canAssess } from "../intake";
 import { useStore } from "../store";
 import { TODAY } from "../model";
@@ -30,7 +31,7 @@ export default function CareEvents({ episode, person, audit = [], openModal, eve
         episode={episode}
         person={person}
         audit={audit}
-        entries={careEventEntries(person, episode, audit, { simpleAssessments: !!state.settings?.simpleAssessments, today: TODAY })}
+        entries={careEventEntries(person, episode, audit, { simpleAssessments: !!state.settings?.simpleAssessments, scheduleAssessments: assessmentSchedulingEnabled(state.settings), today: TODAY })}
         selectedEventId={eventId}
         attentionIds={attentionIds}
         attentionOnly={attentionOnly}

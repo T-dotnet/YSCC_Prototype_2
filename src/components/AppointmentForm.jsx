@@ -23,10 +23,12 @@ export default function AppointmentForm({
   error,
   canCreateAssessment,
   simpleAssessments = false,
+  scheduleAssessments = true,
+  assessmentSms = true,
   onClose,
   onSave,
 }) {
-  const [attendance, setAttendance] = useState("Planned");
+  const [attendance, setAttendance] = useState(scheduleAssessments ? "Planned" : "Attended");
   const [contactDate, setContactDate] = useState("");
   const [collectionIds, setCollectionIds] = useState([]);
   const [newAssessmentVersions, setNewAssessmentVersions] = useState([]);
@@ -57,20 +59,21 @@ export default function AppointmentForm({
   const assessmentAvailability = (collection) => {
     if (["Cancelled", "Paused"].includes(collection.assignment)) return "Unavailable";
     if (!hasContactDate) return "Choose a contact date";
+    if (!scheduleAssessments || !collection.due) return "Can link";
     return appointmentMatchesCollectionDate(contactDates, collection)
       ? "Matches contact date" : "Due on a different date";
   };
-  const dueAssessments = assessments.filter((collection) => collection.due);
+  const dueAssessments = assessments;
   const searchTerm = assessmentSearch.trim().toLocaleLowerCase();
   const visibleDueAssessments = dueAssessments.filter((collection) =>
-    `${collection.label} ${collection.due} ${formatDate(collection.due)}`.toLocaleLowerCase().includes(searchTerm));
+    `${collection.label} ${scheduleAssessments && collection.due ? `${collection.due} ${formatDate(collection.due)}` : ""}`.toLocaleLowerCase().includes(searchTerm));
   const visibleInstruments = INSTRUMENTS.filter((instrument) =>
     `${instrument.name} ${instrument.version}`.toLocaleLowerCase().includes(searchTerm));
   const selectedCount = collectionIds.length + newAssessmentVersions.length;
 
   return (
     <Modal
-      title="Add contact"
+      title={scheduleAssessments ? "Add contact" : "Record contact"}
       subtitle={`Care episode ${episode.number} · ${formatDate(episode.start)}–${episode.end ? formatDate(episode.end) : "present"}`}
       onClose={onClose}
     >
@@ -93,8 +96,9 @@ export default function AppointmentForm({
       >
         <div className="form-body appointment-form">
           <Notice>
-            Prototype operational record only. This does not book an external
-            contact or submit an approved PMHC-MDS record.
+            {scheduleAssessments
+              ? "Prototype operational record only. This does not book an external contact or submit an approved PMHC-MDS record."
+              : "Record a contact that has already happened. This does not submit an approved PMHC-MDS record."}
           </Notice>
           <Field label="Record category">
             <select value="appointment" onChange={(event) => onChangeEventType(event.target.value)}>
@@ -110,20 +114,20 @@ export default function AppointmentForm({
                 value={attendance}
                 onChange={(event) => setAttendance(event.target.value)}
               >
-                {APPOINTMENT_ATTENDANCE.map((value) => (
+                {APPOINTMENT_ATTENDANCE.filter((value) => scheduleAssessments || value !== "Planned").map((value) => (
                   <option key={value}>{value}</option>
                 ))}
               </select>
             </Field>
             <Field label="Delivery mode">
               <select name="deliveryMode" required defaultValue="In person">
-                {APPOINTMENT_DELIVERY_MODES.map((value) => (
+                {APPOINTMENT_DELIVERY_MODES.filter((value) => assessmentSms || value !== "SMS").map((value) => (
                   <option key={value}>{value}</option>
                 ))}
               </select>
             </Field>
             <Field label="Date">
-              <input name="plannedDate" type="date" min={episode.start} max={attendance === "Attended" ? actualLatestDate : undefined} value={contactDate} onChange={(event) => setContactDate(event.target.value)} required />
+              <input name="plannedDate" type="date" min={episode.start} max={attendance === "Attended" || !scheduleAssessments ? actualLatestDate : undefined} value={contactDate} onChange={(event) => setContactDate(event.target.value)} required />
             </Field>
             <Field label="Time">
               <input name="plannedTime" type="time" required />
@@ -200,11 +204,11 @@ export default function AppointmentForm({
                         />
                         <span>
                           <strong>{collection.label}</strong>
-                          <small>Due {formatDate(collection.due)} · {availability}{relatedCount ? ` · ${relatedCount} related ${relatedCount === 1 ? "contact" : "contacts"}` : ""}</small>
+                          <small>{scheduleAssessments && collection.due ? `Due ${formatDate(collection.due)} · ` : ""}{availability}{relatedCount ? ` · ${relatedCount} related ${relatedCount === 1 ? "contact" : "contacts"}` : ""}</small>
                         </span>
                       </label>
                     );
-                  }) : <p>{searchTerm ? "No matching assessments." : "No assessments with a due date are in this care episode."}</p>}
+                  }) : <p>{searchTerm ? "No matching assessments." : "No assessments are in this care episode."}</p>}
                 </div>
                 <div className="appointment-assessment-group">
                   <h3>New assessment</h3>
@@ -235,7 +239,7 @@ export default function AppointmentForm({
             Cancel
           </Button>
           <Button type="submit" variant="primary">
-            Save contact record
+            {scheduleAssessments ? "Save contact record" : "Record contact"}
           </Button>
         </div>
       </ValidatedForm>

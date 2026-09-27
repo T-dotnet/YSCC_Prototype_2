@@ -14,6 +14,7 @@ import {
   clinicalRecordDetails,
 } from "./clinicalRecords.js";
 import { historyDate } from "./historyItem.js";
+import { assessmentContactLinks } from "./assessmentContacts.js";
 
 export function recordFieldChanges(before, after, fields) {
   return fields.flatMap(([key, label]) => {
@@ -346,7 +347,8 @@ export function clinicalHistoryEntries(person, episode, audit = []) {
   );
 }
 
-export function careEventEntries(person, episode, audit = [], { simpleAssessments = false, today = null } = {}) {
+export function careEventEntries(person, episode, audit = [], { simpleAssessments = false, scheduleAssessments = true, today = null } = {}) {
+  const linkedAppointmentIds = new Set(assessmentContactLinks(episode).map((link) => link.appointmentId));
   const records = clinicalHistoryEntries(person, episode, audit).filter(
     (entry) =>
       entry.type === "appointment" ||
@@ -355,7 +357,6 @@ export function careEventEntries(person, episode, audit = [], { simpleAssessment
         ["ADD_CARE_EVENT", "CORRECT_CARE_EVENT"].includes(entry.actionType)),
   );
   const assessments = (episode.collections ?? [])
-    .filter((collection) => !simpleAssessments || collection.response === "Submitted" && !!collection.submittedAt)
     .map((collection) => ({
     ...collection,
     id: `assessment-${collection.id}`,
@@ -363,7 +364,9 @@ export function careEventEntries(person, episode, audit = [], { simpleAssessment
     collectionId: collection.id,
     date: collection.response === "Submitted" && collection.submittedAt
       ? collection.submittedAt
-      : simpleAssessments ? collection.createdAt?.slice(0, 10) || null : collection.due,
+      : simpleAssessments && collection.response === "Draft"
+        ? collection.attempts?.at(-1)?.savedAt?.slice(0, 10) || collection.createdAt?.slice(0, 10) || null
+        : simpleAssessments || !scheduleAssessments ? collection.createdAt?.slice(0, 10) || null : collection.due,
     title: collection.label,
   }));
   // Existing demonstration periods and milestones are source records in the
@@ -399,9 +402,12 @@ export function careEventEntries(person, episode, audit = [], { simpleAssessment
   ].filter((entry) => entry.id && entry.eventDate);
   const entries = [...records, ...assessments, ...reportSources];
   return (simpleAssessments
-    ? entries.filter((entry) =>
-      !(entry.type === "appointment" && entry.attendance === "Planned") &&
-      (!today || !historyDate(entry) || historyDate(entry).slice(0, 10) <= today))
+    ? entries.filter((entry) => {
+      const linkedPlannedContact = entry.type === "appointment" && entry.attendance === "Planned" &&
+        linkedAppointmentIds.has(entry.id?.replace(/^appointment-/, ""));
+      if (entry.type === "appointment" && entry.attendance === "Planned" && !linkedPlannedContact) return false;
+      return linkedPlannedContact || !today || !historyDate(entry) || historyDate(entry).slice(0, 10) <= today;
+    })
     : entries).sort((a, b) =>
     (historyDate(b) || "").localeCompare(historyDate(a) || "") ||
     (b.timestamp || "").localeCompare(a.timestamp || ""),

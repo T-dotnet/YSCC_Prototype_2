@@ -159,14 +159,16 @@ export function historyItem(entry, episode, formatDetail = (value) => value, sim
     if (collection && simpleAssessments) {
       const submitted = responseDate(collection);
       const created = collection.createdAt?.slice(0, 10) || null;
+      const draft = collection.response === "Draft" ? collection.attempts?.at(-1)?.savedAt?.slice(0, 10) || null : null;
       return {
         subtitle: collection.version,
-        date: submitted || created,
-        dateLabel: submitted ? "Completed" : created ? "Created" : "Date not recorded",
+        date: submitted || draft || created,
+        dateLabel: submitted ? "Completed" : draft ? "Draft saved" : created ? "Created" : "Date not recorded",
         primary: [
           fact("Created", created || "Not recorded"),
-          fact("Completed", submitted || "—"),
-          fact("Score", assessmentScoreLabel(collection, linkedAssessmentScore(episode, collection))),
+          ...(draft ? [fact("Draft saved", draft)] : []),
+          ...(submitted ? [fact("Completed", submitted)] : []),
+          fact("Score", assessmentScoreLabel(linkedAssessmentScore(episode, collection))),
         ],
         more: [],
       };
@@ -179,7 +181,7 @@ export function historyItem(entry, episode, formatDetail = (value) => value, sim
       primary: [
         fact("Due date", collection.due),
         fact("Submitted", responseDate(collection) || "Not submitted"),
-        fact("Score", assessmentScoreLabel(collection, linkedAssessmentScore(episode, collection))),
+        fact("Score", assessmentScoreLabel(linkedAssessmentScore(episode, collection))),
       ],
       more: [
         fact("Assignment", collection.assignment),

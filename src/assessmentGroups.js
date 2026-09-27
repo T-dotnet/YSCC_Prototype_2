@@ -4,10 +4,13 @@ import { responseDate } from "./progress.js";
 
 export const assessmentType = (collection) => {
   const instrument = getInstrument(collection.version);
+  // Older initial-assessment records used the general questionnaire version.
+  // Keep their follow-ups under the same visible assessment type.
+  const initialAssessment = collection.label?.split(" · ")[0]?.trim() === "Initial assessment";
   return {
-    key: instrument?.measureKey || instrument?.name || collection.version || collection.label,
-    name: instrument?.name || collection.version || collection.label,
-    measureKey: instrument?.measureKey || null,
+    key: initialAssessment ? "Initial assessment" : instrument?.measureKey || instrument?.name || collection.version || collection.label,
+    name: initialAssessment ? "Initial assessment" : instrument?.name || collection.version || collection.label,
+    measureKey: initialAssessment ? null : instrument?.measureKey || null,
   };
 };
 
@@ -46,10 +49,9 @@ export function linkedAssessmentScore(episode, collection) {
   return record ? { value: Number(record.value), range: measure.scoreRange || null } : null;
 }
 
-export function assessmentScoreLabel(collection, score) {
+export function assessmentScoreLabel(score) {
   if (score) return `${score.value}${score.range ? ` / ${score.range[1]}` : ""}`;
-  if (!assessmentType(collection).measureKey) return "Not scored";
-  return collection.response === "Submitted" ? "Unavailable" : "Awaiting response";
+  return "Not scored";
 }
 
 export function assessmentTypeGroups(episode, visibleCollections) {

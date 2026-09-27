@@ -4,12 +4,21 @@ import { createSeed, getTasks, reducer } from "./model.js";
 import { DEMO_INSTRUMENT } from "./instruments.js";
 import { createSampleAnswers } from "./sampleQuestionnaires.js";
 
-test("simple assessments are on for a new sample workspace", () => {
-  assert.equal(createSeed().settings.simpleAssessments, true);
+test("new sample workspaces use the selected assessment configuration", () => {
+  const defaults = {
+    simpleAssessments: true,
+    scheduleAssessments: false,
+    linkAssessmentAppointments: true,
+    assessmentSms: false,
+  };
+  assert.deepEqual(createSeed().settings, defaults);
+  assert.deepEqual(reducer(createSeed(), { type: "RESET" }).settings, defaults);
 });
 
 test("simple assessments move from creation to draft to completion without a schedule or contact", () => {
   let state = createSeed();
+  state = reducer(state, { type: "SET_ASSESSMENT_FEATURE", feature: "linkAssessmentAppointments", enabled: false });
+  state = reducer(state, { type: "SET_ASSESSMENT_FEATURE", feature: "assessmentSms", enabled: true });
   const person = state.people.find((item) => item.id === "YS-1034");
   const context = { personId: person.id, episodeId: person.episodes[0].id, collectionId: "simple-assessment-test" };
   const collection = (current) => current.people.find((item) => item.id === context.personId)
@@ -66,6 +75,7 @@ test("simple assessments move from creation to draft to completion without a sch
 
 test("simple tablet drafts and completions save confirmed assistance", () => {
   let state = reducer(createSeed(), { type: "SET_SIMPLE_ASSESSMENTS", enabled: true });
+  state = reducer(state, { type: "SET_ASSESSMENT_FEATURE", feature: "linkAssessmentAppointments", enabled: false });
   const context = { personId: "YS-1034", episodeId: "EP-1034-01", collectionId: "simple-tablet-assistance" };
   const collection = (current) => current.people.find((item) => item.id === context.personId)
     .episodes.find((item) => item.id === context.episodeId)

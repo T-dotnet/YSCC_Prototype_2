@@ -26,6 +26,7 @@ import SubmittedAnswers from "./SubmittedAnswers";
 import ResponseHistory from "./ResponseHistory";
 import DiscardChanges from "./DiscardChanges";
 import DeliveryAttemptsTable from "./DeliveryAttemptsTable";
+import { assessmentContactLinkingEnabled, assessmentSmsEnabled } from "../assessmentFeatures";
 
 export default function ReviewResponses({
   person,
@@ -39,6 +40,8 @@ export default function ReviewResponses({
   analysis,
 }) {
   const { state, commit } = useStore();
+  const linkAssessmentAppointments = assessmentContactLinkingEnabled(state.settings);
+  const assessmentSms = assessmentSmsEnabled(state.settings);
   const [saveError, setSaveError] = useState("");
   const [draft, setDraft, clearDraft, draftError] = useDraft(
     `review:${collection.id}:${collection.revision ?? 0}:${currentStaff(state)?.id}`,
@@ -68,11 +71,11 @@ export default function ReviewResponses({
     c.response === "Submitted";
 
   const assessmentDate = c.submittedAt ? c.submittedAt.slice(0, 10) : TODAY;
-  const plannedAppointments = (episode?.appointments || []).filter(
-    (a) => a.attendance === "Planned",
+  const plannedAppointments = (linkAssessmentAppointments ? episode?.appointments || [] : []).filter(
+    (a) => (assessmentSms || a.deliveryMode !== "SMS") && a.attendance === "Planned",
   );
-  const recordedAppointments = (episode?.appointments || []).filter(
-    (a) => a.attendance !== "Planned",
+  const recordedAppointments = (linkAssessmentAppointments ? episode?.appointments || [] : []).filter(
+    (a) => (assessmentSms || a.deliveryMode !== "SMS") && a.attendance !== "Planned",
   );
   const sameDayRecordedAppointments = recordedAppointments.filter(
     (a) =>
@@ -231,9 +234,9 @@ export default function ReviewResponses({
                 </p>
               )}
               <p className="recorded-review-text">
-                {reviewNotRequired
+                {reviewNotRequired && !(submissionSession?.channel === "SMS link" && !assessmentSms)
                   ? `${submissionSession?.channel || c.channel}${submissionSession?.assistance || c.assistance ? ` · ${submissionSession?.assistance || c.assistance}` : ""}`
-                  : c.reviewNote || "No review note recorded."}
+                  : reviewNotRequired ? "Response recorded" : c.reviewNote || "No review note recorded."}
               </p>
               {sameDayRecordedAppointments.length > 0 && (
                 <p
@@ -303,9 +306,9 @@ export default function ReviewResponses({
               <dd>{displayCollectionActor(person, c, "recorder")}</dd>
             </div>
           </dl>
-          {!!c.attempts?.length && <div className="response-delivery-attempts">
+          {!!c.attempts?.filter((attempt) => assessmentSms || attempt.channel !== "SMS link").length && <div className="response-delivery-attempts">
             <h4>Delivery attempts</h4>
-            <DeliveryAttemptsTable collection={c} contacts={episode.appointments || []} />
+            <DeliveryAttemptsTable collection={{ ...c, attempts: c.attempts.filter((attempt) => assessmentSms || attempt.channel !== "SMS link") }} contacts={linkAssessmentAppointments ? (episode.appointments || []).filter((contact) => assessmentSms || contact.deliveryMode !== "SMS") : []} />
           </div>}
         </details>
         {canReview && (

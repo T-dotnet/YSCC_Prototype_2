@@ -27,7 +27,7 @@ import {
   canCollectInEpisode,
   uid,
 } from "../model";
-import { DEMO_INSTRUMENT, INITIAL_ASSESSMENT_INSTRUMENT, INSTRUMENTS, getInstrument } from "../instruments";
+import { DEMO_INSTRUMENT, INITIAL_ASSESSMENT_INSTRUMENT, INSTRUMENTS, INSTRUMENT_GROUPS, getInstrument } from "../instruments";
 import {
   Modal,
   Field,
@@ -48,6 +48,7 @@ import CareTimelineEntryForm, { NEW_RECORD_TYPES, recordCategoryLabel } from "./
 import AppointmentSlotPicker from "./AppointmentSlotPicker";
 import { addDays } from "../externalAppointmentSlots";
 import { contactsForAssessment } from "../assessmentContacts";
+import { assessmentSchedulingEnabled, assessmentContactLinkingEnabled, assessmentSmsEnabled } from "../assessmentFeatures";
 import CareEventForm from "./CareEventForm";
 import AppointmentForm from "./AppointmentForm";
 import AppointmentOutcomeForm from "./AppointmentOutcomeForm";
@@ -79,6 +80,10 @@ export default function Forms({
 }) {
   const { state, dispatch, commit } = useStore();
   const simpleAssessments = !!state.settings?.simpleAssessments;
+  const scheduleAssessments = assessmentSchedulingEnabled(state.settings);
+  const linkAssessmentAppointments = assessmentContactLinkingEnabled(state.settings);
+  const assessmentSms = assessmentSmsEnabled(state.settings);
+  const showPlanChannel = assessmentSms || scheduleAssessments || !simpleAssessments;
   const staff = currentStaff(state);
   const p = state.people.find((person) => person.id === modal.personId),
     e = p?.episodes.find((episode) => episode.id === modal.episodeId),
@@ -86,7 +91,7 @@ export default function Forms({
   const planningInitialAssessment = e?.collections.some((collection) =>
     collection.label === "Initial assessment" && collection.response !== "Submitted");
   const [channel, setChannel] = useState(
-      modal.collectionDraft?.channel || modal.channel || c?.channel || "SMS link",
+      (assessmentSms && (modal.collectionDraft?.channel || modal.channel || c?.channel)) || "Clinic tablet",
     ),
     [respondent, setRespondent] = useState(
       modal.collectionDraft?.respondent || c?.respondent || "Person",
@@ -102,7 +107,7 @@ export default function Forms({
   const [collectionExternalSlot, setCollectionExternalSlot] = useState(undefined);
   const [responseContactId, setResponseContactId] = useState("");
   const [planDue, setPlanDue] = useState(addDays(TODAY, 14));
-  const [planChannel, setPlanChannel] = useState("SMS link");
+  const [planChannel, setPlanChannel] = useState(assessmentSms ? "SMS link" : "Clinic tablet");
   const [planRespondent, setPlanRespondent] = useState("Person");
   const [planAssistance, setPlanAssistance] = useState("Independent");
   const [planExternalSlot, setPlanExternalSlot] = useState(null);
@@ -217,6 +222,7 @@ export default function Forms({
         }
         initialType={modal.initialType}
         simpleAssessments={simpleAssessments}
+        scheduleAssessments={scheduleAssessments}
         error={formError}
         onClose={onClose}
         onSelectAppointment={() => openModal({
@@ -254,7 +260,9 @@ export default function Forms({
         })}
         error={formError}
         canCreateAssessment={canAssess(p, e)}
-        simpleAssessments={simpleAssessments}
+        simpleAssessments={!linkAssessmentAppointments}
+        scheduleAssessments={scheduleAssessments}
+        assessmentSms={assessmentSms}
         onClose={onClose}
         onSave={(action) =>
           save(action, "Contact added to this care episode.")
@@ -293,7 +301,7 @@ export default function Forms({
         episode={e}
         appointment={appointment}
         person={p}
-        simpleAssessments={simpleAssessments}
+        simpleAssessments={!linkAssessmentAppointments}
         error={formError}
         onClose={onClose}
         onSave={(action) =>
@@ -345,10 +353,12 @@ export default function Forms({
       </Modal>
     );
   if (modal.type === "link-assessment-contact") {
-    if (simpleAssessments || c?.scheduleFree) return null;
+    if (!linkAssessmentAppointments) return null;
     const linkedIds = new Set(contactsForAssessment(e, c?.id).map((item) => item.id));
-    const choices = (e?.appointments || []).filter((item) => !linkedIds.has(item.id));
-    const unlinkedAttempts = (c?.attempts || []).filter((item) => !item.appointmentId);
+    const choices = (e?.appointments || []).filter((item) =>
+      !linkedIds.has(item.id) && (assessmentSms || item.deliveryMode !== "SMS"));
+    const unlinkedAttempts = (c?.attempts || []).filter((item) =>
+      !item.appointmentId && (assessmentSms || item.channel !== "SMS link"));
     return (
       <Modal title="Link existing contact" subtitle={c?.label} onClose={onClose}>
         <ValidatedForm onSubmit={(event) => {
@@ -379,7 +389,7 @@ export default function Forms({
                 ))}
               </select>
             </Field>}
-            <p>Channel and assistance belong to each delivery attempt. Linking a contact alone does not change the response source or due date.{unlinkedAttempts.some((item) => item.id === c.submittedAttemptId)
+            <p>Channel and assistance belong to each delivery attempt. Linking a contact alone does not change the response source{scheduleAssessments ? " or due date" : ""}.{unlinkedAttempts.some((item) => item.id === c.submittedAttemptId)
               ? " If you link the submitted attempt, this contact becomes its response source."
               : unlinkedAttempts.length > 0
                 ? " The submitted response source remains unchanged."
@@ -396,7 +406,10 @@ export default function Forms({
         person={p}
         episode={e}
         collection={c}
-        simpleAssessments={simpleAssessments || !!c?.scheduleFree}
+        simpleAssessments={simpleAssessments}
+        linkAssessmentAppointments={linkAssessmentAppointments}
+        scheduleAssessments={scheduleAssessments}
+        assessmentSms={assessmentSms}
         canCompleteAsClinician={staff?.role === "Clinician" && canAssess(p, e)}
         onClose={onClose}
         onAction={(type) => {
@@ -484,7 +497,7 @@ export default function Forms({
   if (modal.type === "plan")
     return (
       <Modal
-        title={previewOpen ? "Questionnaire preview" : simpleAssessments ? "Create assessment" : "Plan a follow-up"}
+        title={previewOpen ? "Questionnaire preview" : scheduleAssessments ? "Schedule assessment" : "Start assessment"}
         subtitle={
           previewOpen
             ? `${selectedInstrument.version} · ${displayPersonName(p)}`
@@ -500,13 +513,17 @@ export default function Forms({
             ev.preventDefault();
             const values = formValues(ev);
             const label = String(values.label || "").trim();
-            const dueDate = simpleAssessments ? "" : planDue || values.due;
-            if (!simpleAssessments && planChannel !== "SMS link" &&
+            const dueDate = scheduleAssessments ? planDue || values.due : "";
+            if (!scheduleAssessments && (p.consent !== "Recorded" || p.contact !== "Suitable")) {
+              setFormError("Record assessment consent and confirm contact suitability before starting.");
+              return;
+            }
+            if (scheduleAssessments && linkAssessmentAppointments && planChannel !== "SMS link" &&
                 (!planExternalSlot || planExternalSlot.date > dueDate)) {
               setFormError("Choose an available contact on or before the assessment due date.");
               return;
             }
-            const externalAppointment = simpleAssessments || planChannel === "SMS link" ? null : planExternalSlot;
+            const externalAppointment = !scheduleAssessments || !linkAssessmentAppointments || planChannel === "SMS link" ? null : planExternalSlot;
 
             const result = commit({
               ...modal,
@@ -516,7 +533,7 @@ export default function Forms({
               due: dueDate,
               version: instrumentVersion,
               respondent: planRespondent,
-              channel: simpleAssessments ? undefined : planChannel,
+              channel: showPlanChannel ? planChannel : undefined,
               assistance: planAssistance,
               externalAppointment,
             });
@@ -524,9 +541,42 @@ export default function Forms({
               setFormError(result.error);
               return;
             }
+            if (!scheduleAssessments) {
+              const delivery = commit({
+                type: "DELIVER",
+                personId: p.id,
+                episodeId: e.id,
+                collectionId: plannedCollectionId,
+                channel: showPlanChannel ? planChannel : "Clinic tablet",
+                respondent: planRespondent,
+                assistance: planAssistance,
+              });
+              if (delivery.error) {
+                setFormError(delivery.error);
+                return;
+              }
+              onClose();
+              if (planChannel === "Clinician entry" && showPlanChannel) {
+                openModal({ type: "clinician-questionnaire", personId: p.id, episodeId: e.id, collectionId: plannedCollectionId });
+              } else {
+                startQuestionnaire({
+                  personId: p.id,
+                  episodeId: e.id,
+                  collectionId: plannedCollectionId,
+                  channel: showPlanChannel ? planChannel : "Clinic tablet",
+                  respondent: planRespondent,
+                  assistance: planAssistance,
+                  attemptId: delivery.state.people.find((person) => person.id === p.id)
+                    ?.episodes.find((episode) => episode.id === e.id)
+                    ?.collections.find((collection) => collection.id === plannedCollectionId)
+                    ?.attempts.at(-1)?.id,
+                });
+              }
+              return;
+            }
             onClose();
             notify(
-              simpleAssessments ? "Assessment created." : externalAppointment
+              !scheduleAssessments ? "Assessment created." : externalAppointment
                 ? "Follow-up linked to an external contact."
                 : "Follow-up added to the existing care episode.",
             );
@@ -534,11 +584,11 @@ export default function Forms({
         >
           <div className="form-body">
             <Notice>
-              {simpleAssessments
-                ? `Create an assessment in care episode ${e.number}. Answers can be saved as a draft and then completed.`
-                : `This creates a new assessment in care episode ${e.number}, preserving the previous responses. Choose Add follow-up to save the follow-up.`}
+              {!scheduleAssessments
+                ? `Start an assessment in care episode ${e.number}. Answers can be saved as a draft and then completed.`
+                : `Schedule an assessment in care episode ${e.number}, preserving the previous responses.`}
             </Notice>
-            {!simpleAssessments && <Field
+            {scheduleAssessments && <Field
               label="Due date"
               hint="A sample due date is shown. Confirm or change it for this assessment."
             >
@@ -559,15 +609,22 @@ export default function Forms({
                   onChange={(event) => {
                     const nextVersion = event.target.value;
                     setInstrumentVersion(nextVersion);
+                    if (!getInstrument(nextVersion)?.respondents.includes(planRespondent)) {
+                      setPlanRespondent("Person");
+                    }
                     if (!assessmentNameEdited) {
                       setAssessmentName(suggestedAssessmentName(e?.collections, nextVersion));
                     }
                   }}
                 >
-                  {INSTRUMENTS.map((instrument) => (
-                    <option key={instrument.version} value={instrument.version}>
-                      {instrument.version}
-                    </option>
+                  {INSTRUMENT_GROUPS.map((group) => (
+                    <optgroup key={group.label} label={group.label}>
+                      {group.instruments.map((instrument) => (
+                        <option key={instrument.version} value={instrument.version}>
+                          {instrument.version}
+                        </option>
+                      ))}
+                    </optgroup>
                   ))}
                 </select>
               </Field>
@@ -612,7 +669,7 @@ export default function Forms({
                   .sort((a, b) => (a.due || "").localeCompare(b.due || ""))
                   .map((col) => (
                     <li key={col.id}>
-                      {col.label} · {formatDate(col.due)} ·{" "}
+                      {col.label}{scheduleAssessments && col.due ? ` · ${formatDate(col.due)}` : ""} ·{" "}
                       {col.response === "Submitted"
                         ? "Response received"
                         : col.assignment}
@@ -637,7 +694,7 @@ export default function Forms({
               </select>
             </Field>
 
-            {!simpleAssessments && <fieldset className="channel-options">
+            {showPlanChannel && <fieldset className="channel-options">
               <legend>How will this follow-up be collected?</legend>
               {[
                 ["SMS link", "Account-free sample link", MessageSquare],
@@ -648,6 +705,7 @@ export default function Forms({
                   ClipboardPen,
                 ],
               ].map(([label, description, Icon]) => (
+                (!assessmentSms && label === "SMS link" ? null :
                 <label
                   className={`channel ${planChannel === label ? "chosen" : ""}`}
                   key={label}
@@ -678,11 +736,11 @@ export default function Forms({
                     <small>{description}</small>
                   </span>
                   <span className="radio-dot" />
-                </label>
+                </label>)
               ))}
             </fieldset>}
 
-            {!simpleAssessments && planChannel === "SMS link" && (
+            {showPlanChannel && assessmentSms && scheduleAssessments && planChannel === "SMS link" && (
               <section ref={planSmsRef} className="sms-plan-panel" aria-label="SMS link details">
                 <strong>SMS link plan</strong>
                 <p>
@@ -708,7 +766,7 @@ export default function Forms({
                 {copyFeedback && <p className="sms-plan-copy-feedback" role="status">{copyFeedback}</p>}
               </section>
             )}
-            {!simpleAssessments && planChannel !== "SMS link" && <AppointmentSlotPicker
+            {scheduleAssessments && linkAssessmentAppointments && planChannel !== "SMS link" && <AppointmentSlotPicker
               key={planDue}
               scrollTargetRef={planPickerRef}
               mode="assessment"
@@ -728,7 +786,7 @@ export default function Forms({
               Cancel
             </Button>
             <Button variant="primary" type="submit">
-              {simpleAssessments ? "Start assessment" : "Add follow-up"}
+              {scheduleAssessments ? "Schedule assessment" : "Start assessment"}
             </Button>
           </div>
         </ValidatedForm>
@@ -753,6 +811,7 @@ export default function Forms({
       c.response !== "Submitted" &&
       !!getInstrument(c.version) &&
       getInstrument(c.version).respondents.includes(respondent) &&
+      (assessmentSms || channel !== "SMS link") &&
       (channel !== "Clinician entry" || staff?.role === "Clinician") &&
       !["Cancelled", "Paused"].includes(c.assignment);
     const blockers = [
@@ -770,6 +829,7 @@ export default function Forms({
       channel === "Clinician entry" &&
         staff?.role !== "Clinician" &&
         "Choose a Clinician profile to complete this questionnaire.",
+      !assessmentSms && channel === "SMS link" && "Choose a collection method available in this workspace.",
       ["Cancelled", "Paused"].includes(c.assignment) &&
         `This collection is ${c.assignment.toLowerCase()}.`,
     ].filter(Boolean);
@@ -784,7 +844,7 @@ export default function Forms({
           onSubmit={(ev) => {
             ev.preventDefault();
             if (!allowed) return;
-            if (!simpleAssessments && !c.scheduleFree && modal.collectResponse && channel !== "SMS link" &&
+            if (linkAssessmentAppointments && modal.collectResponse && channel !== "SMS link" &&
                 !selectedCollectionExternalSlot && responseContacts.length > 1 && !responseContactId) {
               setFormError("Choose the contact that supplied this response.");
               return;
@@ -795,8 +855,8 @@ export default function Forms({
               channel,
               respondent,
               assistance,
-              appointmentId: !simpleAssessments && !c.scheduleFree && modal.collectResponse && channel !== "SMS link" ? responseContactId || undefined : null,
-              externalAppointment: simpleAssessments || c.scheduleFree || channel === "SMS link" ? null : selectedCollectionExternalSlot,
+              appointmentId: linkAssessmentAppointments && modal.collectResponse && channel !== "SMS link" ? responseContactId || undefined : null,
+              externalAppointment: !linkAssessmentAppointments || !c.due || channel === "SMS link" ? null : selectedCollectionExternalSlot,
             });
             if (result.error) {
               setFormError(result.error);
@@ -897,6 +957,7 @@ export default function Forms({
                   ClipboardPen,
                 ],
               ].map(([label, description, Icon]) => (
+                (!assessmentSms && label === "SMS link" ? null :
                 <label
                   className={`channel ${channel === label ? "chosen" : ""}`}
                   key={label}
@@ -926,7 +987,7 @@ export default function Forms({
                     <small>{description}</small>
                   </span>
                   <span className="radio-dot" />
-                </label>
+                </label>)
               ))}
             </fieldset>
             <Field label="Assistance">
@@ -942,14 +1003,14 @@ export default function Forms({
                 ))}
               </select>
             </Field>
-            {!simpleAssessments && !c.scheduleFree && channel !== "SMS link" && <AppointmentSlotPicker
+            {linkAssessmentAppointments && !!c.due && channel !== "SMS link" && <AppointmentSlotPicker
               scrollTargetRef={collectionPickerRef}
               mode="assessment"
               dueDate={c.due}
               selectedSlot={selectedCollectionExternalSlot}
               onSelect={(slot) => { setCollectionExternalSlot(slot); setFormError(""); }}
             />}
-            {!simpleAssessments && !c.scheduleFree && modal.collectResponse && channel !== "SMS link" && !selectedCollectionExternalSlot && responseContacts.length > 0 && (
+            {linkAssessmentAppointments && modal.collectResponse && channel !== "SMS link" && !selectedCollectionExternalSlot && responseContacts.length > 0 && (
               <Field label="Contact for this response" hint="Choose which related contact supplied these answers.">
                 <select value={responseContactId} onChange={(ev) => setResponseContactId(ev.target.value)}>
                   <option value="">{responseContacts.length > 1 ? "Choose a contact" : "Choose automatically"}</option>
@@ -1027,7 +1088,7 @@ export default function Forms({
             <Notice>
               {respondent === "Family respondent"
                 ? `${displayFamilyName(p)} provides their own contribution. This does not establish guardian authority.`
-                : `${displayPersonName(p)} can answer this sample check-in by SMS link, clinic tablet, or with staff recording the answers.`}
+                : `${displayPersonName(p)} can answer this sample check-in by ${assessmentSms ? "SMS link, " : ""}clinic tablet, or with staff recording the answers.`}
             </Notice>
           </div>
           {footer(
@@ -1099,15 +1160,15 @@ export default function Forms({
               </select>
             </Field>
             <Field label="Delivery channel">
-              <select name="channel" defaultValue="SMS link">
-                <option>SMS link</option>
+              <select name="channel" defaultValue={assessmentSms ? "SMS link" : "Clinic tablet"}>
+                {assessmentSms && <option>SMS link</option>}
                 <option>Clinic tablet</option>
               </select>
             </Field>
-            <p className="muted">
+            {assessmentSms && <p className="muted">
               SMS requires suitable contact. This is labelled sample policy, not
               approved consent wording.
-            </p>
+            </p>}
           </div>
           {footer("Send sample request", sendableConsents.length === 0)}
         </ValidatedForm>
@@ -1611,6 +1672,7 @@ export default function Forms({
         save={save}
       />
     );
+  if (modal.type === "messages" && !assessmentSms) return null;
   const content = {
     about: [
       "About this workspace",
@@ -1712,9 +1774,10 @@ export default function Forms({
       <>
         <p>
           Questions adapt to earlier answers. Hidden questions are excluded from
-          completion and comparison. {simpleAssessments
-            ? "Assessments are created without a schedule or contact link. A response can be saved as a draft and completed later."
-            : "Follow-ups require a named collection point and an explicit due date inside an active episode."}
+          completion and comparison. {scheduleAssessments
+            ? "Scheduled assessments have an explicit due date inside an active episode."
+            : "Assessments can start immediately without a due date."}
+          {linkAssessmentAppointments ? " Appointments can be linked to assessments." : ""}
         </p>
         <p>
           Reissuing adds a delivery attempt to the same assignment. Submission

@@ -134,6 +134,7 @@ export default function CareTimelineEntryForm({
   onSave,
   onSelectAppointment,
   simpleAssessments = false,
+  scheduleAssessments = true,
 }) {
   const isCorrection = Boolean(existingEvent);
   const [entryType, setEntryType] = useState(
@@ -246,7 +247,9 @@ export default function CareTimelineEntryForm({
           </Field>
 
           {selectedType && (
-            <p className="event-type-description">{selectedType.description}</p>
+            <p className="event-type-description">{entryType === "appointment" && !scheduleAssessments
+              ? "A recorded service contact."
+              : selectedType.description}</p>
           )}
 
           {selectedType && (isStructured ? (

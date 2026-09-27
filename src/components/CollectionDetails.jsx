@@ -13,6 +13,7 @@ import { ChevronDown } from "lucide-react";
 import { getInstrument } from "../instruments";
 import { sessionAnswerCounts } from "../responseSessions";
 import DeliveryAttemptsTable from "./DeliveryAttemptsTable";
+import RelatedRecordsAccordion from "./RelatedRecordsAccordion";
 
 export default function CollectionDetails({
   person,
@@ -22,9 +23,15 @@ export default function CollectionDetails({
   onAction,
   canCompleteAsClinician = false,
   simpleAssessments = false,
+  scheduleAssessments = true,
+  linkAssessmentAppointments = true,
+  assessmentSms = true,
 }) {
   const c = collection;
-  const linkedContacts = contactsForAssessment(episode, c.id).sort((a, b) =>
+  const visibleAttempts = (c.attempts || []).filter((attempt) => assessmentSms || attempt.channel !== "SMS link");
+  const linkedContacts = contactsForAssessment(episode, c.id)
+    .filter((contact) => assessmentSms || contact.deliveryMode !== "SMS")
+    .sort((a, b) =>
     (a.actualDate || a.plannedDate || "").localeCompare(b.actualDate || b.plannedDate || ""));
   const submitted = c.response === "Submitted";
   const answerCounts = sessionAnswerCounts(c, getInstrument(c.version), !submitted);
@@ -62,9 +69,13 @@ export default function CollectionDetails({
             </p>
           )}
           <dl className="collection-details-status-facts">
-            {!simpleAssessments && <div>
+            {scheduleAssessments && c.due && <div>
               <dt>Due date</dt>
               <dd>{formatDate(c.due)}</dd>
+            </div>}
+            {linkAssessmentAppointments && c.externalAppointment && <div>
+              <dt>External contact</dt>
+              <dd>{formatDate(c.externalAppointment.date)} at {c.externalAppointment.time} · {c.externalAppointment.practitionerService}</dd>
             </div>}
             {!simpleAssessments && <div>
               <dt>Assignment</dt>
@@ -122,13 +133,13 @@ export default function CollectionDetails({
             <ChevronDown size={18} aria-hidden="true" />
           </summary>
           <div className="collection-details-accordion-body">
-            {c.attempts?.length ? (
-              <DeliveryAttemptsTable collection={c} contacts={episode.appointments || []} />
+            {visibleAttempts.length ? (
+              <DeliveryAttemptsTable collection={{ ...c, attempts: visibleAttempts }} contacts={linkAssessmentAppointments ? (episode.appointments || []).filter((contact) => assessmentSms || contact.deliveryMode !== "SMS") : []} />
             ) : <p className="muted">No delivery attempts recorded.</p>}
-            {!c.attempts?.length && (c.channel || c.externalAppointment) && (
+            {!visibleAttempts.length && ((assessmentSms || c.channel !== "SMS link") && c.channel || linkAssessmentAppointments && c.externalAppointment) && (
               <dl className="metadata">
-                {c.channel && <div><dt>Planned channel</dt><dd>{c.channel}</dd></div>}
-                {c.externalAppointment && <div>
+                {(assessmentSms || c.channel !== "SMS link") && c.channel && <div><dt>Planned channel</dt><dd>{c.channel}</dd></div>}
+                {linkAssessmentAppointments && c.externalAppointment && <div>
                   <dt>External contact</dt>
                   <dd>{c.externalAppointment.date} at {c.externalAppointment.time} · {c.externalAppointment.practitionerService} · {c.externalAppointment.deliveryMode}</dd>
                 </div>}
@@ -136,10 +147,11 @@ export default function CollectionDetails({
             )}
           </div>
         </details>}
+        {linkAssessmentAppointments && <RelatedRecordsAccordion kind="contacts" records={linkedContacts} collection={c} />}
       </div>
       <div className="modal-footer">
         <Button onClick={onClose}>Close</Button>
-        {!simpleAssessments && episode.status === "Active" && !["Cancelled", "Paused"].includes(c.assignment) &&
+        {linkAssessmentAppointments && episode.status === "Active" && !["Cancelled", "Paused"].includes(c.assignment) &&
           (episode.appointments || []).length > linkedContacts.length && (
             <Button onClick={() => onAction("link-assessment-contact")}>Link existing contact</Button>
           )}

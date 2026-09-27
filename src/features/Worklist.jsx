@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { Plus, ArrowRight, CalendarX } from "lucide-react";
 import { useStore } from "../store";
+import { assessmentSchedulingEnabled } from "../assessmentFeatures";
 import { patientIdentifier } from "../patientIdentity";
 import {
   getTasks,
@@ -49,7 +50,7 @@ const workRecord = (task) =>
   };
 export default function Worklist({ navigate, openModal }) {
   const { state } = useStore();
-  const simpleAssessments = !!state.settings?.simpleAssessments;
+  const scheduleAssessments = assessmentSchedulingEnabled(state.settings);
   const view = useQueueView();
   const query = view.params.get("q") || "";
   const filter = filters.includes(view.params.get("filter"))
@@ -286,7 +287,7 @@ export default function Worklist({ navigate, openModal }) {
                   <tr>
                     <SortableHeader label="Person" sortKey="name" sort={sortConfig} onSort={toggleSort} />
                     <SortableHeader label="Work item" sortKey="item" sort={sortConfig} onSort={toggleSort} />
-                    <SortableHeader label={simpleAssessments ? "Progress / review" : "Due / review date"} sortKey="due" sort={sortConfig} onSort={toggleSort} />
+                    <SortableHeader label={!scheduleAssessments ? "Progress / review" : "Due / review date"} sortKey="due" sort={sortConfig} onSort={toggleSort} />
                     <SortableHeader label="Status" sortKey="status" sort={sortConfig} onSort={toggleSort} />
                     <th>Next action</th>
                   </tr>
@@ -317,8 +318,8 @@ export default function Worklist({ navigate, openModal }) {
                             ? `Intake - ${intakeStage(task.record)}`
                             : c.label}
                         </QueueCell>
-                        <QueueCell label={simpleAssessments ? "Progress / review" : "Due / review date"} slot="date">
-                          {simpleAssessments && task.collection ? (
+                        <QueueCell label={!scheduleAssessments ? "Progress / review" : "Due / review date"} slot="date">
+                          {!scheduleAssessments && task.collection ? (
                             <span className="muted">{status === "Draft" ? "Draft saved" : "Assessment created"}</span>
                           ) : c.response === "Submitted" ? (
                             <span className="muted">Response received · review pending</span>

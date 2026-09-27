@@ -17,6 +17,7 @@ import { GOVERNED_MEASURES } from "../measureGovernance";
 import { collectionStatus, formatDate } from "../model";
 import { currentCollection } from "../workflow";
 import { useStore } from "../store";
+import { assessmentSchedulingEnabled, assessmentContactLinkingEnabled, assessmentSmsEnabled } from "../assessmentFeatures";
 import {
   episodeOutcomeRecords,
   isCompletedScore,
@@ -974,15 +975,18 @@ function Risk() {
 export default function RecordTwo({ person, episode, navigate }) {
   const { state } = useStore();
   const simpleAssessments = !!state.settings?.simpleAssessments;
+  const scheduleAssessments = assessmentSchedulingEnabled(state.settings);
+  const linkAssessmentAppointments = assessmentContactLinkingEnabled(state.settings);
+  const assessmentSms = assessmentSmsEnabled(state.settings);
   const isFixture = Boolean(person.fixtureLabel) &&
     person.fixtureLabel !== "Fictional closed episode with patient follow-up";
   const hasOutcomeMeasures = episodeOutcomeRecords(episode).some(
     (measure) => measure.records?.length,
   );
-  const isEmptyReport = !isFixture && !hasOutcomeMeasures && !hasCareTimelineEntries(episode, { simpleAssessments });
+  const isEmptyReport = !isFixture && !hasOutcomeMeasures && !hasCareTimelineEntries(episode, { simpleAssessments, scheduleAssessments, assessmentSms });
   const nextAssessment = currentCollection(episode);
   const nextAssessmentStatus = nextAssessment
-    ? simpleAssessments
+    ? !scheduleAssessments
       ? nextAssessment.response === "Submitted" ? "Completed" : nextAssessment.response === "Draft" ? "Draft" : "Created"
       : collectionStatus(nextAssessment)
     : null;
@@ -1048,7 +1052,7 @@ export default function RecordTwo({ person, episode, navigate }) {
           >
             <div className="panel-body">
               <h3>{nextAssessment?.label || "Initial assessment"}</h3>
-              {!simpleAssessments && nextAssessment?.due && <p>Due {formatDate(nextAssessment.due)}</p>}
+              {scheduleAssessments && nextAssessment?.due && <p>Due {formatDate(nextAssessment.due)}</p>}
               <div className="actions">
                 <Button variant="primary" onClick={openAssessment}>Open assessment</Button>
                 <TextLink
@@ -1068,6 +1072,9 @@ export default function RecordTwo({ person, episode, navigate }) {
               episode={episode}
               navigate={navigate}
               simpleAssessments={simpleAssessments}
+              scheduleAssessments={scheduleAssessments}
+              linkAssessmentAppointments={linkAssessmentAppointments}
+              assessmentSms={assessmentSms}
               isVisible={careTimelineVisible}
               onToggle={() => setCareTimelineVisible((visible) => !visible)}
             />
@@ -1087,6 +1094,9 @@ export default function RecordTwo({ person, episode, navigate }) {
               episode={episode}
               navigate={navigate}
               simpleAssessments={simpleAssessments}
+              scheduleAssessments={scheduleAssessments}
+              linkAssessmentAppointments={linkAssessmentAppointments}
+              assessmentSms={assessmentSms}
               isVisible={careTimelineVisible}
               onToggle={() => setCareTimelineVisible((visible) => !visible)}
             />

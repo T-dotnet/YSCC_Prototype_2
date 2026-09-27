@@ -24,6 +24,9 @@ import {
 } from "../components/UI";
 import RecordItem from "../components/RecordItem";
 import { useStore } from "../store";
+import { assessmentContactLinkingEnabled, assessmentSchedulingEnabled, assessmentSmsEnabled } from "../assessmentFeatures";
+import { assessmentsForContact } from "../assessmentContacts";
+import RelatedRecordsAccordion from "../components/RelatedRecordsAccordion";
 
 const EMPTY_FILTERS = {
   attendance: "all",
@@ -95,7 +98,7 @@ const appointmentWhen = (appointment) => {
   };
 };
 
-function AppointmentCard({ appointment, episode, openModal, simpleAssessments }) {
+function AppointmentCard({ appointment, episode, openModal, showAssessmentLinks }) {
   const overdue = appointmentIsOverdue(appointment, TODAY);
   const when = appointmentWhen(appointment);
   const status = overdue ? "Overdue" : appointment.attendance;
@@ -136,13 +139,14 @@ function AppointmentCard({ appointment, episode, openModal, simpleAssessments })
           ? [{ label: "Location", value: <><MapPin size={14} aria-hidden="true" /> {appointment.location}</> }]
           : []),
       ]}
-      secondary={
+      secondary={<>
+        {showAssessmentLinks && <RelatedRecordsAccordion kind="assessments" records={assessmentsForContact(episode, appointment.id)} contactId={appointment.id} />}
         <details className="appointment-more-detail">
           <summary>More detail</summary>
           <dl className="appointment-details">
             {appointmentDetails(appointment, episode)
               .filter(([label]) => !label.toLocaleLowerCase().includes("note") &&
-                (!simpleAssessments || label !== "Initial assessment" && !label.startsWith("Associated assignment")))
+                (showAssessmentLinks || label !== "Initial assessment" && !label.startsWith("Associated assignment")))
               .map(([label, value]) => (
                 <div key={label}>
                   <dt>{label}</dt>
@@ -169,7 +173,7 @@ function AppointmentCard({ appointment, episode, openModal, simpleAssessments })
               "Staff member"}
           </p>
         </details>
-      }
+      </>}
       actions={
         appointment.attendance === "Planned" ? (
           <Button
@@ -199,7 +203,7 @@ function AppointmentSection({
   appointments,
   episode,
   openModal,
-  simpleAssessments,
+  showAssessmentLinks,
   defaultOpen = true,
 }) {
   if (appointments.length === 0) return null;
@@ -223,7 +227,7 @@ function AppointmentSection({
               appointment={appointment}
               episode={episode}
               openModal={openModal}
-              simpleAssessments={simpleAssessments}
+              showAssessmentLinks={showAssessmentLinks}
             />
           </li>
         ))}
@@ -234,10 +238,12 @@ function AppointmentSection({
 
 export default function Appointments({ episode, openModal }) {
   const { state } = useStore();
-  const simpleAssessments = !!state.settings?.simpleAssessments;
+  const scheduleAssessments = assessmentSchedulingEnabled(state.settings);
+  const showAssessmentLinks = assessmentContactLinkingEnabled(state.settings);
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const appointments = episode.appointments || [];
+  const appointments = (episode.appointments || []).filter((appointment) =>
+    assessmentSmsEnabled(state.settings) || appointment.deliveryMode !== "SMS");
   const visibleAppointments = useMemo(
     () =>
       appointments.filter((appointment) =>
@@ -274,10 +280,12 @@ export default function Appointments({ episode, openModal }) {
       <div className="section-toolbar">
         <div>
           <h2>Contact</h2>
-          <p>Record planned and actual contacts, including SMS, delivery mode and outcome.</p>
+          <p>{scheduleAssessments
+            ? "Record planned and actual contacts, including SMS, delivery mode and outcome."
+            : "Record contacts and their outcomes. Existing planned contacts remain available for follow-up."}</p>
         </div>
         <Button variant="primary" disabled={episode.status !== "Active"} onClick={addContact}>
-          <Plus size={17} aria-hidden="true" /> Add contact
+          <Plus size={17} aria-hidden="true" /> {scheduleAssessments ? "Add contact" : "Record contact"}
         </Button>
       </div>
       {appointments.length > 0 && (
@@ -371,8 +379,9 @@ export default function Appointments({ episode, openModal }) {
 
       {appointments.length === 0 ? (
         <Empty title="No service contacts recorded">
-          Add a planned, attended, cancelled or did-not-attend contact. It will
-          also appear in this care episode’s History and change log.
+          {scheduleAssessments
+            ? "Add a planned, attended, cancelled or did-not-attend contact. It will also appear in this care episode’s History and change log."
+            : "Record an attended, cancelled or did-not-attend contact. It will also appear in this care episode’s History and change log."}
         </Empty>
       ) : visibleAppointments.length === 0 ? (
         <Empty title="No contacts match these filters">
@@ -389,7 +398,7 @@ export default function Appointments({ episode, openModal }) {
             appointments={overdue}
             episode={episode}
             openModal={openModal}
-            simpleAssessments={simpleAssessments}
+            showAssessmentLinks={showAssessmentLinks}
           />
           <AppointmentSection
             title="Upcoming planned contacts"
@@ -397,7 +406,7 @@ export default function Appointments({ episode, openModal }) {
             appointments={upcoming}
             episode={episode}
             openModal={openModal}
-            simpleAssessments={simpleAssessments}
+            showAssessmentLinks={showAssessmentLinks}
           />
           <AppointmentSection
             title="Recorded contacts"
@@ -405,7 +414,7 @@ export default function Appointments({ episode, openModal }) {
             appointments={recorded}
             episode={episode}
             openModal={openModal}
-            simpleAssessments={simpleAssessments}
+            showAssessmentLinks={showAssessmentLinks}
           />
         </div>
       )}

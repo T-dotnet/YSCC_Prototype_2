@@ -10,6 +10,7 @@ import Person from "./features/Person";
 import SampleClientPreview from "./features/SampleClientPreview";
 import AssessmentReviewRecord from "./features/AssessmentReviewRecord";
 import { Quality, Administration, Help } from "./features/Operations";
+import AssessmentFeatures from "./features/AssessmentFeatures";
 import GlobalChangeLog from "./features/GlobalChangeLog";
 import Questionnaire from "./features/Questionnaire";
 import ConsentRequest from "./features/ConsentRequest";
@@ -128,6 +129,8 @@ export default function App() {
       <GlobalChangeLog {...shared} />
     ) : path === "/administration" ? (
       <Administration {...shared} />
+    ) : path === "/assessment-features" ? (
+      <AssessmentFeatures />
     ) : path === "/help" ? (
       <Help {...shared} />
     ) : (

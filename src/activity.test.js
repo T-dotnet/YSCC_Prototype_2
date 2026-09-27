@@ -265,7 +265,7 @@ test("Care events projects Jordan's appointment and assessment lists once each",
   assert.ok(history.some((entry) => entry.collectionId));
 });
 
-test("simple Care events exclude planned, due and future records", () => {
+test("simple Care events include created and completed assessments but exclude future activity", () => {
   const person = { id: "P-1" };
   const episode = {
     id: "EP-1",
@@ -288,8 +288,42 @@ test("simple Care events exclude planned, due and future records", () => {
   const simple = careEventEntries(person, episode, [], { simpleAssessments: true, today: "2026-09-27" });
   assert.equal(all.length, 8);
   assert.deepEqual(simple.map((entry) => entry.id).sort(), [
-    "appointment-attended", "assessment-completed", "past-event",
+    "appointment-attended", "assessment-completed", "assessment-due", "past-event",
   ]);
+});
+
+test("simple Care events show a saved draft on its save date", () => {
+  const person = { id: "draft-person" };
+  const collection = {
+    id: "draft-assessment",
+    label: "Initial assessment · follow-up",
+    version: "Initial assessment v1.0",
+    response: "Draft",
+    createdAt: "2026-09-20T10:00:00Z",
+    attempts: [{ savedAt: "2026-09-22T11:00:00Z" }],
+  };
+  const episode = { collections: [collection], appointments: [], events: [] };
+  const entries = careEventEntries(person, episode, [], { simpleAssessments: true, today: "2026-09-27" });
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].date, "2026-09-22");
+  assert.equal(historyItem(entries[0], episode, (value) => value, true).dateLabel, "Draft saved");
+});
+
+test("simple Care events retain a future planned contact linked to an assessment", () => {
+  const person = { id: "linked-person" };
+  const episode = {
+    id: "linked-episode",
+    events: [],
+    appointments: [
+      { id: "linked-contact", attendance: "Planned", plannedDate: "2026-12-26" },
+      { id: "unlinked-contact", attendance: "Planned", plannedDate: "2026-12-27" },
+    ],
+    collections: [{ id: "assessment", label: "Follow-up", response: "Not started", attempts: [] }],
+    assessmentContactLinks: [{ collectionId: "assessment", appointmentId: "linked-contact" }],
+  };
+  const entries = careEventEntries(person, episode, [], { simpleAssessments: true, today: "2026-09-27" });
+  assert.ok(entries.some((entry) => entry.id === "appointment-linked-contact"));
+  assert.ok(!entries.some((entry) => entry.id === "appointment-unlinked-contact"));
 });
 
 test("Zoe's assessment-rich sample also retains a compliance correction", () => {

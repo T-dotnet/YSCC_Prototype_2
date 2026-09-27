@@ -259,6 +259,7 @@ export function appointmentSummary(appointment) {
 }
 
 export function appointmentMatchesCollectionDate(appointment, collection) {
+  if (!collection.due) return true;
   const appointmentDates = [appointment.plannedDate, appointment.actualDate].filter(Boolean);
   const collectionDates = [collection.due, collection.submittedAt?.slice(0, 10)].filter(Boolean);
   return appointmentDates.some((date) => collectionDates.includes(date));

@@ -3,6 +3,8 @@ import { CONTACT_RECIPIENTS, CONTACT_TYPES, DRAFT_CONTACT_DELIVERY_MODES } from 
 import { formatDate, TODAY } from "../model";
 import { Button, Field, Notice, ValidatedForm } from "./UI";
 import CollectionMethodChoice from "./CollectionMethodChoice";
+import { useStore } from "../store";
+import { assessmentSmsEnabled } from "../assessmentFeatures";
 
 export default function QuestionnaireAppointmentConfirmation({
   appointment,
@@ -13,6 +15,7 @@ export default function QuestionnaireAppointmentConfirmation({
   onConfirm,
   tablet = false,
 }) {
+  const { state } = useStore();
   const [method, setMethod] = useState(collection.channel);
   const [contactChoice, setContactChoice] = useState("");
   const [existingId, setExistingId] = useState("");
@@ -133,7 +136,7 @@ export default function QuestionnaireAppointmentConfirmation({
                 <Field label="Duration (minutes)"><input type="number" name="duration" min="1" max="600" required /></Field>
                 <Field label="Delivery mode"><select name="deliveryMode" defaultValue="" required>
                   <option value="">Choose a mode</option>
-                  {DRAFT_CONTACT_DELIVERY_MODES.map((value) => <option key={value}>{value}</option>)}
+                  {DRAFT_CONTACT_DELIVERY_MODES.filter((value) => assessmentSmsEnabled(state.settings) || value !== "SMS").map((value) => <option key={value}>{value}</option>)}
                 </select></Field>
                 <Field label="Recipient"><select name="recipientType" value={recipient} onChange={(event) => setRecipient(event.target.value)} required>
                   {CONTACT_RECIPIENTS.map((value) => <option key={value}>{value}</option>)}

@@ -11,6 +11,8 @@ import { Notice } from "./UI";
 import { collectionActor, formatDate } from "../model";
 import { answerSession } from "../responseSessions";
 import { Undo2 } from "lucide-react";
+import { useStore } from "../store";
+import { assessmentSmsEnabled } from "../assessmentFeatures";
 
 export default function SubmittedAnswers({
   person,
@@ -21,6 +23,8 @@ export default function SubmittedAnswers({
   disabled = false,
 }) {
   const id = useId();
+  const { state } = useStore();
+  const showSms = assessmentSmsEnabled(state.settings);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const answers = collection.answers || [];
@@ -51,7 +55,7 @@ export default function SubmittedAnswers({
           <p className="recorded-answer">{answerLabel(entry)}</p>
           {answer && (() => {
             const session = answerSession(collection, question.id);
-            return session ? <p className="answer-session-source">
+            return session && (showSms || session.channel !== "SMS link") ? <p className="answer-session-source">
               Supplied in session {(collection.attempts || []).findIndex((attempt) => attempt.id === session.id) + 1} · {session.date ? formatDate(session.date) : "date not recorded"} · {session.channel || "Channel not recorded"}
             </p> : collection.answerSources?.[question.id]?.startsWith("edit:")
               ? <p className="answer-session-source">Corrected after submission · see response history</p>

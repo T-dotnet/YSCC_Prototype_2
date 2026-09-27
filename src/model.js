@@ -36,6 +36,11 @@ import {
 import { careEventContent, careEventError } from "./careEvents.js";
 import { validExternalSlot } from "./externalAppointmentSlots.js";
 import {
+  assessmentSchedulingEnabled,
+  assessmentContactLinkingEnabled,
+  assessmentSmsEnabled,
+} from "./assessmentFeatures.js";
+import {
   clinicalRecordContent,
   clinicalRecordError,
 } from "./clinicalRecords.js";
@@ -2672,6 +2677,18 @@ function upgradeIntakeFlow(state) {
 }
 
 export function upgradeSampleData(state) {
+  if (!state.settings || ["scheduleAssessments", "linkAssessmentAppointments", "assessmentSms"]
+    .some((feature) => typeof state.settings[feature] !== "boolean")) {
+    state = {
+      ...state,
+      settings: {
+        ...state.settings,
+        scheduleAssessments: assessmentSchedulingEnabled(state.settings),
+        linkAssessmentAppointments: assessmentContactLinkingEnabled(state.settings),
+        assessmentSms: assessmentSmsEnabled(state.settings),
+      },
+    };
+  }
   state = upgradeIntakeFlow(state);
   if (state.terminologyRevision !== 1) {
     state = JSON.parse(JSON.stringify(state));
@@ -3682,7 +3699,7 @@ function prepareIntakes(next) {
 export function createSeed() {
   return withSampleFixtures(prepareQualityState(prepareSeed({
     schema: 1,
-    settings: { simpleAssessments: true },
+    settings: { simpleAssessments: true, scheduleAssessments: false, linkAssessmentAppointments: true, assessmentSms: false },
     terminologyRevision: 1,
     people: [
       ...seeds.map((s, i) => ({
@@ -3940,10 +3957,10 @@ export function getTasks(state) {
               person: p,
               episode: e,
               collection: c,
-              status: state.settings?.simpleAssessments
+              status: !assessmentSchedulingEnabled(state.settings)
                 ? c.response === "Draft" ? "Draft" : "Created"
                 : collectionStatus(c),
-              action: state.settings?.simpleAssessments ? "Open assessment" : nextAction(c),
+              action: !assessmentSchedulingEnabled(state.settings) ? "Open assessment" : nextAction(c),
             })),
         ),
     ),
@@ -3954,6 +3971,14 @@ export function reducer(state, action) {
     if (typeof action.enabled !== "boolean" || state.settings?.simpleAssessments === action.enabled) return state;
     return { ...state, settings: { ...state.settings, simpleAssessments: action.enabled } };
   }
+  if (action.type === "SET_ASSESSMENT_FEATURE") {
+    if (!["scheduleAssessments", "linkAssessmentAppointments", "assessmentSms"].includes(action.feature) ||
+        typeof action.enabled !== "boolean" || state.settings?.[action.feature] === action.enabled) return state;
+    return { ...state, settings: { ...state.settings, [action.feature]: action.enabled } };
+  }
+  const scheduleAssessments = assessmentSchedulingEnabled(state.settings);
+  const linkAssessmentAppointments = assessmentContactLinkingEnabled(state.settings);
+  const assessmentSms = assessmentSmsEnabled(state.settings);
   if (action.type === "RESET") return createSeed();
   if (action.type === "RESET_INTAKE_EXAMPLES") {
     const ids = new Set(["YS-1031", "YS-1032"]);
@@ -4297,7 +4322,10 @@ export function reducer(state, action) {
       break;
     }
     case "ADD_APPOINTMENT": {
-      if (state.settings?.simpleAssessments &&
+      if (!scheduleAssessments &&
+          (action.attendance === "Planned" || action.plannedDate > TODAY)) return state;
+      if (!assessmentSms && action.deliveryMode === "SMS") return state;
+      if (!linkAssessmentAppointments &&
           ((action.collectionIds?.length || action.collectionId) || action.newAssessmentVersions?.length || action.assessmentIntakeId)) return state;
       if (action.assessmentIntakeId && !p?.intakes?.some((intake) =>
         intake.id === action.assessmentIntakeId &&
@@ -4334,7 +4362,8 @@ export function reducer(state, action) {
         const collection = {
           id: uid(),
           label: instrument.name,
-          due: assessmentDue,
+          due: scheduleAssessments ? assessmentDue : "",
+          scheduleFree: !scheduleAssessments,
           version,
           assignment: "Planned",
           response: "Not started",
@@ -4349,7 +4378,8 @@ export function reducer(state, action) {
         };
         e.collections.push(collection);
         addAssessmentContactLink(e, collection.id, appointment.id);
-        event("Follow-up planned", `${collection.label} · due ${formatDate(assessmentDue)} · linked to contact`, {
+        event(scheduleAssessments ? "Follow-up planned" : "Assessment contact linked",
+          `${collection.label}${scheduleAssessments ? ` · due ${formatDate(assessmentDue)}` : ""} · linked to contact`, {
           collectionId: collection.id,
           appointmentId: appointment.id,
         });
@@ -4358,7 +4388,7 @@ export function reducer(state, action) {
     }
     case "LINK_ASSESSMENT_CONTACT": {
       const collection = e?.collections?.find((item) => item.id === action.collectionId);
-      if (state.settings?.simpleAssessments || collection?.scheduleFree) return state;
+      if (!linkAssessmentAppointments) return state;
       const appointment = e?.appointments?.find((item) => item.id === action.appointmentId);
       const attempt = action.attemptId
         ? collection?.attempts?.find((item) => item.id === action.attemptId)
@@ -4385,7 +4415,7 @@ export function reducer(state, action) {
       break;
     }
     case "RECORD_APPOINTMENT_OUTCOME": {
-      if (state.settings?.simpleAssessments && action.assessmentIntakeId) return state;
+      if (!linkAssessmentAppointments && action.assessmentIntakeId) return state;
       if (action.assessmentIntakeId && !p?.intakes?.some((intake) =>
         intake.id === action.assessmentIntakeId &&
         intake.episodeId === e?.id && intake.outcome === "Proceed"))
@@ -4664,8 +4694,10 @@ export function reducer(state, action) {
         !INSTRUMENTS.some(
           (instrument) => instrument.version === (action.version ?? VERSION),
         ) ||
-        (!state.settings?.simpleAssessments && (!/^\d{4}-\d{2}-\d{2}$/.test(action.due || "") || action.due < TODAY)) ||
-        (state.settings?.simpleAssessments && (action.due || action.externalAppointment || action.appointmentId)) ||
+        (scheduleAssessments && (!/^\d{4}-\d{2}-\d{2}$/.test(action.due || "") || action.due < TODAY)) ||
+        (!scheduleAssessments && (action.due || action.externalAppointment)) ||
+        (!linkAssessmentAppointments && (action.appointmentId || action.externalAppointment)) ||
+        (!assessmentSms && action.channel === "SMS link") ||
         (action.externalAppointment &&
           (!validExternalSlot(action.externalAppointment) ||
             action.externalAppointment.date < TODAY ||
@@ -4679,8 +4711,8 @@ export function reducer(state, action) {
       e.collections.push({
         id: plannedCollectionId,
         label: action.label.trim(),
-        due: state.settings?.simpleAssessments ? "" : action.due,
-        scheduleFree: !!state.settings?.simpleAssessments,
+        due: scheduleAssessments ? action.due : "",
+        scheduleFree: !scheduleAssessments,
         createdAt: recordedAt,
         version: action.version ?? VERSION,
         assignment: "Planned",
@@ -4688,8 +4720,8 @@ export function reducer(state, action) {
         review: "Pending",
         link: "Not sent",
         channel: action.channel || undefined,
-        appointmentId: state.settings?.simpleAssessments ? null : action.appointmentId || null,
-        externalAppointment: state.settings?.simpleAssessments ? null : action.externalAppointment || null,
+        appointmentId: linkAssessmentAppointments ? action.appointmentId || null : null,
+        externalAppointment: linkAssessmentAppointments ? action.externalAppointment || null : null,
         attempts: [],
         answers: [],
         respondent: action.respondent || "Person",
@@ -4697,18 +4729,19 @@ export function reducer(state, action) {
         assistance: action.assistance || "Independent",
       });
       event(
-        state.settings?.simpleAssessments ? "Assessment created" : "Follow-up planned",
-        state.settings?.simpleAssessments ? `${action.label} · same care episode` : `${action.label} · due ${formatDate(action.due)} · same care episode`,
-        { collectionId: plannedCollectionId, appointmentId: state.settings?.simpleAssessments ? null : action.appointmentId || null },
+        scheduleAssessments ? "Follow-up planned" : "Assessment created",
+        scheduleAssessments ? `${action.label} · due ${formatDate(action.due)} · same care episode` : `${action.label} · same care episode`,
+        { collectionId: plannedCollectionId, appointmentId: linkAssessmentAppointments ? action.appointmentId || null : null },
       );
       break;
     case "SAVE_COLLECTION_SETUP":
       if (
-        !canAssess(p, e) || !c || (!c.due && !state.settings?.simpleAssessments && !c.scheduleFree) || !canCollectInEpisode(e, c) ||
+        !canAssess(p, e) || !c || (!c.due && !c.scheduleFree) || !canCollectInEpisode(e, c) ||
         p.consent !== "Recorded" || p.contact !== "Suitable" ||
         !getInstrument(c.version) || c.response === "Submitted" ||
         ["Paused", "Cancelled"].includes(c.assignment) ||
         !["SMS link", "Clinic tablet", "Clinician entry"].includes(action.channel) ||
+        (!assessmentSms && action.channel === "SMS link") ||
         !getInstrument(c.version).respondents.includes(action.respondent) ||
         !(action.channel === "Clinician entry"
           ? ["Transcribed", "Joint completion"]
@@ -4720,12 +4753,12 @@ export function reducer(state, action) {
             action.externalAppointment.date < TODAY ||
             action.externalAppointment.date > c.due))
       ) return state;
-      if ((state.settings?.simpleAssessments || c.scheduleFree) && action.externalAppointment) return state;
+      if (!linkAssessmentAppointments && action.externalAppointment) return state;
       c.channel = action.channel;
       c.respondent = action.respondent;
       c.respondentName = action.respondent === "Person" ? p.name : p.family;
       c.assistance = action.assistance;
-      c.externalAppointment = state.settings?.simpleAssessments || c.scheduleFree || action.channel === "SMS link"
+      c.externalAppointment = !linkAssessmentAppointments || action.channel === "SMS link"
         ? null : action.externalAppointment || null;
       c.setupSavedAt = recordedAt;
       event("Collection setup saved", `${c.label} · ${c.channel}`, { collectionId: c.id });
@@ -4734,7 +4767,7 @@ export function reducer(state, action) {
       if (
         !canAssess(p, e) ||
         !c ||
-        (!c.due && !state.settings?.simpleAssessments && !c.scheduleFree) ||
+        (!c.due && !c.scheduleFree) ||
         !canCollectInEpisode(e, c) ||
         p.consent !== "Recorded" ||
         p.contact !== "Suitable" ||
@@ -4746,7 +4779,7 @@ export function reducer(state, action) {
       if (
         !["SMS link", "Clinic tablet", "Clinician entry"].includes(
           action.channel,
-        ) ||
+        ) || (!assessmentSms && action.channel === "SMS link") ||
         !getInstrument(c.version).respondents.includes(action.respondent)
       )
         return state;
@@ -4766,7 +4799,7 @@ export function reducer(state, action) {
         currentStaff(state)?.role !== "Clinician"
       )
         return state;
-      if ((state.settings?.simpleAssessments || c.scheduleFree) && (action.externalAppointment || action.appointmentId)) return state;
+      if (!linkAssessmentAppointments && (action.externalAppointment || action.appointmentId)) return state;
       if (action.externalAppointment &&
           (!validExternalSlot(action.externalAppointment) ||
             action.externalAppointment.date < TODAY ||
@@ -4781,8 +4814,8 @@ export function reducer(state, action) {
       c.respondent = action.respondent;
       c.respondentName = action.respondent === "Person" ? p.name : p.family;
       c.channel = action.channel;
-      if (hasExternalSelection || state.settings?.simpleAssessments || c.scheduleFree)
-        c.externalAppointment = state.settings?.simpleAssessments || c.scheduleFree || action.channel === "SMS link"
+      if (hasExternalSelection || !linkAssessmentAppointments)
+        c.externalAppointment = !linkAssessmentAppointments || action.channel === "SMS link"
           ? null
           : action.externalAppointment || null;
       c.assistance = action.assistance;
@@ -4794,7 +4827,7 @@ export function reducer(state, action) {
         action.channel === "Clinician entry" ? c.recorder : c.respondentName;
       c.recorderId =
         action.channel === "Clinician entry" ? currentStaff(state).id : null;
-      const linkedApptId = state.settings?.simpleAssessments || c.scheduleFree || action.channel === "SMS link" || c.externalAppointment || action.appointmentId === null ? null :
+      const linkedApptId = !linkAssessmentAppointments || action.channel === "SMS link" || c.externalAppointment || action.appointmentId === null ? null :
         action.appointmentId ||
         (action.channel !== "SMS link"
           ? e.appointments?.find(
@@ -4869,14 +4902,14 @@ export function reducer(state, action) {
           !Array.isArray(action.answers) ||
           (attempt.channel === "Clinician entry" &&
             (staff?.role !== "Clinician" || staff.id !== attempt.recorderId))) return state;
-      if ((state.settings?.simpleAssessments || c.scheduleFree) && action.contactLink && action.contactLink.kind !== "none") return state;
+      if (!linkAssessmentAppointments && action.contactLink && action.contactLink.kind !== "none") return state;
       if (action.completionMethod &&
           (!["Clinic tablet", "Clinician entry"].includes(attempt.channel) ||
             !["Clinic tablet", "Clinician entry"].includes(action.completionMethod) ||
             (action.completionMethod === "Clinician entry" && staff?.role !== "Clinician"))) return state;
       const confirmedChannel = action.completionMethod || attempt.channel;
       if (action.assistance !== undefined &&
-          (!(state.settings?.simpleAssessments || c.scheduleFree) ||
+          (linkAssessmentAppointments ||
             confirmedChannel !== "Clinic tablet" ||
             !["Independent", "Supported"].includes(action.assistance))) return state;
       let linkedContactId = null;
@@ -4887,6 +4920,7 @@ export function reducer(state, action) {
               !contact.actualDate || contact.actualDate > TODAY) return state;
           linkedContactId = contact.id;
         } else if (action.contactLink.kind === "new") {
+          if (!assessmentSms && action.contactLink.contact?.deliveryMode === "SMS") return state;
           const contactAction = { ...action.contactLink.contact, collectionIds: [c.id] };
           if (e.status !== "Active" || contactAction.attendance !== "Attended" ||
               appointmentError(e, contactAction, TODAY)) return state;
@@ -4972,7 +5006,7 @@ export function reducer(state, action) {
       )
         return state;
       const contactLink = action.contactLink;
-      if (state.settings?.simpleAssessments && contactLink && contactLink.kind !== "none") return state;
+      if (!linkAssessmentAppointments && contactLink && contactLink.kind !== "none") return state;
       let selectedContact = null;
       if (contactLink?.kind === "existing") {
         selectedContact = e.appointments?.find((item) => item.id === contactLink.appointmentId);
@@ -4980,6 +5014,7 @@ export function reducer(state, action) {
             (selectedContact.attendance === "Attended" &&
               (!selectedContact.actualDate || selectedContact.actualDate > TODAY))) return state;
       } else if (contactLink?.kind === "new") {
+        if (!assessmentSms && contactLink.contact?.deliveryMode === "SMS") return state;
         if (e.status !== "Active" || contactLink.contact?.attendance !== "Attended" ||
             appointmentError(e, { ...contactLink.contact, collectionIds: [c.id] }, TODAY)) return state;
       } else if (contactLink && contactLink.kind !== "none") return state;
@@ -4991,10 +5026,10 @@ export function reducer(state, action) {
           (!appointmentOutcome || appointmentOutcome.attendance !== "Attended")) return state;
       if (selectedContact?.attendance === "Attended" && appointmentOutcome) return state;
       if (contactLink?.kind === "new" && appointmentOutcome) return state;
-      if (state.settings?.simpleAssessments && (appointmentOutcome || action.completionMethod)) return state;
+      if (!linkAssessmentAppointments && appointmentOutcome) return state;
       const confirmedChannel = action.completionMethod || appointmentOutcome?.completionMethod || c.channel;
       if (action.assistance !== undefined &&
-          (!(state.settings?.simpleAssessments || c.scheduleFree) ||
+          (linkAssessmentAppointments ||
             confirmedChannel !== "Clinic tablet" ||
             !["Independent", "Supported"].includes(action.assistance))) return state;
       const appointmentToConfirm = appointmentOutcome
@@ -5056,7 +5091,8 @@ export function reducer(state, action) {
       c.submittedAt = TODAY;
       c.submittedTimestamp = recordedAt;
       c.submittedAttemptId = c.attempts.at(-1)?.id;
-      c.submittedAppointmentId = c.attempts.at(-1)?.appointmentId || c.appointmentId || null;
+      c.submittedAppointmentId = linkAssessmentAppointments
+        ? c.attempts.at(-1)?.appointmentId || c.appointmentId || null : null;
       if (c.attempts.at(-1)) {
         c.attempts.at(-1).status = "Response submitted";
         c.attempts.at(-1).endedAt = recordedAt;
@@ -5152,6 +5188,7 @@ export function reducer(state, action) {
         !e ||
         e.status !== "Active" ||
         !["SMS link", "Clinic tablet"].includes(action.channel) ||
+        (!assessmentSms && action.channel === "SMS link") ||
         (action.channel === "SMS link" && p.contact !== "Suitable") ||
         p.consentRequests?.some(
           (request) =>

@@ -119,7 +119,7 @@ export function timelineExtent(entries) {
   return { start: dates[0] || null, end: dates.at(-1) || null };
 }
 
-export function careTimelineData(episode, { simpleAssessments = false } = {}) {
+export function careTimelineData(episode, { simpleAssessments = false, scheduleAssessments = true, assessmentSms = true } = {}) {
   const events = recordedCareEvents(episode);
   const reportEvents = events.filter((event) =>
     ["service-period", "medication-course", "goal-milestone"].includes(event.eventType),
@@ -128,7 +128,7 @@ export function careTimelineData(episode, { simpleAssessments = false } = {}) {
     .filter((record) => isRecordedDate(record.recordDate));
   const medicationRecords = clinicalRecords.filter((record) => record.recordType === "medication");
   const appointments = (episode?.appointments ?? [])
-    .filter((appointment) => isRecordedDate(appointment.actualDate || appointment.plannedDate))
+    .filter((appointment) => (assessmentSms || appointment.deliveryMode !== "SMS") && isRecordedDate(appointment.actualDate || appointment.plannedDate))
     .map((appointment) => item({
       id: `appointment-${appointment.id}`,
       date: appointment.actualDate || appointment.plannedDate,
@@ -175,7 +175,7 @@ export function careTimelineData(episode, { simpleAssessments = false } = {}) {
             ]
           : [];
       const planned =
-        !simpleAssessments && collection.response !== "Submitted" &&
+        scheduleAssessments && !simpleAssessments && collection.response !== "Submitted" &&
         /review/i.test(collection.label || "") &&
         isRecordedDate(collection.due)
           ? [

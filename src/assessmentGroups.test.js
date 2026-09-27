@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assessmentTypeGroups, prioritizeSimpleAssessmentGroups } from "./assessmentGroups.js";
+import { assessmentScoreLabel, assessmentTypeGroups, linkedAssessmentScore, prioritizeSimpleAssessmentGroups } from "./assessmentGroups.js";
 import { createSeed } from "./model.js";
 
 test("grouped assessments compare linked raw scores with the previous scored response", () => {
@@ -24,6 +24,13 @@ test("no arrow value is derived when a previous linked score is unavailable", ()
     .find((item) => item.key === "k10-plus");
   assert.equal(group.score, 27);
   assert.equal(group.scoreChange, null);
+});
+
+test("latest score labels contain only a raw score or Not scored", () => {
+  const episode = createSeed().people.find((person) => person.id === "YS-1034").episodes[0];
+  const scored = episode.collections.find((collection) => collection.id === "A-7-measure-k10-plus-latest");
+  assert.equal(assessmentScoreLabel(linkedAssessmentScore(episode, scored)), "27 / 50");
+  assert.equal(assessmentScoreLabel(null), "Not scored");
 });
 
 test("created and draft assessments precede completed rows and groups", () => {
@@ -52,4 +59,21 @@ test("created and draft assessments precede completed rows and groups", () => {
   const completedGroups = assessmentTypeGroups(episode, completed);
   const completedDisplay = prioritizeSimpleAssessmentGroups(completedGroups, completed);
   assert.deepEqual(completedDisplay.map((group) => group.key), completedGroups.map((group) => group.key));
+});
+
+test("initial assessment follow-ups share the existing accordion even with a legacy version", () => {
+  const episode = createSeed().people.find((person) => person.id === "YS-1033").episodes[0];
+  const original = episode.collections.find((collection) => collection.label === "Initial assessment");
+  episode.collections.push({
+    ...original,
+    id: "initial-follow-up",
+    label: "Initial assessment · follow-up",
+    version: "Initial assessment v1.0",
+    response: "Draft",
+    attempts: [],
+  });
+  const groups = assessmentTypeGroups(episode, episode.collections);
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0].name, "Initial assessment");
+  assert.equal(groups[0].collections.length, 2);
 });

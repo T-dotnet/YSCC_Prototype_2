@@ -8,6 +8,8 @@ import { reportEvidence } from "../progress";
 import { appointmentDetails } from "../appointments";
 import { clinicalRecordDetails, clinicalRecordType } from "../clinicalRecords";
 import { TextLink, Badge } from "../components/UI";
+import { useStore } from "../store";
+import { assessmentContactLinkingEnabled } from "../assessmentFeatures";
 
 const dateLabel = (date, showYear) =>
   new Date(`${date}T12:00:00Z`).toLocaleDateString("en-GB", {
@@ -76,8 +78,8 @@ function reportLanes(timeline) {
   ];
 }
 
-export function hasCareTimelineEntries(episode, { simpleAssessments = false } = {}) {
-  const timeline = careTimelineData(episode, { simpleAssessments });
+export function hasCareTimelineEntries(episode, { simpleAssessments = false, scheduleAssessments = true, assessmentSms = true } = {}) {
+  const timeline = careTimelineData(episode, { simpleAssessments, scheduleAssessments, assessmentSms });
   return reportLanes(timeline).some((lane) => lane.entries.length > 0) ||
     timeline.lanes.some((lane) => lane.id === "k10" && lane.entries.length > 0);
 }
@@ -111,6 +113,8 @@ function sourceRecord(episode, entry) {
 }
 
 function RecordDetail({ person, episode, entry, onClose, onOpenSource }) {
+  const { state } = useStore();
+  const linkAssessmentAppointments = assessmentContactLinkingEnabled(state.settings);
   if (!entry) return null;
   const source = sourceRecord(episode, entry);
   const collection = entry.sourceType === "collection" ? source : null;
@@ -255,7 +259,8 @@ function RecordDetail({ person, episode, entry, onClose, onOpenSource }) {
         )}
         {appointment && <>
           <div><dt>Recorded by</dt><dd>{appointment.actor || "Not recorded"}{appointment.role ? ` · ${appointment.role}` : ""}</dd></div>
-          {appointmentDetails(appointment, episode).filter(([, value]) => value).map(([label, value]) =>
+          {appointmentDetails(appointment, episode).filter(([label, value]) => value &&
+            (linkAssessmentAppointments || label !== "Initial assessment" && !label.startsWith("Associated assignment"))).map(([label, value]) =>
             <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
           )}
         </>}
@@ -864,8 +869,8 @@ function CareAndMedicationChart({ timeline }) {
   );
 }
 
-export function CareTimeline({ person, episode, navigate, isVisible, onToggle, simpleAssessments = false }) {
-  const timeline = careTimelineData(episode, { simpleAssessments });
+export function CareTimeline({ person, episode, navigate, isVisible, onToggle, simpleAssessments = false, scheduleAssessments = true, linkAssessmentAppointments = true, assessmentSms = true }) {
+  const timeline = careTimelineData(episode, { simpleAssessments, scheduleAssessments, assessmentSms });
   const evidence = reportEvidence(person, episode);
 
   const openSource = (entry) => {

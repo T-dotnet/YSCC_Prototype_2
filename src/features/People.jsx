@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import useQueueView from "../useQueueView";
 import { Plus, ChevronRight, CircleAlert, CheckCircle2 } from "lucide-react";
 import { useStore } from "../store";
+import { assessmentSchedulingEnabled } from "../assessmentFeatures";
 import { formatDate, TODAY } from "../model";
 import { getQualityIssues, recordCompleteness } from "../dataQuality";
 import { comparePeople, peopleForList } from "../people";
@@ -24,7 +25,7 @@ const PAGE_SIZE = 6;
 
 export default function People({ navigate, openModal }) {
   const { state } = useStore();
-  const simpleAssessments = !!state.settings?.simpleAssessments;
+  const scheduleAssessments = assessmentSchedulingEnabled(state.settings);
   const view = useQueueView();
   const query = view.params.get("q") || "";
   const { sort: sortConfig, toggleSort } = useQueueSort({ key: "priority", direction: "asc" });
@@ -56,7 +57,7 @@ export default function People({ navigate, openModal }) {
 
   const rows = useMemo(() => {
     let result = peopleForList(state.people, status, query);
-    if (simpleAssessments) result = result.map((row) => {
+    if (!scheduleAssessments) result = result.map((row) => {
       if (!row.collection) return row;
       const assessmentState = row.collection.response === "Submitted" ? "Completed"
         : row.collection.response === "Draft" ? "Draft" : "Created";
@@ -77,7 +78,7 @@ export default function People({ navigate, openModal }) {
       owner: (row) => row.episode?.owner || row.person.owner || "Unassigned",
       episodeStatus: (row) => row.episode?.status || "Intake",
     }, sortConfig.key === "priority" ? comparePeople : undefined);
-  }, [state.people, simpleAssessments, status, query, sortConfig]);
+  }, [state.people, scheduleAssessments, status, query, sortConfig]);
 
   const statusOptions = [...new Set(rows.map((row) => row.status))];
   if (

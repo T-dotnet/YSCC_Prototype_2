@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useStore } from "../store";
+import { assessmentContactLinkingEnabled } from "../assessmentFeatures";
 import { patientIdentifier } from "../patientIdentity";
 import { canAssess } from "../intake";
 import { collectionActor, currentStaff, formatDate } from "../model";
@@ -17,7 +18,7 @@ export default function ClinicianQuestionnaire({
   onClose,
 }) {
   const { state, commit } = useStore();
-  const simpleAssessments = !!state.settings?.simpleAssessments || !!collection.scheduleFree;
+  const simpleAssessments = !assessmentContactLinkingEnabled(state.settings);
   const [answers, setAnswers] = useState(() => [...(collection.draftAnswers || [])]);
   const [discard, setDiscard] = useState(false);
   const [finished, setFinished] = useState(false);

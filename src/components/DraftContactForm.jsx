@@ -13,7 +13,7 @@ export default function DraftContactForm({ episode, collection, error, onCancel,
   const [choice, setChoice] = useState("");
   const [existingId, setExistingId] = useState("");
   const [recipient, setRecipient] = useState("Young person");
-  const [method, setMethod] = useState(collection.channel);
+  const [method, setMethod] = useState(collection.channel === "SMS link" ? "SMS link" : "");
   const [assistance, setAssistance] = useState("");
   const showTabletAssistance = confirmTabletAssistance && method === "Clinic tablet";
   const confirmedMethod = ["Clinic tablet", "Clinician entry"].includes(method) ? method : undefined;
@@ -32,6 +32,10 @@ export default function DraftContactForm({ episode, collection, error, onCancel,
     <ValidatedForm
       onSubmit={(event) => {
         event.preventDefault();
+        if (!confirmedMethod && collection.channel !== "SMS link") {
+          setChoiceError("Choose how these answers were completed before saving the draft.");
+          return;
+        }
         if (showTabletAssistance && !assistance) {
           setChoiceError("Choose whether the tablet answers were completed independently or with assistance.");
           return;
@@ -110,7 +114,7 @@ export default function DraftContactForm({ episode, collection, error, onCancel,
               <Field label="Delivery mode">
                 <select name="deliveryMode" defaultValue="" required>
                   <option value="">Choose a mode</option>
-                  {DRAFT_CONTACT_DELIVERY_MODES.map((value) => <option key={value}>{value}</option>)}
+                  {DRAFT_CONTACT_DELIVERY_MODES.filter((value) => !["SMS", "Clinic tablet", "Clinician entry"].includes(value)).map((value) => <option key={value}>{value}</option>)}
                 </select>
               </Field>
               <Field label="Recipient">

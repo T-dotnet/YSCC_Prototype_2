@@ -6,6 +6,8 @@ import {
   LIKERT_INSTRUMENT,
   LEGACY_INSTRUMENT,
   INSTRUMENTS,
+  INSTRUMENT_GROUPS,
+  NINETY_DAY_REVIEW_INSTRUMENT,
   getInstrument,
   questionnaireState,
   setQuestionAnswer,
@@ -89,6 +91,32 @@ test("initial assessment is available with person and family wording", () => {
   assert.ok(INSTRUMENTS.includes(INITIAL_ASSESSMENT_INSTRUMENT));
   assert.ok(INITIAL_ASSESSMENT_INSTRUMENT.questions.every((question) => question.family));
   assert.deepEqual(INITIAL_ASSESSMENT_INSTRUMENT.respondents, ["Person", "Family respondent"]);
+});
+
+test("instrument selector groups every version and includes review questionnaires", () => {
+  assert.deepEqual(INSTRUMENT_GROUPS.map((group) => group.label), ["Intake", "Assessments", "Review"]);
+  assert.deepEqual(INSTRUMENT_GROUPS.flatMap((group) => group.instruments.map((item) => item.version)).sort(),
+    INSTRUMENTS.map((item) => item.version).sort());
+  assert.deepEqual(INSTRUMENT_GROUPS.find((group) => group.label === "Review").instruments.map((item) => item.version), [
+    NINETY_DAY_REVIEW_INSTRUMENT.version,
+    "Episode closure assessment v1.0",
+    "Care experience feedback v1.0",
+  ]);
+  assert.equal(getInstrument(NINETY_DAY_REVIEW_INSTRUMENT.version), NINETY_DAY_REVIEW_INSTRUMENT);
+});
+
+test("a 90-day review can start as an immediate assessment", () => {
+  const state = createSeed();
+  const next = reducer(state, {
+    type: "PLAN", personId: "YS-1024", episodeId: "EP-1024-01",
+    id: "COL-review-test", label: "90-day review", due: "",
+    version: NINETY_DAY_REVIEW_INSTRUMENT.version, respondent: "Person",
+  });
+  const review = next.people.find((person) => person.id === "YS-1024")
+    .episodes.find((episode) => episode.id === "EP-1024-01")
+    .collections.find((collection) => collection.id === "COL-review-test");
+  assert.equal(review?.version, NINETY_DAY_REVIEW_INSTRUMENT.version);
+  assert.equal(review?.scheduleFree, true);
 });
 
 test("the youth check-in keeps verbal Likert anchors and nonresponse distinct", () => {

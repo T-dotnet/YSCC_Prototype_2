@@ -51,7 +51,7 @@ test("Care events assessment facts use the submitted date and linked score, not 
     collections: [{ ...collection, response: "Not started", submittedAt: null }],
   }).primary.slice(1), [
     { label: "Submitted", value: "Not submitted" },
-    { label: "Score", value: "Awaiting response" },
+    { label: "Score", value: "Not scored" },
   ]);
 });
 
@@ -65,8 +65,24 @@ test("simple assessment history shows progress without due dates or assignment",
     { collections: [collection] }, undefined, true);
   assert.equal(item.date, "2026-09-01");
   assert.equal(item.dateLabel, "Created");
-  assert.deepEqual(item.primary.map(({ label }) => label), ["Created", "Completed", "Score"]);
+  assert.deepEqual(item.primary.map(({ label }) => label), ["Created", "Score"]);
   assert.deepEqual(item.more, []);
+});
+
+test("Care events show only the applicable draft or completion date", () => {
+  const collection = {
+    id: "assessment-progress", label: "Review", version: "Review v1",
+    createdAt: "2026-09-01T09:00:00Z", response: "Draft",
+    attempts: [{ savedAt: "2026-09-03T12:00:00Z" }],
+  };
+  const entry = { type: "assessment", collectionId: collection.id };
+  const draft = historyItem(entry, { collections: [collection] }, undefined, true);
+  assert.deepEqual(draft.primary.map(({ label }) => label), ["Created", "Draft saved", "Score"]);
+
+  const completed = historyItem(entry, { collections: [{ ...collection,
+    response: "Submitted", submittedAt: "2026-09-05T09:00:00Z",
+  }] }, undefined, true);
+  assert.deepEqual(completed.primary.map(({ label }) => label), ["Created", "Completed", "Score"]);
 });
 
 test("simple assessment history keeps Created first when its date is unavailable", () => {
