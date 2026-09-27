@@ -76,14 +76,14 @@ export const PageHeadingAndPanel = {
         />
         <div className="table-scroll people-table-scroll">
           <table className="people-table responsive-queue-table" aria-label="People and assessment status">
-            <thead><tr><th>Person</th><th>Status</th><th>Next / latest assessment</th><th>Required data</th><th>Care owner</th><th>Episode</th><th><span className="sr-only">Open</span></th></tr></thead>
+            <thead><tr><th>Person</th><th>Next / latest assessment</th><th>Status</th><th>Required data</th><th>Care owner</th><th>Episode</th><th><span className="sr-only">Open</span></th></tr></thead>
             <tbody>{visible.slice(0, 3).map((row) => {
               const p = row.person;
               const completeness = recordCompleteness(p, TODAY).requiredPercentage;
               return <QueueRow key={p.id}>
                 <QueueCell label="Person" slot="subject" className="people-identity"><div className="person-cell"><span className="people-identity-copy"><button className="name-link" type="button">{p.name}</button><span className="people-identity-meta"><small className="people-id">{p.id}</small><small>{p.dob ? `${age(p.dob)} years` : "Age unknown"}</small></span></span></div></QueueCell>
-                <QueueCell label="Status" slot="state" className="people-status"><Badge>{row.status}</Badge></QueueCell>
                 <QueueCell label="Next / latest assessment" slot="summary" className="people-assessment"><span>{row.stage ? `Intake - ${row.stage}` : row.label}</span><small className={row.status === "Overdue" ? "people-overdue" : ""}>{row.detail}</small></QueueCell>
+                <QueueCell label="Status" slot="state" className="people-status"><Badge>{row.status}</Badge></QueueCell>
                 <QueueCell label="Required data" slot="metric" className="people-completeness"><div className="people-completeness-summary"><strong>{completeness}%</strong><span className="people-completeness-bar" role="progressbar" aria-label={`${completeness}% of required data complete`} aria-valuemin="0" aria-valuemax="100" aria-valuenow={completeness}><span style={{ width: `${completeness}%` }} /></span></div></QueueCell>
                 <QueueCell label="Care owner" slot="owner" className="people-owner">{row.episode?.owner || p.owner || "Unassigned"}</QueueCell>
                 <QueueCell label="Episode" slot="date" className="people-episode"><span>{row.episode?.status || "Intake"}</span><small>{row.episode ? `Started ${formatDate(row.episode.start)}` : "Not started"}</small></QueueCell>

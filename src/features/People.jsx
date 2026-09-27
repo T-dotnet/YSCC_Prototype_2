@@ -185,8 +185,8 @@ export default function People({ navigate, openModal }) {
             <thead>
               <tr>
                 <SortableHeader label="Person" sortKey="name" sort={sortConfig} onSort={toggleSort} />
-                <SortableHeader label="Status" sortKey="status" sort={sortConfig} onSort={toggleSort} />
                 <th>Next / latest assessment</th>
+                <SortableHeader label="Status" sortKey="status" sort={sortConfig} onSort={toggleSort} />
                 <SortableHeader label="Required data" sortKey="completeness" sort={sortConfig} onSort={toggleSort} />
                 <SortableHeader label="Care owner" sortKey="owner" sort={sortConfig} onSort={toggleSort} className="people-owner" />
                 <SortableHeader label="Episode" sortKey="episodeStatus" sort={sortConfig} onSort={toggleSort} className="people-episode" />
@@ -225,9 +225,6 @@ export default function People({ navigate, openModal }) {
                         </span>
                       </div>
                     </QueueCell>
-                    <QueueCell label="Status" slot="state" className="people-status">
-                      <Badge>{row.status}</Badge>
-                    </QueueCell>
                     <QueueCell label="Next / latest assessment" slot="summary" className="people-assessment">
                       <span>
                         {row.stage ? `Intake - ${row.stage}` : row.label}
@@ -239,6 +236,9 @@ export default function People({ navigate, openModal }) {
                       >
                         {row.detail}
                       </small>
+                    </QueueCell>
+                    <QueueCell label="Status" slot="state" className="people-status">
+                      <Badge>{row.status}</Badge>
                     </QueueCell>
                     <QueueCell label="Required data" slot="metric" className="people-completeness">
                       <div className={`people-completeness-summary ${completeness.requiredPercentage === 100 ? "complete-100" : ""}`}>
