@@ -1022,7 +1022,7 @@ export default function Person({ id, navigate, openModal }) {
             />
             <div className={`assessment-list${!simpleAssessments && groupAssessmentsByType ? " assessment-ledger-list" : ""}`} id="assessment-list" ref={assessmentListRef}>
               {simpleAssessments && groupAssessmentsByType
-                ? <div className="stack">{simpleGroupedAssessments.map((group, index) => {
+                ? <div className="stack">{simpleGroupedAssessments.map((group) => {
                     const records = group.records;
                     const statusCounts = ["Draft", "Created", "Completed"].map((status) =>
                       ({ status, count: records.filter((col) => assessmentState(col) === status).length }))
@@ -1030,7 +1030,7 @@ export default function Person({ id, navigate, openModal }) {
                     const latestScore = group.lastDone
                       ? assessmentScoreLabel(group.lastDone, linkedAssessmentScore(e, group.lastDone))
                       : "Awaiting response";
-                    return <details className="assessment-simple-group" key={`${assessmentFilter}:${assessmentQuery}:${group.key}`} open={index === 0 || assessmentFilter !== "all" || !!assessmentQuery.trim()}>
+                    return <details className="assessment-simple-group" key={`${assessmentFilter}:${assessmentQuery}:${group.key}`} open={assessmentFilter !== "all" || !!assessmentQuery.trim()}>
                       <summary className="assessment-simple-group-header">
                         <ChevronDown size={18} aria-hidden="true" />
                         <h3>{group.name}</h3>
