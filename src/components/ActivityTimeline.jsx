@@ -28,8 +28,6 @@ import { SearchInput, Select, Button, Empty, FilterTabs } from "./UI";
 import RecordItem from "./RecordItem";
 import ListFilterBar from "./ListFilterBar";
 import TimelineExpandAll from "./TimelineExpandAll";
-import RelatedRecordsAccordion from "./RelatedRecordsAccordion";
-import { assessmentsForContact, contactsForAssessment } from "../assessmentContacts";
 import { useStore } from "../store";
 import { assessmentSchedulingEnabled, assessmentContactLinkingEnabled, assessmentHistoryEntryVisible } from "../assessmentFeatures";
 
@@ -255,10 +253,6 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordA
         const collection = entry.type === "assessment"
           ? episode.collections.find((candidate) => candidate.id === entry.collectionId)
           : null;
-        const relatedAssessments = showCategories && appointment
-          ? assessmentsForContact(episode, appointment.id) : [];
-        const relatedContacts = showCategories && collection
-          ? contactsForAssessment(episode, collection.id) : [];
         const contactSummary = showCategories && appointment
           ? contactCareEventFacts(item, appointment) : null;
         const primaryFacts = showCategories && collection
@@ -335,27 +329,21 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordA
                   : undefined}
               className={`record-item-compact${isSelectedSource ? " care-event-selected" : ""}`}
               facts={visiblePrimaryFacts.map(toFact)}
-              secondary={(relatedAssessments.length > 0 || relatedContacts.length > 0 || (!(simpleAssessments && showCategories) && moreFacts.length > 0)) && (
-                <>
-                  <RelatedRecordsAccordion inline={simpleAssessments && showCategories} kind="assessments" records={relatedAssessments} contactId={appointment?.id} />
-                  <RelatedRecordsAccordion inline={simpleAssessments && showCategories} kind="contacts" records={relatedContacts} collection={collection} />
-                  {!(simpleAssessments && showCategories) && moreFacts.length > 0 && (
-                    <details className="appointment-more-detail history-more-details">
-                      <summary>
-                        <span className="history-more-closed">Record details · {moreFacts.length}</span>
-                        <span className="history-more-open">Show less</span>
-                      </summary>
-                      <dl className="record-item-facts">
-                        {moreFacts.map((detail) => (
-                          <div key={detail.label} className={toFact(detail).wide ? "record-item-fact-wide" : undefined}>
-                            <dt>{detail.label}</dt>
-                            <dd>{toFact(detail).value}</dd>
-                          </div>
-                        ))}
-                      </dl>
-                    </details>
-                  )}
-                </>
+              secondary={!(simpleAssessments && showCategories) && moreFacts.length > 0 && (
+                <details className="appointment-more-detail history-more-details">
+                  <summary>
+                    <span className="history-more-closed">Record details · {moreFacts.length}</span>
+                    <span className="history-more-open">Show less</span>
+                  </summary>
+                  <dl className="record-item-facts">
+                    {moreFacts.map((detail) => (
+                      <div key={detail.label} className={toFact(detail).wide ? "record-item-fact-wide" : undefined}>
+                        <dt>{detail.label}</dt>
+                        <dd>{toFact(detail).value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </details>
               )}
               note={isCareEvent && entry.correctedEventId ? "This is an append-only correction of an earlier event." : undefined}
               actions={datedAction || (onCorrectEvent && isCareEvent && (

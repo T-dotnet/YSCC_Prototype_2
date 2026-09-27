@@ -1,9 +1,10 @@
 import { collectionStatus, formatDate } from "../model";
 import { getInstrument } from "../instruments";
 import { contactContribution } from "../responseSessions";
-import { Badge } from "./UI";
+import { Badge, Button, Modal, TextLink } from "./UI";
 import { useStore } from "../store";
 import { assessmentContactLinkingEnabled, assessmentSchedulingEnabled, assessmentSmsEnabled } from "../assessmentFeatures";
+import { useState } from "react";
 
 const contactName = (contact) =>
   contact.contactType || contact.appointmentType || contact.practitionerService || "Service contact";
@@ -18,6 +19,7 @@ const contributionCell = (contribution) => (
 );
 
 export default function RelatedRecordsAccordion({ kind, records = [], collection, contactId, showEmpty = false, inline = false }) {
+  const [open, setOpen] = useState(false);
   const { state } = useStore();
   if (!assessmentContactLinkingEnabled(state.settings)) return null;
   const visibleRecords = records.filter((record) =>
@@ -52,7 +54,7 @@ export default function RelatedRecordsAccordion({ kind, records = [], collection
       : [
           record.label,
           record.submittedAt
-            ? `Response ${formatDate(record.submittedAt.slice(0, 10))}`
+            ? formatDate(record.submittedAt.slice(0, 10))
             : assessmentSchedulingEnabled(state.settings) && record.due ? `Due ${formatDate(record.due)}` : "Not completed",
           assessmentSchedulingEnabled(state.settings) ? collectionStatus(record) : record.response === "Submitted" ? "Completed" : record.response === "Draft" ? "Draft" : "Created",
           contribution ? contributionCell(contribution) : "—",
@@ -61,36 +63,33 @@ export default function RelatedRecordsAccordion({ kind, records = [], collection
   };
 
   const table = visibleRecords.length ? (
-        <div className={`related-records-table${contacts && collection ? " has-contribution" : ""}${!contacts ? " linked-assessments-table" : ""}`} role="table" aria-label={title}>
-          <div className="related-records-header" role="row">
-            {headings.map((heading) => <span role="columnheader" key={heading}>{heading}</span>)}
-          </div>
-          {orderedRecords.map((record) => {
-            return (
-              <div className="related-records-row" role="row" key={record.id}>
-                {fieldsForRecord(record).map(({ heading, value }) => (
-                  <span className="related-records-cell" role="cell" key={heading}>
-                    <small>{heading}</small>
-                    <span>{value}</span>
-                  </span>
-                ))}
-              </div>
-            );
-          })}
+        <div className="table-scroll related-records-table-scroll">
+          <table className="people-table related-records-native-table" aria-label={title}>
+            <thead>
+              <tr>{headings.map((heading) => <th scope="col" key={heading}>{heading}</th>)}</tr>
+            </thead>
+            <tbody>
+              {orderedRecords.map((record) => (
+                <tr key={record.id}>
+                  {fieldsForRecord(record).map(({ heading, value }) => <td key={heading}>{value}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       ) : <p className="related-records-empty">None linked.</p>;
 
-  if (inline) return (
-    <section className="history-associated-details related-records-inline" aria-label={title}>
-      <h5>{title} · {visibleRecords.length}</h5>
-      {table}
-    </section>
-  );
-
   return (
-    <details className="appointment-more-detail history-associated-details related-records-accordion">
-      <summary>{title} · {visibleRecords.length}</summary>
-      {table}
-    </details>
+    <section className={`history-associated-details related-records-link${inline ? " related-records-inline" : ""}`} aria-label={title}>
+      <TextLink type="button" aria-haspopup="dialog" onClick={() => setOpen(true)}>
+        {title} · {visibleRecords.length}
+      </TextLink>
+      {open && (
+        <Modal title={title} subtitle={`${visibleRecords.length} ${visibleRecords.length === 1 ? "record" : "records"}`} onClose={() => setOpen(false)} wide className="related-records-dialog">
+          <div className="form-body related-records-dialog-body">{table}</div>
+          <div className="modal-footer"><Button type="button" onClick={() => setOpen(false)}>Close</Button></div>
+        </Modal>
+      )}
+    </section>
   );
 }

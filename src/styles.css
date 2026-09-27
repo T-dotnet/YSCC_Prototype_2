@@ -9910,6 +9910,47 @@ form.has-validation-errors .check-field:has(:invalid) {
   border-radius: var(--control-radius);
   overflow: hidden;
 }
+.modal.wide.related-records-dialog {
+  width: min(960px, calc(100vw - 32px));
+}
+.related-records-dialog .modal-heading {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.related-records-dialog > .related-records-dialog-body {
+  margin-top: 0;
+  border: 0;
+  border-radius: 0;
+  padding-top: var(--space-4);
+}
+.related-records-table-scroll {
+  width: 100%;
+  padding-inline: 0;
+}
+.related-records-native-table {
+  min-width: 680px;
+}
+.related-records-native-table :is(th, td):first-child {
+  padding-left: 0;
+}
+.related-records-native-table th {
+  background: transparent;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  white-space: nowrap;
+}
+.related-records-native-table td {
+  white-space: normal;
+  font-size: var(--type-control);
+  line-height: 1.5;
+}
+.related-records-native-table td:last-child {
+  outline: 0;
+  border-radius: 0;
+}
+.related-records-native-table tbody tr {
+  cursor: default;
+}
 .related-records-header,
 .related-records-row {
   display: grid;

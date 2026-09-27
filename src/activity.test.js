@@ -253,7 +253,7 @@ test("Care events projects Jordan's appointment and assessment lists once each",
   );
   assert.deepEqual(
     events.filter((entry) => entry.type === "assessment").map((entry) => entry.collectionId).sort(),
-    episode.collections.map((collection) => collection.id).sort(),
+    episode.collections.filter((collection) => collection.response === "Submitted").map((collection) => collection.id).sort(),
   );
   assert.ok(events.every((entry) => ["appointment", "assessment", "clinical-record"].includes(entry.type) || entry.eventDate));
   const baseline = events.find((entry) => entry.collectionId === "A-7-life-care-starting-point");
@@ -265,7 +265,7 @@ test("Care events projects Jordan's appointment and assessment lists once each",
   assert.ok(history.some((entry) => entry.collectionId));
 });
 
-test("simple Care events include created and completed assessments but exclude future activity", () => {
+test("simple Care events include completed assessments but exclude drafts and future activity", () => {
   const person = { id: "P-1" };
   const episode = {
     id: "EP-1",
@@ -286,13 +286,13 @@ test("simple Care events include created and completed assessments but exclude f
   };
   const all = careEventEntries(person, episode);
   const simple = careEventEntries(person, episode, [], { simpleAssessments: true, today: "2026-09-27" });
-  assert.equal(all.length, 8);
+  assert.equal(all.length, 7);
   assert.deepEqual(simple.map((entry) => entry.id).sort(), [
-    "appointment-attended", "assessment-completed", "assessment-due", "past-event",
+    "appointment-attended", "assessment-completed", "past-event",
   ]);
 });
 
-test("simple Care events show a saved draft on its save date", () => {
+test("simple Care events omit saved drafts", () => {
   const person = { id: "draft-person" };
   const collection = {
     id: "draft-assessment",
@@ -304,9 +304,7 @@ test("simple Care events show a saved draft on its save date", () => {
   };
   const episode = { collections: [collection], appointments: [], events: [] };
   const entries = careEventEntries(person, episode, [], { simpleAssessments: true, today: "2026-09-27" });
-  assert.equal(entries.length, 1);
-  assert.equal(entries[0].date, "2026-09-22");
-  assert.equal(historyItem(entries[0], episode, (value) => value, true).dateLabel, "Draft saved");
+  assert.equal(entries.length, 0);
 });
 
 test("simple Care events retain a future planned contact linked to an assessment", () => {

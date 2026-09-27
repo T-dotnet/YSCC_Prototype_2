@@ -357,6 +357,7 @@ export function careEventEntries(person, episode, audit = [], { simpleAssessment
         ["ADD_CARE_EVENT", "CORRECT_CARE_EVENT"].includes(entry.actionType)),
   );
   const assessments = (episode.collections ?? [])
+    .filter((collection) => collection.response === "Submitted")
     .map((collection) => ({
     ...collection,
     id: `assessment-${collection.id}`,
