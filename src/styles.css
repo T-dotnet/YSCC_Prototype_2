@@ -16235,6 +16235,28 @@ h6 {
   padding-top: var(--space-2);
   border-top: 1px solid var(--line);
 }
+:is(.person-open-surface, .global-change-log-panel) .care-events .care-event-day-list > .care-event-day-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+  padding: var(--space-3) var(--space-4) var(--space-3) calc(32px + var(--space-3) + var(--space-4));
+  border-bottom: 1px solid var(--line-soft);
+  background: #edf6f0;
+}
+.care-event-day-heading h3 {
+  margin: 0;
+  color: var(--orygen-forest);
+  font-size: var(--type-title);
+  font-weight: var(--type-weight-semibold);
+  line-height: var(--type-leading-title);
+}
+.care-event-day-heading > span {
+  color: var(--muted);
+  font-size: var(--type-data-label);
+  white-space: nowrap;
+}
 :is(.person-open-surface, .global-change-log-panel) .care-events .record-timeline > .record-timeline-entry {
   padding-bottom: var(--space-4);
   border-bottom: 1px solid var(--line-soft);
@@ -16272,9 +16294,17 @@ h6 {
 :is(.person-open-surface, .global-change-log-panel) .care-events .record-item > .record-item-heading:hover {
   background: var(--surface-warm);
 }
-:is(.person-open-surface, .global-change-log-panel) .care-events .record-item-heading-text h3 {
+:is(.person-open-surface, .global-change-log-panel) .care-events .record-item-heading-text :is(h3, h4) {
   font-size: var(--type-title);
   font-weight: var(--type-weight-semibold);
+}
+.care-event-day-list .record-item-eyebrow {
+  display: block;
+  margin-bottom: var(--space-half);
+  color: var(--timeline-category-ink, var(--ink-soft));
+  font-size: var(--type-status-label);
+  font-weight: var(--type-weight-semibold);
+  line-height: 1.35;
 }
 :is(.person-open-surface, .global-change-log-panel) .care-events .record-item-heading-text small {
   margin-top: var(--space-half);
@@ -16325,6 +16355,22 @@ h6 {
   :is(.person-open-surface, .global-change-log-panel) .care-events .record-timeline-icon {
     margin-top: 0;
   }
+}
+
+:is(.person-open-surface, .global-change-log-panel) .care-events .care-event-day-list > .record-timeline-entry {
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: var(--space-3);
+}
+:is(.person-open-surface, .global-change-log-panel) .care-events .care-event-day-list > .record-timeline-entry:not(:last-child)::before {
+  display: none;
+}
+:is(.person-open-surface, .global-change-log-panel) .care-events .care-event-day-list > .record-timeline-entry > .record-timeline-icon {
+  grid-column: 1;
+  grid-row: 1;
+}
+:is(.person-open-surface, .global-change-log-panel) .care-events .care-event-day-list > .record-timeline-entry > .record-item {
+  grid-column: 2;
+  grid-row: 1;
 }
 
 @media (max-width: 860px) {
@@ -17497,6 +17543,17 @@ thead th,
 }
 
 @media (max-width: 600px) {
+  .assessment-filter-bar-simple .care-event-quick-filters.work-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+    overflow: visible;
+    padding-bottom: 0;
+  }
+  .assessment-filter-bar-simple .care-event-quick-filters.work-tabs > button {
+    min-width: 0;
+    justify-content: space-between;
+  }
   .assessment-simple-group-records { --assessment-record-inset: calc(18px + var(--space-2) + var(--space-2)); }
   .assessment-simple-group-header {
     grid-template-columns: 18px minmax(0, 1fr);
@@ -17610,9 +17667,12 @@ thead th,
   }
   .assessment-grouped-record-title { grid-column: 1; grid-row: 1; }
   .assessment-grouped-record > .badge { grid-column: 1; grid-row: 2; }
-  .assessment-grouped-record-facts { grid-column: 1; grid-row: 3; }
-  .assessment-grouped-record-facts:has(.button) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .assessment-grouped-record-facts:has(.button) > div:last-child { grid-column: 1 / -1; }
+  .assessment-grouped-record-facts {
+    grid-column: 1;
+    grid-row: 3;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .assessment-grouped-record-facts > div:last-child { grid-column: 1 / -1; }
 }
 
 .admin-setting-toggle {

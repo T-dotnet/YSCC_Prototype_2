@@ -47,7 +47,7 @@ export default function AssessmentCollectionCard({
         <div><dt>Completed</dt><dd>{submittedDate ? formatDate(submittedDate) : "—"}</dd></div>
         <div>
           <dt>{col.response === "Submitted" ? "Score" : "Next step"}</dt>
-          <dd>{col.response === "Submitted" ? scoreValue : <Button variant="secondary" onClick={() => onCollect(col)}>Collect response</Button>}</dd>
+          <dd>{col.response === "Submitted" ? scoreValue : <Button variant="secondary" onClick={() => onCollect(col)}>{col.response === "Draft" ? "Continue response" : "Collect response"}</Button>}</dd>
         </div>
       </dl>
     </article>
@@ -101,7 +101,7 @@ export default function AssessmentCollectionCard({
             )}
           {col.response !== "Submitted" && (
             <Button variant="secondary" disabled={!col.due && !simpleAssessments && !col.scheduleFree} onClick={() => onCollect(col)}>
-              Collect response
+              {simpleAssessments && col.response === "Draft" ? "Continue response" : "Collect response"}
             </Button>
           )}
         </>

@@ -4,6 +4,7 @@ import { Badge } from "./UI";
 
 export default function RecordItem({
   title,
+  eyebrow,
   subtitle,
   status,
   collapsible = false,
@@ -26,6 +27,7 @@ export default function RecordItem({
   const heading = (
     <>
       <span className="record-item-heading-text">
+        {eyebrow && <span className="record-item-eyebrow">{eyebrow}</span>}
         <Heading>{title}</Heading>
         {subtitle && <small>{subtitle}</small>}
       </span>

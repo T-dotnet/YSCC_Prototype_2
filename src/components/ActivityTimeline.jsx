@@ -107,7 +107,7 @@ const displayDate = (value) =>
 const actorLabel = (entry) =>
   `${entry.actor || "Editor not recorded"}${entry.role ? ` · ${entry.role}` : ""}`;
 
-function TimelineDate({ timestamp, date, time, dateLabel, emphasized = false, hideContextLabel = false, hideDate = false }) {
+function TimelineDate({ timestamp, date, time, dateLabel, emphasized = false, hideContextLabel = false }) {
   const parts = !time && !dateLabel && timestamp && timestamp === date
     ? timelineTimestamp(timestamp)
     : null;
@@ -124,11 +124,11 @@ function TimelineDate({ timestamp, date, time, dateLabel, emphasized = false, hi
   const clock = time || parts?.time;
   const context = hideContextLabel ? null : dateLabel || parts?.zone;
   return (
-    <time className={`record-timeline-date${hideDate ? " record-timeline-date-repeated" : ""}`} dateTime={time && date ? `${date.slice(0, 10)}T${time}` : parts ? timestamp : date || undefined}>
+    <time className="record-timeline-date" dateTime={time && date ? `${date.slice(0, 10)}T${time}` : parts ? timestamp : date || undefined}>
       {context && <span className="record-timeline-date-label">{context}</span>}
       <strong className="record-timeline-when">
-        <span className={hideDate ? "sr-only" : undefined}>{parts ? parts.date : displayDate(date)}</span>
-        {clock && <>{hideDate ? "" : " · "}{clock}</>}
+        <span>{parts ? parts.date : displayDate(date)}</span>
+        {clock && <> · {clock}</>}
       </strong>
     </time>
   );
@@ -154,6 +154,26 @@ function EventList({ entries, person, label }) {
       })}
     </ol>
   );
+}
+
+function timelineDayGroups(dates) {
+  const groups = new Map();
+  let groupStart = 0;
+  dates.forEach((date, index) => {
+    if (index === 0 || date !== dates[index - 1]) {
+      groupStart = index;
+      groups.set(index, { date, count: 0 });
+    }
+    groups.get(groupStart).count += 1;
+  });
+  return groups;
+}
+
+function TimelineDayHeading({ date, count, singular = "record", plural = "records" }) {
+  return <li className="care-event-day-heading">
+    <h3><time dateTime={date || undefined}>{displayDate(date)}</time></h3>
+    <span>{count} {count === 1 ? singular : plural}</span>
+  </li>;
 }
 
 export default function ActivityTimeline({ episode, person, audit = [] }) {
@@ -194,13 +214,24 @@ export default function ActivityTimeline({ episode, person, audit = [] }) {
 function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordAppointmentOutcome, onCollectAssessmentResponse, canCollectAssessment, selectedEventId, careEventsOnly, showCategories = false, simpleAssessments = false }) {
   if (!entries.length)
     return <p className="history-empty">{careEventsOnly ? "No care events or structured records have been recorded." : "No clinical activity has been recorded."}</p>;
-  const firstPastIndex = showCategories ? entries.findIndex((entry) => (historyDate(entry) || "").slice(0, 10) <= TODAY) : -1;
+  const groupByDate = simpleAssessments && showCategories;
+  const categoryOrder = { appointment: 0, assessment: 1, "contextual-event": 2, "clinical-record": 3 };
+  const datedEntries = groupByDate ? entries.map((entry) => ({
+    entry,
+    date: historyItem(entry, episode, undefined, true).date?.slice(0, 10) || null,
+  })) : [];
+  if (groupByDate) datedEntries.sort((a, b) =>
+    (b.date || "").localeCompare(a.date || "") ||
+    (categoryOrder[historyCategory(a.entry)] ?? 4) - (categoryOrder[historyCategory(b.entry)] ?? 4));
+  const timelineEntries = groupByDate ? datedEntries.map(({ entry }) => entry) : entries;
+  const dates = groupByDate ? datedEntries.map(({ date }) => date) : [];
+  const dateGroups = timelineDayGroups(dates);
+  const firstPastIndex = showCategories ? timelineEntries.findIndex((entry, index) =>
+    (groupByDate ? dates[index] : historyDate(entry)?.slice(0, 10)) <= TODAY) : -1;
   return (
-    <ol className="record-timeline clinical-continuous-timeline" aria-label={careEventsOnly ? "Care events and structured records" : "Continuous clinical history"}>
-      {entries.map((entry, index) => {
+    <ol className={`record-timeline clinical-continuous-timeline${groupByDate ? " care-event-day-list" : ""}`} aria-label={careEventsOnly ? "Care events and structured records" : "Continuous clinical history"}>
+      {timelineEntries.map((entry, index) => {
         const item = historyItem(entry, episode, (value) => personEventText(person, value), simpleAssessments);
-        const previousDate = index > 0 ? historyDate(entries[index - 1])?.slice(0, 10) : null;
-        const hideRepeatedDate = simpleAssessments && showCategories && Boolean(item.date && item.date.slice(0, 10) === previousDate);
         const category = historyCategory(entry);
         const hideContextLabel = simpleAssessments && showCategories;
         const dateLabel = hideContextLabel ? null : item.dateLabel;
@@ -264,25 +295,30 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordA
                 <span>Past &amp; today</span><span className="care-timeline-divider-line" aria-hidden="true" />
               </li>
             )}
+            {dateGroups.has(index) && (
+              <TimelineDayHeading {...dateGroups.get(index)} />
+            )}
           <li className="record-timeline-entry" data-category={categoryDisplay ? category : undefined}>
-            {categoryDisplay ? (
+            {categoryDisplay && !groupByDate ? (
               <div className="record-timeline-meta">
                 <span className="record-timeline-category">{categoryDisplay.label}</span>
-                <TimelineDate timestamp={entry.timestamp} date={item.date} time={item.time} dateLabel={dateLabel} hideContextLabel={hideContextLabel} hideDate={hideRepeatedDate} emphasized />
+                <TimelineDate timestamp={entry.timestamp} date={item.date} time={item.time} dateLabel={dateLabel} hideContextLabel={hideContextLabel} emphasized />
               </div>
-            ) : (
+            ) : !groupByDate ? (
               <TimelineDate timestamp={entry.timestamp} date={item.date} time={item.time} dateLabel={dateLabel} hideContextLabel={hideContextLabel} />
-            )}
+            ) : null}
             <span className="record-timeline-icon" aria-hidden="true">
               <MarkerIcon size={22} />
             </span>
             <RecordItem
               id={isCareEvent ? `contextual-event-${entry.id}` : isSelectedSource ? `source-record-${selectedSourceId}` : undefined}
               collapsible
+              headingLevel={groupByDate ? 4 : 3}
               initiallyExpanded={!showCategories || item.date >= TODAY ||
                 appointment?.attendance === "Planned" ||
                 (collection && collection.response !== "Submitted") ||
                 isSelectedSource}
+              eyebrow={groupByDate ? categoryDisplay?.label : undefined}
               title={contactSummary ? appointment.contactType || appointment.appointmentType || "Contact"
                 : completedCollection ? `${completedCollection.label} questionnaire completed` : entry.title || "Recorded event"}
               subtitle={contactSummary ? appointment.practitionerService : item.subtitle}
@@ -592,6 +628,8 @@ export function ClinicalHistory({
 }
 
 export function ChangeLog({ episode, person, audit = [], entries: suppliedEntries, navigate }) {
+  const { state } = useStore();
+  const simplified = !!state.settings?.simpleAssessments;
   const entries = suppliedEntries ?? changeLogEntries(person, episode, audit);
   const timelineRef = useRef(null);
   const isGlobal = suppliedEntries !== undefined;
@@ -656,6 +694,8 @@ export function ChangeLog({ episode, person, audit = [], entries: suppliedEntrie
       return true;
     });
   }, [entries, filters, isGlobal, person]);
+  const dateGroups = simplified ? timelineDayGroups(visibleEntries.map((entry) =>
+    (entry.date || entry.timestamp)?.slice(0, 10) || null)) : new Map();
 
   const hasFilters = Object.entries(filters).some(
     ([key, value]) => value !== "all" && value !== "",
@@ -755,8 +795,8 @@ export function ChangeLog({ episode, person, audit = [], entries: suppliedEntrie
       />
 
       {visibleEntries.length ? (
-        <ol className="record-timeline clinical-continuous-timeline" aria-label="Field change log">
-          {visibleEntries.map((entry) => {
+        <ol className={`record-timeline clinical-continuous-timeline${simplified ? " care-event-day-list" : ""}`} aria-label="Field change log">
+          {visibleEntries.map((entry, index) => {
             const changes = activityChangeDetails(entry);
             const entryTimestamp =
               entry.timestamp || (entry.date?.includes("T") ? entry.date : null);
@@ -778,8 +818,10 @@ export function ChangeLog({ episode, person, audit = [], entries: suppliedEntrie
               ...(isGlobal ? [["Source", entry.source || "Not recorded"]] : entry.source ? [["Source", entry.source]] : []),
             ];
             return (
-              <li className="record-timeline-entry" data-category="change" key={`${entry.person?.id || person?.id}:${entry.id}`}>
-                <div className="record-timeline-meta">
+              <Fragment key={`${entry.person?.id || person?.id}:${entry.id}`}>
+              {dateGroups.has(index) && <TimelineDayHeading {...dateGroups.get(index)} singular="entry" plural="entries" />}
+              <li className="record-timeline-entry" data-category="change">
+                {!simplified && <div className="record-timeline-meta">
                   <span className="record-timeline-category">{entry.scope || "Record change"}</span>
                   <TimelineDate
                     timestamp={entryTimestamp}
@@ -787,13 +829,15 @@ export function ChangeLog({ episode, person, audit = [], entries: suppliedEntrie
                     dateLabel={isGlobal ? entry.person?.name || "Person not recorded" : undefined}
                     emphasized
                   />
-                </div>
+                </div>}
                 <span className="record-timeline-icon" aria-hidden="true">
                   <ArrowRightLeft size={22} />
                 </span>
                 <RecordItem
                   collapsible
-                  initiallyExpanded
+                  initiallyExpanded={!simplified}
+                  headingLevel={simplified ? 4 : 3}
+                  eyebrow={simplified ? entry.scope || "Record change" : undefined}
                   title={entry.title}
                   subtitle={`${changes.length} ${changes.length === 1 ? "change" : "changes"}`}
                   className="record-item-compact"
@@ -826,6 +870,7 @@ export function ChangeLog({ episode, person, audit = [], entries: suppliedEntrie
                   }
                 />
               </li>
+              </Fragment>
             );
           })}
         </ol>

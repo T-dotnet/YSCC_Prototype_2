@@ -985,7 +985,7 @@ export default function Person({ id, navigate, openModal }) {
             )}
             <ListFilterBar
               id="assessment-status"
-              className="assessment-filter-bar"
+              className={`assessment-filter-bar${simpleAssessments ? " assessment-filter-bar-simple" : ""}`}
               label="Assessment status"
               items={assessmentItems}
               value={assessmentFilter}
