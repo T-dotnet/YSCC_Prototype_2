@@ -1,5 +1,7 @@
 # Functional & Visual Feature Specification: YSCC Clinical Workspace
 
+> Current assessment scheduling reference: [Assessment due dates and cadence rules](docs/assessment-scheduling/README.md), updated 28 September 2026. That reference distinguishes implemented prototype behaviour from assumptions awaiting stakeholder confirmation and supersedes older scheduling descriptions below.
+
 Welcome to the comprehensive feature catalog and architectural reference of the **YSCC Clinical Workspace**. This document outlines the application's capabilities, visual design principles, and clinical safety workflows. It serves as both an executive overview and a developer-facing functional deep dive.
 
 ---
@@ -89,15 +91,17 @@ A persistent context header rendering:
 - **Next Step Navigator**: Displays current task milestone with actionable buttons to record progress.
 
 ##### Tab B: Assessment & Questionnaires
-- **Interactive Checklist**: Displays scheduled questionnaires (e.g., *K10*, *Everyday Life Check-in*).
-- **Initiate/Assess Actions**: Initiates live clinician-guided questionnaires or triggers relative respondent invitations.
-- **Draft Recovery Indicators**: Flags if there is an unsubmitted draft form buffered in the user's browser.
+- **Default configuration**: Simple assessments, due-date visibility and appointment linking are On. Manual scheduling, SMS and automatic assessment creation are Off.
+- **Grouped ledger**: Each assessment type shows its next due date and latest score. Due today/Past due use outlined rectangular alerts beside the group date. Expanded compact rows show Due date, Created and Completed, without repeated due alerts or scores.
+- **Draft visibility**: A future or undated draft hides the next planned assessment of its type until its own due date is today or past. Saved responses and completed history are retained.
+- **Admin cadence rules**: Configure an assessment type, program stream, care level and interval in weeks. Specific rules override defaults. Automatic creation uses the effective care-period start as its anchor and remains independent of future appointment booking and Proposed next review.
+- **Prototype limits**: Automatic creation is browser-local; calendar-month recurrence and additional patient-profile conditions are not implemented. Clinical cadence and precedence require stakeholder confirmation. See the [current scheduling reference](docs/assessment-scheduling/README.md) for full behaviour and open decisions.
 
 ##### Tab C: Appointments Manager
 - **Status Audits**: Track scheduled, completed, cancelled, or unattended appointments.
-- **In-App Booking Forms**: Allows clinicians to log new planned contacts, set practitioners, and associate services.
+- **Contact recording and booking**: With the default Schedule assessments setting Off, contacts can be recorded and future booking is disabled. Enabling due-date visibility or automatic assessment creation does not enable planned contact booking.
 - **Overdue Flags**: Marks previous sessions awaiting final outcome declarations.
-- **Relational Integrity with Assessments**: Appointments are scheduled to align directly with clinical collection milestones (e.g., Intake, 6-Week, 12-Week, and End of Episode). A completed appointment acts as the structural vehicle during which physical assessments are often administered. Conversely, missed or cancelled appointments block assessment collection windows, signaling an immediate drop-off risk.
+- **Assessment references**: Assessments can reference related service contacts. Mandatory linkage, missed-contact gating and milestone policy remain decisions to confirm; they are not established by the automatic cadence settings.
 
 ##### Tab D: Timeline & Care Events
 - **Linear Chronicle**: Collated timeline of clinical updates, letters, phone calls, and case reviews.
