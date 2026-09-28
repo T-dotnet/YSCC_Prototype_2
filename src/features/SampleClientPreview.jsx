@@ -1,3 +1,4 @@
+import StandardTable from "../components/StandardTable";
 import { Fragment, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Badge, Button, Empty, PageHeading, Panel } from "../components/UI";
@@ -141,10 +142,9 @@ export default function SampleClientPreview({ id, navigate }) {
                 <SourceFields record={episode} />
               </details>
               <h3>Recorded care events <span className="muted">({events.length})</span></h3>
-              <div className="table-scroll sample-events-scroll">
-                <table className="people-table sample-events-table">
+              <StandardTable label={`Recorded care events for ${episode.episode_key}`} responsive={false} className="sample-events-table" scrollClassName="sample-events-scroll">
                   <caption className="sr-only">Recorded care events for {episode.episode_key}</caption>
-                  <thead><tr><th>Date</th><th>Event</th><th>Recorded measures</th><th>Source details</th></tr></thead>
+                  <thead><tr><th scope="col">Date</th><th scope="col">Event</th><th scope="col">Recorded measures</th><th scope="col">Source details</th></tr></thead>
                   <tbody>
                     {events.map((event) => {
                       const { measureItems, measureScores, ...raw } = event;
@@ -186,8 +186,7 @@ export default function SampleClientPreview({ id, navigate }) {
                       );
                     })}
                   </tbody>
-                </table>
-              </div>
+                </StandardTable>
             </div>
           </Panel>
         );

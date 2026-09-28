@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { QUALITY_STATUSES, getQualityIssues } from "../dataQuality";
 import { TODAY, displayPersonName, formatTimestamp, qualityWorkflowError } from "../model";
-import { Badge, Button, Field, Modal, Notice, StaffPicker, ValidatedForm } from "./UI";
+import { ActionGroup, Badge, Button, Field, Modal, Notice, StaffPicker, ValidatedForm } from "./UI";
 
 const workflowTabs = {
   Intake: "intake",
@@ -123,7 +123,7 @@ export default function QualityIssueForm({
             ) : <p className="muted">No workflow updates have been recorded.</p>}
           </div>
         </div>
-        <div className="modal-footer quality-issue-footer">
+        <ActionGroup className="modal-footer quality-issue-footer">
           {error && <p className="field-error form-save-error" role="alert">{error}</p>}
           <Button type="button" onClick={() => navigate(`/people/${person.id}${workflowPath}`)}>
             Open {issue.workflow}
@@ -138,7 +138,7 @@ export default function QualityIssueForm({
           )}
           <Button type="button" onClick={onClose}>Cancel</Button>
           <Button type="submit" variant="primary">Save workflow update</Button>
-        </div>
+        </ActionGroup>
       </ValidatedForm>
     </Modal>
   );

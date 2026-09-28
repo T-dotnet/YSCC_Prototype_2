@@ -120,7 +120,7 @@ test("History uses the contact date once and keeps appointment provenance availa
   const item = historyItem({ ...appointment, id: "appointment-visit-1", type: "appointment" }, episode);
   assert.equal(item.date, "2026-08-11");
   assert.equal(historyCategory({ ...appointment, type: "appointment" }), "appointment");
-  assert.deepEqual(item.primary.map(({ label }) => label), ["Practitioner or service", "Delivery mode", "Actual duration"]);
+  assert.deepEqual(item.primary.map(({ label }) => label), ["Practitioner or service", "Contact method", "Actual duration"]);
   assert.ok(![...item.primary, ...item.more].some(({ label }) => ["Actual date", "Actual time", "Attendance"].includes(label)));
   assert.ok(item.more.some(({ label, value }) => label === "Planned date" && value === "2026-08-10"));
   assert.ok(item.more.some(({ label }) => label === "Outcome notes"));
@@ -148,7 +148,7 @@ test("Care events contact summary keeps the outcome and plan differences without
   const episode = { appointments: [appointment], collections: [] };
   const item = historyItem({ ...appointment, id: "appointment-visit-1", type: "appointment" }, episode);
   const summary = contactCareEventFacts(item, appointment);
-  assert.deepEqual(summary.primary.map(({ label }) => label), ["Delivery mode", "Duration", "Outcome notes", "Notes"]);
+  assert.deepEqual(summary.primary.map(({ label }) => label), ["Contact method", "Duration", "Outcome notes", "Notes"]);
   assert.equal(summary.primary.find(({ label }) => label === "Duration").value, "55 min");
   assert.deepEqual(summary.more.map(({ label }) => label), ["Planned time", "Planned duration"]);
 });

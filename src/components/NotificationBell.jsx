@@ -1,41 +1,33 @@
 import { useState, useRef, useEffect } from "react";
 import {
   Bell,
-  AlertTriangle,
-  Clock,
-  CalendarClock,
-  FileCheck,
   ChevronRight,
   X,
 } from "lucide-react";
 import { useStore } from "../store";
 import { TODAY, formatDate } from "../model";
 import { getNotifications } from "../notifications";
-import { Tabs } from "./UI";
+import { FilterTabs } from "./UI";
 
 const CATEGORY_MAP = {
   data_quality: {
     label: "Data quality error",
     shortLabel: "Data quality",
-    Icon: AlertTriangle,
     badgeClass: "coral",
   },
   assessment_overdue: {
     label: "Assessment overdue",
     shortLabel: "Assessment overdue",
-    Icon: Clock,
     badgeClass: "coral",
   },
   appointment_overdue: {
     label: "Contact input overdue",
     shortLabel: "Contact overdue",
-    Icon: CalendarClock,
     badgeClass: "coral",
   },
   assessment_review: {
     label: "Assessment ready for review",
     shortLabel: "Ready for review",
-    Icon: FileCheck,
     badgeClass: "purple",
   },
 };
@@ -150,18 +142,14 @@ export default function NotificationBell({ navigate }) {
             </button>
           </div>
 
-          <Tabs
+          <FilterTabs
             id="notification"
             label="Notification categories"
             items={tabs.map((tab) => ({ value: tab.key, label: tab.label, count: tab.count }))}
             value={filter}
             onChange={setFilter}
-            className="notification-filter-bar"
-            itemClassName="notification-pill-tab"
-            countClassName="notification-pill-count"
-            selectedClassName="active"
+            className="notification-category-tabs"
             panelId="notification-panel"
-            unstyled
           />
 
           <div
@@ -178,10 +166,8 @@ export default function NotificationBell({ navigate }) {
               filteredNotifications.map((item) => {
                 const categoryInfo = CATEGORY_MAP[item.category] || {
                   label: item.categoryLabel,
-                  Icon: Bell,
                   badgeClass: "neutral",
                 };
-                const IconComponent = categoryInfo.Icon;
                 const displayDate = item.due
                   ? formatDate(item.due)
                   : item.submittedAt
@@ -197,9 +183,6 @@ export default function NotificationBell({ navigate }) {
                     className="notification-item"
                     onClick={() => handleItemClick(item.href)}
                   >
-                    <div className={`notification-icon-wrap ${categoryInfo.badgeClass}`}>
-                      <IconComponent size={18} aria-hidden="true" />
-                    </div>
                     <div className="notification-item-content">
                       <div className="notification-item-header">
                         <span className={`badge ${categoryInfo.badgeClass} notification-category-badge`}>

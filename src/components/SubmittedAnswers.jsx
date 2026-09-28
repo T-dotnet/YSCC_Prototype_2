@@ -56,7 +56,7 @@ export default function SubmittedAnswers({
           {answer && (() => {
             const session = answerSession(collection, question.id);
             return session && (showSms || session.channel !== "SMS link") ? <p className="answer-session-source">
-              Supplied in session {(collection.attempts || []).findIndex((attempt) => attempt.id === session.id) + 1} · {session.date ? formatDate(session.date) : "date not recorded"} · {session.channel || "Channel not recorded"}
+              Supplied in session {(collection.attempts || []).findIndex((attempt) => attempt.id === session.id) + 1} · {session.date ? formatDate(session.date) : "date not recorded"} · {session.channel || "Collection method not recorded"}
             </p> : collection.answerSources?.[question.id]?.startsWith("edit:")
               ? <p className="answer-session-source">Corrected after submission · see response history</p>
               : null;

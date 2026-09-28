@@ -184,7 +184,7 @@ export function overviewNextStep(person, episode, collection, staff) {
       status === "Overdue"
         ? "Follow up the unfinished response"
         : "Check the response in progress",
-      "Answers are saved, but the questionnaire has not been submitted. Start another collection session to continue, using the same or a different channel.",
+      "Answers are saved, but the questionnaire has not been submitted. Start another collection session to continue, using the same or a different collection method.",
       details,
     );
 

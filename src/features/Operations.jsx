@@ -1,4 +1,6 @@
+import StandardTable from "../components/StandardTable";
 import AssessmentScheduleSettings from "../components/AssessmentScheduleSettings";
+import ProductTerminology from "../components/ProductTerminology";
 import useQueueView from "../useQueueView";
 import { useMemo } from "react";
 import { INSTRUMENTS } from "../instruments";
@@ -23,7 +25,7 @@ import {
 import { useStore } from "../store";
 import { assessmentSmsEnabled } from "../assessmentFeatures";
 import { UI_COLOR_SETUPS, uiColorSetup } from "../uiColorSetups";
-import { patientIdentifier } from "../patientIdentity";
+import { patientIdentifier, patientSecondaryDetail } from "../patientIdentity";
 import { currentStaff, formatDate, TODAY } from "../model";
 import { sortQueueRows } from "../queueSort";
 import { ActiveFilters, SortableHeader, useQueueSort } from "../components/QueueControls";
@@ -35,13 +37,14 @@ import {
   getQualityIssues,
 } from "../dataQuality";
 import {
-  PageHeading,
+  ActionGroup, PageHeading,
   Panel,
   Button,
   Badge,
   Notice,
   Empty,
   Select,
+  Tabs,
 } from "../components/UI";
 
 const EMPTY_FILTERS = {
@@ -245,20 +248,16 @@ export function Quality({ openModal, navigate }) {
           onClear={clearAll}
         />
         {visibleIssues.length ? (
-          <div className="table-scroll quality-table-scroll">
-            <table
-              className="quality-table responsive-queue-table"
-              aria-label="Validation issue queue"
-            >
+          <StandardTable className="quality-table" scrollClassName="quality-table-scroll" label="Validation issue queue">
               <thead>
                 <tr>
                   <SortableHeader label="Severity" sortKey="severity" sort={sortConfig} onSort={toggleSort} />
-                  <th>Client</th>
+                  <th scope="col">Client</th>
                   <SortableHeader label="Issue" sortKey="type" sort={sortConfig} onSort={toggleSort} />
                   <SortableHeader label="Owner" sortKey="owner" sort={sortConfig} onSort={toggleSort} />
                   <SortableHeader label="Status" sortKey="status" sort={sortConfig} onSort={toggleSort} />
                   <SortableHeader label="Due" sortKey="dueDate" sort={sortConfig} onSort={toggleSort} />
-                  <th>
+                  <th scope="col">
                     <span className="sr-only">Manage issue</span>
                   </th>
                 </tr>
@@ -294,6 +293,7 @@ export function Quality({ openModal, navigate }) {
                             >
                               {patientIdentifier(person)}
                             </button>
+                            {patientSecondaryDetail(person) && <small>{patientSecondaryDetail(person)}</small>}
                           </span>
                         </div>
                       </QueueCell>
@@ -330,8 +330,7 @@ export function Quality({ openModal, navigate }) {
                   );
                 })}
               </tbody>
-            </table>
-          </div>
+            </StandardTable>
         ) : (
           <Empty
             title="No validation issues match these filters"
@@ -352,6 +351,9 @@ export function Administration({ openModal, navigate }) {
   const { state, commit } = useStore();
   const staff = currentStaff(state);
   const selectedUiSetup = uiColorSetup(state.settings?.uiColorSetup);
+  const view = useQueueView();
+  const adminTabs = ["workspace", "bundles", "preferences"];
+  const adminTab = adminTabs.includes(view.params.get("tab")) ? view.params.get("tab") : "workspace";
   return (
     <>
       <PageHeading
@@ -362,6 +364,74 @@ export function Administration({ openModal, navigate }) {
         Sample configuration for exploring the workspace. Publication, clinical
         approval, and live permissions are not connected.
       </Notice>
+      <Tabs id="administration" panelId="administration-panel" label="Administration sections"
+        items={[{value:"workspace",label:"Workspace"},{value:"bundles",label:"Assessment bundles"},{value:"preferences",label:"Appearance & sample data"}]}
+        value={adminTab} onChange={value=>view.set("tab",value,"workspace")} />
+      <div role="tabpanel" id="administration-panel" aria-labelledby={`administration-tab-${adminTabs.indexOf(adminTab)}`}>
+      {adminTab === "bundles" && <AssessmentScheduleSettings />}
+      {adminTab === "workspace" && <div className="stack">
+      <Panel title="Workspace configuration" className="admin-panel">
+        <div className="admin-row">
+          <span className="admin-icon"><SlidersHorizontal size={24} /></span>
+          <div>
+            <h3>General report</h3>
+            <p>Show or hide the General report link in the sidebar. The page is a work in progress.</p>
+          </div>
+          <label className="admin-setting-toggle">
+            <input type="checkbox" role="switch" aria-label="Show General report in sidebar"
+              checked={state.settings?.showGeneralReport !== false}
+              onChange={(event) => commit({ type: "SET_GENERAL_REPORT_VISIBILITY", enabled: event.target.checked })} />
+            <span>{state.settings?.showGeneralReport !== false ? "Shown" : "Hidden"}</span>
+          </label>
+        </div>
+        {[
+          [
+            BookOpen,
+            "Instrument library",
+            `${INSTRUMENTS.length} sample questionnaires · Browse topics and preview questions`,
+            "instrument",
+            "Browse instruments",
+          ],
+          [
+            SlidersHorizontal,
+            "Assessment bundles",
+            "Group assessments by program, care level, or a recorded event",
+            "bundles",
+            "Manage bundles",
+          ],
+          [
+            MessageSquare,
+            "Messages & delivery",
+            "A sample invitation for account-free collection",
+            "messages",
+            "Preview message",
+          ],
+          [
+            ShieldCheck,
+            "Organisation & access",
+            `Northside Centre · ${staff?.name}, ${staff?.role}`,
+            "scope",
+            "View workspace",
+          ],
+        ].filter(([, , , type]) => type !== "messages" || assessmentSmsEnabled(state.settings))
+          .map(([Icon, title, desc, type, action]) => (
+          <div className="admin-row" key={title}>
+            <span className="admin-icon">
+              <Icon size={24} />
+            </span>
+            <div>
+              <h3>{title}</h3>
+              <p>{desc}</p>
+            </div>
+            <Button onClick={() => type === "bundles" ? navigate("/administration?tab=bundles") : openModal({ type })}>
+              {action}
+              <ArrowRight size={17} />
+            </Button>
+          </div>
+        ))}
+      </Panel>
+      </div>}
+      {adminTab === "preferences" && <div className="stack">
       <Panel title="Appearance" className="admin-panel appearance-panel">
         <p className="appearance-intro">Choose a UI color setup. Your choice applies immediately and is saved in this browser.</p>
         <fieldset className="appearance-options">
@@ -389,54 +459,6 @@ export function Administration({ openModal, navigate }) {
           ))}
         </fieldset>
       </Panel>
-      <AssessmentScheduleSettings />
-      <Panel title="Workspace configuration" className="admin-panel">
-        {[
-          [
-            BookOpen,
-            "Instrument library",
-            `${INSTRUMENTS.length} sample questionnaires · Browse topics and preview questions`,
-            "instrument",
-            "Browse instruments",
-          ],
-          [
-            SlidersHorizontal,
-            "Rules & schedules",
-            "Explicit follow-ups, version pinning, and independent review",
-            "rules",
-            "View sample rules",
-          ],
-          [
-            MessageSquare,
-            "Messages & delivery",
-            "A sample invitation for account-free collection",
-            "messages",
-            "Preview message",
-          ],
-          [
-            ShieldCheck,
-            "Organisation & access",
-            `Northside Centre · ${staff?.name}, ${staff?.role}`,
-            "scope",
-            "View workspace",
-          ],
-        ].filter(([, , , type]) => type !== "messages" || assessmentSmsEnabled(state.settings))
-          .map(([Icon, title, desc, type, action]) => (
-          <div className="admin-row" key={title}>
-            <span className="admin-icon">
-              <Icon size={24} />
-            </span>
-            <div>
-              <h3>{title}</h3>
-              <p>{desc}</p>
-            </div>
-            <Button onClick={() => openModal({ type })}>
-              {action}
-              <ArrowRight size={17} />
-            </Button>
-          </div>
-        ))}
-      </Panel>
       <Panel title="Sample data" className="admin-panel">
         <div className="admin-row">
           <span className="admin-icon">
@@ -457,7 +479,7 @@ export function Administration({ openModal, navigate }) {
           <h3>Start fresh with sample data</h3>
           <p>Reset the intake examples or restore the full sample workspace.</p>
         </div>
-        <div className="button-row">
+        <ActionGroup className="button-row">
           <Button onClick={() => openModal({ type: "reset-intake-examples" })}>
             <RotateCcw size={17} />
             Reset River and Samira
@@ -466,7 +488,9 @@ export function Administration({ openModal, navigate }) {
             <RotateCcw size={17} />
             Reset sample workspace
           </Button>
-        </div>
+        </ActionGroup>
+      </div>
+      </div>}
       </div>
     </>
   );
@@ -527,6 +551,7 @@ export function Help({ navigate, openModal }) {
         score is calculated, and sample answers are saved only in this browser.
         Use your care team’s usual support route for real care questions.
       </Notice>
+      <ProductTerminology />
     </>
   );
 }

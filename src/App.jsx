@@ -11,8 +11,10 @@ import SampleClientPreview from "./features/SampleClientPreview";
 import AssessmentReviewRecord from "./features/AssessmentReviewRecord";
 import { Quality, Administration, Help } from "./features/Operations";
 import AssessmentFeatures from "./features/AssessmentFeatures";
+import GeneralReport from "./features/GeneralReport";
 import GlobalChangeLog from "./features/GlobalChangeLog";
 import Questionnaire from "./features/Questionnaire";
+import BundleQuestionnaire from "./components/BundleQuestionnaire";
 import ConsentRequest from "./features/ConsentRequest";
 import { getQualityIssues } from "./dataQuality";
 import { TODAY } from "./model";
@@ -88,6 +90,16 @@ export default function App() {
         onEnd={finishSession}
       />
     );
+  const activeQuestionnaireSession = linkedCollectionId ? linkedQuestionnaireSession : session;
+  const bundlePerson = state.people.find(person => person.id === activeQuestionnaireSession?.personId);
+  const bundleEpisode = bundlePerson?.episodes.find(episode => episode.id === activeQuestionnaireSession?.episodeId);
+  const bundleCollection = bundleEpisode?.collections.find(collection => collection.id === activeQuestionnaireSession?.collectionId);
+  if (path === "/questionnaire" && (bundleCollection?.bundleId || bundleCollection?.scheduleRuleId))
+    return <BundleQuestionnaire key={bundleCollection.id} person={bundlePerson} episode={bundleEpisode}
+      collection={bundleCollection} participant initialAttemptId={activeQuestionnaireSession?.attemptId} onClose={() => {
+        finishSession();
+        navigate(`/people/${encodeURIComponent(bundlePerson.id)}?${new URLSearchParams({tab:'assessment',episode:bundleEpisode.id})}`);
+      }} />;
   if (path === "/preview" || path === "/questionnaire")
     return (
       <Questionnaire
@@ -123,6 +135,8 @@ export default function App() {
       />
     ) : path.startsWith("/people/") ? (
       <Person key={path} id={path.split("/")[2]} {...shared} />
+    ) : path === "/general-report" ? (
+      <GeneralReport />
     ) : path === "/quality" ? (
       <Quality {...shared} />
     ) : path === "/change-log" ? (

@@ -1,10 +1,10 @@
+import { episodeWithVisibleContacts } from "../assessmentFeatures.js";
 import { getInstrument } from "../instruments";
 import useDraft from "../useDraft";
 import { useRef, useState } from "react";
 import {
   CheckCircle2,
   ClipboardCheck,
-  Pencil,
   ChevronDown,
   Clock3,
   ArrowLeft,
@@ -21,7 +21,7 @@ import {
   displayCollectionActor,
   TODAY,
 } from "../model";
-import { Modal, Button, Badge, Field, Notice, ValidatedForm } from "./UI";
+import { ActionGroup, EditAction, Modal, Button, Badge, Field, Notice, ValidatedForm } from "./UI";
 import SubmittedAnswers from "./SubmittedAnswers";
 import ResponseHistory from "./ResponseHistory";
 import DiscardChanges from "./DiscardChanges";
@@ -40,6 +40,7 @@ export default function ReviewResponses({
   analysis,
 }) {
   const { state, commit } = useStore();
+  episode = episodeWithVisibleContacts(episode, state.settings);
   const linkAssessmentAppointments = assessmentContactLinkingEnabled(state.settings);
   const assessmentSms = assessmentSmsEnabled(state.settings);
   const [saveError, setSaveError] = useState("");
@@ -283,10 +284,7 @@ export default function ReviewResponses({
             collection={c}
             headerAction={
               canEdit && (
-                <Button type="button" onClick={() => onEdit(note)}>
-                  <Pencil size={16} aria-hidden="true" />
-                  Edit answers
-                </Button>
+                <EditAction onClick={() => onEdit(note)}>Edit answers</EditAction>
               )
             }
           />
@@ -582,7 +580,7 @@ export default function ReviewResponses({
         )}
         <ResponseHistory person={person} collection={c} />
       </div>
-      <div className="modal-footer response-dialog-footer">
+      <ActionGroup className="modal-footer response-dialog-footer">
         <p className="response-footer-note">
           {reviewNotRequired
             ? "No separate clinical review required · Answers remain available above"
@@ -604,7 +602,7 @@ export default function ReviewResponses({
             Save review
           </Button>
         )}
-      </div>
+      </ActionGroup>
     </ValidatedForm>
   );
 
@@ -632,10 +630,7 @@ export default function ReviewResponses({
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
             {canEdit && onEdit && (
-              <Button type="button" onClick={() => onEdit(note)}>
-                <Pencil size={16} aria-hidden="true" />
-                Edit answers
-              </Button>
+              <EditAction onClick={() => onEdit(note)}>Edit answers</EditAction>
             )}
             <Badge>{clinicalReviewStatus(c)}</Badge>
           </div>

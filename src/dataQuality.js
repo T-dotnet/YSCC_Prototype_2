@@ -1,3 +1,4 @@
+import { contactVisible } from "./assessmentFeatures.js";
 // The field map below is deliberately a sample implementation. It gives the
 // prototype a transparent quality contract without claiming to be the current
 // PMHC-MDS specification or an approved submission schema.
@@ -321,7 +322,7 @@ export function detectQualityFindings(state, today) {
           }),
         );
       }
-      const appointments = episode.appointments || [];
+      const appointments = (episode.appointments || []).filter(contact => contactVisible(contact, state.settings));
       const duplicates = new Map();
       for (const appointment of appointments) {
         const key = [

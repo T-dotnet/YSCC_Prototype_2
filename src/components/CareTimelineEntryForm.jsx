@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, Field, Modal, Notice, ValidatedForm } from "./UI";
+import { ActionGroup, Button, Field, Modal, Notice, ValidatedForm } from "./UI";
 import {
   DIAGNOSIS_STATUSES,
   MEDICATION_CHANGES,
@@ -584,7 +584,7 @@ export default function CareTimelineEntryForm({
           </>}
         </div>
 
-        <div className="modal-footer">
+        <ActionGroup className="modal-footer">
           {error && (
             <p className="field-error form-save-error" role="alert">
               {error}
@@ -604,7 +604,7 @@ export default function CareTimelineEntryForm({
                   ? "Add report source record"
                   : "Add contextual event"}
           </Button>
-        </div>
+        </ActionGroup>
       </ValidatedForm>
     </Modal>
   );

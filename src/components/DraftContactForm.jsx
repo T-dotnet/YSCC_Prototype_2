@@ -1,3 +1,4 @@
+import { LABELS } from "../terminology.js";
 import { useState } from "react";
 import {
   DRAFT_CONTACT_DELIVERY_MODES,
@@ -5,7 +6,7 @@ import {
   CONTACT_TYPES,
 } from "../appointments";
 import { formatDate, TODAY } from "../model";
-import { Button, Field, Notice, ValidatedForm } from "./UI";
+import { ActionGroup, Button, Field, Notice, ValidatedForm } from "./UI";
 import CollectionMethodChoice from "./CollectionMethodChoice";
 import TabletAssistanceChoice from "./TabletAssistanceChoice";
 
@@ -111,13 +112,13 @@ export default function DraftContactForm({ episode, collection, error, onCancel,
               <Field label="Contact date"><input type="date" name="contactDate" min={episode.start} max={episode.end && episode.end < TODAY ? episode.end : TODAY} required /></Field>
               <Field label="Time"><input type="time" name="contactTime" required /></Field>
               <Field label="Duration (minutes)"><input type="number" name="duration" min="1" max="600" required /></Field>
-              <Field label="Delivery mode">
+              <Field label={LABELS.contactMethod}>
                 <select name="deliveryMode" defaultValue="" required>
-                  <option value="">Choose a mode</option>
+                  <option value="">Choose a contact method</option>
                   {DRAFT_CONTACT_DELIVERY_MODES.filter((value) => !["SMS", "Clinic tablet", "Clinician entry"].includes(value)).map((value) => <option key={value}>{value}</option>)}
                 </select>
               </Field>
-              <Field label="Recipient">
+              <Field label={LABELS.recipient}>
                 <select name="recipientType" value={recipient} onChange={(event) => setRecipient(event.target.value)} required>
                   {CONTACT_RECIPIENTS.map((value) => <option key={value}>{value}</option>)}
                 </select>
@@ -140,10 +141,10 @@ export default function DraftContactForm({ episode, collection, error, onCancel,
         </>}
         {(choiceError || error) && <p className="field-error" role="alert">{choiceError || error}</p>}
       </div>
-      <div className="modal-footer">
+      <ActionGroup className="modal-footer">
         <Button type="button" onClick={onCancel}>Back to answers</Button>
         <Button type="submit" variant="primary">Save draft and leave</Button>
-      </div>
+      </ActionGroup>
     </ValidatedForm>
   );
 }

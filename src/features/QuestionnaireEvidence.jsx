@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ArrowRight, ChevronDown, MessagesSquare } from "lucide-react";
 import { getInstrument } from "../instruments";
+import StandardTable from "../components/StandardTable";
 import SubmittedAnswers from "../components/SubmittedAnswers";
 import ReportEvidenceCard from "../components/ReportEvidenceCard";
 import { formatDate, collectionActor } from "../model";
@@ -92,7 +93,7 @@ export default function QuestionnaireEvidence({
   );
   const sourceLabel = (collection, questionId) => {
     const session = answerSession(collection, questionId);
-    if (session && (showSms || session.channel !== "SMS link")) return `Supplied in session ${(collection.attempts || []).findIndex((attempt) => attempt.id === session.id) + 1} · ${formatDate(session.date)} · ${session.channel || "Channel not recorded"}`;
+    if (session && (showSms || session.channel !== "SMS link")) return `Supplied in session ${(collection.attempts || []).findIndex((attempt) => attempt.id === session.id) + 1} · ${formatDate(session.date)} · ${session.channel || "Collection method not recorded"}`;
     if (collection?.answerSources?.[questionId]?.startsWith("edit:")) return "Corrected after submission";
     return null;
   };
@@ -289,13 +290,7 @@ export default function QuestionnaireEvidence({
                     questions. Questions not asked on both paths are not
                     comparable.
                   </p>
-                  <div
-                    className="progress-table-scroll"
-                    role="region"
-                    aria-label="Questionnaire response comparison"
-                    tabIndex={0}
-                  >
-                    <table className="progress-table">
+                  <StandardTable label="Questionnaire response comparison" variant="comparison" responsive={false} className="progress-table" scrollClassName="progress-table-scroll">
                       <caption className="sr-only">
                         {selected.label} compared with {latest.label}. Changes
                         describe answers, not a clinical score.
@@ -361,8 +356,7 @@ export default function QuestionnaireEvidence({
                           </tr>
                         )}
                       </tbody>
-                    </table>
-                  </div>
+                    </StandardTable>
                   <div className="progress-comparison-footer">
                     <span className="muted">
                       {comparison.comparable < comparison.rows.length

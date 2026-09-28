@@ -1,3 +1,6 @@
+import { LABELS } from "./terminology.js";
+import { asBundle, bundleCollection, bundleContext, bundleIntervalDays, bundleTimingMode, bundleRepeats, bundleAgeMatches, bundleAssessmentsForCreation, bundleAdditionalAssessments, bundleSelectionForEpisode, collectionBelongsToBundle, bundleCollectionEditable, newBundleError } from "./assessmentBundles.js";
+import { ensureSampleAssessmentBundles } from "./sampleAssessmentBundles.js";
 import { reconcileAssessmentSchedules, scheduleRuleError } from "./assessmentSchedules.js";
 import {
   createQualitativeSampleAnswers,
@@ -41,6 +44,7 @@ import {
   assessmentDueDatesEnabled,
   assessmentContactLinkingEnabled,
   assessmentSmsEnabled,
+  assessmentBundleGroupingEnabled,
 } from "./assessmentFeatures.js";
 import {
   clinicalRecordContent,
@@ -83,7 +87,8 @@ export const canCollectInEpisode = (episode, collection) =>
   episode?.status === "Active" ||
   (episode?.status === "Closed" &&
     ((collection?.closureKind === "assessment" && collection.version === CLOSURE_ASSESSMENT_VERSION) ||
-      (collection?.closureKind === "feedback" && collection.version === CLOSURE_FEEDBACK_VERSION)));
+      (collection?.closureKind === "feedback" && collection.version === CLOSURE_FEEDBACK_VERSION) ||
+      (!!collection?.dischargeFollowUp && !!collection.bundleId && collection.bundleContext?.timing === "discharge")));
 const closureDueDate = () =>
   new Date(Date.parse(`${TODAY}T12:00:00Z`) + 7 * 86400000)
     .toISOString().slice(0, 10);
@@ -586,7 +591,7 @@ function refreshOpenSampleDates(state) {
 }
 
 const withSampleFixtures = (state) =>
-  ensureJordanDueExamples(ensureSampleAssessmentCreatedDates(refreshOpenSampleDates(ensureCoherentMockData(ensureJordanPartialSmsExample(
+  ensureSampleAssessmentBundles(ensureJordanDueExamples(ensureSampleAssessmentCreatedDates(refreshOpenSampleDates(ensureCoherentMockData(ensureJordanPartialSmsExample(
     ensureJordanDeliveryAttemptExamples(
       ensureJordanAssessmentContactExamples(
         ensureJordanFutureAssessment(
@@ -594,7 +599,7 @@ const withSampleFixtures = (state) =>
         ),
       ),
     ),
-  )))));
+  ))))), isSampleAssessmentPerson);
 
 export function sampleAppointmentsForSeed(seedIndex) {
   switch (seedIndex) {
@@ -1931,6 +1936,8 @@ function ensureJordanFutureAssessment(state) {
 
 const dueExampleDefinitions = [
   { key: "k10-past", measureKey: "k10-plus", offset: -1 },
+  { key: "k10-overdue-review", measureKey: "k10-plus", offset: -7, createdOffset: -10, label: "care review follow-up" },
+  { key: "who5-overdue-review", measureKey: "who-5", offset: -3, draft: true, label: "care review follow-up" },
   { key: "k5-today", measureKey: "k5", offset: 0 },
   { key: "sdq-draft", measureKey: "sdq", offset: 7, draft: true },
   { key: "sdq-next", measureKey: "sdq", offset: 14, next: true },
@@ -1952,10 +1959,10 @@ function createDueExample(person, definition, anchor) {
     .map((answer, index) => index < 2 ? answer : null)).answers;
   return {
     id,
-    label: `${instrument.name} · ${definition.next ? "next follow-up" : "follow-up"}`,
+    label: `${instrument.name} · ${definition.label || (definition.next ? "next follow-up" : "follow-up")}`,
     version: instrument.version,
     due: dueExampleDate(anchor, definition.offset),
-    createdAt: `${dueExampleDate(anchor, -4)}T09:00:00Z`,
+    createdAt: `${dueExampleDate(anchor, definition.createdOffset ?? -4)}T09:00:00Z`,
     assignment: definition.draft ? "Active" : "Planned",
     response: definition.draft ? "Draft" : "Not started",
     review: "Pending",
@@ -2761,7 +2768,7 @@ function upgradeIntakeFlow(state) {
 }
 
 export function upgradeSampleData(state) {
-  if (!state.settings || ["scheduleAssessments", "showAssessmentDueDates", "linkAssessmentAppointments", "assessmentSms"]
+  if (!state.settings || ["scheduleAssessments", "showAssessmentDueDates", "linkAssessmentAppointments", "assessmentSms", "groupAssessmentsByBundle"]
     .some((feature) => typeof state.settings[feature] !== "boolean")) {
     state = {
       ...state,
@@ -2771,6 +2778,7 @@ export function upgradeSampleData(state) {
         showAssessmentDueDates: assessmentDueDatesEnabled(state.settings),
         linkAssessmentAppointments: assessmentContactLinkingEnabled(state.settings),
         assessmentSms: assessmentSmsEnabled(state.settings),
+        groupAssessmentsByBundle: assessmentBundleGroupingEnabled(state.settings),
       },
     };
   }
@@ -2991,7 +2999,7 @@ function refreshRelationshipExamples(next) {
     const correction = next.audit?.find((item) => item.id === "AUD-5-collection-correction");
     if (correction?.source === "Clinic completion record · fictional demo source" &&
         correction.changes?.[0]?.before === "SMS link") {
-      correction.reason = "Corrected the delivery channel and support level from the SMS completion log.";
+      correction.reason = "Corrected the collection method and assistance from the SMS completion log.";
       correction.source = "SMS completion log · fictional demo source";
       correction.changes[0].before = "Clinic tablet";
       correction.changes[0].after = "SMS link";
@@ -3367,12 +3375,12 @@ function prepareSeed(state) {
           actorId: "ananya",
           actor: "Ananya",
           role: "Data Manager",
-          reason: "Corrected the delivery channel and support level from the SMS completion log.",
+          reason: "Corrected the collection method and assistance from the SMS completion log.",
           source: "SMS completion log · fictional demo source",
           changes: [
             {
               key: `${collection.id}-channel`,
-              label: `${collection.label} · Delivery channel`,
+              label: `${collection.label} · ${LABELS.collectionMethod}`,
               before: "Clinic tablet",
               after: collection.channel,
             },
@@ -3507,7 +3515,7 @@ function prepareSeed(state) {
       changes: (collection) => [
         {
           key: `${collection.id}-channel`,
-          label: `${collection.label} · Delivery channel`,
+          label: `${collection.label} · ${LABELS.collectionMethod}`,
           before: "Clinic tablet",
           after: collection.channel,
         },
@@ -3784,7 +3792,7 @@ function prepareIntakes(next) {
 export function createSeed() {
   return withSampleFixtures(prepareQualityState(prepareSeed({
     schema: 1,
-    settings: { simpleAssessments: true, scheduleAssessments: false, showAssessmentDueDates: true, automaticAssessmentDueDates: false, assessmentScheduleRules: [], linkAssessmentAppointments: true, assessmentSms: false, uiColorSetup: 1 },
+    settings: { simpleAssessments: true, scheduleAssessments: false, showAssessmentDueDates: true, groupAssessmentsByBundle: false, automaticAssessmentDueDates: false, assessmentScheduleRules: [], linkAssessmentAppointments: true, assessmentSms: false, uiColorSetup: 1 },
     terminologyRevision: 1,
     people: [
       ...seeds.map((s, i) => ({
@@ -3986,7 +3994,9 @@ const closureFollowUpComplete = (episode) =>
     const collection = episode.collections.find((item) =>
       item.closureKind === kind && item.version === version);
     return collection?.response === "Submitted" && !hasPendingClinicalReview(collection);
-  });
+  }) && episode.collections.filter(collection => collection.dischargeFollowUp && collection.bundleId)
+    .every(collection => collection.assignment === "Cancelled" ||
+      (collection.response === "Submitted" && !hasPendingClinicalReview(collection)));
 export const clinicalReviewStatus = (c) =>
   c.needsReview
     ? "Re-review required"
@@ -4043,7 +4053,7 @@ export function getTasks(state) {
               episode: e,
               collection: c,
               status: !assessmentSchedulingEnabled(state.settings)
-                ? c.response === "Draft" ? "Draft" : "Created"
+                ? c.response === "Draft" ? "Draft" : "Not started"
                 : collectionStatus(c),
               action: !assessmentSchedulingEnabled(state.settings) ? "Open assessment" : nextAction(c),
             })),
@@ -4064,8 +4074,43 @@ function reduceState(state, action) {
   if (action.type === "SAVE_ASSESSMENT_SCHEDULE_RULE") {
     const rules = state.settings?.assessmentScheduleRules || [];
     if (scheduleRuleError(action.rule, rules) || typeof action.rule.enabled !== "boolean") return state;
+    const previous = rules.find(rule => rule.id === action.rule.id);
+    const rule = action.rule.assessments && action.rule.channel != null ? asBundle(action.rule) : {...action.rule};
+    if (rule.assessments) {
+      if (rule.channel != null) rule.assessments = rule.assessments.map(({channel,recipient,...item}) => item);
+      rule.name = rule.name.trim();
+      rule.days = bundleIntervalDays(rule);
+      if (rule.trigger === "current") {
+        rule.timing = bundleTimingMode(rule);
+        rule.repeat = bundleRepeats(rule);
+      }
+      delete rule.weeks;
+      rule.activationEventIds = previous?.enabled && previous.trigger === rule.trigger && previous.eventType === rule.eventType
+        ? previous.activationEventIds || [] : state.people.flatMap(p=>p.episodes.flatMap(e=>(e.events || []).map(event=>event.id)));
+    }
     return {...state, settings: {...state.settings, assessmentScheduleRules:
-      [...rules.filter(rule => rule.id !== action.rule.id), {...action.rule}]}};
+      [...rules.filter(existing => existing.id !== rule.id), rule]},
+      people:rule.assessments ? state.people.map(person=>({...person,episodes:person.episodes.map(episode=>
+        episode.assessmentBundleOffers?.some(offer=>offer.bundleId===rule.id && offer.status==="Pending")
+          ? {...episode,assessmentBundleOffers:episode.assessmentBundleOffers.filter(offer=>offer.bundleId!==rule.id || offer.status!=="Pending")} : episode)})) : state.people};
+  }
+  if (action.type === "SELECT_BUNDLE_ASSESSMENTS") {
+    if (!state.settings?.automaticAssessmentDueDates || !Array.isArray(action.offerIds) || !action.offerIds.length || !["Include", "Skip"].includes(action.decision)) return state;
+    const person = state.people.find(p=>p.id===action.personId);
+    const episode = person?.episodes.find(e=>e.id===action.episodeId);
+    if (!person || person.archivedAt || person.readOnly || !["Active", "Closed"].includes(episode?.status) || episode.readOnly) return state;
+    const offers = (episode.assessmentBundleOffers || []).filter(o=>action.offerIds.includes(o.id) && o.status === "Pending");
+    if (offers.length !== new Set(action.offerIds).size || offers.some(o=> {
+      const bundle = state.settings.assessmentScheduleRules.find(b=>b.id===o.bundleId);
+      return !bundle?.enabled ||
+        (episode.status === "Closed" && (!o.dischargeFollowUp || bundleTimingMode(bundle) !== "discharge")) ||
+        !bundleAgeMatches(bundle, person, episode.status === "Closed" ? episode.end : TODAY) || !bundle.assessments?.some(i=>i.id===o.assessment.id) ||
+        (action.decision === "Include" && ((!assessmentSmsEnabled(state.settings) && o.assessment.channel === "SMS link") || (o.assessment.recipient === "Family respondent" && !person.family)));
+    })) return state;
+    const selected = new Set(offers.map(o=>o.id));
+    const updated = {...episode, assessmentBundleOffers:episode.assessmentBundleOffers.map(o=>selected.has(o.id) ? {...o,status:action.decision === "Include" ? "Included" : "Skipped"} : o),
+      collections:action.decision === "Include" ? [...episode.collections, ...offers.map(o=>bundleCollection(o,TODAY))] : episode.collections};
+    return {...state,people:state.people.map(p=>p.id===person.id ? {...p,episodes:p.episodes.map(e=>e.id===episode.id ? updated : e)} : p)};
   }
   if (action.type === "DELETE_ASSESSMENT_SCHEDULE_RULE") {
     const rules = state.settings?.assessmentScheduleRules || [];
@@ -4076,14 +4121,21 @@ function reduceState(state, action) {
     if (![1, 2, 3, 4].includes(action.setup) || state.settings?.uiColorSetup === action.setup) return state;
     return { ...state, settings: { ...state.settings, uiColorSetup: action.setup } };
   }
+  if (action.type === "SET_GENERAL_REPORT_VISIBILITY") {
+    if (typeof action.enabled !== "boolean" || state.settings?.showGeneralReport === action.enabled) return state;
+    return { ...state, settings: { ...state.settings, showGeneralReport: action.enabled } };
+  }
   if (action.type === "SET_SIMPLE_ASSESSMENTS") {
     if (typeof action.enabled !== "boolean" || state.settings?.simpleAssessments === action.enabled) return state;
     return { ...state, settings: { ...state.settings, simpleAssessments: action.enabled } };
   }
   if (action.type === "SET_ASSESSMENT_FEATURE") {
-    if (!["scheduleAssessments", "showAssessmentDueDates", "linkAssessmentAppointments", "assessmentSms"].includes(action.feature) ||
+    if (!["scheduleAssessments", "showAssessmentDueDates", "linkAssessmentAppointments", "assessmentSms", "assessmentModality", "groupAssessmentsByBundle"].includes(action.feature) ||
         typeof action.enabled !== "boolean" || state.settings?.[action.feature] === action.enabled) return state;
-    return { ...state, settings: { ...state.settings, [action.feature]: action.enabled } };
+    const next = { ...state, settings: { ...state.settings, [action.feature]: action.enabled } };
+    return action.feature === "groupAssessmentsByBundle"
+      ? ensureSampleAssessmentBundles(next, isSampleAssessmentPerson)
+      : next;
   }
   const scheduleAssessments = assessmentSchedulingEnabled(state.settings);
   const linkAssessmentAppointments = assessmentContactLinkingEnabled(state.settings);
@@ -4794,6 +4846,106 @@ function reduceState(state, action) {
       }
       break;
     }
+    case "UPDATE_ASSESSMENT_BUNDLE": {
+      const saved = state.settings?.assessmentScheduleRules?.find(bundle => bundle.id === action.bundleId);
+      const bundle = saved && asBundle(saved);
+      const optionalIds = action.optionalIds;
+      if (action.extraAssessments?.some(item => item && (item.channel === 'SMS link' && !assessmentSms || !['Clinician entry','Clinic tablet','SMS link'].includes(item.channel)))) return state;
+      const extras = Array.isArray(action.extraAssessments) ? action.extraAssessments.map(item => {
+        if (!item) return item;
+        const existing = [...(e?.collections || []), ...(e?.removedBundleAssessments || [])].find(collection =>
+          collectionBelongsToBundle(collection,action.bundleId) && collection.bundleRequirement === "Additional" && collection.version === item.version);
+        const delivery = action.assessmentOverrides?.[0] || bundle;
+        return {...item,...(existing ? {id:existing.bundleAssessmentId} : {}),channel:delivery.channel,recipient:delivery.recipient};
+      }) : action.extraAssessments;
+      const overrides = action.assessmentOverrides ?? [];
+      if (!assessmentBundleGroupingEnabled(state.settings) || !p || p.archivedAt || p.readOnly || !e ||
+          e.readOnly || e.status !== "Active" || !canAssess(p,e) || !action.id || !bundle ||
+          !e.collections.some(collection => collectionBelongsToBundle(collection,bundle.id)) ||
+          newBundleError({...bundle,enabled:true}, optionalIds, extras, p, state.settings, overrides) ||
+          extras.some(item => item.requirement !== "Optional") ||
+          (scheduleAssessments ? !validISODate(action.due) || action.due < TODAY : !!action.due)) return state;
+      const previous = bundleSelectionForEpisode(bundle,e);
+      const linkedIds = new Set(assessmentContactLinks(e).map(link => link.collectionId));
+      const recordedIds = new Set((e.events || []).map(entry => entry.collectionId));
+      const canEditCollection = collection => bundleCollectionEditable(collection) &&
+        !linkedIds.has(collection.id) && !recordedIds.has(collection.id);
+      const selected = [...bundleAssessmentsForCreation(bundle,overrides).filter(item => item.requirement === "Mandatory" || optionalIds.includes(item.id)), ...bundleAdditionalAssessments(bundle,extras,overrides)];
+      const selectedIds = new Set(selected.map(item => item.id));
+      const removed = e.collections.filter(collection => collectionBelongsToBundle(collection,bundle.id) &&
+        !selectedIds.has(collection.bundleAssessmentId) && collection.bundleRequirement !== "Mandatory" &&
+        (["Optional","Additional"].includes(collection.bundleRequirement) || bundle.assessments.some(item => item.id === collection.bundleAssessmentId && item.requirement === "Optional")) &&
+        !bundle.assessments.some(item => item.id === collection.bundleAssessmentId && item.requirement === "Mandatory") &&
+        canEditCollection(collection));
+      const removedIds = new Set(removed.map(collection => collection.id));
+      // Keep removed, untouched records recoverable when an assessment is included again.
+      e.removedBundleAssessments = [...(e.removedBundleAssessments || []), ...removed];
+      e.collections = e.collections.filter(collection => !removedIds.has(collection.id));
+      const addedIds = [];
+      for (const [index,item] of selected.entries()) {
+        const additional = extras.some(extra => extra.id === item.id);
+        const wasSelected = item.requirement === "Mandatory" || previous.optionalIds.includes(item.id) || previous.extraAssessments.some(extra => extra.id === item.id);
+        const records = e.collections.filter(collection => collectionBelongsToBundle(collection,bundle.id) && collection.bundleAssessmentId === item.id);
+        for (const collection of records.filter(canEditCollection)) {
+          Object.assign(collection,{channel:item.channel,respondent:item.recipient,recorder:item.recipient,
+            assistance:item.channel === "Clinician entry" ? "Transcribed" : "Independent"});
+        }
+        if (wasSelected || records.some(collection => collection.response !== "Submitted" && !["Paused","Cancelled"].includes(collection.assignment))) continue;
+        const restore = e.removedBundleAssessments.find(collection => collectionBelongsToBundle(collection,bundle.id) &&
+          (collection.bundleAssessmentId === item.id || additional && collection.bundleRequirement === "Additional" && collection.version === item.version));
+        const collection = restore ? {...restore, bundleAssessmentId:item.id, channel:item.channel,respondent:item.recipient,recorder:item.recipient,
+          assistance:item.channel === "Clinician entry" ? "Transcribed" : "Independent"} : {
+          ...bundleCollection({id:`${action.id}-${index}`,bundleId:bundle.id,bundleName:bundle.name,
+            bundleContext:bundleContext(bundle),assessment:item,due:scheduleAssessments ? action.due : ""},TODAY),
+          label:INSTRUMENTS.find(instrument => instrument.version === item.version).name,
+          createdAt:recordedAt,scheduleFree:!scheduleAssessments,bundleSource:"Manual",
+          bundleRequirement:additional ? "Additional" : item.requirement};
+        if (e.collections.some(existing => existing.id === collection.id)) return state;
+        e.collections.push(collection);
+        addedIds.push(collection.id);
+        if (restore) e.removedBundleAssessments = e.removedBundleAssessments.filter(record => record.id !== restore.id);
+      }
+      e.assessmentBundleSelections = {...e.assessmentBundleSelections,[bundle.id]:{
+        optionalIds,extraAssessments:extras,assessmentOverrides:overrides,updatedAt:recordedAt}};
+      // Optional offers follow the episode selection on the next reconciliation.
+      e.assessmentBundleOffers = (e.assessmentBundleOffers || []).filter(offer => offer.bundleId !== bundle.id || offer.status !== "Pending");
+      for (const instance of e.assessmentBundleInstances || []) {
+        if (instance.bundleId !== bundle.id) continue;
+        instance.collectionIds = e.collections.filter(collection => collection.bundleInstanceId === instance.id).map(collection => collection.id);
+        instance.excludedOptionalIds = bundle.assessments.filter(item => item.requirement === "Optional" && !optionalIds.includes(item.id)).map(item => item.id);
+      }
+      event("Assessment bundle updated", `${bundle.name} · ${addedIds.length} added · ${removed.length} removed · drafts and completed assessments kept`,
+        {bundleId:bundle.id,addedCollectionIds:addedIds,removedCollectionIds:[...removedIds]});
+      break;
+    }
+    case "CREATE_ASSESSMENT_BUNDLE": {
+      const saved = state.settings?.assessmentScheduleRules?.find(bundle => bundle.id === action.bundleId);
+      const bundle = saved && asBundle(saved);
+      const optionalIds = action.optionalIds;
+      if (action.extraAssessments?.some(item => item && (item.channel === 'SMS link' && !assessmentSms || !['Clinician entry','Clinic tablet','SMS link'].includes(item.channel)))) return state;
+      const extras = action.extraAssessments?.map(item => ({...item,channel:action.assessmentOverrides?.[0]?.channel || bundle?.channel,recipient:action.assessmentOverrides?.[0]?.recipient || bundle?.recipient}));
+      const overrides = action.assessmentOverrides ?? [];
+      if (!assessmentBundleGroupingEnabled(state.settings) || !p || p.archivedAt || p.readOnly || !e ||
+          e.readOnly || e.status !== "Active" || !canAssess(p,e) || !action.id ||
+          e.assessmentBundleInstances?.some(instance => instance.id === action.id) ||
+          newBundleError(bundle, optionalIds, extras, p, state.settings, overrides) ||
+          !bundleAgeMatches(bundle,p,TODAY) ||
+          (scheduleAssessments ? !validISODate(action.due) || action.due < TODAY : !!action.due)) return state;
+      const selected = [...bundleAssessmentsForCreation(bundle,overrides).filter(item => item.requirement === "Mandatory" || optionalIds.includes(item.id)), ...bundleAdditionalAssessments(bundle,extras,overrides)];
+      const collections = selected.map((item,index) => ({...bundleCollection({id:`${action.id}-${index}`, bundleId:bundle.id,
+        bundleName:bundle.name, bundleContext:bundleContext(bundle), assessment:item, due:scheduleAssessments ? action.due : ""}, TODAY),
+        label:INSTRUMENTS.find(instrument => instrument.version === item.version).name,
+        createdAt:recordedAt, scheduleFree:!scheduleAssessments, bundleInstanceId:action.id, bundleSource:"Manual",
+        bundleRequirement:extras.some(extra=>extra.id===item.id) ? "Additional" : item.requirement}));
+      if (collections.some(collection => e.collections.some(existing => existing.id === collection.id))) return state;
+      e.collections.push(...collections);
+      e.assessmentBundleInstances = [...(e.assessmentBundleInstances || []), {id:action.id, bundleId:bundle.id,
+        name:bundle.name, context:bundleContext(bundle), createdAt:recordedAt, collectionIds:collections.map(collection => collection.id),
+        excludedOptionalIds:bundle.assessments.filter(item => item.requirement === "Optional" && !optionalIds.includes(item.id)).map(item => item.id)}];
+      event("Assessment bundle created", `${bundle.name} · ${collections.length} assessments · same care episode`,
+        {bundleId:bundle.id, bundleInstanceId:action.id});
+      break;
+    }
     case "PLAN":
       if (
         !canAssess(p, e) ||
@@ -4816,9 +4968,23 @@ function reduceState(state, action) {
           appointmentMatchesCollectionDate(appointment, { due: action.due })))
       )
         return state;
+      const plannedBundle = action.bundleId && assessmentBundleGroupingEnabled(state.settings)
+        ? (state.settings?.assessmentScheduleRules || []).map(asBundle).find(bundle =>
+          bundle.id === action.bundleId && bundle.enabled && bundleAgeMatches(bundle, p, TODAY)) : null;
+      if (action.bundleId && !plannedBundle) return state;
       const plannedCollectionId = action.id || uid();
+      const plannedBundleAssessment = plannedBundle?.assessments.find(item =>
+        item.version === (action.version ?? VERSION) && item.recipient === (action.respondent || "Person"));
       e.collections.push({
         id: plannedCollectionId,
+        ...(plannedBundle ? {
+          bundleId: plannedBundle.id,
+          bundleName: plannedBundle.name,
+          bundleContext: bundleContext(plannedBundle),
+          bundleSource: "Manual",
+          bundleAssessmentId: plannedBundleAssessment?.id || plannedCollectionId,
+          bundleRequirement: plannedBundleAssessment?.requirement || "Additional",
+        } : {}),
         label: action.label.trim(),
         due: scheduleAssessments ? action.due : "",
         scheduleFree: !scheduleAssessments,
@@ -4828,12 +4994,12 @@ function reduceState(state, action) {
         response: "Not started",
         review: "Pending",
         link: "Not sent",
-        channel: action.channel || undefined,
+        channel: plannedBundle?.channel || action.channel || undefined,
         appointmentId: linkAssessmentAppointments ? action.appointmentId || null : null,
         externalAppointment: linkAssessmentAppointments ? action.externalAppointment || null : null,
         attempts: [],
         answers: [],
-        respondent: action.respondent || "Person",
+        respondent: plannedBundle?.recipient || action.respondent || "Person",
         recorder: action.recorder || "Person",
         assistance: action.assistance || "Independent",
       });

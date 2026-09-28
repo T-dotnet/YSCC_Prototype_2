@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Eye, RotateCcw } from "lucide-react";
-import { Button, Notice } from "./UI";
+import { ActionGroup, Button, Notice } from "./UI";
 import QuestionnaireFlow from "./QuestionnaireFlow";
 import {
   describeRule,
@@ -25,7 +25,7 @@ export default function InstrumentPreview({
     setRun((value) => value + 1);
   };
   const footer = (
-    <div className="modal-footer preview-footer">
+    <ActionGroup className="modal-footer preview-footer">
       {backLabel && (
         <Button type="button" onClick={onBack}>
           {backLabel}
@@ -34,7 +34,7 @@ export default function InstrumentPreview({
       <Button type="button" variant="primary" onClick={onBack}>
         Done previewing
       </Button>
-    </div>
+    </ActionGroup>
   );
   if (!instrument)
     return (

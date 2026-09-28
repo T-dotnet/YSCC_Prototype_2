@@ -1,13 +1,16 @@
+import { bundleError, reconcileAssessmentBundles, bundleIntervalDays } from "./assessmentBundles.js";
 import { INSTRUMENTS } from './instruments.js';
 import { PROGRAM_STREAMS, CARE_LEVELS, carePeriodAt } from './carePeriods.js';
 import { assessmentType } from './assessmentGroups.js';
 import { responseDate } from './progress.js';
 
 export function scheduleRuleError(rule, rules = []) {
+  if (rule?.assessments) return bundleError(rule, rules);
   if (!rule?.id || !INSTRUMENTS.some(i => i.version === rule.version)) return 'Choose an assessment type.';
   if (rule.programStream !== 'All' && !PROGRAM_STREAMS.includes(rule.programStream)) return 'Choose a program stream.';
   if (rule.careLevel !== 'All' && !CARE_LEVELS.includes(rule.careLevel)) return 'Choose a care level.';
-  if (!Number.isInteger(rule.weeks) || rule.weeks < 1 || rule.weeks > 104) return 'Enter a cadence from 1 to 104 weeks.';
+  const days = bundleIntervalDays(rule);
+  if (!Number.isInteger(days) || days < 1 || days > 728) return 'Enter a cadence from 1 to 728 days.';
   if (rules.some(r => r.id !== rule.id && r.version === rule.version && r.programStream === rule.programStream && r.careLevel === rule.careLevel)) return 'A rule already exists for this assessment, stream and care level. Edit that rule instead.';
   return null;
 }
@@ -15,7 +18,7 @@ export function scheduleRuleError(rule, rules = []) {
 export function matchingScheduleRules(rules, episode, today) {
   const period = carePeriodAt(episode, today);
   if (!period) return [];
-  const ranked = rules.filter(r => r.enabled && !scheduleRuleError(r) &&
+  const ranked = rules.filter(r => !r.assessments && r.enabled && !scheduleRuleError(r) &&
     (r.programStream === 'All' || r.programStream === period.programStream) &&
     (r.careLevel === 'All' || r.careLevel === period.careLevel))
     .sort((a, b) => {
@@ -47,7 +50,7 @@ export function reconcileAssessmentSchedules(state, today) {
         const pending = records.filter(c => c.response !== 'Submitted' && !['Paused','Cancelled'].includes(c.assignment));
         // Keep existing assignments and drafts. A due/overdue draft allows its next cycle.
         if (pending.some(c => (!['Draft','In progress'].includes(c.response) && c.assignment !== 'Active') || !c.due || c.due > today)) continue;
-        const interval = rule.weeks * 7;
+        const interval = bundleIntervalDays(rule);
         const anchor = period.startDate;
         if (!/^\d{4}-\d{2}-\d{2}$/.test(anchor || '')) continue;
         const elapsed = records.map(c => c.response === 'Submitted' ? [responseDate(c), c.due].filter(Boolean).sort().at(-1) : pending.includes(c) ? c.due : null)
@@ -72,5 +75,5 @@ export function reconcileAssessmentSchedules(state, today) {
     });
     return personChanged ? {...person, episodes} : person;
   });
-  return changed ? {...state, people} : state;
+  return reconcileAssessmentBundles(changed ? {...state, people} : state, today);
 }

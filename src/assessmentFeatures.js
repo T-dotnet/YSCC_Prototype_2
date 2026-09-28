@@ -10,12 +10,23 @@ export const assessmentDueDatesEnabled = (settings) =>
 export const assessmentContactLinkingEnabled = (settings) =>
   settings?.linkAssessmentAppointments ?? !settings?.simpleAssessments;
 
+export const assessmentModalityEnabled = (settings) =>
+  settings?.assessmentModality ?? true;
+
 export const assessmentSmsEnabled = (settings) =>
   settings?.assessmentSms ?? true;
 
-export const assessmentHistoryEntryVisible = (entry, settings) => {
+export const assessmentBundleGroupingEnabled = (settings) =>
+  settings?.groupAssessmentsByBundle ?? false;
+
+export const assessmentHistoryEntryVisible = (entry, settings, contacts = []) => {
+  const linkedContact = contacts.find(contact => contact.id === entry.appointmentId);
+  if (linkedContact && !contactVisible(linkedContact, settings)) return false;
   const title = entry.title || "";
   const detail = entry.detail || "";
+  if (!assessmentSchedulingEnabled(settings) &&
+      (entry.type === "appointment" && entry.attendance === "Planned" ||
+        title === "Contact planned" || title === "Appointment planned")) return false;
   if (!assessmentSmsEnabled(settings) &&
       (entry.channel === "SMS link" || entry.deliveryMode === "SMS" || title.includes("SMS") ||
         title === "Sample questionnaire link prepared" || detail.includes("SMS link"))) return false;
@@ -25,3 +36,16 @@ export const assessmentHistoryEntryVisible = (entry, settings) => {
       (title === "Follow-up planned" || title === "Assessment scheduled")) return false;
   return true;
 };
+
+// Presentation only: retain saved planned contacts so switching scheduling back
+// on restores them. Recorded outcomes remain visible even without an actual date.
+export const contactVisible = (contact, settings) =>
+  assessmentSchedulingEnabled(settings) || contact.attendance !== "Planned";
+
+export const episodeWithVisibleContacts = (episode, settings) => !episode || assessmentSchedulingEnabled(settings)
+  ? episode
+  : { ...episode, appointments: (episode.appointments || []).filter(contact => contactVisible(contact, settings)) };
+
+export const personWithVisibleContacts = (person, settings) => !person || assessmentSchedulingEnabled(settings)
+  ? person
+  : { ...person, episodes: person.episodes.map(episode => episodeWithVisibleContacts(episode, settings)) };

@@ -4,7 +4,7 @@ import { currentStaff, formatDate, formatTimestamp, TODAY } from "../model";
 import { IntakeHistory } from "../features/Intake";
 import { useStore } from "../store";
 import { patientIdentifier } from "../patientIdentity";
-import { Badge, Button, Field, FormErrorSummary, Modal, ValidatedForm } from "./UI";
+import { ActionGroup, EditAction, Badge, Button, Field, FormErrorSummary, Modal, ValidatedForm } from "./UI";
 
 const recorded = (value) => value === true ? "Yes" : value === false ? "No" : value || "Not recorded";
 const date = (value) => value ? formatDate(value) : "Not recorded";
@@ -247,15 +247,15 @@ export default function IntakeDetailsModal({ person, intake, onClose }) {
               </>
             ) : <p>No intake record is linked to this care period.</p>}
           </div>
-          <div className="modal-footer intake-details-actions">
+          <ActionGroup className="modal-footer intake-details-actions">
             {person.archivedAt ? (
               <Button className="intake-restore-button" onClick={() => begin("confirm-restore")}>Restore patient</Button>
             ) : (
               <Button className="intake-archive-button" onClick={() => begin("confirm-archive")}>Archive patient</Button>
             )}
-            {intake && !person.archivedAt && <Button onClick={() => begin("edit")}>Edit information</Button>}
+            {intake && !person.archivedAt && <EditAction onClick={() => begin("edit")}>Edit information</EditAction>}
             <Button variant="primary" onClick={onClose}>Close</Button>
-          </div>
+          </ActionGroup>
         </>
       )}
       {mode === "edit" && (
@@ -276,10 +276,10 @@ export default function IntakeDetailsModal({ person, intake, onClose }) {
               <textarea rows={3} required value={reason} onChange={(event) => setReason(event.target.value)} />
             </Field>
           </div>
-          <div className="modal-footer intake-details-actions">
+          <ActionGroup className="modal-footer intake-details-actions">
             <Button type="button" onClick={() => setMode("view")}>Cancel</Button>
             <Button type="submit" variant="primary">Review changes</Button>
-          </div>
+          </ActionGroup>
           {error && <FormErrorSummary title="Changes not ready to review" description={error} />}
         </ValidatedForm>
       )}
@@ -299,12 +299,12 @@ export default function IntakeDetailsModal({ person, intake, onClose }) {
             )}
             {error && <p className="field-error" role="alert">{error}</p>}
           </div>
-          <div className="modal-footer intake-details-actions">
+          <ActionGroup className="modal-footer intake-details-actions">
             <Button onClick={() => { setError(""); setMode(mode === "confirm-edit" ? "edit" : "view"); }}>Back</Button>
             <Button variant="primary" className={mode === "confirm-archive" ? "intake-confirm-archive-button" : ""} disabled={!reason.trim()} onClick={mode === "confirm-edit" ? saveEdit : () => changeArchive(mode === "confirm-archive")}>
               {mode === "confirm-edit" ? "Confirm and save" : mode === "confirm-archive" ? "Confirm archive" : "Confirm restore"}
             </Button>
-          </div>
+          </ActionGroup>
         </div>
       )}
     </Modal>

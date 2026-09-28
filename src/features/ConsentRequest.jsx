@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ArrowRight, Check, HeartHandshake, ShieldCheck } from "lucide-react";
 import { useStore } from "../store";
-import { Button, Logo, Notice, Success } from "../components/UI";
+import { ActionGroup, Button, Logo, Notice, Success } from "../components/UI";
 
 export default function ConsentRequest({ session, navigate, onEnd }) {
   const { state, commit, storageError } = useStore();
@@ -83,14 +83,14 @@ export default function ConsentRequest({ session, navigate, onEnd }) {
             heading="h1"
             title="Thank you. Your consent is recorded."
             action={
-              <div className="actions consent-actions">
+              <ActionGroup className="actions consent-actions">
                 <Button variant="secondary" onClick={withdraw}>
                   Withdraw consent
                 </Button>
                 <Button variant="primary" onClick={end}>
                   End session <Check size={18} />
                 </Button>
-              </div>
+              </ActionGroup>
             }
           >
             You can withdraw this consent later. This sample demonstrates one
@@ -135,14 +135,14 @@ export default function ConsentRequest({ session, navigate, onEnd }) {
                 staff member for support.
               </Notice>
             )}
-            <div className="actions consent-actions">
+            <ActionGroup className="actions consent-actions">
               <Button variant="secondary" onClick={() => decide("Declined")}>
                 Decline
               </Button>
               <Button variant="primary" onClick={() => decide("Accepted")}>
                 Accept <Check size={18} />
               </Button>
-            </div>
+            </ActionGroup>
           </>
         )}
       </main>

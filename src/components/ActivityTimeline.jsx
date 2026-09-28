@@ -23,9 +23,11 @@ import {
   clinicalHistoryEntries,
 } from "../activity";
 import { collectionStatus, formatDate, formatTimestamp, personEventText, TODAY } from "../model";
-import { contactCareEventFacts, historyCategory, HISTORY_CATEGORIES, historyDate, historyItem } from "../historyItem";
+import { associatedCareItems, contactCareEventFacts, historyCategory, HISTORY_CATEGORIES, historyDate, historyItem } from "../historyItem";
 import { SearchInput, Select, Button, Empty, FilterTabs } from "./UI";
 import RecordItem from "./RecordItem";
+import RelatedRecordsAccordion from "./RelatedRecordsAccordion";
+import { contactsForAssessment, assessmentsForContact } from "../assessmentContacts";
 import ListFilterBar from "./ListFilterBar";
 import TimelineExpandAll from "./TimelineExpandAll";
 import { useStore } from "../store";
@@ -178,7 +180,8 @@ function TimelineDayHeading({ date, count, singular = "record", plural = "record
 export default function ActivityTimeline({ episode, person, audit = [] }) {
   const { state } = useStore();
   const entries = activityEntries(person, episode, audit)
-    .filter((entry) => assessmentHistoryEntryVisible(entry, state.settings));
+    .filter((entry) => assessmentHistoryEntryVisible(entry, state.settings,
+      state.people.flatMap(person => person.episodes.flatMap(episode => episode.appointments || []))));
   return (
     <ol className="timeline" aria-label="Recent care activity">
       {entries.slice(0, 4).map((entry) => {
@@ -325,7 +328,7 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordA
                 : completedCollection ? `${completedCollection.label} questionnaire completed` : entry.title || "Recorded event"}
               subtitle={contactSummary ? appointment.practitionerService : item.subtitle}
               status={collection ? !scheduleAssessments
-                  ? collection.response === "Submitted" ? "Completed" : collection.response === "Draft" ? "Draft" : "Created"
+                  ? collection.response === "Submitted" ? "Completed" : collection.response === "Draft" ? "Draft" : "Not started"
                   : collectionStatus(collection)
                 : contactSummary
                   ? appointment.attendance === "Planned" && appointment.plannedDate <= TODAY
@@ -334,7 +337,10 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordA
                   : groupByDate ? "Recorded" : undefined}
               className={`record-item-compact${isSelectedSource ? " care-event-selected" : ""}`}
               facts={visiblePrimaryFacts.map(toFact)}
-              secondary={!(simpleAssessments && showCategories) && moreFacts.length > 0 && (
+              secondary={<>
+                {linkAssessmentAppointments && collection && <RelatedRecordsAccordion kind="contacts" records={contactsForAssessment(episode,collection.id)} collection={collection} />}
+                {linkAssessmentAppointments && appointment && <RelatedRecordsAccordion kind="assessments" records={assessmentsForContact(episode,appointment.id)} contactId={appointment.id} />}
+                {!(simpleAssessments && showCategories) && moreFacts.length > 0 && (
                 <details className="appointment-more-detail history-more-details">
                   <summary>
                     <span className="history-more-closed">Record details · {moreFacts.length}</span>
@@ -349,7 +355,7 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordA
                     ))}
                   </dl>
                 </details>
-              )}
+              )}</>}
               note={isCareEvent && entry.correctedEventId ? "This is an append-only correction of an earlier event." : undefined}
               actions={datedAction || (onCorrectEvent && isCareEvent && (
                 <Button variant="secondary" onClick={() => onCorrectEvent(entry.id)}>Correct event</Button>
@@ -385,7 +391,8 @@ export function ClinicalHistory({
   const scheduleAssessments = assessmentSchedulingEnabled(state.settings);
   const linkAssessmentAppointments = assessmentContactLinkingEnabled(state.settings);
   const entries = (providedEntries ?? clinicalHistoryEntries(person, episode, audit))
-    .filter((entry) => assessmentHistoryEntryVisible(entry, state.settings));
+    .filter((entry) => assessmentHistoryEntryVisible(entry, state.settings,
+      state.people.flatMap(person => person.episodes.flatMap(episode => episode.appointments || []))));
   const timelineRef = useRef(null);
 
   const [filters, setFilters] = useState({
@@ -631,7 +638,8 @@ export function ChangeLog({ episode, person, audit = [], entries: suppliedEntrie
   const { state } = useStore();
   const simplified = !!state.settings?.simpleAssessments;
   const entries = (suppliedEntries ?? changeLogEntries(person, episode, audit))
-    .filter((entry) => assessmentHistoryEntryVisible(entry, state.settings));
+    .filter((entry) => assessmentHistoryEntryVisible(entry, state.settings,
+      state.people.flatMap(person => person.episodes.flatMap(episode => episode.appointments || []))));
   const timelineRef = useRef(null);
   const isGlobal = suppliedEntries !== undefined;
   const missingValue = "__not_recorded__";

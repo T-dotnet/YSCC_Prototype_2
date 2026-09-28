@@ -1,3 +1,4 @@
+import StandardTable from "../components/StandardTable";
 import { useState } from "react";
 import { ArrowRight } from "lucide-react";
 import { ActiveFilters, SortableHeader, useQueueSort } from "../components/QueueControls";
@@ -41,8 +42,7 @@ export const ResponsiveQueue = {
       <div className="ds-story" style={{ containerType: "inline-size" }}>
         <h2>Responsive queue</h2>
         <p>Use the viewport toolbar to inspect the 390 px labelled-row treatment.</p>
-        <div className="table-scroll">
-          <table className="work-table responsive-queue-table ds-queue-table" aria-label="Example work items">
+        <StandardTable className="work-table ds-queue-table" label="Example work items">
             <thead><tr>
               <SortableHeader label="Person" sortKey="name" sort={sort} onSort={toggleSort} />
               <SortableHeader label="Work item" sortKey="item" sort={sort} onSort={toggleSort} />
@@ -59,8 +59,7 @@ export const ResponsiveQueue = {
                 <QueueCell label="Next action" slot="action"><Button className="task-action">Open <ArrowRight size={16} aria-hidden="true" /></Button></QueueCell>
               </QueueRow>
             ))}</tbody>
-          </table>
-        </div>
+          </StandardTable>
       </div>
     );
   },

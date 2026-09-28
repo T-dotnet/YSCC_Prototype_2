@@ -1,3 +1,4 @@
+import { episodeWithVisibleContacts } from "../assessmentFeatures.js";
 import { canAssess } from "../intake";
 import { useState, useEffect } from "react";
 import {
@@ -20,11 +21,11 @@ import QuestionnaireFlow from "../components/QuestionnaireFlow";
 import QuestionnaireAppointmentConfirmation from "../components/QuestionnaireAppointmentConfirmation";
 import TabletAssistanceConfirmation from "../components/TabletAssistanceConfirmation";
 import DraftContactForm from "../components/DraftContactForm";
-import { Logo, Button, Success, Modal, Notice } from "../components/UI";
+import { ActionGroup, Logo, Button, Success, Modal, Notice } from "../components/UI";
 export default function Questionnaire({ session, navigate, onEnd }) {
   const { state, commit, storageError } = useStore();
   const p = state.people.find((p) => p.id === session?.personId),
-    e = p?.episodes.find((e) => e.id === session?.episodeId),
+    e = episodeWithVisibleContacts(p?.episodes.find((e) => e.id === session?.episodeId), state.settings),
     c = e?.collections.find((c) => c.id === session?.collectionId);
   const simpleAssessments = !assessmentContactLinkingEnabled(state.settings);
   const [step, setStep] = useState(-1),
@@ -392,7 +393,7 @@ export default function Questionnaire({ session, navigate, onEnd }) {
               made in this session. Previously saved progress remains available.
             </p>
           </div>
-          <div className="modal-footer">
+          <ActionGroup className="modal-footer">
             <Button variant="primary" onClick={() => setConfirmLeave(false)}>
               Keep answering
             </Button>
@@ -404,7 +405,7 @@ export default function Questionnaire({ session, navigate, onEnd }) {
             >
               Leave without saving
             </Button>
-          </div>
+          </ActionGroup>
         </Modal>
       )}
       {help && (
@@ -422,7 +423,7 @@ export default function Questionnaire({ session, navigate, onEnd }) {
               Save progress before leaving to keep this session’s answers.
               Previously saved answers remain available in another session.
             </p>
-            <div className="actions">
+            <ActionGroup className="actions">
               <Button onClick={() => setHelp(false)}>
                 Continue questionnaire
               </Button>
@@ -434,7 +435,7 @@ export default function Questionnaire({ session, navigate, onEnd }) {
               >
                 End this session
               </Button>
-            </div>
+            </ActionGroup>
           </div>
         </Modal>
       )}

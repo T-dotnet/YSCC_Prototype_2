@@ -1,3 +1,4 @@
+import { LABELS } from "./terminology.js";
 import { appointmentDetails, appointmentTitle } from "./appointments.js";
 import { assessmentsForContact, contactsForAssessment } from "./assessmentContacts.js";
 import { assessmentScoreLabel, linkedAssessmentScore } from "./assessmentGroups.js";
@@ -49,7 +50,7 @@ export function contactCareEventFacts(item, appointment) {
   const find = (label) => [...item.primary, ...item.more].find((detail) => detail.label === label);
   const duration = find(appointment.actualDate ? "Actual duration" : "Planned duration");
   const primary = [
-    find("Delivery mode"),
+    find(LABELS.contactMethod),
     duration && fact("Duration", duration.value),
     find("Purpose or care context"),
     find("Impact on care or coordination"),
@@ -119,7 +120,7 @@ export function historyItem(entry, episode, formatDetail = (value) => value, sim
   if (appointment) {
     const primaryLabels = [
       "Practitioner or service",
-      "Delivery mode",
+      LABELS.contactMethod,
       appointment.actualDate ? "Actual duration" : "Planned duration",
     ];
     const shownDateLabel = appointment.actualDate ? "Actual date" : "Planned date";
@@ -262,7 +263,7 @@ export function historyItem(entry, episode, formatDetail = (value) => value, sim
   const primary = [
     ...(assessment ? [fact("Assessment", assessment.label)] : []),
     ...(entry.attemptRespondent ? [fact("Respondent", entry.attemptRespondent)] : []),
-    ...(entry.attemptChannel ? [fact("Channel", entry.attemptChannel)] : []),
+    ...(entry.attemptChannel ? [fact(LABELS.collectionMethod, entry.attemptChannel)] : []),
     ...(entry.attemptStatus ? [fact("Status", entry.attemptStatus)] : []),
     ...(usefulDetail && !entry.attemptRespondent ? [fact(detailLabel, usefulDetail)] : []),
   ];

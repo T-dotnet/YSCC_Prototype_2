@@ -1,5 +1,5 @@
 import { useEffect, useRef, useId } from "react";
-import { Button } from "./UI";
+import { ActionGroup, Button } from "./UI";
 
 export default function DiscardChanges({ onKeepEditing, onDiscard }) {
   const keep = useRef(null);
@@ -14,7 +14,7 @@ export default function DiscardChanges({ onKeepEditing, onDiscard }) {
         <h3 id={id}>Discard your unsaved changes?</h3>
         <p>Your saved record will stay as it is.</p>
       </div>
-      <div className="modal-footer">
+      <ActionGroup className="modal-footer">
         <button
           ref={keep}
           type="button"
@@ -29,7 +29,7 @@ export default function DiscardChanges({ onKeepEditing, onDiscard }) {
         <Button type="button" onClick={onDiscard}>
           Discard changes
         </Button>
-      </div>
+      </ActionGroup>
     </div>
   );
 }

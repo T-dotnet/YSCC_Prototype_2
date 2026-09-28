@@ -1,3 +1,4 @@
+import { episodeWithVisibleContacts } from "../assessmentFeatures.js";
 import { useEffect, useState } from "react";
 import { useStore } from "../store";
 import { assessmentContactLinkingEnabled } from "../assessmentFeatures";
@@ -18,6 +19,7 @@ export default function ClinicianQuestionnaire({
   onClose,
 }) {
   const { state, commit } = useStore();
+  episode = episodeWithVisibleContacts(episode, state.settings);
   const simpleAssessments = !assessmentContactLinkingEnabled(state.settings);
   const [answers, setAnswers] = useState(() => [...(collection.draftAnswers || [])]);
   const [discard, setDiscard] = useState(false);

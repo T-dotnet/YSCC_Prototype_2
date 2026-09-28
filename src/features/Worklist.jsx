@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { Plus, ArrowRight, CalendarX } from "lucide-react";
 import { useStore } from "../store";
 import { assessmentSchedulingEnabled } from "../assessmentFeatures";
-import { patientIdentifier } from "../patientIdentity";
+import { patientIdentifier, patientSecondaryDetail } from "../patientIdentity";
 import {
   getTasks,
   formatDate,
@@ -17,9 +17,10 @@ import useQueueView from "../useQueueView";
 import { sortQueueRows } from "../queueSort";
 import { ActiveFilters, SortableHeader, useQueueSort } from "../components/QueueControls";
 import { QueueCell, QueueRow } from "../components/QueueRow";
+import StandardTable from "../components/StandardTable";
 import ListFilterBar from "../components/ListFilterBar";
 import {
-  PageHeading,
+  ActionGroup, PageHeading,
   Button,
   Panel,
   SearchInput,
@@ -96,7 +97,7 @@ export default function Worklist({ navigate, openModal }) {
       .filter((e) => e.status === "Active")
       .flatMap((episode) =>
         (episode.appointments || [])
-          .filter((apt) => appointmentIsOverdue(apt, TODAY))
+          .filter((apt) => scheduleAssessments && appointmentIsOverdue(apt, TODAY))
           .map((apt) => ({
             id: `apto-${apt.id}`,
             category: "Contact input overdue",
@@ -217,7 +218,7 @@ export default function Worklist({ navigate, openModal }) {
           className="work-panel worklist-main-panel queue-list-panel"
           title="Worklist"
           action={
-            <div className="worklist-heading-actions">
+            <ActionGroup className="worklist-heading-actions">
               <span className="muted">{filtered.length} tasks</span>
               <Select
                 label="Work ownership"
@@ -232,7 +233,7 @@ export default function Worklist({ navigate, openModal }) {
                 <option value="team">My team · Northside Centre</option>
                 <option value="unassigned">Unassigned</option>
               </Select>
-            </div>
+            </ActionGroup>
           }
         >
           <ListFilterBar
@@ -278,18 +279,14 @@ export default function Worklist({ navigate, openModal }) {
               ]}
               onClear={clearAll}
             />
-            <div className="table-scroll desktop-worklist">
-              <table
-                className="work-table responsive-queue-table"
-                aria-label="Work items and next actions"
-              >
+            <StandardTable className="work-table" scrollClassName="desktop-worklist" label="Work items and next actions">
                 <thead>
                   <tr>
                     <SortableHeader label="Person" sortKey="name" sort={sortConfig} onSort={toggleSort} />
                     <SortableHeader label="Work item" sortKey="item" sort={sortConfig} onSort={toggleSort} />
-                    <SortableHeader label={!scheduleAssessments ? "Progress / review" : "Due / review date"} sortKey="due" sort={sortConfig} onSort={toggleSort} />
+                    <SortableHeader label={!scheduleAssessments ? "Progress" : "Due / review date"} sortKey="due" sort={sortConfig} onSort={toggleSort} />
                     <SortableHeader label="Status" sortKey="status" sort={sortConfig} onSort={toggleSort} />
-                    <th>Next action</th>
+                    <th scope="col">Next action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -310,6 +307,7 @@ export default function Worklist({ navigate, openModal }) {
                               >
                                 {patientIdentifier(p)}
                               </button>
+                              {patientSecondaryDetail(p) && <small>{patientSecondaryDetail(p)}</small>}
                             </span>
                           </div>
                         </QueueCell>
@@ -318,7 +316,7 @@ export default function Worklist({ navigate, openModal }) {
                             ? `Intake - ${intakeStage(task.record)}`
                             : c.label}
                         </QueueCell>
-                        <QueueCell label={!scheduleAssessments ? "Progress / review" : "Due / review date"} slot="date">
+                        <QueueCell label={!scheduleAssessments ? "Progress" : "Due / review date"} slot="date">
                           {!scheduleAssessments && task.collection ? (
                             <span className="muted">{status === "Draft" ? "Draft saved" : "Assessment created"}</span>
                           ) : c.response === "Submitted" ? (
@@ -347,8 +345,7 @@ export default function Worklist({ navigate, openModal }) {
                     );
                   })}
                 </tbody>
-              </table>
-            </div>
+              </StandardTable>
             {!filtered.length && (
               <Empty
                 title={

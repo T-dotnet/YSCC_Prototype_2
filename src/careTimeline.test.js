@@ -323,3 +323,14 @@ test("a care or service change can also supply a dated service period", () => {
     ["Community programme", "2026-06-10", "2026-07-20", "service-change"]);
   assert.equal(timeline.lanes.find((lane) => lane.id === "events").entries[0].sourceId, "service-change");
 });
+
+test("scheduling off excludes planned contacts from the report but keeps recorded outcomes", () => {
+  const episode = { collections: [], appointments: [
+    { id: "planned", attendance: "Planned", plannedDate: "2026-06-01" },
+    { id: "actual", attendance: "Attended", actualDate: "2026-06-01" },
+    { id: "cancelled", attendance: "Cancelled", plannedDate: "2026-06-01" },
+  ] };
+  const contacts = scheduling => careTimelineData(episode, { scheduleAssessments: scheduling }).lanes.find(lane => lane.id === "contacts").entries.map(entry => entry.sourceId);
+  assert.deepEqual(contacts(false), ["actual", "cancelled"]);
+  assert.deepEqual(contacts(true), ["planned", "actual", "cancelled"]);
+});

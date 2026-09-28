@@ -1,6 +1,6 @@
 import { currentCarePeriod, previousDate } from "../carePeriods";
 import { formatDate } from "../model";
-import { Button, Panel } from "./UI";
+import { EditAction, Panel } from "./UI";
 
 export function CareLevelHistory({ episode, expanded = false }) {
   const periods = episode.carePeriods || [];
@@ -57,9 +57,9 @@ export default function CareLevelSection({ episode, canEdit, openModal }) {
         <CareLevelHistory episode={episode} />
         {canEdit && (
           <div className="care-level-edit-action">
-            <Button variant="secondary" onClick={() => openModal({ type: "care-level", episodeId: episode.id })}>
+            <EditAction onClick={() => openModal({ type: "care-level", episodeId: episode.id })}>
               {active ? "Edit stream & care level" : "Record starting level"}
-            </Button>
+            </EditAction>
           </div>
         )}
       </div>

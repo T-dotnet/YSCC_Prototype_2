@@ -1,3 +1,4 @@
+import { LABELS } from "../terminology.js";
 import { useEffect, useRef, useState } from "react";
 import { Field } from "./UI";
 import {
@@ -32,13 +33,13 @@ export default function ContactFields({ appointment = {}, attended = false, pers
   return (
     <>
       <details className="appointment-more-detail appointment-direct-contact"
-        defaultOpen={attended} ref={directContactRef}
+        ref={directContactRef}
         onInvalidCapture={() => { directContactRef.current.open = true; }}>
         <summary>Direct contact details</summary>
         <div className="appointment-actual-fields">
           <p>Record who received the contact and the practitioner who delivered it. Draft categories are not approved reporting codes.</p>
           <div className="form-grid">
-            <Field label="Recipient">
+            <Field label={LABELS.recipient}>
               <select name="recipientType" value={recipient} onChange={(event) => setRecipient(event.target.value)} required={attended}>
                 {CONTACT_RECIPIENTS.map((value) => <option key={value}>{value}</option>)}
               </select>

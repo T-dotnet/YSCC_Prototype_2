@@ -1,0 +1,336 @@
+/* Mobbin references: Descript's inset workspace and Asana's integrated chrome.
+   All rules are opt-in through .shell-modern; ?shell=classic restores the old shell. */
+.shell.shell-modern {
+  --shell-frame: #e9ede7;
+  --shell-nav-hover: #dfe6dc;
+  --shell-nav-active: #d4dfce;
+  --shell-content-top: 32px;
+  --sidebar-width: 232px;
+  --sidebar-collapsed-width: 76px;
+  min-height: 100dvh;
+  height: 100dvh;
+  padding-bottom: 16px;
+  background: var(--shell-frame);
+}
+
+.shell.shell-modern > .sidebar {
+  inset: 12px auto 12px 12px;
+  padding: 8px 12px 0;
+  width: calc(var(--sidebar-width) - 12px);
+  border: 0;
+  background: var(--shell-frame);
+}
+
+.shell.shell-modern > .sidebar.collapsed {
+  width: calc(var(--sidebar-collapsed-width) - 12px);
+  padding-inline: 4px;
+}
+
+.shell.shell-modern .brand-row {
+  min-height: 40px;
+  padding: 0 4px 16px;
+}
+
+.shell.shell-modern .sidebar.collapsed .brand-row {
+  gap: 4px;
+  padding-inline: 0;
+}
+
+.shell.shell-modern .sidebar-collapse {
+  display: none;
+}
+
+.shell.shell-modern .sidebar .scope {
+  margin: 4px 0 20px;
+  padding: 10px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+}
+
+.shell.shell-modern .sidebar .scope:hover {
+  background: var(--shell-nav-hover);
+}
+
+.shell.shell-modern .sidebar nav {
+  gap: 6px;
+  padding-top: 12px;
+  border-top: 1px solid #cbd4c5;
+}
+
+.shell.shell-modern .sidebar .nav-item {
+  min-height: 42px;
+  padding: 10px 12px;
+  gap: 12px;
+  border-radius: 8px;
+  color: var(--ink-soft);
+  font-size: var(--type-supporting);
+  transition: background-color 160ms ease-out, color 160ms ease-out;
+}
+
+.shell.shell-modern .sidebar.collapsed .nav-item {
+  padding-inline: 0;
+}
+
+.shell.shell-modern .sidebar .nav-item svg {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+
+.shell.shell-modern .sidebar .nav-item:hover:not(.active) {
+  background: var(--shell-nav-hover);
+  color: var(--ink);
+}
+
+.shell.shell-modern .sidebar .nav-item.active {
+  background: var(--shell-nav-active);
+  color: var(--orygen-forest);
+}
+
+.shell.shell-modern .sidebar .nav-item.active svg {
+  color: var(--orygen-forest);
+}
+
+.shell.shell-modern .sidebar-bottom {
+  padding-top: 24px;
+}
+
+.shell.shell-modern .sidebar .profile {
+  border-top-color: #d1d9cc;
+  padding: 16px 4px 8px;
+}
+
+.shell.shell-modern .sidebar .profile:hover {
+  background: var(--shell-nav-hover);
+}
+
+.shell.shell-modern > .app-body {
+  margin-left: var(--sidebar-width);
+  min-width: 0;
+}
+
+.shell.shell-modern > .sidebar.collapsed + .app-body {
+  margin-left: var(--sidebar-collapsed-width);
+}
+
+.shell.shell-modern .topbar {
+  z-index: 20;
+  height: 64px;
+  padding: 0 24px 0 20px;
+  border: 0;
+  background: var(--shell-frame);
+}
+
+.shell.shell-modern .global-search-input {
+  background: #f6f8f4;
+  border-color: #d7ded2;
+  border-radius: 8px;
+}
+
+.shell.shell-modern .topbar-search {
+  --shell-search-width: min(390px, calc(100% - 720px));
+  position: absolute;
+  left: calc((100% - var(--shell-search-width)) / 2);
+  width: var(--shell-search-width);
+  min-width: 32px;
+  margin-left: 0;
+}
+
+.shell.shell-modern .topbar-search + .topbar-right::before {
+  content: "";
+  width: 1px;
+  height: 24px;
+  flex-shrink: 0;
+  background: #cbd4c5;
+}
+
+.shell.shell-modern .topbar-search + .topbar-right {
+  margin-left: auto;
+}
+
+@media (max-width: 1000px) {
+  .shell.shell-modern .topbar-search {
+    --shell-search-width: 32px;
+  }
+}
+
+@media (max-width: 700px) {
+  .shell.shell-modern .topbar-search {
+    position: relative;
+    left: auto;
+    margin-right: auto;
+  }
+}
+
+.shell.shell-modern .global-search-input:focus-within {
+  background: var(--surface);
+  border-color: var(--orygen-forest);
+}
+
+.shell.shell-modern .topbar-divider {
+  background: #cbd4c5;
+}
+
+.shell.shell-modern .topbar-right {
+  flex-shrink: 0;
+  gap: 12px;
+}
+
+.shell.shell-modern .notification-popover {
+  position: fixed;
+  top: 64px;
+  left: auto;
+  right: 16px;
+  width: min(480px, calc(100vw - var(--sidebar-collapsed-width) - 16px));
+  max-height: calc(100dvh - 80px);
+}
+
+@media (max-width: 700px) {
+  .shell.shell-modern .notification-popover {
+    top: 56px;
+    left: auto;
+    right: 8px;
+    width: calc(100vw - 16px);
+    max-height: calc(100dvh - 64px);
+  }
+}
+
+.shell.shell-modern .topbar-right .notification-bell-btn {
+  width: auto;
+  min-width: 52px;
+  min-height: 40px;
+  padding: 8px;
+  gap: 6px;
+}
+
+.shell.shell-modern .system-status-indicator,
+.shell.shell-modern .logout-button {
+  min-width: 40px;
+  min-height: 40px;
+  justify-content: center;
+}
+
+.shell.shell-modern .system-status-indicator,
+.shell.shell-modern .logout-button {
+  background: transparent;
+  border-color: transparent;
+}
+
+.shell.shell-modern .system-status-indicator:hover,
+.shell.shell-modern .logout-button:hover {
+  background: #f6f8f4;
+  border-color: #d7ded2;
+}
+
+.shell.shell-modern .app-body > .main {
+  width: calc(100% - 16px);
+  max-width: none;
+  height: calc(100dvh - 80px);
+  min-height: 0;
+  overflow: auto;
+  margin: 0 16px 0 0;
+  padding: 32px 36px 48px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: 0 4px 18px rgb(30 53 16 / 6%);
+  scroll-margin-top: 80px;
+}
+
+.shell.shell-modern .main.main-internal .person-content-surface {
+  border: 0;
+  border-radius: 0;
+  padding-inline: 0;
+  background: transparent;
+}
+
+.shell.shell-modern .record-two .report-dashboard {
+  --report-sticky-top: calc(48px - var(--shell-content-top));
+}
+
+.shell.shell-modern .main .person-record-navigation {
+  position: sticky;
+  top: calc(-1 * var(--shell-content-top));
+  z-index: 9;
+  height: 48px;
+  background: var(--surface);
+}
+
+.shell.shell-modern .main .person-record-navigation .person-tabs {
+  height: 48px;
+}
+
+.shell.shell-modern .report-dashboard-section {
+  scroll-margin-top: 112px;
+}
+
+@media (min-width: 701px) and (max-width: 1000px) {
+  .shell.shell-modern {
+    --sidebar-width: 212px;
+    --shell-content-top: 24px;
+  }
+  .shell.shell-modern .app-body > .main {
+    padding: 24px;
+  }
+  .shell.shell-modern .topbar {
+    gap: 12px;
+    padding-inline: 16px;
+  }
+}
+
+@media (max-width: 700px) {
+  .shell.shell-modern {
+    padding-bottom: 8px;
+    --shell-content-top: 24px;
+  }
+  .shell.shell-modern > .app-body,
+  .shell.shell-modern > .sidebar.collapsed + .app-body {
+    margin-left: 0;
+  }
+  .shell.shell-modern .topbar {
+    height: 56px;
+    gap: 8px;
+    padding-inline: 12px;
+  }
+  .shell.shell-modern .app-body > .main {
+    width: calc(100% - 16px);
+    margin: 0 8px;
+    height: calc(100dvh - 64px);
+    padding: 24px 16px 32px;
+    border-radius: 12px;
+    scroll-margin-top: 64px;
+  }
+  .shell.shell-modern > .sidebar,
+  .shell.shell-modern > .sidebar.collapsed {
+    inset: 8px auto 8px 0;
+    width: var(--sidebar-mobile-width);
+    max-width: calc(100% - 48px);
+    padding: 12px;
+    border-radius: 0 12px 12px 0;
+    background: var(--shell-frame);
+  }
+  .shell.shell-modern .sidebar .nav-item {
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell.shell-modern .sidebar .nav-item {
+    transition: none;
+  }
+}
+
+@media print {
+  .shell.shell-modern {
+    background: white;
+    padding: 0;
+  }
+  .shell.shell-modern .app-body > .main {
+    width: 100%;
+    height: auto;
+    overflow: visible;
+    margin: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+}

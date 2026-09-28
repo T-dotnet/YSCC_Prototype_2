@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ChevronRight, Plus } from "lucide-react";
 import AssessmentCollectionCard from "../components/AssessmentCollectionCard";
 import ListFilterBar from "../components/ListFilterBar";
+import StandardTable from "../components/StandardTable";
 import { QueueCell, QueueRow } from "../components/QueueRow";
 import { linkedAssessmentScore } from "../assessmentGroups";
 import { recordCompleteness } from "../dataQuality";
@@ -74,8 +75,7 @@ export const PageHeadingAndPanel = {
             </Select>
           }
         />
-        <div className="table-scroll people-table-scroll">
-          <table className="people-table responsive-queue-table" aria-label="People and assessment status">
+        <StandardTable className="people-table" scrollClassName="people-table-scroll" label="People and assessment status">
             <thead><tr><th>Person</th><th>Next / latest assessment</th><th>Status</th><th>Required data</th><th>Care owner</th><th>Episode</th><th><span className="sr-only">Open</span></th></tr></thead>
             <tbody>{visible.slice(0, 3).map((row) => {
               const p = row.person;
@@ -90,8 +90,7 @@ export const PageHeadingAndPanel = {
                 <QueueCell label="Open" slot="action" className="people-open"><ChevronRight size={18} aria-hidden="true" /></QueueCell>
               </QueueRow>;
             })}</tbody>
-          </table>
-        </div>
+        </StandardTable>
       </Panel>
       <div className="ds-note">This page excerpt shows three sample rows. The app includes sorting, pagination, and record navigation.</div>
     </div>;

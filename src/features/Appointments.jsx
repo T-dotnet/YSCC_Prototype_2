@@ -1,3 +1,4 @@
+import { contactVisible } from "../assessmentFeatures.js";
 import { useMemo, useState } from "react";
 import {
   CalendarDays,
@@ -243,7 +244,7 @@ export default function Appointments({ episode, openModal }) {
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const appointments = (episode.appointments || []).filter((appointment) =>
-    assessmentSmsEnabled(state.settings) || appointment.deliveryMode !== "SMS");
+    contactVisible(appointment, state.settings) && (assessmentSmsEnabled(state.settings) || appointment.deliveryMode !== "SMS"));
   const visibleAppointments = useMemo(
     () =>
       appointments.filter((appointment) =>
@@ -282,7 +283,7 @@ export default function Appointments({ episode, openModal }) {
           <h2>Contact</h2>
           <p>{scheduleAssessments
             ? "Record planned and actual contacts, including SMS, delivery mode and outcome."
-            : "Record contacts and their outcomes. Existing planned contacts remain available for follow-up."}</p>
+            : "Record contacts and their outcomes."}</p>
         </div>
         <Button variant="primary" disabled={episode.status !== "Active"} onClick={addContact}>
           <Plus size={17} aria-hidden="true" /> {scheduleAssessments ? "Add contact" : "Record contact"}
@@ -347,7 +348,7 @@ export default function Appointments({ episode, openModal }) {
                   }
                 >
                   <option value="all">All statuses</option>
-                  {APPOINTMENT_ATTENDANCE.map((status) => (
+                  {APPOINTMENT_ATTENDANCE.filter(status => scheduleAssessments || status !== "Planned").map((status) => (
                     <option key={status} value={status}>
                       {status}
                     </option>

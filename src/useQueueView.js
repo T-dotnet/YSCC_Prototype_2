@@ -1,6 +1,9 @@
 import { useEffect } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 
+// Use the framed workspace when present; classic pages retain window scrolling.
+const queueScrollTarget = () => document.querySelector(".shell-modern #main") || window;
+
 export default function useQueueView() {
   const path = usePathname();
   const params = useSearchParams();
@@ -10,12 +13,13 @@ export default function useQueueView() {
     try {
       position = Number(sessionStorage.getItem(`yscc-scroll:${href}`)) || 0;
     } catch {}
-    const frame = requestAnimationFrame(() => window.scrollTo(0, position));
+    const frame = requestAnimationFrame(() => queueScrollTarget().scrollTo(0, position));
     return () => cancelAnimationFrame(frame);
   }, [path]);
   const remember = () => {
     try {
-      sessionStorage.setItem(`yscc-scroll:${href}`, String(window.scrollY));
+      const target = queueScrollTarget();
+      sessionStorage.setItem(`yscc-scroll:${href}`, String(target === window ? window.scrollY : target.scrollTop));
     } catch {}
   };
   const set = (key, value, fallback, resetPage = false) => {

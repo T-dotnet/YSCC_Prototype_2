@@ -1,3 +1,4 @@
+import { LABELS } from "./terminology.js";
 import { carePeriodAt } from "./carePeriods.js";
 import { assessmentsForContact } from "./assessmentContacts.js";
 
@@ -280,12 +281,12 @@ export function appointmentDetails(appointment, episode) {
     ["Planned time", appointment.plannedTime],
     ["Planned duration", appointment.plannedDurationMinutes && `${appointment.plannedDurationMinutes} min`],
     ["Practitioner or service", appointment.practitionerService],
-    ["Delivery mode", appointment.deliveryMode],
+    [LABELS.contactMethod, appointment.deliveryMode],
     ["Attendance", appointment.attendance],
     ["Initial assessment", appointment.assessmentIntakeId ? "Associated" : null],
     ["Care level on contact date", levelAtContact?.careLevel],
     ["Direct contact type", appointment.contactType],
-    ["Recipient", appointment.recipientType],
+    [LABELS.recipient, appointment.recipientType],
     ["Related person", appointment.relatedPersonName],
     ["Venue", appointment.venue],
     ["Participants", appointment.participants],
@@ -322,7 +323,7 @@ export function appointmentChanges(appointment) {
     ["plannedTime", "Planned time", appointment.plannedTime],
     ["plannedDurationMinutes", "Planned duration", `${appointment.plannedDurationMinutes} min`],
     ["practitionerService", "Practitioner or service", appointment.practitionerService],
-    ["deliveryMode", "Delivery mode", appointment.deliveryMode],
+    ["deliveryMode", LABELS.contactMethod, appointment.deliveryMode],
     ["attendance", "Attendance", appointment.attendance],
     ["assessmentIntakeId", "Initial assessment association", appointment.assessmentIntakeId],
     ["contactType", "Direct contact type", appointment.contactType],

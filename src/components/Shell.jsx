@@ -4,6 +4,7 @@ import {
   Users,
   ChartNoAxesColumnIncreasing,
   History,
+  FileChartColumn,
   Settings,
   SlidersHorizontal,
   CircleHelp,
@@ -21,9 +22,11 @@ import NotificationBell from "./NotificationBell";
 import { useStore } from "../store";
 import { currentStaff } from "../model";
 import { patientIdentifier, patientSecondaryDetail } from "../patientIdentity";
+import "./shell.css";
 const links = [
   ["/", "My work", House],
   ["/people", "People", Users],
+  ["/general-report", "General report", FileChartColumn],
   ["/quality", "Data quality", ChartNoAxesColumnIncreasing],
   ["/change-log", "Change log", History],
   ["/administration", "Administration", Settings],
@@ -40,6 +43,11 @@ export default function Shell({
   const { state } = useStore();
   const staff = currentStaff(state);
   const isInternalPage = path.startsWith("/people/");
+  // Keep the previous shell available for comparison and immediate rollback.
+  const [modernShell] = useState(() =>
+    typeof window === "undefined" ||
+    new URLSearchParams(window.location.search).get("shell") !== "classic",
+  );
   const [mobile, setMobile] = useState(false);
   const [collapsed, setCollapsed] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -48,6 +56,10 @@ export default function Shell({
   const menuRef = useRef(null);
   const searchRef = useRef(null);
   const searchInputRef = useRef(null);
+  // Framed shell pages scroll inside the workspace; start each route at the top.
+  useEffect(() => {
+    if (modernShell) document.getElementById("main")?.scrollTo(0, 0);
+  }, [path, modernShell]);
   const normalizedSearchQuery = searchQuery.trim().toLocaleLowerCase();
   const searchResults = normalizedSearchQuery
     ? state.people
@@ -129,7 +141,7 @@ export default function Shell({
     if (selected) selectPerson(selected);
   };
   return (
-    <div className="shell">
+    <div className={`shell${modernShell ? " shell-modern" : ""}`}>
       <a className="skip-link" href="#main">
         Skip to content
       </a>
@@ -174,7 +186,7 @@ export default function Shell({
           <span>Your workspace</span>
         </button>
         <nav aria-label="Main navigation">
-          {links.map(([href, label, Icon]) => (
+          {links.filter(([href]) => href !== "/general-report" || state.settings?.showGeneralReport !== false).map(([href, label, Icon]) => (
             <button
               key={href}
               className={`nav-item ${active === href ? "active" : ""}`}

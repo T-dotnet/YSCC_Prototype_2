@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assessmentDueByType, assessmentDueLabel, assessmentsWithDueVisibility } from "./assessmentDue.js";
+import { assessmentDueByType, assessmentDueLabel, assessmentsWithDueVisibility, earliestPendingAssessment } from "./assessmentDue.js";
 
 const today = "2026-09-28";
 const collection = (id, due, extra = {}) => ({
@@ -9,6 +9,18 @@ const collection = (id, due, extra = {}) => ({
 });
 const selected = (records) => [...assessmentDueByType(records, today).values()].filter(Boolean);
 const visible = (records) => assessmentsWithDueVisibility(records, today).map((item) => item.id);
+
+test("bundle due summary prioritizes the earliest pending date across Created and Draft records", () => {
+  const records = [collection('future', '2026-10-01'), collection('draft', '2026-09-25', { response: 'Draft' }), collection('created', '2026-09-21')];
+  assert.equal(earliestPendingAssessment(records).id, 'created');
+  assert.equal(assessmentDueLabel(earliestPendingAssessment(records), today), 'Past due');
+});
+
+test("bundle due summary ignores historical, inactive and undated assessments", () => {
+  const records = [collection('done', '2026-08-01', { response: 'Submitted' }), collection('paused', '2026-08-02', { assignment: 'Paused' }), collection('cancelled', '2026-08-03', { assignment: 'Cancelled' }), collection('undated', '')];
+  assert.equal(earliestPendingAssessment(records), null);
+  assert.equal(earliestPendingAssessment([...records, collection('today', today)]).id, 'today');
+});
 
 test("each type exposes only its earliest due assessment, preserving completed history", () => {
   const records = [

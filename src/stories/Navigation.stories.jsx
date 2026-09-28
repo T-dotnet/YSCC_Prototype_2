@@ -1,3 +1,4 @@
+import { LABELS } from "../terminology.js";
 import { useState } from "react";
 import { ArrowLeft, ArrowRight, ChevronDown, CircleAlert, FileCheck2, Plus } from "lucide-react";
 import ListFilterBar from "../components/ListFilterBar";
@@ -128,8 +129,8 @@ export const FilterToolbar = {
             activeAdvancedCount={Number(channel !== "all")}
             onClear={clear}
             advanced={
-              <Select label="Delivery channel" value={channel} onChange={(event) => setChannel(event.target.value)}>
-                <option value="all">All channels</option>
+              <Select label={LABELS.deliveryMethod} value={channel} onChange={(event) => setChannel(event.target.value)}>
+                <option value="all">All delivery methods</option>
                 {[...new Set(consentRequests.map((request) => request.channel))].map((value) => <option key={value} value={value}>{value}</option>)}
               </Select>
             }

@@ -9,6 +9,7 @@ import { comparePeople, peopleForList } from "../people";
 import { sortQueueRows } from "../queueSort";
 import { patientIdentifier, patientSecondaryDetail } from "../patientIdentity";
 import { ActiveFilters, SortableHeader, useQueueSort } from "../components/QueueControls";
+import StandardTable from "../components/StandardTable";
 import { QueueCell, QueueRow } from "../components/QueueRow";
 import ListFilterBar from "../components/ListFilterBar";
 import {
@@ -60,7 +61,7 @@ export default function People({ navigate, openModal }) {
     if (!scheduleAssessments) result = result.map((row) => {
       if (!row.collection) return row;
       const assessmentState = row.collection.response === "Submitted" ? "Completed"
-        : row.collection.response === "Draft" ? "Draft" : "Created";
+        : row.collection.response === "Draft" ? "Draft" : "Not started";
       return {
         ...row,
         status: assessmentState,
@@ -178,11 +179,7 @@ export default function People({ navigate, openModal }) {
           ]}
           onClear={clearAll}
         />
-        <div className="table-scroll people-table-scroll">
-          <table
-            className="people-table responsive-queue-table"
-            aria-label="People and assessment status"
-          >
+        <StandardTable className="people-table" scrollClassName="people-table-scroll" label="People and assessment status">
             <thead>
               <tr>
                 <SortableHeader label="Person" sortKey="name" sort={sortConfig} onSort={toggleSort} />
@@ -314,8 +311,7 @@ export default function People({ navigate, openModal }) {
                 );
               })}
             </tbody>
-          </table>
-        </div>
+        </StandardTable>
         {!people.length && (
           <Empty
             visual="botanical"

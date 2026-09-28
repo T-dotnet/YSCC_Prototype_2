@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { addCalendarMonths, addDays, EPISODE_REVIEW_TYPES, episodeReviewActionError, episodeReviewSchedule, nextRollingOutcomeDate, reviewTiming } from "../episodeReviews";
 import { formatDate, TODAY } from "../model";
-import { Button, Field, Modal, Panel, TextLink, ValidatedForm } from "./UI";
+import { ActionGroup, EditAction, Button, Field, Modal, Panel, ValidatedForm } from "./UI";
 
 export default function EpisodeReviews({ episode, personId, commit, canEdit }) {
   const schedule = episodeReviewSchedule(episode, TODAY);
@@ -35,7 +35,7 @@ export default function EpisodeReviews({ episode, personId, commit, canEdit }) {
       <Panel
         className="episode-reviews-panel"
         title="Episode reviews"
-        action={canEdit && <TextLink aria-haspopup="dialog" onClick={() => { setError(""); setMode("schedule"); }}>Edit schedule</TextLink>}
+        action={canEdit && <EditAction aria-haspopup="dialog" onClick={() => { setError(""); setMode("schedule"); }}>Edit schedule</EditAction>}
       >
         <div className="panel-body stack">
           <div className="episode-review-grid">
@@ -98,7 +98,7 @@ export default function EpisodeReviews({ episode, personId, commit, canEdit }) {
               </Field>
               {error && <p className="field-error" role="alert">{error}</p>}
             </div>
-            <div className="modal-footer"><Button type="button" onClick={close}>Cancel</Button><Button type="submit" variant="primary">Save schedule</Button></div>
+            <ActionGroup className="modal-footer"><Button type="button" onClick={close}>Cancel</Button><Button type="submit" variant="primary">Save schedule</Button></ActionGroup>
           </ValidatedForm>
         </Modal>
       )}
@@ -128,7 +128,7 @@ export default function EpisodeReviews({ episode, personId, commit, canEdit }) {
               </Field>
               {error && <p className="field-error" role="alert">{error}</p>}
             </div>
-            <div className="modal-footer"><Button type="button" onClick={close}>Cancel</Button><Button type="submit" variant="primary">Record {mode === "outcome" ? "review" : "check"}</Button></div>
+            <ActionGroup className="modal-footer"><Button type="button" onClick={close}>Cancel</Button><Button type="submit" variant="primary">Record {mode === "outcome" ? "review" : "check"}</Button></ActionGroup>
           </ValidatedForm>
         </Modal>
       )}

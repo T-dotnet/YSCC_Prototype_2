@@ -1,10 +1,13 @@
+import { contactVisible } from "../assessmentFeatures.js";
+import { LABELS } from "../terminology.js";
 import { collectionStatus, formatDate } from "../model";
 import { getInstrument } from "../instruments";
 import { contactContribution } from "../responseSessions";
-import { Badge, Button, Modal, TextLink } from "./UI";
+import { ActionGroup, Badge, Button, Modal, TextLink } from "./UI";
 import { useStore } from "../store";
 import { assessmentContactLinkingEnabled, assessmentSchedulingEnabled, assessmentSmsEnabled } from "../assessmentFeatures";
 import { useState } from "react";
+import RelatedRecordsTable from "./RelatedRecordsTable";
 
 const contactName = (contact) =>
   contact.contactType || contact.appointmentType || contact.practitionerService || "Service contact";
@@ -23,12 +26,12 @@ export default function RelatedRecordsAccordion({ kind, records = [], collection
   const { state } = useStore();
   if (!assessmentContactLinkingEnabled(state.settings)) return null;
   const visibleRecords = records.filter((record) =>
-    assessmentSmsEnabled(state.settings) || record.deliveryMode !== "SMS");
+    (kind !== "contacts" || contactVisible(record, state.settings)) && (assessmentSmsEnabled(state.settings) || record.deliveryMode !== "SMS"));
   if (!visibleRecords.length && !showEmpty) return null;
   const contacts = kind === "contacts";
   const title = contacts ? "Related contacts" : "Linked assessments";
   const headings = contacts
-    ? ["Date", "Name", "Status / outcome", "Collection method", ...(collection ? ["Contribution"] : [])]
+    ? ["Date", "Name", "Status / outcome", LABELS.collectionMethod, ...(collection ? ["Contribution"] : [])]
     : ["Name", assessmentSchedulingEnabled(state.settings) ? "Response / due date" : "Response", "Status / outcome", "Contribution"];
   const instrument = collection ? getInstrument(collection.version) : null;
   const orderedRecords = [...visibleRecords].sort((a, b) => {
@@ -56,15 +59,14 @@ export default function RelatedRecordsAccordion({ kind, records = [], collection
           record.submittedAt
             ? formatDate(record.submittedAt.slice(0, 10))
             : assessmentSchedulingEnabled(state.settings) && record.due ? `Due ${formatDate(record.due)}` : "Not completed",
-          assessmentSchedulingEnabled(state.settings) ? collectionStatus(record) : record.response === "Submitted" ? "Completed" : record.response === "Draft" ? "Draft" : "Created",
+          assessmentSchedulingEnabled(state.settings) ? collectionStatus(record) : record.response === "Submitted" ? "Completed" : record.response === "Draft" ? "Draft" : "Not started",
           contribution ? contributionCell(contribution) : "—",
         ];
     return headings.map((heading, index) => ({ heading, value: values[index] }));
   };
 
   const table = visibleRecords.length ? (
-        <div className="table-scroll related-records-table-scroll">
-          <table className="people-table related-records-native-table" aria-label={title}>
+        <RelatedRecordsTable label={title}>
             <thead>
               <tr>{headings.map((heading) => <th scope="col" key={heading}>{heading}</th>)}</tr>
             </thead>
@@ -75,8 +77,7 @@ export default function RelatedRecordsAccordion({ kind, records = [], collection
                 </tr>
               ))}
             </tbody>
-          </table>
-        </div>
+        </RelatedRecordsTable>
       ) : <p className="related-records-empty">None linked.</p>;
 
   return (
@@ -87,7 +88,7 @@ export default function RelatedRecordsAccordion({ kind, records = [], collection
       {open && (
         <Modal title={title} subtitle={`${visibleRecords.length} ${visibleRecords.length === 1 ? "record" : "records"}`} onClose={() => setOpen(false)} wide className="related-records-dialog">
           <div className="form-body related-records-dialog-body">{table}</div>
-          <div className="modal-footer"><Button type="button" onClick={() => setOpen(false)}>Close</Button></div>
+          <ActionGroup className="modal-footer"><Button type="button" onClick={() => setOpen(false)}>Close</Button></ActionGroup>
         </Modal>
       )}
     </section>

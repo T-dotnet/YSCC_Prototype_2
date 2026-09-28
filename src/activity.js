@@ -1,3 +1,4 @@
+import { LABELS, terminologyLabel } from "./terminology.js";
 import {
   answerLabel,
   getInstrument,
@@ -52,11 +53,11 @@ export function careChanges(before, after) {
       ["assignment", "Collection status"],
       ["response", "Response status"],
       ["link", "Link or session status"],
-      ["channel", "Delivery channel"],
+      ["channel", LABELS.collectionMethod],
       ["respondent", "Respondent role"],
       ["respondentName", "Respondent"],
       ["recorderName", "Recorded by"],
-      ["assistance", "Completion support"],
+      ["assistance", LABELS.assistance],
       ["submittedAt", "Response date"],
       ["revision", "Answer revision"],
       ["review", "Clinical review status"],
@@ -295,7 +296,18 @@ export function activityChangeDetails(entry) {
       before: change.priorDisplay ?? change.priorValue,
       after: change.newDisplay ?? change.newValue,
     }));
-  return entry.changes ?? [];
+  return (entry.changes ?? []).map((change) => {
+    // Older workspaces retain their original audit data. Normalize field names
+    // for display, using the record context rather than replacing free text.
+    const separator = change.label?.lastIndexOf(" · ") ?? -1;
+    const prefix = separator >= 0 ? change.label.slice(0, separator + 3) : "";
+    const field = separator >= 0 ? change.label.slice(separator + 3) : change.label;
+    const concept = change.key?.endsWith("deliveryMode") || field === "Delivery mode"
+      ? "contactMethod"
+      : entry.collectionId || prefix ? "collectionMethod" : "deliveryMethod";
+    const label = terminologyLabel(terminologyLabel(field, concept), "assistance");
+    return label === field ? change : { ...change, label: `${prefix}${label}` };
+  });
 }
 
 // Compliance logs show only retained field-level deltas. Clinical history uses

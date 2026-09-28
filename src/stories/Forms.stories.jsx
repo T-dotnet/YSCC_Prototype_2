@@ -2,6 +2,7 @@ import { useState } from "react";
 import { expect, userEvent, within } from "storybook/test";
 import {
   Button,
+  Checkbox,
   Field,
   FormErrorSummary,
   Notice,
@@ -42,6 +43,26 @@ export const SearchAndClear = {
         <p className="ds-caption" style={{ marginTop: "var(--space-4)" }}>Current query: {query || "None"}</p>
       </div>
     );
+  },
+};
+
+export const Checkboxes = {
+  render: () => {
+    const [enabled, setEnabled] = useState(true);
+    const [repeat, setRepeat] = useState(false);
+    return <div className="ds-story ds-form ds-stack">
+      <Checkbox label="Enable this bundle" checked={enabled} onChange={event=>setEnabled(event.target.checked)}/>
+      <Checkbox label="Repeat" checked={repeat} onChange={event=>setRepeat(event.target.checked)}/>
+      <Checkbox label="Mandatory" checked disabled/>
+    </div>;
+  },
+  play: async ({canvasElement}) => {
+    const canvas=within(canvasElement);
+    await userEvent.click(canvas.getByRole('checkbox',{name:'Enable this bundle'}));
+    await expect(canvas.getByRole('checkbox',{name:'Enable this bundle'})).not.toBeChecked();
+    await userEvent.click(canvas.getByRole('checkbox',{name:'Repeat'}));
+    await expect(canvas.getByRole('checkbox',{name:'Repeat'})).toBeChecked();
+    await expect(canvas.getByRole('checkbox',{name:'Mandatory'})).toBeDisabled();
   },
 };
 

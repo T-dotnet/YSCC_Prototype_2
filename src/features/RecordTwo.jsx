@@ -11,10 +11,11 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { CareTimeline, hasCareTimelineEntries } from "./LongitudinalReport";
-import { Badge, Button, Modal, Panel, TextLink } from "../components/UI";
+import { ActionGroup, Button, Modal, Panel } from "../components/UI";
+import StandardTable from "../components/StandardTable";
 import ReportingIndicator from "../components/ReportingIndicator";
 import { GOVERNED_MEASURES } from "../measureGovernance";
-import { collectionStatus, formatDate } from "../model";
+import { formatDate } from "../model";
 import { currentCollection } from "../workflow";
 import { useStore } from "../store";
 import { assessmentSchedulingEnabled, assessmentContactLinkingEnabled, assessmentSmsEnabled } from "../assessmentFeatures";
@@ -61,7 +62,7 @@ function ChartCard({
           <h3>{title}</h3>
           <p>{description}</p>
         </div>
-        <div className="record-two-header-actions">
+        <ActionGroup className="record-two-header-actions">
           {showReportingIndicator && <ReportingIndicator type={reportingType} />}
           {onToggle && (
             <button
@@ -73,7 +74,7 @@ function ChartCard({
               {isVisible ? "Hide" : "Show"}
             </button>
           )}
-        </div>
+        </ActionGroup>
       </header>
       {isVisible && children}
     </section>
@@ -700,8 +701,7 @@ function OutcomeComparison({ measures }) {
           can be combined or ranked.
         </p>
         {selectedMeasures.length ? (
-          <div className="outcome-comparison-table-wrap">
-            <table>
+          <StandardTable label="Outcome measures by assessment date" variant="comparison" responsive={false} scrollClassName="outcome-comparison-table-wrap">
               <thead>
                 <tr>
                   <th scope="col">Assessment date</th>
@@ -731,8 +731,7 @@ function OutcomeComparison({ measures }) {
                   </tr>
                 ))}
               </tbody>
-            </table>
-          </div>
+            </StandardTable>
         ) : (
           <p className="outcome-comparison-empty">Select a measure to compare.</p>
         )}
@@ -1024,11 +1023,6 @@ export default function RecordTwo({ person, episode, navigate }) {
   const latestScoredRecord = scoredMeasures.flatMap((measure) => measure.records.filter(isCompletedScore))
     .sort((a, b) => a.date.localeCompare(b.date)).at(-1);
   const nextAssessment = currentCollection(episode);
-  const nextAssessmentStatus = nextAssessment
-    ? !scheduleAssessments
-      ? nextAssessment.response === "Submitted" ? "Completed" : nextAssessment.response === "Draft" ? "Draft" : "Created"
-      : collectionStatus(nextAssessment)
-    : null;
   const openAssessment = () => {
     const params = new URLSearchParams({ tab: "assessment", episode: episode.id });
     if (nextAssessment?.id) params.set("collection", nextAssessment.id);
@@ -1080,28 +1074,6 @@ export default function RecordTwo({ person, episode, navigate }) {
               <span>Outcome measures <strong>Awaiting completed scores</strong></span>
             </div>
           </div>
-          <Panel
-            title="Next step"
-            className="report-empty-next"
-            action={nextAssessmentStatus && (
-              <Badge tone={nextAssessmentStatus === "Overdue" ? "coral" : "neutral"}>
-                {nextAssessmentStatus}
-              </Badge>
-            )}
-          >
-            <div className="panel-body">
-              <h3>{nextAssessment?.label || "Initial assessment"}</h3>
-              {scheduleAssessments && nextAssessment?.due && <p>Due {formatDate(nextAssessment.due)}</p>}
-              <div className="actions">
-                <Button variant="primary" onClick={openAssessment}>Open assessment</Button>
-                <TextLink
-                  onClick={() => navigate(`/people/${person.id}?tab=events&episode=${encodeURIComponent(episode.id)}`, { scroll: false })}
-                >
-                  View care events
-                </TextLink>
-              </div>
-            </div>
-          </Panel>
         </section>
       ) : <div className="report-dashboard">
         <nav className="report-overview-links" aria-label="Report sections">

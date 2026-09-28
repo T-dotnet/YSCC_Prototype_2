@@ -1,6 +1,6 @@
 import { useEffect } from "react";
-import { Plus } from "lucide-react";
-import { Button } from "../components/UI";
+import { SplitButton } from "../components/UI";
+import { NEW_RECORD_TYPES, recordCategoryLabel } from "../components/CareTimelineEntryForm";
 import { ClinicalHistory } from "../components/ActivityTimeline";
 import { careEventEntries } from "../activity";
 import { assessmentSchedulingEnabled } from "../assessmentFeatures";
@@ -22,9 +22,20 @@ export default function CareEvents({ episode, person, audit = [], openModal, eve
           <h2>Care events</h2>
           <p>Contacts, assessments, contextual events and structured care records from this care period.</p>
         </div>
-        <Button variant="primary" onClick={() => openModal({ type: "care-timeline-entry", episodeId: episode.id })}>
-          <Plus size={17} aria-hidden="true" /> Add event
-        </Button>
+        <SplitButton
+          label="Add event"
+          menuLabel="Event categories"
+          onClick={() => openModal({ type: "care-timeline-entry", episodeId: episode.id })}
+          items={NEW_RECORD_TYPES.map(type => ({
+            label: state.settings?.simpleAssessments && type === "outcome" ? "Score collection" : recordCategoryLabel(type),
+            onClick: () => openModal({
+              type: type === "appointment" ? "appointment" : "care-timeline-entry",
+              personId: person.id,
+              episodeId: episode.id,
+              ...(type !== "appointment" ? { initialType: type } : {}),
+            }),
+          }))}
+        />
       </div>
       <ClinicalHistory
         quickFilters

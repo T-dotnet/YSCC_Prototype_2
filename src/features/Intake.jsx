@@ -23,7 +23,7 @@ import {
 import useDraft from "../useDraft";
 import { safeReturnTo } from "../workflow";
 import {
-  Badge,
+  ActionGroup, Badge,
   Button,
   Field,
   FormErrorSummary,
@@ -167,14 +167,14 @@ export function RegisterPerson({ onClose, navigate, notify }) {
             </p>
           )}
         </div>
-        <div className="modal-footer">
+        <ActionGroup className="modal-footer">
           <Button type="button" onClick={onClose}>
             Cancel
           </Button>
           <Button variant="primary" type="submit" disabled={!!duplicate}>
             Register and open intake
           </Button>
-        </div>
+        </ActionGroup>
       </ValidatedForm>
     </Modal>
   );
@@ -776,7 +776,7 @@ export function IntakePanel({ person, intake, navigate, mobileReferrals }) {
                   </select>
                 </Field>
               </div>
-              <div className="intake-save-actions">
+              <ActionGroup className="intake-save-actions">
                 {validationItems.length > 0 || error ? (
                   <FormErrorSummary
                     containerRef={errorSummaryRef}
@@ -797,7 +797,7 @@ export function IntakePanel({ person, intake, navigate, mobileReferrals }) {
                     {intakeStepComplete(intake) && outcomeDraft.outcome ? "Record outcome" : "Save intake"}
                   </Button>
                 </div>
-              </div>
+              </ActionGroup>
             </div>
           </Panel>
           <Notice>
@@ -889,10 +889,10 @@ export function IntakeAssessmentPanel({ person, intake, navigate, onReopen, reop
                 </Field>
                 {linkAssessmentAppointments && <AppointmentSlotPicker key={due} mode="assessment" dueDate={due} selectedSlot={externalSlot} onSelect={setExternalSlot} />}
                 {error && <p role="alert" className="field-error">{error}</p>}
-                <div className="intake-assessment-actions">
+                <ActionGroup className="intake-assessment-actions">
                   <Button type="submit" variant="primary">Create assessment plan</Button>
                   {canReopen && onReopen && <Button type="button" onClick={onReopen}>Reopen intake</Button>}
-                </div>
+                </ActionGroup>
               </ValidatedForm>
             )
           ) : (
@@ -963,10 +963,12 @@ export default function IntakeWorkspace({ person, navigate, openModal }) {
       </button>
       <div className="person-heading">
         <div>
-          <h1>{patientIdentifier(person)}</h1>
+          <div className="intake-heading-title-row">
+            <h1>{patientIdentifier(person)}</h1>
+            <Badge>{intake.status}</Badge>
+          </div>
           {patientSecondaryDetail(person) && <p>{patientSecondaryDetail(person)}</p>}
         </div>
-        <Badge>{intake.status}</Badge>
       </div>
       <div className="episode-bar intake-summary">
         <div className="intake-context">

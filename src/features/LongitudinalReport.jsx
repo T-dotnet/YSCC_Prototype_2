@@ -7,7 +7,7 @@ import { collectionActor, formatDate } from "../model";
 import { reportEvidence } from "../progress";
 import { appointmentDetails } from "../appointments";
 import { clinicalRecordDetails, clinicalRecordType } from "../clinicalRecords";
-import { TextLink, Badge } from "../components/UI";
+import { ActionGroup, TextLink, Badge } from "../components/UI";
 import { useStore } from "../store";
 import { assessmentContactLinkingEnabled } from "../assessmentFeatures";
 
@@ -475,7 +475,7 @@ function SharedTimeline({
               : "Care episode timeline"}
           </p>
         </div>
-        <div className="longitudinal-card-actions">
+        <ActionGroup className="longitudinal-card-actions">
           {onToggle && (
             <button
               type="button"
@@ -486,7 +486,7 @@ function SharedTimeline({
               {isVisible ? "Hide" : "Show"}
             </button>
           )}
-        </div>
+        </ActionGroup>
       </header>
       {isVisible && (visibleEntries.length ? (
         <>

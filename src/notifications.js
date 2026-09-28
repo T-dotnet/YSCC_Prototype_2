@@ -1,3 +1,4 @@
+import { contactVisible } from "./assessmentFeatures.js";
 import { TODAY, formatDate, collectionStatus, hasPendingClinicalReview } from "./model.js";
 import { getQualityIssues } from "./dataQuality.js";
 import { appointmentIsOverdue } from "./appointments.js";
@@ -73,7 +74,7 @@ export function getNotifications(state, today = TODAY) {
 
       // 3. Contact input overdue
       for (const apt of episode.appointments || []) {
-        if (appointmentIsOverdue(apt, today)) {
+        if (contactVisible(apt, state.settings) && appointmentIsOverdue(apt, today)) {
           notifications.push({
             id: `aptdue-${person.id}-${apt.id}`,
             category: "appointment_overdue",

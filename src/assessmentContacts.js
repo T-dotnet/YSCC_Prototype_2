@@ -30,6 +30,15 @@ export function contactsForAssessment(episode, collectionId) {
   return (episode?.appointments || []).filter((appointment) => ids.has(appointment.id));
 }
 
+export function contactsForAssessments(episode, collections = []) {
+  const records = new Map(collections.map(collection => [collection.id, collection]));
+  const links = assessmentContactLinks(episode).filter(link => records.has(link.collectionId));
+  return (episode?.appointments || []).flatMap(contact => {
+    const assessments = links.filter(link => link.appointmentId === contact.id).map(link => records.get(link.collectionId));
+    return assessments.length ? [{contact, assessments}] : [];
+  });
+}
+
 export function assessmentsForContact(episode, appointmentId) {
   const ids = new Set(assessmentContactLinks(episode)
     .filter((link) => link.appointmentId === appointmentId)

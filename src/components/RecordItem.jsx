@@ -1,12 +1,24 @@
 import { useLayoutEffect, useRef } from "react";
 import { ChevronDown } from "lucide-react";
-import { Badge } from "./UI";
+import { ActionGroup, Badge } from "./UI";
+
+export function RecordFacts({ facts, columns = 3 }) {
+  return <dl className={`record-item-facts${columns === 2 ? ' record-facts-two-columns' : ''}`}>
+    {facts.map(({ label, value, wide }) => (
+      <div key={label} className={wide ? "record-item-fact-wide" : undefined}>
+        <dt>{label}</dt>
+        <dd>{value}</dd>
+      </div>
+    ))}
+  </dl>;
+}
 
 export default function RecordItem({
   title,
   eyebrow,
   subtitle,
   status,
+  headingAction,
   summaryMeta,
   tableRow = false,
   collapsible = false,
@@ -44,6 +56,7 @@ export default function RecordItem({
         {subtitle && <small>{subtitle}</small>}
       </span>
       {status && <Badge>{status}</Badge>}
+      {headingAction && <div className="record-item-heading-action">{headingAction}</div>}
     </>
   );
   const classes = `record-item${selected ? " selected-collection" : ""}${tableRow ? " record-item-table-row" : ""}${className ? ` ${className}` : ""}`;
@@ -52,21 +65,14 @@ export default function RecordItem({
       <div className="record-item-body">
         {lead && <div className="record-item-lead">{lead}</div>}
         {facts.length > 0 && (
-          <dl className="record-item-facts">
-            {facts.map(({ label, value, wide }) => (
-              <div key={label} className={wide ? "record-item-fact-wide" : undefined}>
-                <dt>{label}</dt>
-                <dd>{value}</dd>
-              </div>
-            ))}
-          </dl>
+          <RecordFacts facts={facts} />
         )}
         {secondary && <div className="record-item-secondary">{secondary}</div>}
       </div>
       {(note || actions) && (
         <footer className="record-item-footer">
           {note && <span className="record-item-note">{note}</span>}
-          {actions && <div className="record-item-actions">{actions}</div>}
+          {actions && <ActionGroup className="record-item-actions">{actions}</ActionGroup>}
         </footer>
       )}
     </div>

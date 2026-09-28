@@ -1,5 +1,6 @@
+import { LABELS } from "../terminology.js";
 import { useState } from "react";
-import { Field, Modal, Notice, Button, ValidatedForm } from "./UI";
+import { ActionGroup, Field, Modal, Notice, Button, ValidatedForm } from "./UI";
 import { APPOINTMENT_ATTENDANCE } from "../appointments";
 import { formatDate, TODAY } from "../model";
 import ContactFields from "./ContactFields";
@@ -56,7 +57,7 @@ export default function AppointmentOutcomeForm({
               <dd>{appointment.plannedDurationMinutes} min</dd>
             </div>
             <div>
-              <dt>Delivery mode</dt>
+              <dt>{LABELS.contactMethod}</dt>
               <dd>{appointment.deliveryMode}</dd>
             </div>
           </dl>
@@ -126,14 +127,14 @@ export default function AppointmentOutcomeForm({
           </Field>
           {error && <p className="field-error">{error}</p>}
         </div>
-        <div className="modal-footer">
+        <ActionGroup className="modal-footer">
           <Button type="button" onClick={onClose}>
             Cancel
           </Button>
           <Button type="submit" variant="primary">
             Save outcome
           </Button>
-        </div>
+        </ActionGroup>
       </ValidatedForm>
     </Modal>
   );

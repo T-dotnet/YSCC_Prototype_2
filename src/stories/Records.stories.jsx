@@ -1,3 +1,4 @@
+import { LABELS } from "../terminology.js";
 import { TextLink } from "../components/UI";
 import RecordItem from "../components/RecordItem";
 import AssessmentCollectionCard from "../components/AssessmentCollectionCard";
@@ -12,7 +13,7 @@ const directContact = episode.appointments.find((item) => item.attendance === "A
 
 const contactFacts = [
   { label: "Actual date", value: formatDate(directContact.actualDate) },
-  { label: "Delivery mode", value: directContact.deliveryMode },
+  { label: LABELS.contactMethod, value: directContact.deliveryMode },
   { label: "Care worker", value: directContact.practitionerService },
   { label: "Outcome notes", value: directContact.outcomeNotes, wide: true },
 ];

@@ -1,3 +1,4 @@
+import { assessmentHistoryEntryVisible } from "../assessmentFeatures.js";
 import { useMemo } from "react";
 import { globalChangeLogEntries } from "../activity";
 import { ChangeLog } from "../components/ActivityTimeline";
@@ -6,7 +7,8 @@ import { useStore } from "../store";
 
 export default function GlobalChangeLog({ navigate }) {
   const { state } = useStore();
-  const entries = useMemo(() => globalChangeLogEntries(state), [state]);
+  const entries = useMemo(() => globalChangeLogEntries(state).filter(entry => assessmentHistoryEntryVisible(entry, state.settings,
+    state.people.flatMap(person => person.episodes.flatMap(episode => episode.appointments || [])))), [state]);
 
   return (
     <>

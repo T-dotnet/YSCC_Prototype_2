@@ -1,4 +1,4 @@
-import { Button, Field, Modal, Notice, ValidatedForm } from "./UI";
+import { ActionGroup, Button, Field, Modal, Notice, ValidatedForm } from "./UI";
 import { CARE_LEVELS, CARE_LEVEL_REASONS, PROGRAM_STREAMS, currentCarePeriod, nextDate } from "../carePeriods";
 import { DEMO_INSTRUMENT, INSTRUMENTS } from "../instruments";
 import { formatDate, TODAY } from "../model";
@@ -104,10 +104,10 @@ export default function CareLevelForm({ episode, clinicians, error, onClose, onS
           </div>
           {error && <p className="field-error" role="alert">{error}</p>}
         </div>
-        <div className="modal-footer">
+        <ActionGroup className="modal-footer">
           <Button type="button" onClick={onClose}>Cancel</Button>
           <Button type="submit" variant="primary">{initial ? "Record starting level" : "Start new care episode"}</Button>
-        </div>
+        </ActionGroup>
       </ValidatedForm>
     </Modal>
   );

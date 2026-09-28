@@ -45,3 +45,9 @@ The Storybook-only store alias uses a fresh fictional seed and in-memory updates
 - 390 px and keyboard states for each extracted component.
 
 Do not flatten direct service contacts, indirect activity, contextual Care events, assessment collections, and audit changes into one data type while consolidating their presentation.
+
+## Standard table
+
+`04 Records/Standard table` is the table reference. `PeopleReference` renders the production People page. `AssessmentBundles`, `LongContent`, `Empty`, and `NarrowAssessmentTable` document the same shared shell with the ledger’s six columns. Clicking a ledger row opens the production `AssessmentBundleDetails` dialog; the bundle name is a named button for keyboard access. Collect response works independently in the ledger. The dialog shows shared collection settings, a read-only assessment table, and an associated-contacts table. Each contact appears once, with Date, Contact and Status / outcome columns. `WithoutAssociatedContacts` documents the empty state. The assessment example exercises row clicks, keyboard opening, contact aggregation, independent collection feedback, and a completed row’s disabled collection action.
+
+Use `StandardTable` with `QueueRow` and labelled `QueueCell` children. People provides the visual standard: uppercase column labels, 12px cell padding, 15px values, 64px minimum row height, subtle dividers, and completion bars beside their numbers. Preserve semantic headers. Keep primary navigation available as a named button or link; row clicks alone are insufficient. People and the Assessment ledger adapt to labelled rows below 860px of available table width; ledger actions remain visible. Reserve `responsive={false}` for dense detail tables whose columns must stay comparable, with a keyboard-accessible scroll region.

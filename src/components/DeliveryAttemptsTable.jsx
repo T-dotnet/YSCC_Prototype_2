@@ -1,9 +1,11 @@
+import { LABELS } from "../terminology.js";
 import { formatDate, formatTimestamp } from "../model";
 import { getInstrument, questionnaireState } from "../instruments";
 import { sessionAnswerCounts, sessionContribution } from "../responseSessions";
 import { Badge } from "./UI";
+import StandardTable from "./StandardTable";
 
-const headings = ["Attempt / session times", "Delivery contact", "Status / outcome", "Collection method", "Contribution"];
+const headings = ["Attempt / session times", "Delivery contact", "Status / outcome", LABELS.collectionMethod, "Contribution"];
 
 function contactLabel(contact) {
   return contact?.contactType || contact?.appointmentType || contact?.practitionerService || "Service contact";
@@ -20,11 +22,11 @@ export default function DeliveryAttemptsTable({ collection, contacts = [] }) {
   const contactById = new Map(contacts.map((contact) => [contact.id, contact]));
 
   return (
-    <div className="related-records-table has-contribution delivery-attempts-table" role="table" aria-label="Delivery attempts" tabIndex={0}>
-      <div className="related-records-header" role="row">
-        {headings.map((heading) => <span role="columnheader" key={heading}>{heading}</span>)}
-      </div>
-      {attempts.map((attempt, index) => {
+    <StandardTable label="Delivery attempts" responsive={false} density="compact" className="delivery-attempts-table">
+      <thead><tr>
+        {headings.map((heading) => <th scope="col" key={heading}>{heading}</th>)}
+      </tr></thead>
+      <tbody>{attempts.map((attempt, index) => {
         const contactId = attempt.appointmentId ||
           (attempt.id === collection.submittedAttemptId ? collection.submittedAppointmentId : null);
         const contact = contactById.get(contactId);
@@ -65,16 +67,13 @@ export default function DeliveryAttemptsTable({ collection, contacts = [] }) {
           </span>,
         ];
         return (
-          <div className="related-records-row" role="row" key={attempt.id}>
+          <tr key={attempt.id}>
             {values.map((value, cellIndex) => (
-              <span className="related-records-cell" role="cell" key={headings[cellIndex]}>
-                <small>{headings[cellIndex]}</small>
-                <span>{value}</span>
-              </span>
+              <td data-label={headings[cellIndex]} key={headings[cellIndex]}>{value}</td>
             ))}
-          </div>
+          </tr>
         );
-      })}
-    </div>
+      })}</tbody>
+    </StandardTable>
   );
 }

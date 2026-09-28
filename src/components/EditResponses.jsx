@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import { Pencil, ArrowLeft } from "lucide-react";
 import { useStore } from "../store";
 import { currentStaff, displayPersonName, responseEditError } from "../model";
-import { Modal, Button, Field, Notice, ValidatedForm } from "./UI";
+import { ActionGroup, Modal, Button, Field, Notice, ValidatedForm } from "./UI";
 import SubmittedAnswers from "./SubmittedAnswers";
 import DiscardChanges from "./DiscardChanges";
 
@@ -178,7 +178,7 @@ export default function EditResponses({
             </div>
           )}
         </div>
-        <div className="modal-footer response-dialog-footer">
+        <ActionGroup className="modal-footer response-dialog-footer">
           <div className="edit-save-status">
             <strong role="status">
               {changedCount ? changeLabel : "No changes yet"}
@@ -204,7 +204,7 @@ export default function EditResponses({
           >
             Save changes
           </Button>
-        </div>
+        </ActionGroup>
       </ValidatedForm>
       {discard && (
         <DiscardChanges

@@ -128,7 +128,7 @@ export function careTimelineData(episode, { simpleAssessments = false, scheduleA
     .filter((record) => isRecordedDate(record.recordDate));
   const medicationRecords = clinicalRecords.filter((record) => record.recordType === "medication");
   const appointments = (episode?.appointments ?? [])
-    .filter((appointment) => (assessmentSms || appointment.deliveryMode !== "SMS") && isRecordedDate(appointment.actualDate || appointment.plannedDate))
+    .filter((appointment) => (scheduleAssessments || appointment.attendance !== "Planned") && (assessmentSms || appointment.deliveryMode !== "SMS") && isRecordedDate(appointment.actualDate || appointment.plannedDate))
     .map((appointment) => item({
       id: `appointment-${appointment.id}`,
       date: appointment.actualDate || appointment.plannedDate,

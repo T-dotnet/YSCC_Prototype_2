@@ -1,3 +1,12 @@
+import { personWithVisibleContacts } from "../assessmentFeatures.js";
+import { COLLECTION_METHOD_OPTIONS, LABELS } from "../terminology.js";
+import StandardTable from "../components/StandardTable";
+import AssessmentBundleDetails from "../components/AssessmentBundleDetails";
+import { QueueRow, QueueCell } from "../components/QueueRow";
+import { SortableHeader, useQueueSort } from "../components/QueueControls";
+import { sortQueueRows } from "../queueSort";
+import NewAssessmentBundle from "../components/NewAssessmentBundle";
+import { assessmentBundleGroups } from "../assessmentBundles";
 import IntakeWorkspace, { IntakePanel, IntakeAssessmentPanel } from "./Intake";
 import Referrals from "./Referrals";
 import { intakeFor, canAssess } from "../intake";
@@ -11,6 +20,8 @@ import {
 import { useSearchParams } from "next/navigation";
 import { Fragment, useRef, useState } from "react";
 import {
+  Info,
+  History,
   ArrowLeft,
   ArrowRight,
   Plus,
@@ -39,11 +50,11 @@ import Timeline, {
   ClinicalHistory,
 } from "../components/ActivityTimeline";
 import { assessmentScoreLabel, assessmentTypeGroups, linkedAssessmentScore, prioritizeSimpleAssessmentGroups, simpleAssessmentDate } from "../assessmentGroups";
-import { assessmentDueByType, assessmentDueLabel, assessmentsWithDueVisibility } from "../assessmentDue";
+import { assessmentDueByType, assessmentDueLabel, assessmentsWithDueVisibility, earliestPendingAssessment } from "../assessmentDue";
 import { responseDate } from "../progress";
 import { daysAgoLabel } from "../relativeDate";
 import { contactsForAssessment } from "../assessmentContacts";
-import { assessmentSchedulingEnabled, assessmentDueDatesEnabled, assessmentContactLinkingEnabled, assessmentSmsEnabled } from "../assessmentFeatures";
+import { assessmentSchedulingEnabled, assessmentDueDatesEnabled, assessmentContactLinkingEnabled, assessmentSmsEnabled, assessmentBundleGroupingEnabled } from "../assessmentFeatures";
 import { episodeReviewSchedule, reviewTiming } from "../episodeReviews";
 import { careJourneyForEpisode } from "../ysccModel";
 import {
@@ -62,7 +73,7 @@ import { getQualityIssues, recordCompleteness } from "../dataQuality";
 import { getInstrument } from "../instruments";
 import { patientIdentifier, patientSecondaryDetail } from "../patientIdentity";
 import {
-  Button,
+  ActionGroup, Button, SplitButton,
   Badge,
   AlertLabel,
   Field,
@@ -72,6 +83,8 @@ import {
   Notice,
   Continuity,
   TextLink,
+  TertiaryAction,
+  EditAction,
   Empty,
   Modal,
   RecordTabs,
@@ -100,11 +113,12 @@ function PersonRecordNavigation({ tabs, value, onChange }) {
 export default function Person({ id, navigate, openModal }) {
   const { state, commit } = useStore();
   const simpleAssessments = !!state.settings?.simpleAssessments;
+  const groupAssessmentsByBundle = assessmentBundleGroupingEnabled(state.settings);
   const scheduleAssessments = assessmentSchedulingEnabled(state.settings);
   const assessmentDueDates = assessmentDueDatesEnabled(state.settings);
   const showDueDates = assessmentDueDates || scheduleAssessments;
   const linkAssessmentAppointments = assessmentContactLinkingEnabled(state.settings);
-  const p = state.people.find((p) => p.id === id);
+  const p = personWithVisibleContacts(state.people.find((p) => p.id === id), state.settings);
   const searchParams = useSearchParams();
   const [intakeDetailsOpen, setIntakeDetailsOpen] = useState(false);
   const [tagEditorOpen, setTagEditorOpen] = useState(false);
@@ -114,6 +128,12 @@ export default function Person({ id, navigate, openModal }) {
   const [assessmentFilter, setAssessmentFilter] = useState("all");
   const [assessmentQuery, setAssessmentQuery] = useState("");
   const [assessmentMethod, setAssessmentMethod] = useState("all");
+  const { sort: bundleSort, toggleSort: toggleBundleSort, setSort: setBundleSort } = useQueueSort({ key: null, direction: "asc" });
+  const [newBundleOpen, setNewBundleOpen] = useState(false);
+  const [editBundleId, setEditBundleId] = useState(null);
+  const [bundleDetailsKey, setBundleDetailsKey] = useState(null);
+  const [bundleMessage, setBundleMessage] = useState('');
+  const [createdBundleId, setCreatedBundleId] = useState(null);
   const groupAssessmentsByType = true;
   const [expandedAssessmentTypes, setExpandedAssessmentTypes] = useState([]);
   const assessmentListRef = useRef(null);
@@ -163,7 +183,7 @@ export default function Person({ id, navigate, openModal }) {
       currentCollection(e),
     nextStep = overviewNextStep(p, e, c, currentStaff(state));
   const overviewStep = !scheduleAssessments ? {
-    badge: c.response === "Submitted" ? "Completed" : c.response === "Draft" ? "Draft" : "Created",
+    badge: c.response === "Submitted" ? "Completed" : c.response === "Draft" ? "Draft" : "Not started",
     title: c.response === "Submitted" ? "Assessment completed" : c.response === "Draft" ? "Continue draft" : "Start assessment",
     description: c.response === "Submitted" ? "The completed response is recorded in Assessment."
       : c.response === "Draft" ? "Saved answers are ready to continue." : "This assessment is ready to start.",
@@ -232,7 +252,11 @@ export default function Person({ id, navigate, openModal }) {
     navigate(`/people/${p.id}/assessment-review/${collection.id}`, {
       scroll: false,
     });
-  const collectAssessmentResponse = (collection) => {
+  const collectAssessmentResponse = (record) => {
+    const savedBundle = state.settings?.assessmentScheduleRules?.find(item => item.id === (record.bundleId || record.scheduleRuleId));
+    const override = e.assessmentBundleSelections?.[savedBundle?.id]?.assessmentOverrides?.[0];
+    const collection = savedBundle ? {...record,channel:override?.channel || savedBundle.channel || savedBundle.assessments?.[0]?.channel || record.channel,
+      respondent:override?.recipient || savedBundle.recipient || savedBundle.assessments?.[0]?.recipient || record.respondent} : record;
     const openSetup = () => openModal({
       type: "collection",
       personId: p.id,
@@ -296,7 +320,7 @@ export default function Person({ id, navigate, openModal }) {
   const consentRequests = (p.consentRequests || []).filter((request) =>
     assessmentSmsEnabled(state.settings) || request.channel !== "SMS link");
   const assessmentState = (col) => !scheduleAssessments
-    ? col.response === "Submitted" ? "Completed" : col.response === "Draft" ? "Draft" : "Created"
+    ? col.response === "Submitted" ? "Completed" : col.response === "Draft" ? "Draft" : "Not started"
     : collectionStatus(col);
   const assessmentStatuses = [...new Set(orderedCollections.map(assessmentState))];
   const assessmentItems = ["all", ...assessmentStatuses].map((value) => ({
@@ -308,7 +332,7 @@ export default function Person({ id, navigate, openModal }) {
     (assessmentFilter === "all" || assessmentState(col) === assessmentFilter) &&
     (assessmentMethod === "all" || (col.channel || "Not set up") === assessmentMethod ||
       col.attempts?.some((attempt) => attempt.channel === assessmentMethod)) &&
-    `${col.label} ${col.version} ${col.assignment} ${col.response} ${assessmentState(col)} ${col.attempts?.map((attempt) => attempt.channel).join(" ") || ""}`
+    `${col.label} ${col.version} ${col.assignment} ${col.response} ${assessmentState(col)} ${groupAssessmentsByBundle ? `${col.bundleName || ''} ${state.settings?.assessmentScheduleRules?.find(rule => rule.id === col.bundleId)?.name || ''}` : ''} ${col.attempts?.map((attempt) => attempt.channel).join(" ") || ""}`
       .toLowerCase().includes(assessmentQuery.trim().toLowerCase()),
   );
   const chronologicalCollections = [...visibleCollections].sort((a, b) =>
@@ -322,10 +346,40 @@ export default function Person({ id, navigate, openModal }) {
     return Boolean(date) && date <= TODAY;
   });
   const groupedAssessments = assessmentTypeGroups(assessmentEpisode, visibleCollections);
+  const allBundleGroups = groupAssessmentsByBundle ? assessmentBundleGroups(e,assessmentCollections,state.settings?.assessmentScheduleRules) : [];
+  const selectedBundleGroup = allBundleGroups.find(group => group.key === bundleDetailsKey);
+  const deliveryForBundle = group => {
+    const template = state.settings?.assessmentScheduleRules?.find(item => item.id === group.key);
+    const override = e.assessmentBundleSelections?.[group.key]?.assessmentOverrides?.[0];
+    const record = group.records.find(col => col.response !== 'Submitted') || group.records[0];
+    const respondentLabel = value => value === 'Family respondent' ? 'Family respondent' : 'Patient';
+    return {
+      channel: group.key === 'individual' ? [...new Set(group.records.map(col => col.channel || 'Not set up'))].join(', ')
+        : override?.channel || template?.channel || template?.assessments?.[0]?.channel || record?.channel || 'Not set up',
+      recipient: group.key === 'individual' ? [...new Set(group.records.map(col => respondentLabel(col.respondent)))].join(', ')
+        : respondentLabel(override?.recipient || template?.recipient || template?.assessments?.[0]?.recipient || record?.respondent),
+    };
+  };
+  const bundleGroups = groupAssessmentsByBundle ? assessmentBundleGroups(e,visibleCollections,state.settings?.assessmentScheduleRules) : [];
+  const bundleRows = bundleGroups.map(group => {
+    const allRecords = allBundleGroups.find(bundle => bundle.key === group.key)?.records || group.records;
+    const completedCount = allRecords.filter(col => assessmentState(col) === 'Completed').length;
+    const nextDue = showDueDates ? earliestPendingAssessment(allRecords) : null;
+    const sharedDue = showDueDates ? nextDue?.due || allRecords.map(col => col.due).filter(Boolean).sort().at(-1) || '' : '';
+    const { channel: bundleChannel, recipient: bundleRecipient } = deliveryForBundle({ ...group, records: allRecords });
+    return { group, allRecords, completedCount, nextDue, sharedDue, bundleChannel, bundleRecipient,
+      completedSection: group.key !== 'individual' && allRecords.length > 0 && completedCount === allRecords.length };
+  });
+  const sortedBundleRows = sortQueueRows(bundleRows, bundleSort, {
+    due: row => row.sharedDue || (bundleSort.direction === 'asc' ? '\uffff' : ''),
+    method: row => row.bundleChannel.toLowerCase(),
+    respondent: row => row.bundleRecipient.toLowerCase(),
+    completion: row => row.allRecords.length ? row.completedCount / row.allRecords.length : 0,
+  });
   const simpleGroupedAssessments = simpleAssessments && groupAssessmentsByType
     ? prioritizeSimpleAssessmentGroups(groupedAssessments, visibleCollections)
     : [];
-  const renderAssessmentCard = (collection, inTimeline = false, headingLevel = 4, initiallyExpanded = inTimeline, compactGrouped = false) => (
+  const renderAssessmentCard = (collection, inTimeline = false, headingLevel = 4, initiallyExpanded = inTimeline, compactGrouped = false, bundleDueDate = undefined) => (
     <AssessmentCollectionCard
       key={collection.id}
       collection={collection}
@@ -335,6 +389,8 @@ export default function Person({ id, navigate, openModal }) {
       showDueLabels={assessmentDueDates}
       linkAssessmentAppointments={linkAssessmentAppointments}
       compactGrouped={compactGrouped}
+      bundleDueDate={bundleDueDate}
+      showBundleDetails={groupAssessmentsByBundle && !inTimeline}
       person={p}
       relatedContacts={[...new Map([
         ...contactsForAssessment(e, collection.id),
@@ -453,12 +509,12 @@ export default function Person({ id, navigate, openModal }) {
             <span>·</span>
             {p.pronouns}
             {p.archivedAt && <Badge>Archived</Badge>}
-            <TextLink aria-haspopup="dialog" onClick={() => setIntakeDetailsOpen(true)}>
+            <TextLink icon={Info} iconPosition="start" aria-haspopup="dialog" onClick={() => setIntakeDetailsOpen(true)}>
               More info
             </TextLink>
           </p>
         </div>
-        <div className="actions">
+        <ActionGroup className="actions">
           <Button
             disabled={e.status !== "Active"}
             onClick={() => modal("episode")}
@@ -466,7 +522,7 @@ export default function Person({ id, navigate, openModal }) {
             Care episode actions
             <ChevronDown size={16} />
           </Button>
-        </div>
+        </ActionGroup>
       </div>
       {e.status !== "Active" && (
         <div className="care-period-status-notice" role="status">
@@ -548,7 +604,7 @@ export default function Person({ id, navigate, openModal }) {
                 ))}
               </div>
             </div>
-            <div className="modal-footer person-tag-editor-actions"><Button type="button" onClick={() => setTagEditorOpen(false)}>Close</Button><Button type="submit" variant="primary">Add tag</Button></div>
+            <ActionGroup className="modal-footer person-tag-editor-actions"><Button type="button" onClick={() => setTagEditorOpen(false)}>Close</Button><Button type="submit" variant="primary">Add tag</Button></ActionGroup>
             {tagError && <FormErrorSummary title="Tag not added · 1 item to check" description="Correct the tag selection, then try again." items={[{ id: "person-tag-choice", label: "Tag", message: tagError }]} />}
           </ValidatedForm>
         </Modal>
@@ -628,7 +684,7 @@ export default function Person({ id, navigate, openModal }) {
                     <p className="next-step-label">Next step</p>
                     <h3>{overviewStep.title}</h3>
                     <p>{overviewStep.description}</p>
-                    <div className="actions">
+                    <ActionGroup className="actions">
                       <Button
                         variant="primary"
                         aria-haspopup={
@@ -642,7 +698,15 @@ export default function Person({ id, navigate, openModal }) {
                       >
                         {overviewStep.primary.label}
                       </Button>
+                    <div className="assessment-preview-action">
+                      <TextLink
+                        aria-haspopup="dialog"
+                        onClick={() => modal("questionnaire-preview")}
+                      >
+                        Preview questionnaire
+                      </TextLink>
                     </div>
+                    </ActionGroup>
                   </section>
                   <section
                     className="overview-assessment-details"
@@ -679,14 +743,6 @@ export default function Person({ id, navigate, openModal }) {
                           : "A submitted response still needs clinical review."}
                       </Notice>
                     )}
-                    <div className="assessment-preview-action">
-                      <TextLink
-                        aria-haspopup="dialog"
-                        onClick={() => modal("questionnaire-preview")}
-                      >
-                        Preview questionnaire
-                      </TextLink>
-                    </div>
                   </section>
                 </div>
               </div>
@@ -756,24 +812,20 @@ export default function Person({ id, navigate, openModal }) {
                         <div className="episode-care-level-value">
                           <span>{displayedLevelPeriod?.careLevel || "Not recorded"}</span>
                           {canEditCareProfile && (
-                            <button
-                              type="button"
-                              className="episode-care-level-change"
+                            <EditAction
                               onClick={() => modal("care-level")}
                               aria-label={currentLevelPeriod ? "Edit stream and care level" : "Record starting care level"}
                             >
                               {currentLevelPeriod ? "Edit" : "Record"}
-                            </button>
+                            </EditAction>
                           )}
                           {e.carePeriods?.length > 0 && (
-                            <button
-                              type="button"
-                              className="episode-care-level-change"
+                            <TertiaryAction icon={History}
                               onClick={() => setLevelHistoryOpen(true)}
                               aria-haspopup="dialog"
                             >
                               History
-                            </button>
+                            </TertiaryAction>
                           )}
                           {displayedLevelPeriod && (
                             <small className="episode-care-level-context">
@@ -859,8 +911,8 @@ export default function Person({ id, navigate, openModal }) {
                           <time dateTime={event.eventDate || event.date}>
                             {formatDate(event.eventDate || event.date)}
                           </time>
-                          <button
-                            className="icon-button overview-event-details"
+                          <TextLink
+                            className="overview-event-details"
                             aria-label={`View details for ${label}`}
                             onClick={() =>
                               navigate(
@@ -869,8 +921,8 @@ export default function Person({ id, navigate, openModal }) {
                               )
                             }
                           >
-                            <ArrowRight size={18} aria-hidden="true" />
-                          </button>
+                            View details
+                          </TextLink>
                         </span>
                       ) : (
                         <span className="muted">Not present</span>
@@ -910,9 +962,9 @@ export default function Person({ id, navigate, openModal }) {
                 <div className="form-body">
                   <CareLevelHistory episode={e} expanded />
                 </div>
-                <div className="modal-footer">
+                <ActionGroup className="modal-footer">
                   <Button type="button" onClick={() => setLevelHistoryOpen(false)}>Close</Button>
-                </div>
+                </ActionGroup>
               </Modal>
             )}
           </>
@@ -932,21 +984,35 @@ export default function Person({ id, navigate, openModal }) {
             )}
             <div className="section-toolbar assessment-ledger-toolbar">
               <h2>Assessment ledger</h2>
-              <div className="button-row assessment-ledger-actions">
-                <Button
+              <ActionGroup className="button-row assessment-ledger-actions">
+                {groupAssessmentsByBundle ? <SplitButton
+                  label="New bundle"
+                  menuLabel="More assessment actions"
+                  disabled={e.status !== 'Active' || !canAssess(p,e) || !!p.archivedAt || !!p.readOnly || !!e.readOnly}
+                  onClick={() => setNewBundleOpen(true)}
+                  items={[{
+                    label: scheduleAssessments ? "Schedule assessment" : "New assessment",
+                    disabled: e.status !== "Active" || !canAssess(p, e) || (scheduleAssessments && !c.due && !c.scheduleFree),
+                    onClick: () => modal("plan"),
+                  }]}
+                /> : <Button
                   variant="primary"
                   disabled={e.status !== "Active" || !canAssess(p, e) || (scheduleAssessments && !c.due && !c.scheduleFree)}
                   onClick={() => modal("plan")}
                 >
                   {scheduleAssessments ? "Schedule assessment" : "New assessment"}
-                </Button>
-              </div>
+                </Button>}
+              </ActionGroup>
               <p>
                 {simpleAssessments
                   ? `${orderedCollections.length} assessments in care episode ${e.number}. ${showDueDates ? "Records show due dates, drafts and completion." : "Records show creation, drafts and completion."}`
                   : `${orderedCollections.length} assessments in care episode ${e.number}. Each is a separate collection point. Closure assessment and feedback stay linked after this episode closes.`}
               </p>
             </div>
+            {bundleMessage && <p role="status">{bundleMessage}</p>}
+            {(newBundleOpen || editBundleId) && <NewAssessmentBundle key={editBundleId || 'new'} editBundleId={editBundleId} person={p} episode={e} onClose={() => {setNewBundleOpen(false);setEditBundleId(null);}} onCreated={(bundleId,message) => {
+              setCreatedBundleId(bundleId);setBundleMessage(message);setAssessmentFilter('all');setAssessmentQuery('');setAssessmentMethod('all');
+            }} />}
             <ListFilterBar
               id="assessment-status"
               className={`assessment-filter-bar${simpleAssessments ? " assessment-filter-bar-simple" : ""}`}
@@ -962,21 +1028,21 @@ export default function Person({ id, navigate, openModal }) {
               noun="assessments"
               activeAdvancedCount={Number(assessmentMethod !== "all")}
               onClear={() => { setAssessmentFilter("all"); setAssessmentQuery(""); setAssessmentMethod("all"); }}
-              resultAction={
-                <span className="assessment-result-actions">
+              resultAction={groupAssessmentsByBundle ? null :
+                <ActionGroup as="span" className="assessment-result-actions">
                   <TimelineExpandAll
                     containerRef={assessmentListRef}
                     containerId="assessment-list"
-                    itemCount={simpleAssessments && groupAssessmentsByType ? groupedAssessments.length : visibleCollections.length}
-                    detailsSelector={simpleAssessments && groupAssessmentsByType ? "details.assessment-simple-group" : undefined}
-                    groupsExpanded={simpleAssessments || !groupAssessmentsByType || groupedAssessments.every((group) =>
+                    itemCount={groupAssessmentsByBundle ? bundleGroups.filter(group => group.key === 'individual' || !(allBundleGroups.find(bundle => bundle.key === group.key)?.records || group.records).every(col => assessmentState(col) === 'Completed')).length : simpleAssessments && groupAssessmentsByType ? groupedAssessments.length : visibleCollections.length}
+                    detailsSelector={groupAssessmentsByBundle ? ".assessment-active-bundles details.assessment-bundle-group" : simpleAssessments && groupAssessmentsByType ? "details.assessment-simple-group" : undefined}
+                    groupsExpanded={groupAssessmentsByBundle || simpleAssessments || !groupAssessmentsByType || groupedAssessments.every((group) =>
                       expandedAssessmentTypes === null || expandedAssessmentTypes.includes(group.key))}
-                    onToggleAll={!simpleAssessments && groupAssessmentsByType ? (expand) => setExpandedAssessmentTypes(expand ? null : []) : undefined}
+                    onToggleAll={!groupAssessmentsByBundle && !simpleAssessments && groupAssessmentsByType ? (expand) => setExpandedAssessmentTypes(expand ? null : []) : undefined}
                   />
-                </span>
+                </ActionGroup>
               }
               advanced={simpleAssessments ? null :
-                <Select label="Collection method" value={assessmentMethod} onChange={(event) => setAssessmentMethod(event.target.value)}>
+                <Select label={LABELS.collectionMethod} value={assessmentMethod} onChange={(event) => setAssessmentMethod(event.target.value)}>
                   <option value="all">All methods</option>
                   {[...new Set(orderedCollections.flatMap((col) => [col.channel || "Not set up", ...(col.attempts || []).map((attempt) => attempt.channel)])
                     .filter((method) => method && (assessmentSmsEnabled(state.settings) || method !== "SMS link")))].map((method) => (
@@ -985,8 +1051,78 @@ export default function Person({ id, navigate, openModal }) {
                 </Select>
               }
             />
-            <div className={`assessment-list${!simpleAssessments && groupAssessmentsByType ? " assessment-ledger-list" : ""}${!showDueDates ? " assessment-ledger-no-due" : ""}`} id="assessment-list" ref={assessmentListRef}>
-              {simpleAssessments && groupAssessmentsByType
+            {selectedBundleGroup && <AssessmentBundleDetails group={selectedBundleGroup} episode={e} scheduleAssessments={scheduleAssessments} delivery={deliveryForBundle(selectedBundleGroup)}
+              statusFor={assessmentState} showDueDates={showDueDates}
+              assessmentEditor={selectedBundleGroup.key !== 'individual' && !p.archivedAt && !p.readOnly && !e.readOnly && e.status === 'Active' && canAssess(p,e) && state.settings?.assessmentScheduleRules?.some(bundle => bundle.id === selectedBundleGroup.key)
+                ? <NewAssessmentBundle embedded group={selectedBundleGroup} statusFor={assessmentState} key={selectedBundleGroup.key} editBundleId={selectedBundleGroup.key} person={p} episode={e}
+                    onClose={() => setBundleDetailsKey(null)} onCreated={(bundleId,message) => {setCreatedBundleId(bundleId);setBundleMessage(message);}} /> : null}
+              canEdit={!p.archivedAt && !p.readOnly && !e.readOnly && e.status === 'Active' && canAssess(p,e)}
+              onEdit={selectedBundleGroup.key !== 'individual' && state.settings?.assessmentScheduleRules?.some(bundle => bundle.id === selectedBundleGroup.key)
+                ? () => {setEditBundleId(selectedBundleGroup.key);setBundleDetailsKey(null);} : null}
+              onClose={() => setBundleDetailsKey(null)} />}
+            <div className={`assessment-list${!groupAssessmentsByBundle && !simpleAssessments && groupAssessmentsByType ? " assessment-ledger-list" : ""}${!showDueDates ? " assessment-ledger-no-due" : ""}`} id="assessment-list" ref={assessmentListRef}>
+              {groupAssessmentsByBundle ? <StandardTable className="assessment-bundle-table" label="Assessment bundles in this care episode" columnOrderKey="yscc-assessment-ledger-column-order"
+                compactControls={<Select label="Sort bundles" value={bundleSort.key ? `${bundleSort.key}:${bundleSort.direction}` : 'default'}
+                  onChange={event => { const [key, direction] = event.target.value.split(':'); setBundleSort({ key: key === 'default' ? null : key, direction: direction || 'asc' }); }}>
+                  <option value="default">Default order</option>
+                  <option value="due:asc">Due date · earliest first</option><option value="due:desc">Due date · latest first</option>
+                  <option value="method:asc">Collection method · A to Z</option><option value="method:desc">Collection method · Z to A</option>
+                  <option value="respondent:asc">Respondent · A to Z</option><option value="respondent:desc">Respondent · Z to A</option>
+                  <option value="completion:asc">Completion · lowest first</option><option value="completion:desc">Completion · highest first</option>
+                </Select>}>
+                  <thead><tr>
+                    <th scope="col">Bundle name</th><SortableHeader label="Due date" sortKey="due" sort={bundleSort} onSort={toggleBundleSort} />
+                    <SortableHeader label="Collection method" sortKey="method" sort={bundleSort} onSort={toggleBundleSort} />
+                    <SortableHeader label="Respondent" sortKey="respondent" sort={bundleSort} onSort={toggleBundleSort} />
+                    <th scope="col">Status</th>
+                    <SortableHeader label="Completion" sortKey="completion" sort={bundleSort} onSort={toggleBundleSort} /><th scope="col">Actions</th>
+                  </tr></thead>
+                  {[false, true].map(completedSection => {
+                    const sectionRows = sortedBundleRows.filter(row => row.completedSection === completedSection);
+                    if (!sectionRows.length) return null;
+                    return <tbody key={String(completedSection)}>
+                      {sectionRows.map(({ group, allRecords, completedCount, nextDue, sharedDue, bundleChannel, bundleRecipient }) => {
+                        const pendingRecord = allRecords.find(col => col.response === 'Draft') || allRecords.find(col => col.response !== 'Submitted');
+                        const daysUntilDue = sharedDue ? Math.round((Date.parse(sharedDue) - Date.parse(TODAY)) / 86400000) : null;
+                        const dueDaysLabel = daysUntilDue === null ? '' : daysUntilDue === 0 ? 'Today'
+                          : `${Math.abs(daysUntilDue)} ${Math.abs(daysUntilDue) === 1 ? 'day' : 'days'}${daysUntilDue < 0 ? completedSection ? ' ago' : ' overdue' : ' away'}`;
+                        const dueAlert = nextDue && assessmentDueLabel(nextDue, TODAY);
+                        const hasDraft = allRecords.some(record => record.response === 'Draft' || record.response === 'In progress');
+                        const systemCreated = allRecords.some(record => record.bundleSource === 'Scheduled' || record.bundleSource === 'System' || record.id?.startsWith('AUTO-') || (record.scheduleAnchor && record.bundleSource !== 'Manual'));
+                        const bundleStatus = allRecords.length > 0 && completedCount === allRecords.length ? 'completed'
+                          : dueAlert === 'Past due' ? 'overdue'
+                          : nextDue && daysUntilDue !== null && daysUntilDue >= 0 && daysUntilDue <= 7 ? 'due-soon'
+                          : hasDraft || completedCount > 0 ? 'in-progress'
+                          : systemCreated ? 'new' : 'not-started';
+                        const bundleStatusLabel = {completed:'Completed',overdue:'Overdue','due-soon':'Due soon','in-progress':'In progress',new:'New · created by system','not-started':'Not started'}[bundleStatus];
+                        return <QueueRow key={group.key} onClick={event => {if (!event.target.closest('button, a')) setBundleDetailsKey(group.key);}}>
+                            <QueueCell label="Bundle name" slot="subject"><div className="assessment-bundle-name-status">
+                              <button type="button" className="name-link assessment-bundle-table-name"
+                              aria-label={`View details for ${group.name}`} aria-haspopup="dialog"
+                              onClick={() => setBundleDetailsKey(group.key)}>{group.name}</button></div>
+                              <small>{systemCreated ? 'System generated' : 'User created'}</small>
+                            </QueueCell>
+                            <QueueCell label="Due date" slot="summary">{sharedDue ? <><time dateTime={sharedDue}>{formatDate(sharedDue)}</time><small className={dueAlert === 'Past due' ? 'assessment-overdue-days' : undefined}>{dueDaysLabel}</small>
+                              {dueAlert && dueAlert !== 'Past due' && <AlertLabel tone="attention">{dueAlert}</AlertLabel>}</>
+                              : <span className="muted">Not scheduled</span>}</QueueCell>
+                            <QueueCell label="Collection method" slot="method">{bundleChannel}</QueueCell><QueueCell label="Respondent" slot="respondent">{bundleRecipient}</QueueCell>
+                            <QueueCell label="Status" slot="status"><Badge tone={{completed:'green',overdue:'coral','due-soon':'amber','in-progress':'blue',new:'purple','not-started':'neutral'}[bundleStatus]}>{bundleStatus === 'new' ? 'New' : bundleStatusLabel}</Badge></QueueCell>
+                            <QueueCell label="Completion" slot="metric"><div className="people-completeness-summary"><strong>{completedCount} / {allRecords.length}</strong>
+                              <span className={`people-completeness-bar${completedCount === allRecords.length ? " complete-100" : ""}`} role="progressbar" aria-valuemin={0} aria-valuemax={allRecords.length || 1} aria-valuenow={completedCount}
+                                aria-label={`${group.name}: ${completedCount} of ${allRecords.length} assessments completed`}>
+                                <span style={{width:`${allRecords.length ? completedCount / allRecords.length * 100 : 0}%`}} />
+                              </span>
+                            </div></QueueCell>
+                            <QueueCell label="Actions" slot="action"><ActionGroup className="assessment-bundle-table-actions">
+                              <Button variant="secondary" disabled={!pendingRecord || !canAssess(p,e)}
+                                aria-label={`Collect response for ${group.name}`}
+                                onClick={() => collectAssessmentResponse(pendingRecord)}>Collect response</Button>
+                            </ActionGroup></QueueCell>
+                          </QueueRow>;
+                      })}
+                    </tbody>;
+                  })}
+              </StandardTable> : simpleAssessments && groupAssessmentsByType
                 ? <div className="stack">
                   {simpleGroupedAssessments.length > 0 && <div className="assessment-simple-columns" aria-hidden="true">
                     <span /><span>Assessment type</span>
@@ -1233,8 +1369,8 @@ export default function Person({ id, navigate, openModal }) {
               activeAdvancedCount={Number(consentChannel !== "all")}
               onClear={() => { setConsentFilter("all"); setConsentQuery(""); setConsentChannel("all"); }}
               advanced={
-                <Select label="Delivery channel" value={consentChannel} onChange={(event) => setConsentChannel(event.target.value)}>
-                  <option value="all">All channels</option>
+                <Select label={LABELS.deliveryMethod} value={consentChannel} onChange={(event) => setConsentChannel(event.target.value)}>
+                  <option value="all">All delivery methods</option>
                   {[...new Set(consentRequests.map((request) => request.channel))].map((channel) => (
                     <option key={channel} value={channel}>{channel}</option>
                   ))}

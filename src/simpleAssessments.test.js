@@ -9,6 +9,7 @@ test("new sample workspaces use the selected assessment configuration", () => {
     simpleAssessments: true,
     scheduleAssessments: false,
     showAssessmentDueDates: true,
+    groupAssessmentsByBundle: false,
     automaticAssessmentDueDates: false,
     assessmentScheduleRules: [],
     linkAssessmentAppointments: true,
@@ -39,7 +40,7 @@ test("simple assessments move from creation to draft to completion without a sch
   assert.equal(collection(state).scheduleFree, true);
   assert.equal(collection(state).appointmentId, null);
   assert.ok(collection(state).createdAt);
-  assert.equal(getTasks(state).find((task) => task.collection?.id === context.collectionId)?.status, "Created");
+  assert.equal(getTasks(state).find((task) => task.collection?.id === context.collectionId)?.status, "Not started");
 
   const linked = reducer(state, {
     type: "LINK_ASSESSMENT_CONTACT", ...context,

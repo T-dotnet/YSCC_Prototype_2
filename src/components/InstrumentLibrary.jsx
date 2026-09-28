@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { ArrowRight, Eye } from "lucide-react";
 import { INSTRUMENTS } from "../instruments";
-import { Button, Empty, Modal, Notice, SearchInput } from "./UI";
+import { ActionGroup, Button, Empty, Modal, Notice, SearchInput } from "./UI";
 import InstrumentPreview from "./InstrumentPreview";
 
 export default function InstrumentLibrary({ onClose }) {
@@ -93,11 +93,11 @@ export default function InstrumentLibrary({ onClose }) {
           backLabel="Back to library"
         />
       ) : (
-        <div className="modal-footer">
+        <ActionGroup className="modal-footer">
           <Button type="button" onClick={onClose}>
             Done
           </Button>
-        </div>
+        </ActionGroup>
       )}
     </Modal>
   );

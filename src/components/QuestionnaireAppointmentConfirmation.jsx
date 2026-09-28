@@ -1,3 +1,5 @@
+import { episodeWithVisibleContacts } from "../assessmentFeatures.js";
+import { LABELS } from "../terminology.js";
 import { useEffect, useRef, useState } from "react";
 import { CONTACT_RECIPIENTS, CONTACT_TYPES, DRAFT_CONTACT_DELIVERY_MODES } from "../appointments";
 import { formatDate, TODAY } from "../model";
@@ -16,6 +18,8 @@ export default function QuestionnaireAppointmentConfirmation({
   tablet = false,
 }) {
   const { state } = useStore();
+  episode = episodeWithVisibleContacts(episode, state.settings);
+  appointment = episode.appointments?.find(contact => contact.id === appointment?.id);
   const [method, setMethod] = useState(collection.channel);
   const [contactChoice, setContactChoice] = useState("");
   const [existingId, setExistingId] = useState("");
@@ -134,11 +138,11 @@ export default function QuestionnaireAppointmentConfirmation({
                 <Field label="Contact date"><input type="date" name="contactDate" min={episode.start} max={latestDate} required /></Field>
                 <Field label="Time"><input type="time" name="contactTime" required /></Field>
                 <Field label="Duration (minutes)"><input type="number" name="duration" min="1" max="600" required /></Field>
-                <Field label="Delivery mode"><select name="deliveryMode" defaultValue="" required>
-                  <option value="">Choose a mode</option>
+                <Field label={LABELS.contactMethod}><select name="deliveryMode" defaultValue="" required>
+                  <option value="">Choose a contact method</option>
                   {DRAFT_CONTACT_DELIVERY_MODES.filter((value) => assessmentSmsEnabled(state.settings) || value !== "SMS").map((value) => <option key={value}>{value}</option>)}
                 </select></Field>
-                <Field label="Recipient"><select name="recipientType" value={recipient} onChange={(event) => setRecipient(event.target.value)} required>
+                <Field label={LABELS.recipient}><select name="recipientType" value={recipient} onChange={(event) => setRecipient(event.target.value)} required>
                   {CONTACT_RECIPIENTS.map((value) => <option key={value}>{value}</option>)}
                 </select></Field>
                 {recipient === "Related person" && <Field label="Related person name"><input name="relatedPersonName" required /></Field>}

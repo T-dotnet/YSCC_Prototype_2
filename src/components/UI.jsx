@@ -4,6 +4,8 @@ import {
   Search,
   ChevronDown,
   Info,
+  Pencil,
+  Trash2,
   ArrowRight,
   ChevronLeft,
   ChevronRight,
@@ -112,6 +114,75 @@ export function Button({ children, variant = "", className = "", ...props }) {
     </button>
   );
 }
+export function SplitButton({ label, onClick, disabled = false, items, menuLabel = "More actions", variant = "primary" }) {
+  const [open, setOpen] = useState(false);
+  const root = useRef(null);
+  const trigger = useRef(null);
+  const menuId = useId();
+  useEffect(() => {
+    if (!open) return;
+    root.current?.querySelector('[role="menuitem"]:not(:disabled)')?.focus();
+    const outside = (event) => {
+      if (!root.current?.contains(event.target)) setOpen(false);
+    };
+    const escape = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setOpen(false);
+        trigger.current?.focus();
+      }
+    };
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("pointerdown", outside);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [open]);
+  return (
+    <div ref={root} className="split-button" role="group" aria-label={typeof label === "string" ? `${label} actions` : menuLabel}>
+      <div className="split-button-controls">
+        <Button type="button" variant={variant} disabled={disabled} onClick={onClick}>{label}</Button>
+        <button
+          ref={trigger}
+          type="button"
+          className={`button ${variant} split-button-trigger`}
+          aria-label={menuLabel}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-controls={open ? menuId : undefined}
+          disabled={disabled && items.every(item => item.disabled)}
+          onClick={() => setOpen(value => !value)}
+          onKeyDown={event => {
+            if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+              event.preventDefault();
+              setOpen(true);
+            }
+          }}
+        ><ChevronDown size={16} aria-hidden="true" /></button>
+      </div>
+      {open && <div id={menuId} className="split-button-menu" role="menu" aria-label={menuLabel}
+        onKeyDown={event => {
+          const buttons = [...event.currentTarget.querySelectorAll('[role="menuitem"]:not(:disabled)')];
+          const index = buttons.indexOf(document.activeElement);
+          let next;
+          if (event.key === "ArrowDown") next = (index + 1) % buttons.length;
+          if (event.key === "ArrowUp") next = (index - 1 + buttons.length) % buttons.length;
+          if (event.key === "Home") next = 0;
+          if (event.key === "End") next = buttons.length - 1;
+          if (next !== undefined) { event.preventDefault(); buttons[next]?.focus(); }
+          if (event.key === "Tab") setOpen(false);
+        }}>
+        {items.map(item => <button key={item.label} type="button" role="menuitem" tabIndex={-1}
+          disabled={item.disabled} onClick={() => {
+            setOpen(false);
+            trigger.current?.focus();
+            item.onClick();
+          }}>{item.label}</button>)}
+      </div>}
+    </div>
+  );
+}
 export function Avatar({ name, tone = "", large = false }) {
   return (
     <span
@@ -174,6 +245,12 @@ export function Select({ label, children, className = "", ...props }) {
       <ChevronDown size={16} />
     </div>
   );
+}
+export function Checkbox({ label, className = "", ...props }) {
+  return <label className={`check-field checkbox-control ${className}`.trim()}>
+    <input {...props} type="checkbox" />
+    <span>{label}</span>
+  </label>;
 }
 export function Field({ label, hint, error, children }) {
   const hintId = useId();
@@ -411,7 +488,7 @@ export function PageHeading({ title, subtitle, meta, children }) {
         {subtitle && <p>{subtitle}</p>}
         {meta && <div className="page-meta">{meta}</div>}
       </div>
-      {children && <div className="actions">{children}</div>}
+      {children && <ActionGroup className="actions">{children}</ActionGroup>}
     </div>
   );
 }
@@ -423,6 +500,7 @@ export function Modal({
   wide = false,
   closeLabel = "Close dialog",
   className = "",
+  initialFocusRef,
 }) {
   const ref = useRef(null),
     id = useId();
@@ -430,6 +508,7 @@ export function Modal({
     const prior = document.activeElement;
     const dialog = ref.current;
     dialog.showModal();
+    initialFocusRef?.current?.focus();
     return () => {
       dialog.close();
       prior?.focus?.();
@@ -564,11 +643,32 @@ export function RecordTabs(props) {
 export function FilterTabs(props) {
   return <Tabs {...props} className={`work-tabs ${props.className || ""}`.trim()} />;
 }
-export function TextLink({ children, ...props }) {
-  return (
-    <button className="text-link" {...props}>
-      {children}
-      <ArrowRight size={17} />
-    </button>
-  );
+// Tertiary actions retain a visible label. Icon-only utilities use icon-button.
+export function TertiaryAction({ children, icon: Icon, iconPosition = "start", className = "", type = "button", ...props }) {
+  const icon = Icon && <Icon size={16} aria-hidden="true" />;
+  return <button type={type} className={`tertiary-action ${className}`.trim()} {...props}>
+    {iconPosition === "start" && icon}
+    {children}
+    {iconPosition === "end" && icon}
+  </button>;
+}
+export function EditAction(props) {
+  return <TertiaryAction icon={Pencil} {...props} />;
+}
+export function TextLink({ icon = ArrowRight, iconPosition = "end", className = "", ...props }) {
+  return <TertiaryAction icon={icon} iconPosition={iconPosition} className={`text-link ${className}`.trim()} {...props} />;
+}
+
+// Use one spacing contract for related actions, including wrapping on narrow screens.
+export function ActionGroup({ as: Element = "div", children, className = "", ...props }) {
+  return <Element className={`action-group ${className}`.trim()} {...props}>{children}</Element>;
+}
+export function DeleteAction(props) {
+  return <TertiaryAction icon={Trash2} {...props} />;
+}
+export function ActionDivider({ children, className = "" }) {
+  return <span className={`action-divider ${className}`.trim()}>{children}</span>;
+}
+export function IconButton({ icon: Icon, label, className = "", type = "button", ...props }) {
+  return <button type={type} className={`icon-button ${className}`.trim()} aria-label={label} title={label} {...props}><Icon size={18} aria-hidden="true" /></button>;
 }

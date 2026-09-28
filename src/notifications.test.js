@@ -5,6 +5,8 @@ import { getNotifications } from "./notifications.js";
 
 test("getNotifications extracts data quality errors, overdue assessments, overdue appointments and assessments ready for review", () => {
   const state = createSeed();
+  state.settings.scheduleAssessments = true;
+  state.people[0].episodes[0].appointments.push({ id: "overdue-test", attendance: "Planned", plannedDate: "2026-01-01" });
   const notifications = getNotifications(state, TODAY);
 
   assert.ok(Array.isArray(notifications));
@@ -22,4 +24,18 @@ test("getNotifications extracts data quality errors, overdue assessments, overdu
     assert.ok(n.categoryLabel, "Notification must have a category label");
     assert.ok(n.href, "Notification must have a target link");
   }
+});
+
+test("scheduling off hides planned-contact reminders and switching on restores them", () => {
+  const state = createSeed();
+  state.settings.scheduleAssessments = true;
+  state.people[0].episodes[0].appointments.push({ id: "overdue-test", attendance: "Planned", plannedDate: "2026-01-01" });
+  const saved = JSON.stringify(state.people);
+  const planned = getNotifications(state, TODAY).filter(n => n.category === "appointment_overdue");
+  assert.ok(planned.length);
+  state.settings.scheduleAssessments = false;
+  assert.equal(getNotifications(state, TODAY).filter(n => n.category === "appointment_overdue").length, 0);
+  assert.equal(JSON.stringify(state.people), saved);
+  state.settings.scheduleAssessments = true;
+  assert.deepEqual(getNotifications(state, TODAY).filter(n => n.category === "appointment_overdue"), planned);
 });

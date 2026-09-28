@@ -7,6 +7,8 @@ const isInProgress = (collection) => isPending(collection) &&
 const earliestDue = (collections) => [...collections].filter((collection) => collection.due)
   .sort((a, b) => a.due.localeCompare(b.due) || a.id.localeCompare(b.id))[0] || null;
 
+export const earliestPendingAssessment = (collections) => earliestDue(collections.filter(isPending));
+
 export const assessmentDueLabel = (collection, today) =>
   isPending(collection) && collection.due
     ? collection.due < today ? "Past due" : collection.due === today ? "Due today" : null
@@ -33,6 +35,6 @@ export function assessmentDueByType(collections, today) {
 
 export function assessmentsWithDueVisibility(collections, today, dueByType = assessmentDueByType(collections, today)) {
   return collections.filter((collection) =>
-    !isPending(collection) || isInProgress(collection) || !collection.due || collection.due < today ||
+    collection.bundleId || !isPending(collection) || isInProgress(collection) || !collection.due || collection.due < today ||
     dueByType.get(assessmentType(collection).key)?.id === collection.id);
 }

@@ -1,6 +1,7 @@
+import { LABELS } from "../terminology.js";
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Search } from "lucide-react";
-import { Field, Modal, Notice, Button, ValidatedForm } from "./UI";
+import { ActionGroup, Field, Modal, Notice, Button, ValidatedForm } from "./UI";
 import {
   APPOINTMENT_ATTENDANCE,
   APPOINTMENT_DELIVERY_MODES,
@@ -119,7 +120,7 @@ export default function AppointmentForm({
                 ))}
               </select>
             </Field>
-            <Field label="Delivery mode">
+            <Field label={LABELS.contactMethod}>
               <select name="deliveryMode" required defaultValue="In person">
                 {APPOINTMENT_DELIVERY_MODES.filter((value) => assessmentSms || value !== "SMS").map((value) => (
                   <option key={value}>{value}</option>
@@ -234,14 +235,14 @@ export default function AppointmentForm({
           </div>}
           {error && <p className="field-error">{error}</p>}
         </div>
-        <div className="modal-footer">
+        <ActionGroup className="modal-footer">
           <Button type="button" onClick={onClose}>
             Cancel
           </Button>
           <Button type="submit" variant="primary">
             {scheduleAssessments ? "Save contact record" : "Record contact"}
           </Button>
-        </div>
+        </ActionGroup>
       </ValidatedForm>
     </Modal>
   );

@@ -10,13 +10,15 @@ export function useQueueSort(initialSort) {
         current.key === key && current.direction === "asc" ? "desc" : "asc",
     }));
   };
-  return { sort, toggleSort };
+  return { sort, toggleSort, setSort };
 }
 
-export function SortableHeader({ label, sortKey, sort, onSort, className = "" }) {
+export function SortableHeader({ label, sortKey, sort, onSort, className = "", ...headerProps }) {
   const active = sort.key === sortKey;
   return (
     <th
+      {...headerProps}
+      scope="col"
       className={`sortable ${className}`.trim()}
       aria-sort={
         active ? (sort.direction === "asc" ? "ascending" : "descending") : "none"

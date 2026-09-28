@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { createSeed, reducer, TODAY, upgradeSampleData } from "./model.js";
 import { DEMO_INSTRUMENT } from "./instruments.js";
 import {
+  episodeWithVisibleContacts,
+  personWithVisibleContacts,
   assessmentSchedulingEnabled,
   assessmentDueDatesEnabled,
   assessmentContactLinkingEnabled,
@@ -34,6 +36,7 @@ test("assessment feature switches persist across simplified and full views", () 
     simpleAssessments: false,
     scheduleAssessments: true,
     showAssessmentDueDates: true,
+    groupAssessmentsByBundle: false,
     automaticAssessmentDueDates: false,
     assessmentScheduleRules: [],
     linkAssessmentAppointments: false,
@@ -147,3 +150,23 @@ for (const simpleAssessments of [true, false]) {
     assert.equal(episode(state).collections.find((item) => item.id === "sms-toggle")?.attempts.at(-1).channel, "SMS link");
   });
 }
+
+test("scheduling off hides only planned contacts across care episodes without changing saved records", () => {
+  const appointments = [
+    { id: "planned", attendance: "Planned", plannedDate: TODAY },
+    { id: "attended", attendance: "Attended", actualDate: TODAY },
+    { id: "cancelled", attendance: "Cancelled", plannedDate: TODAY },
+    { id: "missed", attendance: "Did not attend", plannedDate: TODAY },
+  ];
+  const person = { episodes: [{ appointments }, { appointments: [...appointments] }] };
+  for (const settings of [{ scheduleAssessments: false }, { simpleAssessments: true }]) {
+    const visible = personWithVisibleContacts(person, settings);
+    for (const episode of visible.episodes)
+      assert.deepEqual(episode.appointments.map(contact => contact.id), ["attended", "cancelled", "missed"]);
+    assert.equal(person.episodes[0].appointments.length, 4);
+    assert.equal(assessmentHistoryEntryVisible({ type: "appointment", ...appointments[0] }, settings), false);
+    assert.equal(assessmentHistoryEntryVisible({ title: "Contact linked to assessment", appointmentId: "planned" }, settings, appointments), false);
+  }
+  assert.equal(personWithVisibleContacts(person, { scheduleAssessments: true }), person);
+  assert.equal(episodeWithVisibleContacts(undefined, { scheduleAssessments: false }), undefined);
+});

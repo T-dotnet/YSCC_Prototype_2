@@ -1,3 +1,5 @@
+import { episodeWithVisibleContacts } from "../assessmentFeatures.js";
+import { LABELS, COLLECTION_METHOD_OPTIONS, collectionMethodLabel } from "../terminology.js";
 import { RegisterPerson } from "../features/Intake";
 import { ReferralForm } from "../features/Referrals";
 import { canAssess } from "../intake";
@@ -29,7 +31,7 @@ import {
 } from "../model";
 import { DEMO_INSTRUMENT, INITIAL_ASSESSMENT_INSTRUMENT, INSTRUMENTS, INSTRUMENT_GROUPS, getInstrument } from "../instruments";
 import {
-  Modal,
+  ActionGroup, Modal,
   Field,
   Button,
   Notice,
@@ -44,11 +46,13 @@ import InstrumentLibrary from "./InstrumentLibrary";
 import EditResponses from "./EditResponses";
 import ReviewResponses from "./ReviewResponses";
 import ClinicianQuestionnaire from "./ClinicianQuestionnaire";
+import BundleQuestionnaire from "./BundleQuestionnaire";
 import CareTimelineEntryForm, { NEW_RECORD_TYPES, recordCategoryLabel } from "./CareTimelineEntryForm";
 import AppointmentSlotPicker from "./AppointmentSlotPicker";
 import { addDays } from "../externalAppointmentSlots";
 import { contactsForAssessment } from "../assessmentContacts";
-import { assessmentSchedulingEnabled, assessmentDueDatesEnabled, assessmentContactLinkingEnabled, assessmentSmsEnabled } from "../assessmentFeatures";
+import { assessmentSchedulingEnabled, assessmentDueDatesEnabled, assessmentContactLinkingEnabled, assessmentSmsEnabled, assessmentModalityEnabled, assessmentBundleGroupingEnabled } from "../assessmentFeatures";
+import { asBundle, bundleName, bundleAgeMatches } from "../assessmentBundles";
 import CareEventForm from "./CareEventForm";
 import AppointmentForm from "./AppointmentForm";
 import AppointmentOutcomeForm from "./AppointmentOutcomeForm";
@@ -56,6 +60,11 @@ import CareLevelForm from "./CareLevelForm";
 import { carePeriodError } from "../carePeriods";
 import ClinicalRecordForm from "./ClinicalRecordForm";
 import QualityIssueForm from "./QualityIssueForm";
+const COLLECTION_METHOD_PRESENTATION = {
+  "Clinician entry": ["Complete the questionnaire in your workspace", ClipboardPen],
+  "Clinic tablet": ["In-person device handover", Tablet],
+  "SMS link": ["Account-free sample link", MessageSquare],
+};
 const formValues = (e) => Object.fromEntries(new FormData(e.currentTarget));
 const suggestedAssessmentName = (collections = [], version) => {
   const instrumentName = getInstrument(version)?.name || "Assessment";
@@ -83,15 +92,19 @@ export default function Forms({
   const scheduleAssessments = assessmentSchedulingEnabled(state.settings);
   const linkAssessmentAppointments = assessmentContactLinkingEnabled(state.settings);
   const assessmentSms = assessmentSmsEnabled(state.settings);
-  const showPlanChannel = assessmentSms || scheduleAssessments || !simpleAssessments;
+  const assessmentModality = assessmentModalityEnabled(state.settings);
+  const showPlanChannel = scheduleAssessments || assessmentModality;
   const staff = currentStaff(state);
   const p = state.people.find((person) => person.id === modal.personId),
-    e = p?.episodes.find((episode) => episode.id === modal.episodeId),
+    e = episodeWithVisibleContacts(p?.episodes.find((episode) => episode.id === modal.episodeId), state.settings),
     c = e?.collections.find((collection) => collection.id === modal.collectionId);
   const planningInitialAssessment = e?.collections.some((collection) =>
     collection.label === "Initial assessment" && collection.response !== "Submitted");
   const [channel, setChannel] = useState(
-      (assessmentSms && (modal.collectionDraft?.channel || modal.channel || c?.channel)) || "Clinic tablet",
+      (() => {
+        const saved = modal.collectionDraft?.channel || modal.channel || c?.channel;
+        return saved && (saved !== "SMS link" || assessmentSms) ? saved : "Clinic tablet";
+      })(),
     ),
     [respondent, setRespondent] = useState(
       modal.collectionDraft?.respondent || c?.respondent || "Person",
@@ -107,9 +120,14 @@ export default function Forms({
   const [collectionExternalSlot, setCollectionExternalSlot] = useState(undefined);
   const [responseContactId, setResponseContactId] = useState("");
   const [planDue, setPlanDue] = useState(addDays(TODAY, 14));
-  const [planChannel, setPlanChannel] = useState(assessmentSms ? "SMS link" : "Clinic tablet");
+  const [planChannel, setPlanChannel] = useState(
+    !scheduleAssessments && assessmentModality && staff?.role === "Clinician"
+      ? "Clinician entry" : scheduleAssessments && assessmentSms ? "SMS link" : "Clinic tablet",
+  );
   const [planRespondent, setPlanRespondent] = useState("Person");
-  const [planAssistance, setPlanAssistance] = useState("Independent");
+  const [planAssistance, setPlanAssistance] = useState(
+    !scheduleAssessments && assessmentModality && staff?.role === "Clinician" ? "Transcribed" : "Independent",
+  );
   const [planExternalSlot, setPlanExternalSlot] = useState(null);
   const [plannedCollectionId] = useState(() => uid());
   const [copyFeedback, setCopyFeedback] = useState("");
@@ -123,6 +141,12 @@ export default function Forms({
   );
   const [assessmentName, setAssessmentName] = useState(() =>
     suggestedAssessmentName(e?.collections, instrumentVersion));
+  const [assessmentBundleId, setAssessmentBundleId] = useState("");
+  const groupAssessmentsByBundle = assessmentBundleGroupingEnabled(state.settings);
+  const availableAssessmentBundles = p
+    ? (state.settings?.assessmentScheduleRules || []).map(asBundle)
+      .filter(bundle => bundle.enabled && bundleAgeMatches(bundle, p, TODAY))
+    : [];
   const [assessmentNameEdited, setAssessmentNameEdited] = useState(false);
   const selectedInstrument = getInstrument(instrumentVersion);
   const previewTrigger = useRef(null);
@@ -174,7 +198,7 @@ export default function Forms({
     return true;
   };
   const footer = (label, disabled = false) => (
-    <div className="modal-footer">
+    <ActionGroup className="modal-footer">
       {formError && (
         <p className="field-error form-save-error" role="alert">
           {formError}
@@ -186,7 +210,7 @@ export default function Forms({
       <Button variant="primary" type="submit" disabled={disabled}>
         {label}
       </Button>
-    </div>
+    </ActionGroup>
   );
   if (modal.type === "import-people")
     return (
@@ -198,11 +222,11 @@ export default function Forms({
         <div className="import-placeholder">
           <p>Feature to be defined.</p>
         </div>
-        <div className="modal-footer">
+        <ActionGroup className="modal-footer">
           <Button variant="secondary" type="button" onClick={onClose}>
             Close
           </Button>
-        </div>
+        </ActionGroup>
       </Modal>
     );
   if (modal.type === "instrument")
@@ -384,12 +408,12 @@ export default function Forms({
                 <option value="">Related contact only</option>
                 {unlinkedAttempts.map((attempt) => (
                   <option key={attempt.id} value={attempt.id}>
-                    Attempt {c.attempts.indexOf(attempt) + 1} · {attempt.date ? formatDate(attempt.date) : "Date not recorded"} · {attempt.channel || "Channel not recorded"} · {attempt.assistance || "Assistance not recorded"}
+                    Attempt {c.attempts.indexOf(attempt) + 1} · {attempt.date ? formatDate(attempt.date) : "Date not recorded"} · {attempt.channel || "Collection method not recorded"} · {attempt.assistance || "Assistance not recorded"}
                   </option>
                 ))}
               </select>
             </Field>}
-            <p>Channel and assistance belong to each delivery attempt. Linking a contact alone does not change the response source{scheduleAssessments ? " or due date" : ""}.{unlinkedAttempts.some((item) => item.id === c.submittedAttemptId)
+            <p>Collection method and assistance belong to each delivery attempt. Linking a contact alone does not change the response source{scheduleAssessments ? " or due date" : ""}.{unlinkedAttempts.some((item) => item.id === c.submittedAttemptId)
               ? " If you link the submitted attempt, this contact becomes its response source."
               : unlinkedAttempts.length > 0
                 ? " The submitted response source remains unchanged."
@@ -454,6 +478,7 @@ export default function Forms({
     );
   if (modal.type === "clinician-questionnaire")
     return (
+      c.bundleId || c.scheduleRuleId ? <BundleQuestionnaire person={p} episode={e} collection={c} onClose={onClose} /> :
       <ClinicianQuestionnaire
         person={p}
         episode={e}
@@ -531,6 +556,7 @@ export default function Forms({
               ...modal,
               type: "PLAN",
               id: plannedCollectionId,
+              bundleId: groupAssessmentsByBundle ? assessmentBundleId : undefined,
               label,
               due: dueDate,
               version: instrumentVersion,
@@ -662,6 +688,16 @@ export default function Forms({
                 maxLength={80}
               />
             </Field>
+            {groupAssessmentsByBundle && <Field
+              label="Bundle"
+              hint="Choose a bundle for this assessment, or keep it as an individual assessment."
+            >
+              <select value={assessmentBundleId} onChange={event => {setAssessmentBundleId(event.target.value);const bundle = availableAssessmentBundles.find(item => item.id === event.target.value);if(bundle){setPlanChannel(bundle.channel);setPlanRespondent(bundle.recipient);setPlanAssistance(bundle.channel === 'Clinician entry' ? 'Transcribed' : 'Independent');}}}>
+                <option value="">Individual assessment</option>
+                {availableAssessmentBundles.map(bundle =>
+                  <option key={bundle.id} value={bundle.id}>{bundleName(bundle)}</option>)}
+              </select>
+            </Field>}
             {!simpleAssessments && <details className="setup-disclosure">
               <summary>
                 Existing collection plan ({e.collections.length})
@@ -679,9 +715,10 @@ export default function Forms({
                   ))}
               </ul>
             </details>}
-            <Field label="Respondent">
+            <Field label={LABELS.respondent}>
               <select
                 value={planRespondent}
+                disabled={!!assessmentBundleId}
                 onChange={(event) => setPlanRespondent(event.target.value)}
               >
                 <option value="Person">{displayPersonName(p)}</option>
@@ -697,16 +734,8 @@ export default function Forms({
             </Field>
 
             {showPlanChannel && <fieldset className="channel-options">
-              <legend>How will this follow-up be collected?</legend>
-              {[
-                ["SMS link", "Account-free sample link", MessageSquare],
-                ["Clinic tablet", "In-person device handover", Tablet],
-                [
-                  "Clinician entry",
-                  "Complete the questionnaire in your workspace",
-                  ClipboardPen,
-                ],
-              ].map(([label, description, Icon]) => (
+              <legend>{LABELS.collectionMethod}</legend>
+              {COLLECTION_METHOD_OPTIONS.map(([value]) => [value, ...COLLECTION_METHOD_PRESENTATION[value]]).map(([label, description, Icon]) => (
                 (!assessmentSms && label === "SMS link" ? null :
                 <label
                   className={`channel ${planChannel === label ? "chosen" : ""}`}
@@ -717,7 +746,7 @@ export default function Forms({
                     name="planChannel"
                     value={label}
                     checked={planChannel === label}
-                    disabled={
+                    disabled={!!assessmentBundleId ||
                       label === "Clinician entry" &&
                       staff?.role !== "Clinician"
                     }
@@ -734,7 +763,7 @@ export default function Forms({
                   />
                   <Icon size={23} />
                   <span>
-                    <strong>{label}</strong>
+                    <strong>{collectionMethodLabel(label)}</strong>
                     <small>{description}</small>
                   </span>
                   <span className="radio-dot" />
@@ -778,7 +807,7 @@ export default function Forms({
               onSelect={(slot) => { setPlanExternalSlot(slot); setFormError(""); }}
             />}
           </div>
-          <div className="modal-footer">
+          <ActionGroup className="modal-footer">
             {formError && (
               <p className="field-error form-save-error" role="alert">
                 {formError}
@@ -788,9 +817,11 @@ export default function Forms({
               Cancel
             </Button>
             <Button variant="primary" type="submit">
-              {scheduleAssessments ? "Schedule assessment" : "Start assessment"}
+              {scheduleAssessments ? "Schedule assessment"
+                : showPlanChannel && planChannel === "Clinic tablet" ? "Send to tablet"
+                : "Start assessment"}
             </Button>
-          </div>
+          </ActionGroup>
         </ValidatedForm>
         {previewOpen && (
           <InstrumentPreview
@@ -900,7 +931,7 @@ export default function Forms({
               </Badge>
             </div>
             {c.draftAnswers?.some(Boolean) && <Notice>
-              Saved answers will open in this session. Each answer keeps the channel
+              Saved answers will open in this session. Each answer keeps the collection method
               of the session that supplied its current value. The respondent is
               fixed while this draft is in progress.
             </Notice>}
@@ -931,10 +962,10 @@ export default function Forms({
                 )}
               </Notice>
             )}
-            <Field label="Who is supplying the answers?">
+            <Field label={LABELS.respondent}>
               <select
                 value={respondent}
-                disabled={!!c.draftAnswers?.some(Boolean)}
+                disabled={!!c.bundleId || !!c.scheduleRuleId || !!c.draftAnswers?.some(Boolean)}
                 onChange={(ev) => setRespondent(ev.target.value)}
               >
                 <option value="Person">{displayPersonName(p)}</option>
@@ -949,16 +980,8 @@ export default function Forms({
               </select>
             </Field>
             <fieldset className="channel-options">
-              <legend>How will the response be collected?</legend>
-              {[
-                ["SMS link", "Account-free sample link", MessageSquare],
-                ["Clinic tablet", "In-person device handover", Tablet],
-                [
-                  "Clinician entry",
-                  "Complete the questionnaire in your workspace",
-                  ClipboardPen,
-                ],
-              ].map(([label, description, Icon]) => (
+              <legend>{LABELS.collectionMethod}</legend>
+              {COLLECTION_METHOD_OPTIONS.map(([value]) => [value, ...COLLECTION_METHOD_PRESENTATION[value]]).map(([label, description, Icon]) => (
                 (!assessmentSms && label === "SMS link" ? null :
                 <label
                   className={`channel ${channel === label ? "chosen" : ""}`}
@@ -969,7 +992,7 @@ export default function Forms({
                     name="channel"
                     value={label}
                     checked={channel === label}
-                    disabled={
+                    disabled={!!c.bundleId || !!c.scheduleRuleId ||
                       label === "Clinician entry" &&
                       staff?.role !== "Clinician"
                     }
@@ -985,14 +1008,14 @@ export default function Forms({
                   />
                   <Icon size={23} />
                   <span>
-                    <strong>{label}</strong>
+                    <strong>{collectionMethodLabel(label)}</strong>
                     <small>{description}</small>
                   </span>
                   <span className="radio-dot" />
                 </label>)
               ))}
             </fieldset>
-            <Field label="Assistance">
+            <Field label={LABELS.assistance}>
               <select
                 value={assistance}
                 onChange={(ev) => setAssistance(ev.target.value)}
@@ -1161,7 +1184,7 @@ export default function Forms({
                 ))}
               </select>
             </Field>
-            <Field label="Delivery channel">
+            <Field label={LABELS.deliveryMethod}>
               <select name="channel" defaultValue={assessmentSms ? "SMS link" : "Clinic tablet"}>
                 {assessmentSms && <option>SMS link</option>}
                 <option>Clinic tablet</option>
@@ -1195,7 +1218,7 @@ export default function Forms({
               <dd>{request.scope}</dd>
             </div>
             <div>
-              <dt>Channel</dt>
+              <dt>{LABELS.deliveryMethod}</dt>
               <dd>{request.channel}</dd>
             </div>
             <div>
@@ -1219,7 +1242,7 @@ export default function Forms({
             persistence.
           </Notice>
         </div>
-        <div className="modal-footer">
+        <ActionGroup className="modal-footer">
           <Button variant="secondary" onClick={onClose}>
             Close
           </Button>
@@ -1251,7 +1274,7 @@ export default function Forms({
               Record withdrawal
             </Button>
           )}
-        </div>
+        </ActionGroup>
       </Modal>
     );
   }
@@ -1919,9 +1942,9 @@ export default function Forms({
   return (
     <Modal title={content[0]} subtitle={content[1]} onClose={onClose}>
       <div className="form-body prose">{content[2]}</div>
-      <div className="modal-footer">
+      <ActionGroup className="modal-footer">
         <Button onClick={onClose}>Done</Button>
-      </div>
+      </ActionGroup>
     </Modal>
   );
 }

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ArrowRight, Plus, Trash2 } from "lucide-react";
-import { Avatar, Badge, Button, PersonIdentity, TextLink } from "../components/UI";
+import { ActionGroup, ActionDivider, Checkbox, DeleteAction, EditAction, IconButton, Avatar, Badge, Button, PersonIdentity, TextLink } from "../components/UI";
 
 export default {
   title: "02 Primitives/Actions and identity",
@@ -108,4 +108,14 @@ export const IdentityAndTextAction = {
       </div>
     </div>
   ),
+};
+
+export const StandardActionSpacing = {
+  parameters: { docs: { description: { story: "Use ActionGroup for related controls: 12px between controls, 8px between an icon and its label. Dividers automatically separate text actions, icon actions, checkboxes, and switches. ActionDivider adds a 12px inset after a vertical divider. Groups wrap when space is limited. Use EditAction and DeleteAction for named actions, and IconButton with an accessible label for compact row actions." } } },
+  render: () => <div className="ds-story ds-stack">
+    <ActionGroup><Checkbox label="Enabled" defaultChecked /><EditAction>Edit</EditAction><DeleteAction>Delete</DeleteAction><IconButton icon={Trash2} label="Remove item" /></ActionGroup>
+    <ActionGroup><span>Assessment name</span><ActionDivider><IconButton icon={Trash2} label="Remove assessment" /></ActionDivider></ActionGroup>
+    <ActionGroup><Button>Cancel</Button><Button variant="primary">Save changes</Button></ActionGroup>
+    <div style={{ maxWidth: 240 }}><ActionGroup><EditAction>Edit assessment</EditAction><DeleteAction>Delete assessment</DeleteAction><Button>View details</Button></ActionGroup></div>
+  </div>,
 };

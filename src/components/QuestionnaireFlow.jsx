@@ -19,6 +19,8 @@ export default function QuestionnaireFlow({
   submitLabel,
   completionNote,
   initialReview = false,
+  showProgress = true,
+  secondaryAction,
 }) {
   const path = questionnaireState(instrument, answers);
   const [currentId, setCurrentId] = useState(instrument.questions[0].id);
@@ -86,7 +88,8 @@ export default function QuestionnaireFlow({
     go(entry);
   };
   return (
-    <div className="adaptive-flow">
+    <div className={`adaptive-flow${review ? " adaptive-flow-review" : ""}`}>
+      {showProgress && <>
       <div className="adaptive-progress">
         <div className="question-progress">
           <strong>
@@ -147,11 +150,13 @@ export default function QuestionnaireFlow({
           ))}
         </nav>
       </details>
+      </>}
       <p className="branch-update" role="status" aria-live="polite">
         {branchMessage}
       </p>
       {review ? (
         <>
+          <div className="questionnaire-review-body">
           <Heading tabIndex={-1} ref={heading}>
             {path.complete
               ? clinicianEntry
@@ -248,6 +253,7 @@ export default function QuestionnaireFlow({
               <p>{completionNote}</p>
             </div>
           )}
+          </div>
           <div className="question-controls">
             <Button
               type="button"
@@ -259,6 +265,7 @@ export default function QuestionnaireFlow({
               <ArrowLeft size={17} />
               Back
             </Button>
+            {secondaryAction}
             {!path.complete ? (
               <Button
                 type="button"
@@ -289,7 +296,7 @@ export default function QuestionnaireFlow({
         <>
           <div className="adaptive-position">
             <span>
-              {section.title} · Question {position + 1} of {path.total}
+              Question {position + 1} of {path.total}
             </span>
             <button
               type="button"
@@ -354,6 +361,7 @@ export default function QuestionnaireFlow({
               <ArrowLeft size={17} />
               {editing ? "Back to review" : "Back"}
             </Button>
+            {secondaryAction}
             <Button
               type="button"
               variant="primary"

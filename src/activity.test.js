@@ -29,6 +29,24 @@ const deliver = (state) =>
     respondent: "Person",
     assistance: "Independent",
   });
+
+test("historical method labels display consistently without rewriting audit evidence", () => {
+  const entry = {
+    collectionId: "assessment-one",
+    changes: [
+      { key: "assessment-one-channel", label: "Review · Delivery channel", before: "Clinic tablet", after: "Clinician entry" },
+      { key: "assessment-one-assistance", label: "Review · Completion support", before: "Independent", after: "Transcribed" },
+      { key: "note", label: "Clinical note", before: null, after: "Discussed delivery channel preferences" },
+    ],
+  };
+  const original = structuredClone(entry);
+  const changes = activityChangeDetails(entry);
+  assert.deepEqual(changes.map(({ label }) => label), ["Review · Collection method", "Review · Assistance", "Clinical note"]);
+  assert.equal(changes[2].after, "Discussed delivery channel preferences");
+  assert.deepEqual(entry, original);
+  assert.equal(activityChangeDetails({ changes: [{ key: "channel", label: "Delivery channel" }] })[0].label, "Delivery method");
+  assert.equal(activityChangeDetails({ changes: [{ key: "contact-deliveryMode", label: "Delivery mode" }] })[0].label, "Contact method");
+});
 const submit = (state) =>
   act(state, "SUBMIT", {
     answers: createSampleAnswers({
@@ -213,7 +231,7 @@ test("Mia's sample record includes an expandable compliance change log entry", (
   assert.equal(entry.changes.length, 2);
   assert.deepEqual(entry.changes[0], {
     key: "A-6-everyday-life-four-weeks-channel",
-    label: "Everyday life check-in · 4 weeks · Delivery channel",
+    label: "Everyday life check-in · 4 weeks · Collection method",
     before: "Clinic tablet",
     after: "SMS link",
   });

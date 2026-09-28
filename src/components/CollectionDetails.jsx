@@ -1,3 +1,5 @@
+import { episodeWithVisibleContacts } from "../assessmentFeatures.js";
+import { PLANNED_COLLECTION_METHOD_LABEL } from "../terminology.js";
 import {
   formatDate,
   clinicalReviewStatus,
@@ -9,7 +11,7 @@ import {
 import { assessmentDueLabel } from "../assessmentDue";
 import { canAssess } from "../intake";
 import { collectionSetupLabel } from "../overview";
-import { Modal, Button, Badge, AlertLabel } from "./UI";
+import { ActionGroup, Modal, Button, Badge, AlertLabel } from "./UI";
 import { contactsForAssessment } from "../assessmentContacts";
 import { ChevronDown } from "lucide-react";
 import { getInstrument } from "../instruments";
@@ -31,6 +33,7 @@ export default function CollectionDetails({
   linkAssessmentAppointments = true,
   assessmentSms = true,
 }) {
+  episode = episodeWithVisibleContacts(episode, { scheduleAssessments });
   const c = collection;
   const dueLabel = showDueLabels ? assessmentDueLabel(c, TODAY) : null;
   const visibleAttempts = (c.attempts || []).filter((attempt) => assessmentSms || attempt.channel !== "SMS link");
@@ -61,13 +64,13 @@ export default function CollectionDetails({
           <div className="collection-details-summary-heading">
             <div>
               <h3>Response status</h3>
-              <Badge>{simpleAssessments ? submitted ? "Completed" : c.response === "Draft" ? "Draft" : "Created" : c.response}</Badge>
+              <Badge>{simpleAssessments ? submitted ? "Completed" : c.response === "Draft" ? "Draft" : "Not started" : c.response}</Badge>
             </div>
           </div>
           {!submitted && (
             <p>
               {c.response === "Draft"
-                ? `${savedAnswerCount} ${savedAnswerCount === 1 ? "answer is" : "answers are"} saved. Start another session to continue on the same or a different channel.`
+                ? `${savedAnswerCount} ${savedAnswerCount === 1 ? "answer is" : "answers are"} saved. Start another session to continue on the same or a different collection method.`
                 : simpleAssessments
                   ? "No draft has been saved yet. Start the assessment when ready."
                   : "No response has been submitted. Check delivery activity and contact arrangements before deciding whether another attempt is needed."}
@@ -119,6 +122,10 @@ export default function CollectionDetails({
                 <dt>Instrument</dt>
                 <dd>{c.version}</dd>
               </div>
+              {c.bundleId && <>
+                <div><dt>Bundle</dt><dd>{c.bundleName}</dd></div>
+                <div><dt>Requirement</dt><dd>{c.bundleRequirement}</dd></div>
+              </>}
               <div>
                 <dt>Respondent</dt>
                 <dd>{displayCollectionActor(person, c, "respondent")}</dd>
@@ -145,7 +152,7 @@ export default function CollectionDetails({
             ) : <p className="muted">No delivery attempts recorded.</p>}
             {!visibleAttempts.length && ((assessmentSms || c.channel !== "SMS link") && c.channel || linkAssessmentAppointments && c.externalAppointment) && (
               <dl className="metadata">
-                {(assessmentSms || c.channel !== "SMS link") && c.channel && <div><dt>Planned channel</dt><dd>{c.channel}</dd></div>}
+                {(assessmentSms || c.channel !== "SMS link") && c.channel && <div><dt>{PLANNED_COLLECTION_METHOD_LABEL}</dt><dd>{c.channel}</dd></div>}
                 {linkAssessmentAppointments && c.externalAppointment && <div>
                   <dt>External contact</dt>
                   <dd>{c.externalAppointment.date} at {c.externalAppointment.time} · {c.externalAppointment.practitionerService} · {c.externalAppointment.deliveryMode}</dd>
@@ -156,7 +163,7 @@ export default function CollectionDetails({
         </details>}
         {linkAssessmentAppointments && <RelatedRecordsAccordion kind="contacts" records={linkedContacts} collection={c} />}
       </div>
-      <div className="modal-footer">
+      <ActionGroup className="modal-footer">
         <Button onClick={onClose}>Close</Button>
         {linkAssessmentAppointments && episode.status === "Active" && !["Cancelled", "Paused"].includes(c.assignment) &&
           (episode.appointments || []).length > linkedContacts.length && (
@@ -180,7 +187,7 @@ export default function CollectionDetails({
             </Button>
           </>
         )}
-      </div>
+      </ActionGroup>
     </Modal>
   );
 }

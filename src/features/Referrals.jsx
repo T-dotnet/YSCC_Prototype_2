@@ -11,7 +11,7 @@ import {
 } from "../model";
 import { REFERRAL_EVENTS, referralOpen, intakeActionError } from "../intake";
 import {
-  Button,
+  ActionGroup, Button,
   Field,
   Modal,
   Notice,
@@ -324,14 +324,14 @@ export function ReferralForm({ modal, onClose, notify }) {
             </p>
           )}
         </div>
-        <div className="modal-footer">
+        <ActionGroup className="modal-footer">
           <Button type="button" onClick={onClose}>
             Cancel
           </Button>
           <Button type="submit" variant="primary">
             {creating ? "Save referral draft" : "Record event"}
           </Button>
-        </div>
+        </ActionGroup>
       </ValidatedForm>
     </Modal>
   );

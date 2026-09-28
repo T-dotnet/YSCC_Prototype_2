@@ -1,5 +1,7 @@
 # Functional & Visual Feature Specification: YSCC Clinical Workspace
 
+Current vocabulary: see the generated [product terminology glossary](docs/terminology.md) and its shared source in `src/terminology.js`.
+
 > Current assessment scheduling reference: [Assessment due dates and cadence rules](docs/assessment-scheduling/README.md), updated 28 September 2026. That reference distinguishes implemented prototype behaviour from assumptions awaiting stakeholder confirmation and supersedes older scheduling descriptions below.
 
 Welcome to the comprehensive feature catalog and architectural reference of the **YSCC Clinical Workspace**. This document outlines the application's capabilities, visual design principles, and clinical safety workflows. It serves as both an executive overview and a developer-facing functional deep dive.
