@@ -402,9 +402,9 @@ export function careEventEntries(person, episode, audit = [], { simpleAssessment
     })),
   ].filter((entry) => entry.id && entry.eventDate);
   const entries = [...records, ...assessments, ...reportSources];
-  return (simpleAssessments
+  return (simpleAssessments || !scheduleAssessments
     ? entries.filter((entry) => {
-      const linkedPlannedContact = entry.type === "appointment" && entry.attendance === "Planned" &&
+      const linkedPlannedContact = scheduleAssessments && entry.type === "appointment" && entry.attendance === "Planned" &&
         linkedAppointmentIds.has(entry.id?.replace(/^appointment-/, ""));
       if (entry.type === "appointment" && entry.attendance === "Planned" && !linkedPlannedContact) return false;
       return linkedPlannedContact || !today || !historyDate(entry) || historyDate(entry).slice(0, 10) <= today;

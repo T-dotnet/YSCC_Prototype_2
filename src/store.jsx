@@ -1,12 +1,15 @@
+import { reconcileAssessmentSchedules } from "./assessmentSchedules";
 import React, {
   createContext,
   useContext,
   useReducer,
   useEffect,
+  useLayoutEffect,
   useState,
   useRef,
 } from "react";
-import { createSeed, reducer, STORAGE_KEY, upgradeSampleData } from "./model";
+import { createSeed, reducer, STORAGE_KEY, upgradeSampleData, TODAY } from "./model";
+import { uiColorSetup } from "./uiColorSetups";
 const Store = createContext(null);
 export function StoreProvider({ children }) {
   const [storageError, setStorageError] = useState(false);
@@ -28,6 +31,7 @@ export function StoreProvider({ children }) {
       } catch {
         initialState = createSeed();
       }
+      initialState = reconcileAssessmentSchedules(initialState, TODAY);
       const requestedMode = new URLSearchParams(window.location.search).get("simpleAssessments");
       if (requestedMode !== "off") return initialState;
       return {
@@ -36,6 +40,9 @@ export function StoreProvider({ children }) {
       };
     },
   );
+  useLayoutEffect(() => {
+    document.documentElement.dataset.uiSetup = String(uiColorSetup(state.settings?.uiColorSetup));
+  }, [state.settings?.uiColorSetup]);
   useEffect(() => {
     dispatch({ type: "UPGRADE_QUESTIONNAIRE_SAMPLES" });
   }, []);

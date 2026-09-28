@@ -4,10 +4,12 @@ import {
   displayPersonName,
   displayCollectionActor,
   canCollectInEpisode,
+  TODAY,
 } from "../model";
+import { assessmentDueLabel } from "../assessmentDue";
 import { canAssess } from "../intake";
 import { collectionSetupLabel } from "../overview";
-import { Modal, Button, Badge } from "./UI";
+import { Modal, Button, Badge, AlertLabel } from "./UI";
 import { contactsForAssessment } from "../assessmentContacts";
 import { ChevronDown } from "lucide-react";
 import { getInstrument } from "../instruments";
@@ -24,10 +26,13 @@ export default function CollectionDetails({
   canCompleteAsClinician = false,
   simpleAssessments = false,
   scheduleAssessments = true,
+  showDueDates = scheduleAssessments,
+  showDueLabels = false,
   linkAssessmentAppointments = true,
   assessmentSms = true,
 }) {
   const c = collection;
+  const dueLabel = showDueLabels ? assessmentDueLabel(c, TODAY) : null;
   const visibleAttempts = (c.attempts || []).filter((attempt) => assessmentSms || attempt.channel !== "SMS link");
   const linkedContacts = contactsForAssessment(episode, c.id)
     .filter((contact) => assessmentSms || contact.deliveryMode !== "SMS")
@@ -69,9 +74,11 @@ export default function CollectionDetails({
             </p>
           )}
           <dl className="collection-details-status-facts">
-            {scheduleAssessments && c.due && <div>
+            {showDueDates && <div>
               <dt>Due date</dt>
-              <dd>{formatDate(c.due)}</dd>
+              <dd className="assessment-record-due">{c.due ? formatDate(c.due) : "Not set"}
+                {dueLabel && <AlertLabel tone={dueLabel === "Past due" ? "danger" : "attention"}>{dueLabel}</AlertLabel>}
+              </dd>
             </div>}
             {linkAssessmentAppointments && c.externalAppointment && <div>
               <dt>External contact</dt>

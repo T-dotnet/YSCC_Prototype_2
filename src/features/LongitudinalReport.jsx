@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
 import { careTimelineData, timelineExtent, timelinePosition } from "../careTimeline";
 import { k10Series, K10_SCORING_METHOD, K10_METHOD_URL } from "../k10";
 import { recordedCareEvents } from "../careEvents";
@@ -36,6 +36,21 @@ function timelineTicks(start, end) {
       showYear,
     ),
   }));
+}
+
+function timelineLabelRows(entries, start, end) {
+  const rows = [];
+  const positions = new Map();
+  [...entries]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .forEach((entry) => {
+      const position = timelinePosition(entry.date, start, end);
+      let row = rows.findIndex((lastPosition) => position - lastPosition >= 22);
+      if (row < 0) row = rows.length;
+      rows[row] = position;
+      positions.set(entry.id, row);
+    });
+  return { positions, count: rows.length };
 }
 
 function reportLanes(timeline) {
@@ -361,17 +376,20 @@ function K10MeasureLane({
           {[10, 30, 50].map((value) => (
             <line key={value} x1="0" x2="100" y1={y(value)} y2={y(value)} />
           ))}
+          {pointPairs.length > 1 && <polygon points={`${timelinePosition(points[0].date, timeline.start, timeline.end)},${y(10)} ${pointPairs.join(" ")} ${timelinePosition(points.at(-1).date, timeline.start, timeline.end)},${y(10)}`} />}
           <polyline points={pointPairs.join(" ")} />
         </svg>
         {points.map((point) => {
           const entryId = point.id;
+          const position = timelinePosition(point.date, timeline.start, timeline.end);
           return (
             <button
               key={point.id}
               type="button"
               className={`longitudinal-measure-point${selected?.id === entryId ? " selected" : ""}`}
+              data-edge={position < 28 ? "start" : position > 72 ? "end" : undefined}
               style={{
-                left: `${timelinePosition(point.date, timeline.start, timeline.end)}%`,
+                left: `${position}%`,
                 top: `${y(point.total)}%`,
               }}
               aria-label={`K10 raw total ${point.total} of 50 on ${formatDate(point.date)}`}
@@ -379,7 +397,7 @@ function K10MeasureLane({
               aria-expanded={selected?.id === entryId}
               onClick={() => onSelect(entryId)}
             >
-              {point.total}
+              <span className="report-chart-tooltip" aria-hidden="true">{formatDate(point.date)} · {point.total} of 50</span>
             </button>
           );
         })}
@@ -473,7 +491,7 @@ function SharedTimeline({
       {isVisible && (visibleEntries.length ? (
         <>
           <div className="longitudinal-view-toolbar">
-            <span>Timeline view</span>
+            <span>Show tracks</span>
             <div
               className="longitudinal-filter"
               role="group"
@@ -499,11 +517,14 @@ function SharedTimeline({
               <i className="longitudinal-key-bar" /> Service period
             </span>
             <span>
+              <i className="longitudinal-key-contact" /> Service contact
+            </span>
+            <span>
               <i className="longitudinal-key-medication-bar" /> Medication
               course
             </span>
             <span>
-              <i className="longitudinal-key-event" /> Dated event
+              <i className="longitudinal-key-event" /> Contextual event
             </span>
             <span>
               <i className="longitudinal-key-risk" /> Risk event
@@ -535,10 +556,12 @@ function SharedTimeline({
                 const selectedEntry = lane.entries.find(
                   (entry) => entry.id === selected?.id,
                 );
+                const labelRows = timelineLabelRows(lane.entries, plotRange.start, plotRange.end);
 
                 return (
                   <div
                     className={`longitudinal-lane${selectedEntry ? " expanded" : ""}`}
+                    data-lane={lane.id}
                     key={lane.id}
                   >
                     <div className="longitudinal-lane-label">
@@ -548,7 +571,7 @@ function SharedTimeline({
                           `${lane.entries.length} recorded item${lane.entries.length === 1 ? "" : "s"}`}
                       </small>
                     </div>
-                    <div className="longitudinal-track">
+                    <div className="longitudinal-track longitudinal-track-labeled" style={{ "--label-rows": labelRows.count }}>
                       {lane.entries.map((entry) => {
                         const position = timelinePosition(
                           entry.date,
@@ -569,16 +592,22 @@ function SharedTimeline({
                           <button
                             key={entry.id}
                             type="button"
-                            className={`longitudinal-mark longitudinal-mark-${entry.kind}${entry.kind === "duration" && /^Planned/i.test(entry.detail) ? " planned-care" : ""}${selected?.id === entry.id ? " selected" : ""}`}
+                            className={`longitudinal-mark longitudinal-mark-${entry.kind}${entry.kind === "duration" && /^Planned/i.test(entry.detail) ? " planned-care" : ""}${selected?.id === entry.id ? " selected" : ""}${position > 88 ? " label-at-end" : ""}${position < 9 ? " label-at-start" : ""}`}
                             style={{
                               left: `${position}%`,
+                              "--label-row": labelRows.positions.get(entry.id),
                               ...(width ? { width: `${width}%` } : {}),
                             }}
                             aria-label={`${lane.label}: ${entry.label}, ${formatDate(entry.date)}${entry.end ? ` to ${formatDate(entry.end)}` : ""}. ${entry.detail}`}
                             aria-pressed={selected?.id === entry.id}
                             aria-expanded={selected?.id === entry.id}
                             onClick={() => toggleSelected(entry.id)}
-                          />
+                          >
+                            <span className="longitudinal-mark-label" aria-hidden="true">
+                              <strong>{entry.label}</strong>
+                              <small>{formatDate(entry.date)}{entry.end ? ` – ${formatDate(entry.end)}` : ""}</small>
+                            </span>
+                          </button>
                         );
                       })}
                     </div>
@@ -616,7 +645,10 @@ function SharedTimeline({
             marker for its source detail.
           </p>
           <details className="longitudinal-record-list">
-            <summary>Browse visible records</summary>
+            <summary>
+              <span>Browse visible records</span>
+              <ChevronDown size={18} aria-hidden="true" />
+            </summary>
             {visibleLanes.map((lane) => (
               <div key={lane.id}>
                 <h4>{lane.label}</h4>

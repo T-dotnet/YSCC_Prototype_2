@@ -1,0 +1,202 @@
+{
+  "total": 37,
+  "passed": 32,
+  "failed": 5,
+  "stories": [
+    {
+      "name": "Page Heading And Panel",
+      "status": "passed",
+      "failureMessages": []
+    },
+    {
+      "name": "Record Section",
+      "status": "passed",
+      "failureMessages": []
+    },
+    {
+      "name": "Dialog And Form",
+      "status": "passed",
+      "failureMessages": []
+    },
+    {
+      "name": "Empty And Completion",
+      "status": "passed",
+      "failureMessages": []
+    },
+    {
+      "name": "Responsive Queue",
+      "status": "passed",
+      "failureMessages": []
+    },
+    {
+      "name": "Applied Filter Chips",
+      "status": "failed",
+      "failureMessages": [
+        "Error: expect(received).toHaveNoViolations(expected)\n\nExpected the HTML found at $('.text-button-small') to have no violations:\n\n<button type=\"button\" class=\"text-button-small\">Clear all</button>\n\nReceived:\n\n\"Elements must meet minimum color contrast ratio thresholds (color-contrast)\"\n\nFix any of the following:\n  Element has insufficient color contrast of 3.19 (foreground color: #fa532c, background color: #fbfbf9, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1\n\nYou can find more information on this issue here: \nhttps://dequeuniversity.com/rules/axe/4.13/color-contrast?application=axeAPI\n    at Proxy.expectWrapper (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/test-BADMwJzM.js?v=aeacf33c:25722:49)\n    at Proxy.<anonymous> (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/test-BADMwJzM.js?v=aeacf33c:25264:101)\n    at Proxy.methodWrapper (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/test-BADMwJzM.js?v=aeacf33c:20867:23)\n    at Instrumenter.invoke (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/test-BADMwJzM.js?v=aeacf33c:2429:20)\n    at Instrumenter.intercept (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/test-BADMwJzM.js?v=aeacf33c:2332:138)\n    at Instrumenter.track (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/test-BADMwJzM.js?v=aeacf33c:2323:83)\n    at Proxy.toHaveNoViolations (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/test-BADMwJzM.js?v=aeacf33c:2301:151)\n    at afterEach (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/@storybook_addon-a11y_preview.js?v=aeacf33c:265:21)\n    at async Object.applyAfterEach (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/csf-Di4QTVBl.js?v=aeacf33c:9714:4)\n    at async runStory (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/csf-Di4QTVBl.js?v=aeacf33c:10032:100)"
+      ]
+    },
+    {
+      "name": "Report Evidence",
+      "status": "failed",
+      "failureMessages": [
+        "Error: expect(received).toHaveNoViolations(expected)\n\nExpected the HTML found at $('article:nth-child(1) > .report-evidence-card-copy > h5') to have no violations:\n\n<h5>K10 self-report</h5>\n\nReceived:\n\n\"Heading levels should only increase by one (heading-order)\"\n\nFix any of the following:\n  Heading order invalid\n\nYou can find more information on this issue here: \nhttps://dequeuniversity.com/rules/axe/4.13/heading-order?application=axeAPI\n    at Proxy.expectWrapper (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/test-BADMwJzM.js?v=aeacf33c:25722:49)\n    at Proxy.<anonymous> (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/test-BADMwJzM.js?v=aeacf33c:25264:101)\n    at Proxy.methodWrapper (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/test-BADMwJzM.js?v=aeacf33c:20867:23)\n    at Instrumenter.invoke (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/test-BADMwJzM.js?v=aeacf33c:2429:20)\n    at Instrumenter.intercept (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/test-BADMwJzM.js?v=aeacf33c:2332:138)\n    at Instrumenter.track (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/test-BADMwJzM.js?v=aeacf33c:2323:83)\n    at Proxy.toHaveNoViolations (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/test-BADMwJzM.js?v=aeacf33c:2301:151)\n    at afterEach (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/@storybook_addon-a11y_preview.js?v=aeacf33c:265:21)\n    at async Object.applyAfterEach (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/csf-Di4QTVBl.js?v=aeacf33c:9714:4)\n    at async runStory (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/csf-Di4QTVBl.js?v=aeacf33c:10032:100)"
+      ]
+    },
+    {
+      "name": "Search And Clear",
+      "status": "passed",
+      "failureMessages": []
+    },
+    {
+      "name": "Fields And Pickers",
+      "status": "passed",
+      "failureMessages": []
+    },
+    {
+      "name": "Validation States",
+      "status": "passed",
+      "failureMessages": []
+    },
+    {
+      "name": "Native Form Validation",
+      "status": "passed",
+      "failureMessages": []
+    },
+    {
+      "name": "Semantic Colours",
+      "status": "passed",
+      "failureMessages": []
+    },
+    {
+      "name": "Typography",
+      "status": "passed",
+      "failureMessages": []
+    },
+    {
+      "name": "Spacing And Shape",
+      "status": "passed",
+      "failureMessages": []
+    },
+    {
+      "name": "Record Navigation",
+      "status": "passed",
+      "failureMessages": []
+    },
+    {
+      "name": "Quick Filters",
+      "status": "passed",
+      "failureMessages": []
+    },
+    {
+      "name": "Filter Toolbar",
+      "status": "passed",
+      "failureMessages": []
+    },
+    {
+      "name": "Care Event Filters",
+      "status": "passed",
+      "failureMessages": []
+    },
+    {
+      "name": "Page Controls",
+      "status": "passed",
+      "failureMessages": []
+    },
+    {
+      "name": "Read The Collection",
+      "status": "passed",
+      "failureMessages": []
+    },
+    {
+      "name": "Overview Summary",
+      "status": "passed",
+      "failureMessages": []
+    },
+    {
+      "name": "Contact Participant Context",
+      "status": "failed",
+      "failureMessages": [
+        "Error: expect(received).toHaveNoViolations(expected)\n\nExpected the HTML found at $('#story-consent-context-title') to have no violations:\n\n<h3 id=\"story-consent-context-title\">Contact and participant context</h3>\n\nReceived:\n\n\"Heading levels should only increase by one (heading-order)\"\n\nFix any of the following:\n  Heading order invalid\n\nYou can find more information on this issue here: \nhttps://dequeuniversity.com/rules/axe/4.13/heading-order?application=axeAPI\n    at Proxy.expectWrapper (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/test-BADMwJzM.js?v=aeacf33c:25722:49)\n    at Proxy.<anonymous> (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/test-BADMwJzM.js?v=aeacf33c:25264:101)\n    at Proxy.methodWrapper (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/test-BADMwJzM.js?v=aeacf33c:20867:23)\n    at Instrumenter.invoke (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/test-BADMwJzM.js?v=aeacf33c:2429:20)\n    at Instrumenter.intercept (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/test-BADMwJzM.js?v=aeacf33c:2332:138)\n    at Instrumenter.track (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/test-BADMwJzM.js?v=aeacf33c:2323:83)\n    at Proxy.toHaveNoViolations (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/test-BADMwJzM.js?v=aeacf33c:2301:151)\n    at afterEach (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/@storybook_addon-a11y_preview.js?v=aeacf33c:265:21)\n    at async Object.applyAfterEach (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/csf-Di4QTVBl.js?v=aeacf33c:9714:4)\n    at async runStory (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/csf-Di4QTVBl.js?v=aeacf33c:10032:100)"
+      ]
+    },
+    {
+      "name": "Button Playground",
+      "status": "passed",
+      "failureMessages": []
+    },
+    {
+      "name": "Button Variants",
+      "status": "passed",
+      "failureMessages": []
+    },
+    {
+      "name": "Button States",
+      "status": "passed",
+      "failureMessages": []
+    },
+    {
+      "name": "Badge Playground",
+      "status": "passed",
+      "failureMessages": []
+    },
+    {
+      "name": "Status Badges",
+      "status": "passed",
+      "failureMessages": []
+    },
+    {
+      "name": "Identity And Text Action",
+      "status": "passed",
+      "failureMessages": []
+    },
+    {
+      "name": "Direct Service Contact",
+      "status": "passed",
+      "failureMessages": []
+    },
+    {
+      "name": "Assessment Collection",
+      "status": "passed",
+      "failureMessages": []
+    },
+    {
+      "name": "Collapsible Historical Record",
+      "status": "passed",
+      "failureMessages": []
+    },
+    {
+      "name": "Source Type Comparison",
+      "status": "passed",
+      "failureMessages": []
+    },
+    {
+      "name": "Consolidated Care Event Row",
+      "status": "passed",
+      "failureMessages": []
+    },
+    {
+      "name": "Consolidated Change Row",
+      "status": "passed",
+      "failureMessages": []
+    },
+    {
+      "name": "Compact Assessment States",
+      "status": "failed",
+      "failureMessages": [
+        "Error: expect(received).toHaveNoViolations(expected)\n\nExpected the HTML found at $('article[data-status=\"created\"] > .assessment-grouped-record-heading > .assessment-grouped-record-title > h4') to have no violations:\n\n<h4>Initial assessment</h4>\n\nReceived:\n\n\"Heading levels should only increase by one (heading-order)\"\n\nFix any of the following:\n  Heading order invalid\n\nYou can find more information on this issue here: \nhttps://dequeuniversity.com/rules/axe/4.13/heading-order?application=axeAPI\n    at Proxy.expectWrapper (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/test-BADMwJzM.js?v=aeacf33c:25722:49)\n    at Proxy.<anonymous> (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/test-BADMwJzM.js?v=aeacf33c:25264:101)\n    at Proxy.methodWrapper (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/test-BADMwJzM.js?v=aeacf33c:20867:23)\n    at Instrumenter.invoke (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/test-BADMwJzM.js?v=aeacf33c:2429:20)\n    at Instrumenter.intercept (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/test-BADMwJzM.js?v=aeacf33c:2332:138)\n    at Instrumenter.track (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/test-BADMwJzM.js?v=aeacf33c:2323:83)\n    at Proxy.toHaveNoViolations (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/test-BADMwJzM.js?v=aeacf33c:2301:151)\n    at afterEach (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/@storybook_addon-a11y_preview.js?v=aeacf33c:265:21)\n    at async Object.applyAfterEach (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/csf-Di4QTVBl.js?v=aeacf33c:9714:4)\n    at async runStory (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/csf-Di4QTVBl.js?v=aeacf33c:10032:100)"
+      ]
+    },
+    {
+      "name": "Report Dashboard",
+      "status": "passed",
+      "failureMessages": []
+    },
+    {
+      "name": "Semantic Care Timeline",
+      "status": "failed",
+      "failureMessages": [
+        "Error: expect(received).toHaveNoViolations(expected)\n\nExpected the HTML found at $('#longitudinal-timeline-heading') to have no violations:\n\n<h3 id=\"longitudinal-timeline-heading\">Care timeline</h3>\n\nReceived:\n\n\"Heading levels should only increase by one (heading-order)\"\n\nFix any of the following:\n  Heading order invalid\n\nYou can find more information on this issue here: \nhttps://dequeuniversity.com/rules/axe/4.13/heading-order?application=axeAPI\n    at Proxy.expectWrapper (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/test-BADMwJzM.js?v=aeacf33c:25722:49)\n    at Proxy.<anonymous> (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/test-BADMwJzM.js?v=aeacf33c:25264:101)\n    at Proxy.methodWrapper (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/test-BADMwJzM.js?v=aeacf33c:20867:23)\n    at Instrumenter.invoke (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/test-BADMwJzM.js?v=aeacf33c:2429:20)\n    at Instrumenter.intercept (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/test-BADMwJzM.js?v=aeacf33c:2332:138)\n    at Instrumenter.track (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/test-BADMwJzM.js?v=aeacf33c:2323:83)\n    at Proxy.toHaveNoViolations (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/test-BADMwJzM.js?v=aeacf33c:2301:151)\n    at afterEach (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/@storybook_addon-a11y_preview.js?v=aeacf33c:265:21)\n    at async Object.applyAfterEach (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/csf-Di4QTVBl.js?v=aeacf33c:9714:4)\n    at async runStory (http://localhost:63315/node_modules/.cache/storybook/10.6.0/fbdae3c3f5f59148ccb5713b52551bad02e7dce257acf22f6ec9b57ad38464dc/sb-vitest/deps/csf-Di4QTVBl.js?v=aeacf33c:10032:100)"
+      ]
+    }
+  ]
+}

@@ -26,9 +26,9 @@ import {
 } from "../outcomeMeasures";
 
 const months = [0, 3, 6, 9, 12, 15, 18];
-const axis = ({ fullWidth = false } = {}) => (
+const axis = ({ fullWidth = false, className = "" } = {}) => (
   <div
-    className={`record-two-axis${fullWidth ? " record-two-axis-full" : ""}`}
+    className={`record-two-axis${fullWidth ? " record-two-axis-full" : ""}${className ? ` ${className}` : ""}`}
     aria-hidden="true"
   >
     {months.map((month) => (
@@ -40,6 +40,7 @@ const axis = ({ fullWidth = false } = {}) => (
 );
 
 const point = (month, value) => `${(month / 18) * 100},${100 - value}`;
+const pointEdge = (position) => position < 28 ? "start" : position > 72 ? "end" : undefined;
 
 function ChartCard({
   title,
@@ -49,6 +50,7 @@ function ChartCard({
   isVisible = true,
   onToggle,
   reportingType = "context",
+  showReportingIndicator = true,
 }) {
   return (
     <section
@@ -60,7 +62,7 @@ function ChartCard({
           <p>{description}</p>
         </div>
         <div className="record-two-header-actions">
-          <ReportingIndicator type={reportingType} />
+          {showReportingIndicator && <ReportingIndicator type={reportingType} />}
           {onToggle && (
             <button
               type="button"
@@ -117,6 +119,7 @@ function Symptoms() {
     <ChartCard
       title="Symptoms / measures"
       description="Recorded observations only; points are not interpolated."
+      showReportingIndicator={false}
     >
       <div
         className="record-two-scatter"
@@ -129,9 +132,11 @@ function Symptoms() {
             <div className="record-two-plot">
               {entries.map(([month, value]) => (
                 <button
+                  type="button"
                   key={`${month}-${value}`}
                   aria-label={`${label}, month ${month}, severity ${value}`}
                   className="record-two-dot"
+                  data-edge={pointEdge((month / 18) * 100)}
                   style={{
                     left: `${(month / 18) * 100}%`,
                     bottom: `${value}%`,
@@ -139,7 +144,9 @@ function Symptoms() {
                   onClick={() =>
                     setSelected(`${label} · month ${month} · severity ${value}`)
                   }
-                />
+                >
+                  <span className="report-chart-tooltip" aria-hidden="true">Month {month} · severity {value}</span>
+                </button>
               ))}
             </div>
           </div>
@@ -176,33 +183,38 @@ function Periods({ medication = false }) {
           ? "Medication events are attached to the active course."
           : "Active periods are positioned at their recorded start and end."
       }
+      showReportingIndicator={false}
     >
       <div className="record-two-periods">
         {rows.map(([label, start, end], index) => (
           <div className="record-two-period-row" key={label}>
             <strong>{label}</strong>
             <div className="record-two-period-track">
-              <span
-                className={medication ? "medication" : ""}
+              <button
+                type="button"
+                className={`record-two-period-bar${medication ? " medication" : ""}`}
                 style={{
                   left: `${(start / 18) * 100}%`,
                   width: `${((end - start) / 18) * 100}%`,
                 }}
-              />
+                aria-label={`${label}, month ${start} to month ${end}`}
+              >
+                <span className="report-chart-tooltip" aria-hidden="true">Month {start}–{end}</span>
+              </button>
               {medication && index > 0 && (
-                <span
+                <button
+                  type="button"
                   className="record-two-period-marker"
                   style={{ left: `${((start + 1) / 18) * 100}%` }}
-                  role="img"
                   aria-label={`Dose change, month ${start + 1}`}
-                  title="Dose change"
-                />
+                ><span className="report-chart-tooltip" aria-hidden="true">Dose change · month {start + 1}</span></button>
               )}
             </div>
           </div>
         ))}
       </div>
-      {axis()}
+      {axis({ className: "record-two-period-axis" })}
+      {medication && <p className="record-two-period-note">Dose changes at 6m and 11m.</p>}
     </ChartCard>
   );
 }
@@ -218,6 +230,7 @@ function Goals() {
     <ChartCard
       title="Goals and progress"
       description="Progress is shown as a percentage only where the record supports one."
+      showReportingIndicator={false}
     >
       <ol className="record-two-goals">
         {goals.map(([label, value, state]) => (
@@ -246,13 +259,14 @@ function Goals() {
 function LineChart() {
   const lines = [[
     "Activity",
-    "var(--teal)",
+    "var(--action-coral)",
     [[0, 22], [3, 31], [6, 39], [9, 55], [12, 70], [15, 74], [18, 78]],
   ]];
   return (
     <ChartCard
       title="Activity rating over time"
       description="The line shows the trajectory between recorded activity assessments."
+      showReportingIndicator={false}
     >
       <div className="record-two-line-wrap">
         <svg
@@ -261,11 +275,10 @@ function LineChart() {
           role="img"
           aria-label="Activity rating trajectory"
         >
-          {[25, 50, 75].map((y) => (
-            <line key={y} x1="0" x2="100" y1={y} y2={y} />
-          ))}
+          <line x1="0" x2="100" y1="100" y2="100" />
           {lines.map(([label, colour, values]) => (
             <g key={label}>
+              <polygon points={`0,100 ${values.map(([month, value]) => point(month, value)).join(" ")} 100,100`} />
               <polyline
                 points={values
                   .map(([month, value]) => point(month, value))
@@ -277,17 +290,20 @@ function LineChart() {
         </svg>
         {lines.flatMap(([label, colour, values]) =>
           values.map(([month, value]) => (
-            <span
+            <button
+              type="button"
               key={`${label}-${month}`}
               className="record-two-line-point"
+              data-edge={pointEdge((month / 18) * 100)}
               style={{
                 left: `${(month / 18) * 100}%`,
                 bottom: `${value}%`,
                 "--record-two-line-colour": colour,
               }}
-              role="img"
               aria-label={`${label}, month ${month}, value ${value}`}
-            />
+            >
+              <span className="report-chart-tooltip" aria-hidden="true">Month {month} · value {value}</span>
+            </button>
           )),
         )}
       </div>
@@ -352,6 +368,8 @@ function OutcomeTrend({ measure, selectedRecord, onSelect }) {
         `${trendPosition(record, measure.records)},${100 - verticalPosition(record.value)}`,
     )
     .join(" ");
+  const firstCompletedX = trendPosition(completed[0], measure.records);
+  const lastCompletedX = trendPosition(completed.at(-1), measure.records);
   const textSummary = completed
     .map((record) => `${formatDate(record.date)}: ${record.value}`)
     .join("; ");
@@ -386,7 +404,8 @@ function OutcomeTrend({ measure, selectedRecord, onSelect }) {
           {[25, 50, 75].map((line) => (
             <line key={line} x1="0" x2="100" y1={line} y2={line} />
           ))}
-          <polyline points={pointList} />
+          {completed.length > 1 && <polygon className="outcome-trend-area" points={`${firstCompletedX},100 ${pointList} ${lastCompletedX},100`} />}
+          {completed.length > 1 && <polyline points={pointList} />}
         </svg>
         {measure.records.map((record) => {
           const completedScore = isCompletedScore(record);
@@ -632,7 +651,7 @@ function OutcomeMeasureCard({
   );
 }
 
-function OutcomeComparison({ measures, inModal = false }) {
+function OutcomeComparison({ measures }) {
   const [selectedKeys, setSelectedKeys] = useState(
     measures.slice(0, 2).map((measure) => measure.key),
   );
@@ -650,39 +669,36 @@ function OutcomeComparison({ measures, inModal = false }) {
   };
 
   return (
-    <details
-      className={`outcome-comparison${inModal ? " outcome-comparison-modal" : ""}`}
-      open={inModal}
-    >
-      <summary>
-        <span>
-          <strong>Compare measures</strong>
-          <small>Across this care episode</small>
-        </span>
-        <ChevronDown size={18} aria-hidden="true" />
-      </summary>
-      <div>
-        <p>
-          Compare up to three measures by date. Native scales stay separate, so
-          this table does not imply that values can be combined or ranked.
-        </p>
+    <div className="outcome-comparison-modal">
+      <div className="outcome-comparison-selection">
         <fieldset>
           <legend>Measures to compare</legend>
-          {measures.map((measure) => {
-            const checked = selectedKeys.includes(measure.key);
-            return (
-              <label key={measure.key}>
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  disabled={!checked && selectedKeys.length >= 3}
-                  onChange={(event) => updateSelection(measure.key, event.target.checked)}
-                />
-                {measure.displayName}
-              </label>
-            );
-          })}
+          <p className="outcome-comparison-count" aria-live="polite">
+            {selectedKeys.length} of 3 selected
+          </p>
+          <div className="outcome-comparison-options">
+            {measures.map((measure) => {
+              const checked = selectedKeys.includes(measure.key);
+              return (
+                <label key={measure.key}>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    disabled={!checked && selectedKeys.length >= 3}
+                    onChange={(event) => updateSelection(measure.key, event.target.checked)}
+                  />
+                  <span>{measure.displayName}</span>
+                </label>
+              );
+            })}
+          </div>
         </fieldset>
+      </div>
+      <div className="outcome-comparison-results">
+        <p>
+          Native scales stay separate, so this table does not imply that values
+          can be combined or ranked.
+        </p>
         {selectedMeasures.length ? (
           <div className="outcome-comparison-table-wrap">
             <table>
@@ -697,18 +713,18 @@ function OutcomeComparison({ measures, inModal = false }) {
               <tbody>
                 {dates.map((date) => (
                   <tr key={date}>
-                    <th scope="row">
-                      <time dateTime={date}>{formatDate(date)}</time>
-                    </th>
+                    <th scope="row"><time dateTime={date}>{formatDate(date)}</time></th>
                     {selectedMeasures.map((measure) => {
                       const record = measure.records.find((item) => item.date === date);
                       return (
-                        <td key={measure.key}>
-                          {record
-                            ? isCompletedScore(record)
-                              ? `Score ${record.value} · ${statusLabel(record.status)}`
-                              : statusLabel(record.status)
-                            : "Not recorded"}
+                        <td key={measure.key} data-label={measure.displayName}>
+                          {record ? (
+                            isCompletedScore(record) ? (
+                              <span className="outcome-comparison-score">
+                                <strong>{record.value}</strong>
+                              </span>
+                            ) : statusLabel(record.status)
+                          ) : <span className="outcome-comparison-unrecorded">Not recorded</span>}
                         </td>
                       );
                     })}
@@ -721,24 +737,49 @@ function OutcomeComparison({ measures, inModal = false }) {
           <p className="outcome-comparison-empty">Select a measure to compare.</p>
         )}
       </div>
-    </details>
+    </div>
   );
 }
 
+function ReportDatedScorePlot({ measure, completed, minimum, maximum, compact = false }) {
+  const firstDate = Date.parse(completed[0].date);
+  const lastDate = Date.parse(completed.at(-1).date);
+  const plotted = completed.map((record) => ({
+    x: lastDate === firstDate ? 300 : 28 + ((Date.parse(record.date) - firstDate) / (lastDate - firstDate)) * 544,
+    y: 132 - Math.max(0, Math.min(1, (Number(record.value) - minimum) / Math.max(maximum - minimum, 1))) * 104,
+  }));
+  return <>
+    <div className={`report-featured-chart${compact ? " report-featured-chart-compact" : ""}`}>
+      <svg className="report-featured-sparkline" viewBox="0 0 600 150" preserveAspectRatio="none" role="img"
+        aria-label={`${measure.displayName} recorded scores: ${completed.map((record) => `${formatDate(record.date)} ${record.value}`).join(", ")}`}>
+        <line x1="28" x2="572" y1="132" y2="132" />
+        {lastDate > firstDate && plotted.length > 1 && <>
+          <polygon points={`28,132 ${plotted.map(({ x, y }) => `${x},${y}`).join(" ")} 572,132`} />
+          <polyline points={plotted.map(({ x, y }) => `${x},${y}`).join(" ")} />
+        </>}
+      </svg>
+      {plotted.map(({ x, y }, index) => (
+        <button key={completed[index].id} type="button" className="report-featured-point"
+          data-edge={pointEdge((x / 600) * 100)}
+          style={{ left: `${(x / 600) * 100}%`, top: `${(y / 150) * 100}%` }}
+          aria-label={`${measure.displayName}, ${formatDate(completed[index].date)}, score ${completed[index].value}`}>
+          <span className="report-chart-tooltip" aria-hidden="true">{formatDate(completed[index].date)} · score {completed[index].value}</span>
+        </button>
+      ))}
+    </div>
+    <div className="report-featured-axis" aria-hidden="true">
+      <span>{formatDate(completed[0].date)}</span>
+      {completed.length > 1 && <span>{formatDate(completed.at(-1).date)}</span>}
+    </div>
+  </>;
+}
+
 function OutcomeMeasurePanel({ measure, onShowResponses }) {
-  const completed = measure.records.filter(isCompletedScore);
+  const completed = measure.records.filter(isCompletedScore)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const latest = completed.at(-1);
   const [minimum, maximum] = measure.scoreRange || [0, 100];
-  const span = Math.max(maximum - minimum, 1);
-  const valuePosition = (value) =>
-    Math.max(0, Math.min(100, ((Number(value) - minimum) / span) * 100));
-  const points = completed.map((record) => [
-    (trendPosition(record, completed) * 18) / 100,
-    valuePosition(record.value),
-    record,
-  ]);
-  const description = completed.length
-    ? `${measure.displayName} scores from ${formatDate(completed[0].date)} to ${formatDate(completed.at(-1).date)}.`
-    : `No completed ${measure.displayName} scores are recorded.`;
+  const hasSourceRecords = measure.recordable && measure.records.some((record) => record.sourceCollectionId || record.sourceClinicalRecordId);
 
   return (
     <ChartCard
@@ -751,47 +792,14 @@ function OutcomeMeasurePanel({ measure, onShowResponses }) {
       className="record-two-measure-panel"
       reportingType={measure.key === "iar-dst" ? "unconfigured" : ["sidas", "who-5"].includes(measure.key) ? "aftercare" : "outcome"}
     >
-      {points.length ? (
+      {latest ? (
         <>
-          <div className="record-two-line-wrap">
-            <svg
-              viewBox="0 0 100 100"
-              preserveAspectRatio="none"
-              role="img"
-              aria-label={description}
-            >
-              {[25, 50, 75].map((y) => (
-                <line key={y} x1="0" x2="100" y1={y} y2={y} />
-              ))}
-              <polyline
-                points={points
-                  .map(([month, value]) => point(month, value))
-                  .join(" ")}
-                stroke="var(--teal)"
-              />
-            </svg>
-            {points.map(([month, value, record]) => (
-              <span
-                key={record.id}
-                className="record-two-line-point"
-                style={{
-                  left: `${(month / 18) * 100}%`,
-                  bottom: `${value}%`,
-                  "--record-two-line-colour": "var(--teal)",
-                }}
-                role="img"
-                aria-label={`${measure.displayName}, ${formatDate(record.date)}, score ${record.value}`}
-              />
-            ))}
+          <div className="report-measure-latest">
+            <strong>{latest.value}<small> / {maximum}</small></strong>
+            <span>Latest · {formatDate(latest.date)}</span>
           </div>
-          <div className="record-two-axis record-two-axis-full" aria-hidden="true">
-            {completed.filter((_, index) => index === 0 || index === completed.length - 1).map((record) => (
-              <span key={record.id} style={{ left: `${trendPosition(record, completed)}%` }}>
-                {formatDate(record.date)}
-              </span>
-            ))}
-          </div>
-          <p className="record-two-line-summary">
+          <ReportDatedScorePlot measure={measure} completed={completed} minimum={minimum} maximum={maximum} compact />
+          <p className="record-two-line-summary sr-only">
             {completed
               .map((record) => `${formatDate(record.date)} · ${record.value}`)
               .join(" · ")}
@@ -802,16 +810,12 @@ function OutcomeMeasurePanel({ measure, onShowResponses }) {
           No completed score is recorded for this measure.
         </p>
       )}
-      {measure.recordable && measure.records.some((record) => record.sourceCollectionId || record.sourceClinicalRecordId) && (
-        <button
-          type="button"
-          className="outcome-source-link"
-          onClick={() => onShowResponses(measure.key)}
-        >
-          Source records
-          <ArrowRight size={15} aria-hidden="true" />
-        </button>
-      )}
+      <div className="report-featured-footer">
+        <span>{completed.length} dated {completed.length === 1 ? "score" : "scores"}</span>
+        {hasSourceRecords && <button type="button" className="outcome-source-link" onClick={() => onShowResponses(measure.key)}>
+          Source records <ArrowRight size={15} aria-hidden="true" />
+        </button>}
+      </div>
     </ChartCard>
   );
 }
@@ -831,9 +835,12 @@ function outcomeMeasuresFor(episode) {
 function OutcomeMeasureCards({ episode, onShowResponses }) {
   const measures = outcomeMeasuresFor(episode);
   const cardMeasures = measures.filter((measure) =>
-    OUTCOME_CARD_KEYS.includes(measure.key),
+    OUTCOME_CARD_KEYS.includes(measure.key) && measure.records.some(isCompletedScore),
   );
-  if (!cardMeasures.length) return null;
+  const unscoredMeasures = measures.filter((measure) =>
+    OUTCOME_CARD_KEYS.includes(measure.key) && !measure.records.some(isCompletedScore),
+  );
+  if (!cardMeasures.length && !unscoredMeasures.length) return null;
 
   return (
     <>
@@ -844,6 +851,12 @@ function OutcomeMeasureCards({ episode, onShowResponses }) {
             onShowResponses={onShowResponses}
           />
       ))}
+      {unscoredMeasures.length > 0 && (
+        <p className="report-unscored-measures">
+          <strong>Awaiting completed scores</strong>
+          <span>{unscoredMeasures.map((measure) => measure.displayName).join(" · ")}</span>
+        </p>
+      )}
     </>
   );
 }
@@ -852,34 +865,55 @@ function OutcomeScoreSummary({ episode, onShowResponses }) {
   const measures = outcomeMeasuresFor(episode).filter((measure) =>
     ["k10-plus", "k5"].includes(measure.key),
   );
+  const [selectedKey, setSelectedKey] = useState(() =>
+    measures.find((measure) => measure.records.some(isCompletedScore))?.key || measures[0]?.key,
+  );
   if (!measures.length) return null;
+  const selected = measures.find((measure) => measure.key === selectedKey) || measures[0];
+  const completed = selected.records.filter(isCompletedScore)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const latest = completed.at(-1);
+  const [minimum, maximum] = selected.scoreRange || [0, 100];
+  const hasSourceRecords = selected.records.some((record) => record.sourceCollectionId || record.sourceClinicalRecordId);
   return (
     <ChartCard
-      title="K10+ and K5 scores"
-      description="Dated recorded values from assessments and care records. Each measure keeps its own scale."
-      className="record-two-measure-panel"
+      title="Recorded scores"
+      description="Select a measure to inspect its dated results."
+      className="record-two-measure-panel report-featured-measures"
       reportingType="outcome"
     >
-      {measures.map((measure) => (
-        <div key={measure.key} className="record-two-measure-sources">
-          <strong>{measure.displayName} · {measure.scoreRange?.join("–")}</strong>
-          <span className="record-two-line-summary">
-            {measure.records.filter(isCompletedScore).map((record) =>
-              `${formatDate(record.date)} · ${record.value}`,
-            ).join(" · ")}
-          </span>
-          <button
-            type="button"
-            className="outcome-source-link"
-            onClick={() => onShowResponses(measure.key)}
-          >
-            Source records
-            <ArrowRight size={15} aria-hidden="true" />
-          </button>
+      <div className="report-score-picker" role="group" aria-label="Choose an outcome measure">
+        {measures.map((measure) => {
+          const measureLatest = measure.records.filter(isCompletedScore)
+            .sort((a, b) => a.date.localeCompare(b.date)).at(-1);
+          return <button key={measure.key} type="button" aria-pressed={selected.key === measure.key}
+            onClick={() => setSelectedKey(measure.key)}>
+            <span>{measure.displayName}</span>
+            <strong>{measureLatest ? `${measureLatest.value} / ${measure.scoreRange?.[1] ?? 100}` : "No score"}</strong>
+          </button>;
+        })}
+      </div>
+      {latest ? <>
+        <div className="report-featured-chart-heading">
+          <div><span>Latest recorded</span><strong>{latest.value}<small> / {maximum}</small></strong></div>
+          <span>{formatDate(latest.date)}<small>Scale {minimum}–{maximum}</small></span>
         </div>
-      ))}
+        <ReportDatedScorePlot measure={selected} completed={completed} minimum={minimum} maximum={maximum} />
+      </> : <p className="report-featured-no-score">No completed {selected.displayName} score is recorded for this episode.</p>}
+      <div className="report-featured-footer">
+        <span>{completed.length} dated {completed.length === 1 ? "score" : "scores"}</span>
+        {hasSourceRecords && <button type="button" className="outcome-source-link" onClick={() => onShowResponses(selected.key)}>
+          Source records <ArrowRight size={15} aria-hidden="true" />
+        </button>}
+      </div>
     </ChartCard>
   );
+}
+
+function ReportSectionHeading({ id, title, description }) {
+  return <div className="report-section-heading">
+    <div><h3 id={id}>{title}</h3><p>{description}</p></div>
+  </div>;
 }
 
 function ResponseListModal({ measure, onClose, onOpenAssessment }) {
@@ -925,7 +959,7 @@ function CompareMeasuresModal({ episode, onClose }) {
       wide
       className="compare-measures-dialog"
     >
-      <OutcomeComparison measures={measures} inModal />
+      <OutcomeComparison measures={measures} />
       <p className="outcome-measures-caveat">
         Fictional prototype fixture only. Score categories, severity bands and
         clinically significant-change flags are illustrative display data, not
@@ -945,29 +979,31 @@ function Risk() {
     <ChartCard
       title="Risk history"
       description="Ordered risk states show direction of change, not mathematical precision."
+      showReportingIndicator={false}
     >
       <div className="record-two-risk">
+        <div className="record-two-risk-months" aria-hidden="true">
+          <span />
+          <span>0m</span>
+          <span>9m</span>
+          <span>18m</span>
+        </div>
         {rows.map(([label, states]) => (
           <div className="record-two-risk-row" key={label}>
             <strong>{label}</strong>
-            <div>
-              {states.map((state, index) => (
-                <span
-                  key={`${state}-${index}`}
-                  className={state.toLowerCase()}
-                  style={{
-                    left: `${(index / 2) * 100}%`,
-                  }}
-                  title={`${label}: ${state}`}
-                >
-                  {state}
-                </span>
-              ))}
-            </div>
+            {states.map((state, index) => (
+              <span
+                key={`${state}-${index}`}
+                className={state.toLowerCase()}
+                role="img"
+                aria-label={`Month ${index * 9}: ${state}`}
+              >
+                {state}
+              </span>
+            ))}
           </div>
         ))}
       </div>
-      {axis()}
     </ChartCard>
   );
 }
@@ -984,6 +1020,9 @@ export default function RecordTwo({ person, episode, navigate }) {
     (measure) => measure.records?.length,
   );
   const isEmptyReport = !isFixture && !hasOutcomeMeasures && !hasCareTimelineEntries(episode, { simpleAssessments, scheduleAssessments, assessmentSms });
+  const scoredMeasures = outcomeMeasuresFor(episode).filter((measure) => measure.records.some(isCompletedScore));
+  const latestScoredRecord = scoredMeasures.flatMap((measure) => measure.records.filter(isCompletedScore))
+    .sort((a, b) => a.date.localeCompare(b.date)).at(-1);
   const nextAssessment = currentCollection(episode);
   const nextAssessmentStatus = nextAssessment
     ? !scheduleAssessments
@@ -1017,7 +1056,7 @@ export default function RecordTwo({ person, episode, navigate }) {
       <div className="section-toolbar">
         <div>
           <h2>Report</h2>
-          <p>Longitudinal care record</p>
+          <p>Dated measures and care activity from this care episode.</p>
         </div>
         {hasOutcomeMeasures && (
           <Button variant="secondary" onClick={() => setCompareMeasuresOpen(true)}>
@@ -1064,53 +1103,74 @@ export default function RecordTwo({ person, episode, navigate }) {
             </div>
           </Panel>
         </section>
-      ) : <div className="record-two-grid">
-        {isFixture ? (
-          <>
-            <CareTimeline
-              person={person}
-              episode={episode}
-              navigate={navigate}
-              simpleAssessments={simpleAssessments}
-              scheduleAssessments={scheduleAssessments}
-              linkAssessmentAppointments={linkAssessmentAppointments}
-              assessmentSms={assessmentSms}
-              isVisible={careTimelineVisible}
-              onToggle={() => setCareTimelineVisible((visible) => !visible)}
-            />
-            <Symptoms />
-            <Periods />
-            <Goals />
-            <LineChart />
-            <OutcomeScoreSummary episode={episode} onShowResponses={setResponseListKey} />
-            <OutcomeMeasureCards episode={episode} onShowResponses={setResponseListKey} />
-            <Risk />
-            <Periods medication />
-          </>
-        ) : (
-          <>
-            <CareTimeline
-              person={person}
-              episode={episode}
-              navigate={navigate}
-              simpleAssessments={simpleAssessments}
-              scheduleAssessments={scheduleAssessments}
-              linkAssessmentAppointments={linkAssessmentAppointments}
-              assessmentSms={assessmentSms}
-              isVisible={careTimelineVisible}
-              onToggle={() => setCareTimelineVisible((visible) => !visible)}
-            />
-            <OutcomeScoreSummary episode={episode} onShowResponses={setResponseListKey} />
-            <OutcomeMeasureCards episode={episode} onShowResponses={setResponseListKey} />
-            {!hasOutcomeMeasures && (
-              <div className="record-two-empty record-two-empty-wide">
-                <strong>Outcome measures are not available yet</strong>
-                <p>Completed, dated scores will appear when they are recorded for this care episode.</p>
-                <Button variant="secondary" onClick={openAssessment}>View assessment</Button>
+      ) : <div className="report-dashboard">
+        <nav className="report-overview-links" aria-label="Report sections">
+          <a href="#report-outcomes">Outcome measures</a>
+          <a href="#report-activity">Care activity</a>
+          {isFixture && <a href="#report-sample-charts">Illustrative charts</a>}
+        </nav>
+        <section className="report-dashboard-section" id="report-outcomes" aria-labelledby="report-outcomes-heading">
+          <ReportSectionHeading id="report-outcomes-heading"
+            title="Outcome measures" description="Completed, dated scores retain each measure's own scale." />
+          {!hasOutcomeMeasures ? (
+            <div className="record-two-empty record-two-empty-wide">
+              <strong>Outcome measures are not available yet</strong>
+              <p>Completed, dated scores will appear when they are recorded for this care episode.</p>
+              <Button variant="secondary" onClick={openAssessment}>View assessment</Button>
+            </div>
+          ) : (
+            <>
+              <div className="report-primary-grid">
+                <OutcomeScoreSummary episode={episode} onShowResponses={setResponseListKey} />
+                <div className="report-scope-card">
+                  <h4>About this report</h4>
+                  <dl>
+                    <div><dt>Care episode</dt><dd>{formatDate(episode.start)} – {episode.end ? formatDate(episode.end) : "present"}</dd></div>
+                    <div><dt>Evidence</dt><dd>Recorded assessments and care records</dd></div>
+                    <div><dt>Scored measures</dt><dd>{scoredMeasures.length}</dd></div>
+                    {latestScoredRecord && <div><dt>Latest result</dt><dd>{formatDate(latestScoredRecord.date)}</dd></div>}
+                  </dl>
+                  <p>Charts show dated records. They do not establish the cause of a change or provide a clinical interpretation.</p>
+                </div>
               </div>
-            )}
-          </>
-        )}
+              <div className="record-two-grid report-measure-grid">
+                <OutcomeMeasureCards episode={episode} onShowResponses={setResponseListKey} />
+              </div>
+            </>
+          )}
+        </section>
+        <section className="report-dashboard-section" id="report-activity" aria-labelledby="report-activity-heading">
+          <ReportSectionHeading id="report-activity-heading"
+            title="Care activity" description="Contacts, care context and dated events across this episode." />
+          <div className="record-two-grid">
+            <CareTimeline
+              person={person}
+              episode={episode}
+              navigate={navigate}
+              simpleAssessments={simpleAssessments}
+              scheduleAssessments={scheduleAssessments}
+              linkAssessmentAppointments={linkAssessmentAppointments}
+              assessmentSms={assessmentSms}
+              isVisible={careTimelineVisible}
+              onToggle={() => setCareTimelineVisible((visible) => !visible)}
+            />
+          </div>
+        </section>
+        {isFixture && <section className="report-dashboard-section" id="report-sample-charts" aria-labelledby="report-sample-heading">
+          <ReportSectionHeading id="report-sample-heading"
+            title="Illustrative charts" description="Sample patterns for exploring report layouts; values are not linked to source records." />
+          <details className="report-sample-details">
+            <summary>Show sample charts <ChevronDown size={18} aria-hidden="true" /></summary>
+            <div className="record-two-grid">
+              <Symptoms />
+              <Periods />
+              <Goals />
+              <LineChart />
+              <Risk />
+              <Periods medication />
+            </div>
+          </details>
+        </section>}
       </div>}
       {compareMeasuresOpen && (
         <CompareMeasuresModal

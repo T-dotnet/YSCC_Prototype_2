@@ -230,6 +230,10 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordA
   const firstPastIndex = showCategories ? timelineEntries.findIndex((entry, index) =>
     (groupByDate ? dates[index] : historyDate(entry)?.slice(0, 10)) <= TODAY) : -1;
   return (
+    <>
+    {groupByDate && <div className="record-log-columns care-event-log-columns" aria-hidden="true">
+      <span>Type</span><span>Event</span><span>Status</span><span>Details</span>
+    </div>}
     <ol className={`record-timeline clinical-continuous-timeline${groupByDate ? " care-event-day-list" : ""}`} aria-label={careEventsOnly ? "Care events and structured records" : "Continuous clinical history"}>
       {timelineEntries.map((entry, index) => {
         const item = historyItem(entry, episode, (value) => personEventText(person, value), simpleAssessments || !scheduleAssessments);
@@ -310,6 +314,7 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordA
             <RecordItem
               id={isCareEvent ? `contextual-event-${entry.id}` : isSelectedSource ? `source-record-${selectedSourceId}` : undefined}
               collapsible
+              tableRow={groupByDate}
               headingLevel={groupByDate ? 4 : 3}
               initiallyExpanded={!showCategories || item.date >= TODAY ||
                 appointment?.attendance === "Planned" ||
@@ -326,7 +331,7 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordA
                   ? appointment.attendance === "Planned" && appointment.plannedDate <= TODAY
                     ? appointment.plannedDate < TODAY ? "Overdue" : "Today"
                     : appointment.attendance
-                  : undefined}
+                  : groupByDate ? "Recorded" : undefined}
               className={`record-item-compact${isSelectedSource ? " care-event-selected" : ""}`}
               facts={visiblePrimaryFacts.map(toFact)}
               secondary={!(simpleAssessments && showCategories) && moreFacts.length > 0 && (
@@ -355,6 +360,7 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordA
         );
       })}
     </ol>
+    </>
   );
 }
 
@@ -790,6 +796,10 @@ export function ChangeLog({ episode, person, audit = [], entries: suppliedEntrie
       />
 
       {visibleEntries.length ? (
+        <>
+        {simplified && <div className="record-log-columns change-log-columns" aria-hidden="true">
+          <span>Scope</span><span>Change</span><span>{isGlobal ? "Person" : "Changed by"}</span><span>Fields</span><span>Details</span>
+        </div>}
         <ol className={`record-timeline clinical-continuous-timeline${simplified ? " care-event-day-list" : ""}`} aria-label="Field change log">
           {visibleEntries.map((entry, index) => {
             const changes = activityChangeDetails(entry);
@@ -830,11 +840,14 @@ export function ChangeLog({ episode, person, audit = [], entries: suppliedEntrie
                 </span>
                 <RecordItem
                   collapsible
+                  tableRow={simplified}
                   initiallyExpanded={!simplified}
                   headingLevel={simplified ? 4 : 3}
                   eyebrow={simplified ? entry.scope || "Record change" : undefined}
                   title={entry.title}
-                  subtitle={`${changes.length} ${changes.length === 1 ? "change" : "changes"}`}
+                  subtitle={!simplified ? `${changes.length} ${changes.length === 1 ? "change" : "changes"}` : undefined}
+                  summaryMeta={simplified ? isGlobal ? patientIdentifier(entry.person) : actorLabel(entry) : undefined}
+                  status={simplified ? `${changes.length} ${changes.length === 1 ? "field" : "fields"}` : undefined}
                   className="record-item-compact"
                   facts={details.map(([label, value]) => ({
                     label,
@@ -869,6 +882,7 @@ export function ChangeLog({ episode, person, audit = [], entries: suppliedEntrie
             );
           })}
         </ol>
+        </>
       ) : (
         <Empty
           title={

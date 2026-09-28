@@ -3,6 +3,10 @@
 export const assessmentSchedulingEnabled = (settings) =>
   settings?.scheduleAssessments ?? !settings?.simpleAssessments;
 
+// Display only: this switch must never grant assessment/contact scheduling.
+export const assessmentDueDatesEnabled = (settings) =>
+  settings?.showAssessmentDueDates ?? true;
+
 export const assessmentContactLinkingEnabled = (settings) =>
   settings?.linkAssessmentAppointments ?? !settings?.simpleAssessments;
 

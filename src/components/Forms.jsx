@@ -48,7 +48,7 @@ import CareTimelineEntryForm, { NEW_RECORD_TYPES, recordCategoryLabel } from "./
 import AppointmentSlotPicker from "./AppointmentSlotPicker";
 import { addDays } from "../externalAppointmentSlots";
 import { contactsForAssessment } from "../assessmentContacts";
-import { assessmentSchedulingEnabled, assessmentContactLinkingEnabled, assessmentSmsEnabled } from "../assessmentFeatures";
+import { assessmentSchedulingEnabled, assessmentDueDatesEnabled, assessmentContactLinkingEnabled, assessmentSmsEnabled } from "../assessmentFeatures";
 import CareEventForm from "./CareEventForm";
 import AppointmentForm from "./AppointmentForm";
 import AppointmentOutcomeForm from "./AppointmentOutcomeForm";
@@ -409,6 +409,8 @@ export default function Forms({
         simpleAssessments={simpleAssessments}
         linkAssessmentAppointments={linkAssessmentAppointments}
         scheduleAssessments={scheduleAssessments}
+        showDueDates={scheduleAssessments || assessmentDueDatesEnabled(state.settings)}
+        showDueLabels={assessmentDueDatesEnabled(state.settings)}
         assessmentSms={assessmentSms}
         canCompleteAsClinician={staff?.role === "Clinician" && canAssess(p, e)}
         onClose={onClose}

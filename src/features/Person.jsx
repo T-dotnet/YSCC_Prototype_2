@@ -39,10 +39,11 @@ import Timeline, {
   ClinicalHistory,
 } from "../components/ActivityTimeline";
 import { assessmentScoreLabel, assessmentTypeGroups, linkedAssessmentScore, prioritizeSimpleAssessmentGroups, simpleAssessmentDate } from "../assessmentGroups";
+import { assessmentDueByType, assessmentDueLabel, assessmentsWithDueVisibility } from "../assessmentDue";
 import { responseDate } from "../progress";
 import { daysAgoLabel } from "../relativeDate";
 import { contactsForAssessment } from "../assessmentContacts";
-import { assessmentSchedulingEnabled, assessmentContactLinkingEnabled, assessmentSmsEnabled } from "../assessmentFeatures";
+import { assessmentSchedulingEnabled, assessmentDueDatesEnabled, assessmentContactLinkingEnabled, assessmentSmsEnabled } from "../assessmentFeatures";
 import { episodeReviewSchedule, reviewTiming } from "../episodeReviews";
 import { careJourneyForEpisode } from "../ysccModel";
 import {
@@ -63,6 +64,7 @@ import { patientIdentifier, patientSecondaryDetail } from "../patientIdentity";
 import {
   Button,
   Badge,
+  AlertLabel,
   Field,
   FormErrorSummary,
   Panel,
@@ -99,6 +101,8 @@ export default function Person({ id, navigate, openModal }) {
   const { state, commit } = useStore();
   const simpleAssessments = !!state.settings?.simpleAssessments;
   const scheduleAssessments = assessmentSchedulingEnabled(state.settings);
+  const assessmentDueDates = assessmentDueDatesEnabled(state.settings);
+  const showDueDates = assessmentDueDates || scheduleAssessments;
   const linkAssessmentAppointments = assessmentContactLinkingEnabled(state.settings);
   const p = state.people.find((p) => p.id === id);
   const searchParams = useSearchParams();
@@ -210,7 +214,12 @@ export default function Person({ id, navigate, openModal }) {
       : returnTo.split("?")[0] === "/quality"
         ? "Data quality"
         : "people";
-  const orderedCollections = [...e.collections].sort(
+  const dueByType = assessmentDueByType(e.collections, TODAY);
+  const assessmentCollections = assessmentDueDates
+    ? assessmentsWithDueVisibility(e.collections, TODAY, dueByType)
+    : e.collections;
+  const assessmentEpisode = { ...e, collections: assessmentCollections };
+  const orderedCollections = [...assessmentCollections].sort(
     (a, b) =>
       (a.id === searchParams.get("collection")
         ? -1
@@ -312,7 +321,7 @@ export default function Person({ id, navigate, openModal }) {
     const date = responseDate(col) || (scheduleAssessments ? col.due : null);
     return Boolean(date) && date <= TODAY;
   });
-  const groupedAssessments = assessmentTypeGroups(e, visibleCollections);
+  const groupedAssessments = assessmentTypeGroups(assessmentEpisode, visibleCollections);
   const simpleGroupedAssessments = simpleAssessments && groupAssessmentsByType
     ? prioritizeSimpleAssessmentGroups(groupedAssessments, visibleCollections)
     : [];
@@ -322,6 +331,8 @@ export default function Person({ id, navigate, openModal }) {
       collection={collection}
       simpleAssessments={simpleAssessments}
       scheduleAssessments={scheduleAssessments}
+      showDueDates={showDueDates}
+      showDueLabels={assessmentDueDates}
       linkAssessmentAppointments={linkAssessmentAppointments}
       compactGrouped={compactGrouped}
       person={p}
@@ -459,7 +470,7 @@ export default function Person({ id, navigate, openModal }) {
       </div>
       {e.status !== "Active" && (
         <div className="care-period-status-notice" role="status">
-          <Notice tone="amber">
+          <Notice>
             {e.status === "Completed"
               ? `This period of care ended${e.end ? ` on ${formatDate(e.end)}` : ""}. The closure assessment and care experience feedback are complete.`
               : e.status === "Closed"
@@ -467,6 +478,26 @@ export default function Person({ id, navigate, openModal }) {
               : "This care episode is paused. Outstanding collections are paused and their links are revoked. Submitted responses remain in the record."}
           </Notice>
         </div>
+      )}
+      {requiredDataIssues.length > 0 && (
+        <button
+          type="button"
+          className="care-event-attention person-quality-alert"
+          aria-haspopup={requiredDataIssues.length === 1 ? "dialog" : undefined}
+          onClick={() => requiredDataIssues.length === 1
+            ? openModal({ type: "quality-issue", personId: p.id, issueId: requiredDataIssues[0].id })
+            : navigate(`/quality?q=${encodeURIComponent(p.name)}`)}
+        >
+          <CircleAlert size={20} aria-hidden="true" />
+          <span className="care-event-attention-summary">
+            <strong>{requiredDataIssues.length === 1 ? "Data quality issue" : `${requiredDataIssues.length} data quality issues`}</strong>
+            <span>{requiredDataIssues[0].title}{requiredDataIssues.length > 1 ? ` · ${requiredDataIssues.length - 1} more` : ""}</span>
+          </span>
+          <span className="care-event-attention-action">
+            {requiredDataIssues.length === 1 ? "Manage issue" : "View issues"}
+            <ArrowRight size={16} aria-hidden="true" />
+          </span>
+        </button>
       )}
       {attentionItems.length > 0 && (
         <button type="button" className="care-event-attention" onClick={toggleAttention}>
@@ -581,7 +612,6 @@ export default function Person({ id, navigate, openModal }) {
                       ? (c.closureKind ? "Post-closure patient check-in" : "Latest assessment in this period")
                       : "Current assessment"}
                   </p>
-                  <Badge>{overviewStep.badge}</Badge>
                 </div>
                 <div className="overview-assessment-title">
                   <h2>{c.label}</h2>
@@ -913,7 +943,7 @@ export default function Person({ id, navigate, openModal }) {
               </div>
               <p>
                 {simpleAssessments
-                  ? `${orderedCollections.length} assessments in care episode ${e.number}. ${scheduleAssessments ? "Records show scheduling, drafts and completion." : "Records show creation, drafts and completion."}`
+                  ? `${orderedCollections.length} assessments in care episode ${e.number}. ${showDueDates ? "Records show due dates, drafts and completion." : "Records show creation, drafts and completion."}`
                   : `${orderedCollections.length} assessments in care episode ${e.number}. Each is a separate collection point. Closure assessment and feedback stay linked after this episode closes.`}
               </p>
             </div>
@@ -955,9 +985,14 @@ export default function Person({ id, navigate, openModal }) {
                 </Select>
               }
             />
-            <div className={`assessment-list${!simpleAssessments && groupAssessmentsByType ? " assessment-ledger-list" : ""}${!scheduleAssessments ? " assessment-ledger-no-due" : ""}`} id="assessment-list" ref={assessmentListRef}>
+            <div className={`assessment-list${!simpleAssessments && groupAssessmentsByType ? " assessment-ledger-list" : ""}${!showDueDates ? " assessment-ledger-no-due" : ""}`} id="assessment-list" ref={assessmentListRef}>
               {simpleAssessments && groupAssessmentsByType
-                ? <div className="stack">{simpleGroupedAssessments.map((group) => {
+                ? <div className="stack">
+                  {simpleGroupedAssessments.length > 0 && <div className="assessment-simple-columns" aria-hidden="true">
+                    <span /><span>Assessment type</span>
+                    <span className="assessment-simple-columns-meta"><span>Records &amp; status</span><span>Latest score</span></span>
+                  </div>}
+                  {simpleGroupedAssessments.map((group) => {
                     const records = group.records;
                     const statusCounts = [...new Set(records.map(assessmentState))].map((status) =>
                       ({ status, count: records.filter((col) => assessmentState(col) === status).length }))
@@ -965,10 +1000,17 @@ export default function Person({ id, navigate, openModal }) {
                     const latestScore = group.lastDone
                       ? assessmentScoreLabel(linkedAssessmentScore(e, group.lastDone))
                       : "Not scored";
+                    const nextDue = dueByType.get(group.key);
                     return <details className="assessment-simple-group" key={`${assessmentFilter}:${assessmentQuery}:${group.key}`} open={assessmentFilter !== "all" || !!assessmentQuery.trim()}>
                       <summary className="assessment-simple-group-header">
                         <ChevronDown size={18} aria-hidden="true" />
-                        <h3>{group.collections.length === 1 ? group.collections[0].label : group.name}</h3>
+                        <div className="assessment-simple-group-title">
+                          <h3>{group.collections.length === 1 ? group.collections[0].label : group.name}</h3>
+                          {assessmentDueDates && nextDue && <span className="assessment-simple-group-due">
+                            <span>Next due <time dateTime={nextDue.due}>{formatDate(nextDue.due)}</time></span>
+                            {nextDue.due <= TODAY && <AlertLabel tone={nextDue.due < TODAY ? "danger" : "attention"}>{assessmentDueLabel(nextDue, TODAY)}</AlertLabel>}
+                          </span>}
+                        </div>
                         <span className="assessment-simple-group-meta">
                           <span className="assessment-simple-group-count">
                             {statusCounts.map(({ status, count }) =>
@@ -986,14 +1028,14 @@ export default function Person({ id, navigate, openModal }) {
                 ? <>
                   {groupedAssessments.length > 0 && (
                     <div className="assessment-ledger-columns" aria-hidden="true">
-                      <span /><span>Assessment type</span><span>Status</span><span>Latest submitted</span><span>Latest score</span>{scheduleAssessments && <span>Next due</span>}
+                      <span /><span>Assessment type</span><span>Status</span><span>Latest submitted</span><span>Latest score</span>{showDueDates && <span>Next due</span>}
                     </div>
                   )}
                   {groupedAssessments.map((group, index) => {
                     const expanded = expandedAssessmentTypes === null || expandedAssessmentTypes.includes(group.key);
                     const historyId = `assessment-type-history-${index}`;
                     const submittedDate = responseDate(group.lastDone);
-                    const nextDue = group.collections
+                    const nextDue = assessmentDueDates ? dueByType.get(group.key) : group.collections
                       .filter((col) => col.due && col.response !== "Submitted" &&
                         !["Paused", "Cancelled"].includes(col.assignment))
                       .sort((a, b) => a.due.localeCompare(b.due) || a.id.localeCompare(b.id))[0];
@@ -1002,7 +1044,7 @@ export default function Person({ id, navigate, openModal }) {
                       return Boolean(date) && date <= TODAY;
                     });
                     return (
-                      <article className={`assessment-ledger-row${scheduleAssessments && nextDue?.due < TODAY ? " assessment-ledger-row-overdue" : ""}`} key={group.key}>
+                      <article className={`assessment-ledger-row${showDueDates && nextDue?.due < TODAY ? " assessment-ledger-row-overdue" : ""}`} key={group.key}>
                         <button
                           type="button"
                           className="assessment-ledger-expand"
@@ -1046,19 +1088,19 @@ export default function Person({ id, navigate, openModal }) {
                             </small>
                           ) : <small>{group.measureKey ? "Linked sample measure result" : "This questionnaire has no clinical score"}</small>}
                         </div>
-                        {scheduleAssessments && <div className="assessment-ledger-due">
+                        {showDueDates && <div className="assessment-ledger-due">
                           <small className="assessment-ledger-mobile-label">Next due</small>
                             {nextDue ? (
                               <>
                                 <strong className={nextDue.due < TODAY ? "status-overdue-text" : undefined}>
-                                  {nextDue.due < TODAY && "Overdue · "}<time dateTime={nextDue.due}>{formatDate(nextDue.due)}</time>
+                                  {assessmentDueDates ? (assessmentDueLabel(nextDue, TODAY) ? `${assessmentDueLabel(nextDue, TODAY)} · ` : "") : nextDue.due < TODAY ? "Overdue · " : ""}<time dateTime={nextDue.due}>{formatDate(nextDue.due)}</time>
                                 </strong>
                                 <small>{nextDue.label}</small>
                               </>
                             ) : (
                               <>
-                                <strong className="assessment-ledger-unscheduled">To be scheduled</strong>
-                                {e.status === "Active" && canAssess(p, e) && c.due && (
+                                <strong className="assessment-ledger-unscheduled">{assessmentDueDates ? "No upcoming due date" : "To be scheduled"}</strong>
+                                {scheduleAssessments && e.status === "Active" && canAssess(p, e) && c.due && (
                                   <button
                                     type="button"
                                     className="assessment-type-plan-link"

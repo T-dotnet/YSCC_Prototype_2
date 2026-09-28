@@ -1,8 +1,8 @@
 const groups = [
   ["Foundations", "F01–F06", "Live colour, type, space, and shape tokens", "Responsive and focus contracts still need explicit story coverage"],
   ["Primitives", "A01–A12", "Actions, badges, identity, search, fields, pickers, validation", "Icon action, tags, choice controls, and progress need extraction"],
-  ["Compositions", "M01–M16", "Headings, panels, tabs, consent and Care events filters, responsive queue, record, dialog, feedback, report evidence", "Popover, grouped assessment summary, and charts remain feature-owned"],
-  ["Templates", "O01–O11", "Person record context, People page excerpt, and assessment collection cards", "Full workspace, intake, participant, and report templates need isolated fixtures"],
+  ["Compositions", "M01–M16", "Headings, panels, tabs, filters, responsive queue, consolidated record rows, compact assessment states, dialogs, feedback and semantic Care timeline", "Popover and grouped assessment summary remain feature-owned"],
+  ["Templates", "O01–O11", "Person record context, People page excerpt, assessment cards and the current Report dashboard", "Full workspace, intake and participant templates need isolated fixtures"],
 ];
 
 export default {
@@ -22,7 +22,7 @@ export const ReadTheCollection = {
   render: () => (
     <div className="ds-story">
       <h2>YSCC component collection</h2>
-      <p>This Storybook is the visual companion to the full visible-app inventory. It moves from tokens through controls and records to page compositions. Stories use the app components, styles, and fictional sample records.</p>
+      <p>This Storybook is the visual companion to the full visible-app inventory. It moves from tokens through controls and records to page compositions. Stories use the app components, styles, and fictional sample records. The Color setup toolbar previews all four brand palettes; story state is isolated from saved app data.</p>
       <div className="ds-stack">
         {groups.map(([group, ids, covered, remaining]) => (
           <div className="ds-example" key={group}>

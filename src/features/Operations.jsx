@@ -1,3 +1,4 @@
+import AssessmentScheduleSettings from "../components/AssessmentScheduleSettings";
 import useQueueView from "../useQueueView";
 import { useMemo } from "react";
 import { INSTRUMENTS } from "../instruments";
@@ -21,6 +22,7 @@ import {
 } from "lucide-react";
 import { useStore } from "../store";
 import { assessmentSmsEnabled } from "../assessmentFeatures";
+import { UI_COLOR_SETUPS, uiColorSetup } from "../uiColorSetups";
 import { patientIdentifier } from "../patientIdentity";
 import { currentStaff, formatDate, TODAY } from "../model";
 import { sortQueueRows } from "../queueSort";
@@ -292,7 +294,6 @@ export function Quality({ openModal, navigate }) {
                             >
                               {patientIdentifier(person)}
                             </button>
-                            <small>{person.id}</small>
                           </span>
                         </div>
                       </QueueCell>
@@ -348,8 +349,9 @@ export function Quality({ openModal, navigate }) {
   );
 }
 export function Administration({ openModal, navigate }) {
-  const { state } = useStore();
+  const { state, commit } = useStore();
   const staff = currentStaff(state);
+  const selectedUiSetup = uiColorSetup(state.settings?.uiColorSetup);
   return (
     <>
       <PageHeading
@@ -360,6 +362,34 @@ export function Administration({ openModal, navigate }) {
         Sample configuration for exploring the workspace. Publication, clinical
         approval, and live permissions are not connected.
       </Notice>
+      <Panel title="Appearance" className="admin-panel appearance-panel">
+        <p className="appearance-intro">Choose a UI color setup. Your choice applies immediately and is saved in this browser.</p>
+        <fieldset className="appearance-options">
+          <legend className="sr-only">UI color setup</legend>
+          {UI_COLOR_SETUPS.map((setup) => (
+            <label className="appearance-option" key={setup.id}>
+              <span className="appearance-option-heading">
+                <input
+                  type="radio"
+                  name="ui-color-setup"
+                  value={setup.id}
+                  checked={selectedUiSetup === setup.id}
+                  onChange={() => commit({ type: "SET_UI_COLOR_SETUP", setup: setup.id })}
+                />
+                <strong>{setup.name}</strong>
+                {selectedUiSetup === setup.id && <small>Selected</small>}
+              </span>
+              <span className="appearance-option-swatches" aria-hidden="true">
+                {setup.swatches.map((token) => (
+                  <i key={token} style={{ backgroundColor: `var(${token})` }} />
+                ))}
+              </span>
+              <span className="appearance-option-description">{setup.description}</span>
+            </label>
+          ))}
+        </fieldset>
+      </Panel>
+      <AssessmentScheduleSettings />
       <Panel title="Workspace configuration" className="admin-panel">
         {[
           [

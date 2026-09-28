@@ -1,7 +1,9 @@
+import AssessmentScheduleSettings from "../components/AssessmentScheduleSettings";
 import { SlidersHorizontal } from "lucide-react";
 import { useStore } from "../store";
 import {
   assessmentSchedulingEnabled,
+  assessmentDueDatesEnabled,
   assessmentContactLinkingEnabled,
   assessmentSmsEnabled,
 } from "../assessmentFeatures";
@@ -11,6 +13,7 @@ export default function AssessmentFeatures() {
   const { state, commit } = useStore();
   const settings = state.settings || {};
   const features = [
+    ["showAssessmentDueDates", "Assessment due dates", "Show due dates with Due today and Past due labels in the Assessment tab. Show one upcoming assessment per type; hide the next one while a response is in progress until its due date is today or earlier. This does not enable future appointment booking.", assessmentDueDatesEnabled(settings)],
     ["scheduleAssessments", "Schedule assessments", "Allow future assessment due dates and planned contacts. When off, assessments start immediately and contacts can only be recorded.", assessmentSchedulingEnabled(settings)],
     ["linkAssessmentAppointments", "Link appointments and assessments", "Choose related contacts during assessment and appointment work, and show their links in both records.", assessmentContactLinkingEnabled(settings)],
     ["assessmentSms", "Assessment SMS flow", "Offer the sample SMS link as a collection method.", assessmentSmsEnabled(settings)],
@@ -48,6 +51,7 @@ export default function AssessmentFeatures() {
           </div>
         ))}
       </Panel>
+      <AssessmentScheduleSettings />
     </>
   );
 }

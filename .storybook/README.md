@@ -26,13 +26,22 @@ This collection accompanies the visible-app audit in `../output/design-system-au
 
 The person header in navigation stories is a Storybook fixture that supplies the same page classes and current sample text. Buttons that would navigate or save a record in the app are visual examples in Storybook. Filter, tab, sort, collapse, and dialog interactions run locally within their stories. Check the app for complete workflows and persisted state.
 
+## Consolidated component coverage
+
+- **Record item:** card anatomy, consolidated Care event and change-log rows, expandable details, and editable controls for the new `tableRow`, `summaryMeta`, and `eyebrow` props.
+- **Compact assessments:** Created, Draft, and Completed states with scheduling off.
+- **Consolidated report:** the production Report dashboard, compare-measures modal, sample chart disclosures, and semantic Care timeline.
+- **Color setups:** the global toolbar previews Setup 1 (current), Setup 2 (forest), Setup 3 (forest and lime), and Setup 4 (forest and cyan) on every story.
+
+The Storybook-only store alias uses a fresh fictional seed and in-memory updates. It never reads or writes the app's local storage. Source links in the report show their destination as feedback; collection actions in compact state examples are visual-only. Existing Care event filters now receive this provider too.
+
 ## Capture next
 
 - Semantic `StatusBadge`, `SeverityBadge`, `CategoryLabel`, `CountChip`, and `RemovableTag` components. The current Badge uses status-text lookup and a neutral fallback.
 - One filter toolbar contract spanning ListFilterBar, Care events, History, and Appointments; the current variants are both documented.
-- Assessment summary rows, dated timeline entries, and type-specific RecordItem variants.
+- Assessment group summary headings and additional type-specific RecordItem variants beyond the consolidated row examples.
 - Dialog footer and validation arrangements used by the 33 modal call sites.
-- Full shell, intake, participant questionnaire, and report templates with isolated fixtures.
+- Full shell, intake, and participant questionnaire templates with isolated fixtures.
 - 390 px and keyboard states for each extracted component.
 
 Do not flatten direct service contacts, indirect activity, contextual Care events, assessment collections, and audit changes into one data type while consolidating their presentation.

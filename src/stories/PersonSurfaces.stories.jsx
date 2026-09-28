@@ -38,7 +38,6 @@ export const OverviewSummary = {
           <header className="overview-assessment-heading">
             <div className="overview-assessment-topline">
               <p className="overview-assessment-label">Current assessment</p>
-              <Badge>Overdue</Badge>
             </div>
             <div className="overview-assessment-title"><h2>{collection.label}</h2></div>
             <p className="overview-assessment-context">Due {formatDate(collection.due)} · <span className="status-overdue-text">14 days overdue</span></p>

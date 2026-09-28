@@ -140,6 +140,9 @@ export function Badge({ children, tone, className = "" }) {
     </span>
   );
 }
+export function AlertLabel({ children, tone = "attention" }) {
+  return <span className={`alert-label ${tone}`}>{children}</span>;
+}
 export function SearchInput({
   value,
   onChange,

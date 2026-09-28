@@ -72,13 +72,15 @@ test("saved intake upgrade removes only the old automatic admission event", () =
   assert.equal(upgradeSampleData(upgraded), upgraded);
 });
 test("seed worklist counts represent actual open collection and review work", () => {
-  const tasks = getTasks(createSeed());
-  assert.equal(tasks.length, 12);
+  const state = createSeed();
+  state.settings.simpleAssessments = false;
+  const tasks = getTasks(state);
+  assert.equal(tasks.length, 20);
   assert.ok(tasks.some((task) => task.collection?.id === "A-7-life-care-sixteen-weeks"));
   assert.equal(tasks.filter((task) => task.person.id === "YS-DEMO-CLOSE").length, 2);
   for (const id of ["A-0-current", "A-4-current"])
     assert.equal(tasks.find((task) => task.collection?.id === id)?.status, "Scheduled");
-  assert.equal(tasks.filter((task) => task.status === "Overdue").length, 0);
+  assert.equal(tasks.filter((task) => task.status === "Overdue").length, 2);
   assert.equal(tasks.filter((t) => t.status === "Ready for review").length, 2);
 });
 test("fictional assessment creation dates backfill missing saved fixture dates", () => {
@@ -87,7 +89,7 @@ test("fictional assessment creation dates backfill missing saved fixture dates",
     person.episodes.flatMap((item) => item.collections));
   assert.ok(sampleCollections.every((col) => col.createdAt), "all sample assessments have creation dates");
   const episode = saved.people.find((person) => person.id === "YS-1034").episodes[0];
-  assert.equal(episode.collections.length, 24);
+  assert.equal(episode.collections.length, 32);
 
   const existing = episode.collections.find((col) => col.id === "A-7-life-care-twelve-weeks");
   existing.createdAt = "2026-08-31T11:00:00Z";

@@ -7,6 +7,8 @@ export default function RecordItem({
   eyebrow,
   subtitle,
   status,
+  summaryMeta,
+  tableRow = false,
   collapsible = false,
   initiallyExpanded = false,
   selected = false,
@@ -24,7 +26,17 @@ export default function RecordItem({
     if (initiallyExpanded && detailsRef.current) detailsRef.current.open = true;
   }, [initiallyExpanded]);
   const Heading = `h${headingLevel}`;
-  const heading = (
+  const heading = tableRow ? (
+    <>
+      <span className="record-item-table-type">{eyebrow || "Record"}</span>
+      <span className="record-item-heading-text">
+        <Heading>{title}</Heading>
+        {subtitle && <small>{subtitle}</small>}
+      </span>
+      {summaryMeta && <span className="record-item-table-meta">{summaryMeta}</span>}
+      <span className="record-item-table-status">{status ? <Badge>{status}</Badge> : "—"}</span>
+    </>
+  ) : (
     <>
       <span className="record-item-heading-text">
         {eyebrow && <span className="record-item-eyebrow">{eyebrow}</span>}
@@ -34,7 +46,7 @@ export default function RecordItem({
       {status && <Badge>{status}</Badge>}
     </>
   );
-  const classes = `record-item${selected ? " selected-collection" : ""}${className ? ` ${className}` : ""}`;
+  const classes = `record-item${selected ? " selected-collection" : ""}${tableRow ? " record-item-table-row" : ""}${className ? ` ${className}` : ""}`;
   const content = (
     <div className="record-item-content">
       <div className="record-item-body">

@@ -35,6 +35,7 @@ test("latest score labels contain only a raw score or Not scored", () => {
 
 test("created and draft assessments precede completed rows and groups", () => {
   const episode = createSeed().people.find((person) => person.id === "YS-1034").episodes[0];
+  episode.collections = episode.collections.filter((collection) => !collection.sampleDueExampleDate);
   const lifeDraft = episode.collections.find((col) => col.id === "A-7-life-care-sixteen-weeks");
   lifeDraft.response = "Draft";
   const k10 = episode.collections.find((col) => col.id === "A-7-measure-k10-plus-latest");

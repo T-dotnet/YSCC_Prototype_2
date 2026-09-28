@@ -8,8 +8,12 @@ test("new sample workspaces use the selected assessment configuration", () => {
   const defaults = {
     simpleAssessments: true,
     scheduleAssessments: false,
+    showAssessmentDueDates: true,
+    automaticAssessmentDueDates: false,
+    assessmentScheduleRules: [],
     linkAssessmentAppointments: true,
     assessmentSms: false,
+    uiColorSetup: 1,
   };
   assert.deepEqual(createSeed().settings, defaults);
   assert.deepEqual(reducer(createSeed(), { type: "RESET" }).settings, defaults);

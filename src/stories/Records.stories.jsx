@@ -25,6 +25,7 @@ export default {
     collapsible: false,
     initiallyExpanded: false,
     selected: false,
+    tableRow: false,
     headingLevel: 3,
   },
   argTypes: {
@@ -35,6 +36,9 @@ export default {
     collapsible: { control: "boolean" },
     initiallyExpanded: { control: "boolean" },
     selected: { control: "boolean" },
+    tableRow: { control: "boolean" },
+    summaryMeta: { control: "text" },
+    eyebrow: { control: "text" },
     headingLevel: { control: "select", options: [2, 3, 4] },
     actions: { table: { disable: true } },
     lead: { table: { disable: true } },
@@ -85,3 +89,65 @@ export const SourceTypeComparison = {
     </div>
   ),
 };
+
+export const ConsolidatedCareEventRow = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const row = canvas.getByText(directContact.appointmentType).closest("summary");
+    await userEvent.click(row);
+    await expect(canvas.getByText(directContact.outcomeNotes)).toBeVisible();
+    await userEvent.click(row);
+    await expect(canvas.getByText(directContact.outcomeNotes)).not.toBeVisible();
+  },
+  args: {
+    tableRow: true,
+    collapsible: true,
+    eyebrow: "Service contact",
+    title: directContact.appointmentType,
+    status: directContact.attendance,
+    facts: contactFacts,
+    actions: <TextLink type="button">View details</TextLink>,
+  },
+  decorators: [(Story) => <div className="ds-story"><section id="clinical-history-timeline">
+    <div className="record-log-columns care-event-log-columns"><span>Type</span><span>Event</span><span>Status</span><span>Details</span></div>
+    <Story />
+  </section></div>],
+};
+
+export const ConsolidatedChangeRow = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByText("Care owner updated"));
+    await expect(canvas.getByText("Alex Morgan → Jess Taylor")).toBeVisible();
+  },
+  args: {
+    tableRow: true,
+    collapsible: true,
+    eyebrow: "Care episode",
+    title: "Care owner updated",
+    summaryMeta: "Jess Taylor",
+    status: "1 field",
+    facts: [{ label: "Care owner", value: "Alex Morgan → Jess Taylor", wide: true }],
+  },
+  decorators: [(Story) => <div className="ds-story"><section id="change-log-timeline">
+    <div className="record-log-columns change-log-columns"><span>Scope</span><span>Change</span><span>Changed by</span><span>Fields</span><span>Details</span></div>
+    <Story />
+  </section><p className="ds-caption">Illustrative field change; expand the row to see the retained detail.</p></div>],
+};
+
+export const CompactAssessmentStates = {
+  render: () => <div className="ds-story"><h2>Compact assessment records</h2>
+    <p>Created, Draft and Completed share the same production component. Scheduling is off.</p>
+    <div className="ds-record-list assessment-simple-group"><div className="assessment-simple-group-records">
+      {["Created", "Draft", "Submitted"].map((response) => <AssessmentCollectionCard
+        key={response}
+        collection={{ ...historicalCollection, id: `story-${response}`, response, submittedAt: response === "Submitted" ? historicalCollection.submittedAt : undefined }}
+        person={person}
+        score={response === "Submitted" ? linkedAssessmentScore(episode, historicalCollection) : null}
+        compactGrouped simpleAssessments scheduleAssessments={false} linkAssessmentAppointments={false}
+        onCollect={() => {}} onViewDetails={() => {}} onReview={() => {}}
+      />)}
+    </div></div><p className="ds-caption">Response actions are visual examples; collection workflows remain in the app.</p>
+  </div>,
+};
+import { expect, userEvent, within } from "storybook/test";

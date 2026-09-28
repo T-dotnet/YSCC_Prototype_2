@@ -1,16 +1,18 @@
 import { isOutstanding } from "../workflow";
 import { assessmentScoreLabel } from "../assessmentGroups";
 import { responseDate } from "../progress";
+import { assessmentDueLabel } from "../assessmentDue";
 import {
   clinicalReviewStatus,
   collectionActorIdentity,
   collectionStatus,
   formatDate,
   noClinicalReviewRequired,
+  TODAY,
 } from "../model";
 import RecordItem from "./RecordItem";
 import RelatedRecordsAccordion from "./RelatedRecordsAccordion";
-import { Badge, Button, PersonIdentity, TextLink } from "./UI";
+import { AlertLabel, Badge, Button, PersonIdentity, TextLink } from "./UI";
 
 export default function AssessmentCollectionCard({
   collection: col,
@@ -23,6 +25,8 @@ export default function AssessmentCollectionCard({
   relatedContacts = [],
   simpleAssessments = false,
   scheduleAssessments = true,
+  showDueDates = scheduleAssessments,
+  showDueLabels = false,
   linkAssessmentAppointments = true,
   compactGrouped = false,
   inTimeline = false,
@@ -37,8 +41,13 @@ export default function AssessmentCollectionCard({
   const submittedDate = responseDate(col);
   const scoreValue = assessmentScoreLabel(score);
   const simpleStatus = col.response === "Submitted" ? "Completed" : col.response === "Draft" ? "Draft" : "Created";
+  const dueLabel = showDueLabels ? assessmentDueLabel(col, TODAY) : null;
+  const dueValue = <span className="assessment-record-due">
+    {col.due ? <time dateTime={col.due}>{formatDate(col.due)}</time> : "Not set"}
+    {!compactGrouped && dueLabel && <AlertLabel tone={dueLabel === "Past due" ? "danger" : "attention"}>{dueLabel}</AlertLabel>}
+  </span>;
   if (compactGrouped) return (
-    <article className={`assessment-grouped-record${col.id === selectedId ? " selected-collection" : ""}`}>
+    <article className={`assessment-grouped-record${col.id === selectedId ? " selected-collection" : ""}`} data-status={simpleStatus.toLowerCase()}>
       <div className="assessment-grouped-record-heading">
         <div className="assessment-grouped-record-title">
           <span className="assessment-grouped-record-eyebrow">Assessment</span>
@@ -49,13 +58,13 @@ export default function AssessmentCollectionCard({
         <Badge>{scheduleAssessments ? collectionStatus(col) : simpleStatus}</Badge>
       </div>
       <dl className="record-item-facts assessment-grouped-record-facts">
+        {showDueDates && <div><dt>Due date</dt><dd>{dueValue}</dd></div>}
         <div><dt>Created</dt><dd>{col.createdAt ? formatDate(col.createdAt.slice(0, 10)) : "Not recorded"}</dd></div>
-        {scheduleAssessments && col.due && <div><dt>Due</dt><dd>{formatDate(col.due)}</dd></div>}
         <div><dt>Completed</dt><dd>{submittedDate ? formatDate(submittedDate) : "—"}</dd></div>
-        <div className={col.response === "Submitted" ? undefined : "assessment-record-action"}>
-          <dt className={col.response === "Submitted" ? undefined : "sr-only"}>{col.response === "Submitted" ? "Score" : "Response action"}</dt>
-          <dd>{col.response === "Submitted" ? scoreValue : <Button variant="secondary" onClick={() => onCollect(col)}>{col.response === "Draft" ? "Continue response" : "Collect response"}</Button>}</dd>
-        </div>
+        {col.response !== "Submitted" && <div className="assessment-record-action">
+          <dt className="sr-only">Response action</dt>
+          <dd><Button variant="secondary" onClick={() => onCollect(col)}>{col.response === "Draft" ? "Continue response" : "Collect response"}</Button></dd>
+        </div>}
       </dl>
       {linkAssessmentAppointments && <RelatedRecordsAccordion inline kind="contacts" records={relatedContacts} collection={col} />}
     </article>
@@ -63,7 +72,7 @@ export default function AssessmentCollectionCard({
   return (
     <RecordItem
       title={col.label}
-      subtitle={`${scheduleAssessments && col.due ? `${formatDate(col.due)} · ` : ""}${col.version}${simpleAssessments ? "" : scoreText}`}
+      subtitle={<>{showDueDates && col.due && <>{showDueLabels ? `${dueLabel || "Due date"} · ` : ""}{formatDate(col.due)} · </>}{col.version}{simpleAssessments ? "" : scoreText}</>}
       status={scheduleAssessments ? collectionStatus(col) : simpleStatus}
       collapsible={simpleAssessments || inTimeline || isPrior}
       initiallyExpanded={simpleAssessments ? col.response !== "Submitted" : initiallyExpanded}
@@ -71,17 +80,17 @@ export default function AssessmentCollectionCard({
       headingLevel={headingLevel}
       className={`assessment-collection-card${inTimeline ? " record-item-compact assessment-timeline-item" : ""}`}
       facts={simpleAssessments ? [
+        ...(showDueDates ? [{ label: "Due date", value: dueValue }] : []),
         { label: "Created", value: col.createdAt ? formatDate(col.createdAt.slice(0, 10)) : "Not recorded" },
-        ...(scheduleAssessments && col.due ? [{ label: "Due date", value: formatDate(col.due) }] : []),
         ...(linkAssessmentAppointments && col.externalAppointment ? [{ label: "External contact", value: `${formatDate(col.externalAppointment.date)} at ${col.externalAppointment.time}` }] : []),
         { label: "Completed", value: submittedDate ? formatDate(submittedDate) : "—" },
         { label: "Score", value: scoreValue },
       ] : [
+        ...(showDueDates ? [{ label: "Due date", value: dueValue }] : []),
         {
           label: "Respondent",
           value: <PersonIdentity name={respondent.name} descriptor={respondent.role} />,
         },
-        ...(scheduleAssessments && col.due ? [{ label: "Due date", value: formatDate(col.due) }] : []),
         ...(linkAssessmentAppointments && col.externalAppointment ? [{ label: "External contact", value: `${formatDate(col.externalAppointment.date)} at ${col.externalAppointment.time}` }] : []),
         { label: "Submitted", value: submittedDate ? formatDate(submittedDate) : "Not submitted" },
         { label: "Score", value: scoreValue },
@@ -97,9 +106,9 @@ export default function AssessmentCollectionCard({
         </>
       }
       note={col.readOnly ? "Historical assessment · view only · version retained" : null}
-      actions={(!simpleAssessments || col.response !== "Submitted" || linkAssessmentAppointments || scheduleAssessments) && (
+      actions={(!simpleAssessments || col.response !== "Submitted" || linkAssessmentAppointments || showDueDates) && (
         <>
-          {(!simpleAssessments || linkAssessmentAppointments || scheduleAssessments) && <TextLink aria-haspopup="dialog" onClick={() => onViewDetails(col)}>View details</TextLink>}
+          {(!simpleAssessments || linkAssessmentAppointments || showDueDates) && <TextLink aria-haspopup="dialog" onClick={() => onViewDetails(col)}>View details</TextLink>}
           {!simpleAssessments && col.response === "Submitted" &&
             (!noClinicalReviewRequired(col) || collectionStatus(col) === "Completed") && (
               <Button variant="secondary" onClick={() => onReview(col)}>

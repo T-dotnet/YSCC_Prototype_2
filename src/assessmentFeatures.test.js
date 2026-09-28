@@ -4,6 +4,7 @@ import { createSeed, reducer, TODAY, upgradeSampleData } from "./model.js";
 import { DEMO_INSTRUMENT } from "./instruments.js";
 import {
   assessmentSchedulingEnabled,
+  assessmentDueDatesEnabled,
   assessmentContactLinkingEnabled,
   assessmentSmsEnabled,
   assessmentHistoryEntryVisible,
@@ -32,8 +33,12 @@ test("assessment feature switches persist across simplified and full views", () 
   assert.deepEqual(state.settings, {
     simpleAssessments: false,
     scheduleAssessments: true,
+    showAssessmentDueDates: true,
+    automaticAssessmentDueDates: false,
+    assessmentScheduleRules: [],
     linkAssessmentAppointments: false,
     assessmentSms: true,
+    uiColorSetup: 1,
   });
   state = reducer(state, { type: "SET_SIMPLE_ASSESSMENTS", enabled: true });
   assert.equal(state.settings.scheduleAssessments, true);
@@ -70,6 +75,35 @@ test("scheduling off blocks new planned and future contacts but allows recording
   const enabled = feature(state, "scheduleAssessments", true);
   const planned = reducer(enabled, { ...contact, attendance: "Planned" });
   assert.ok(episode(planned).appointments.some((item) => item.id === contact.id));
+});
+
+test("due-date visibility persists independently and never enables future booking", () => {
+  for (const simpleAssessments of [true, false]) {
+    let state = reducer(createSeed(), { type: "SET_SIMPLE_ASSESSMENTS", enabled: simpleAssessments });
+    assert.equal(assessmentDueDatesEnabled(state.settings), true);
+    state = feature(state, "showAssessmentDueDates", false);
+    state = feature(state, "showAssessmentDueDates", true);
+    assert.equal(assessmentDueDatesEnabled(state.settings), true);
+    assert.equal(assessmentSchedulingEnabled(state.settings), false);
+    const contact = {
+      type: "ADD_APPOINTMENT", ...context, id: "APT-due-display",
+      plannedDate: "2099-10-20", plannedTime: "10:00", plannedDurationMinutes: 30,
+      practitionerService: "Northside Centre", deliveryMode: "Phone", attendance: "Planned",
+    };
+    assert.equal(reducer(state, contact), state);
+    assert.equal(reducer(state, { ...contact, attendance: "Cancelled" }), state);
+    assert.equal(reducer(state, { ...contact, plannedDate: TODAY }), state);
+    assert.deepEqual(upgradeSampleData(state).settings, state.settings);
+    assert.equal(assessmentDueDatesEnabled(feature(state, "showAssessmentDueDates", false).settings), false);
+  }
+});
+
+test("old saved settings migrate due visibility on without changing booking permissions", () => {
+  const state = createSeed();
+  delete state.settings.showAssessmentDueDates;
+  const upgraded = upgradeSampleData(state);
+  assert.equal(upgraded.settings.showAssessmentDueDates, true);
+  assert.equal(upgraded.settings.scheduleAssessments, false);
 });
 
 for (const simpleAssessments of [true, false]) {

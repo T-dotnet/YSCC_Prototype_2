@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { expect, userEvent, within } from "storybook/test";
 import {
   Button,
   Field,
@@ -24,6 +25,14 @@ export default {
 };
 
 export const SearchAndClear = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.clear(canvas.getByRole("textbox"));
+    await userEvent.type(canvas.getByRole("textbox"), "Samira");
+    await expect(canvas.getByText("Current query: Samira")).toBeVisible();
+    await userEvent.click(canvas.getByRole("button", { name: /clear/i }));
+    await expect(canvas.getByText("Current query: None")).toBeVisible();
+  },
   render: () => {
     const [query, setQuery] = useState("Alex");
     return (

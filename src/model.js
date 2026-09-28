@@ -1,3 +1,4 @@
+import { reconcileAssessmentSchedules, scheduleRuleError } from "./assessmentSchedules.js";
 import {
   createQualitativeSampleAnswers,
   createLikertSampleAnswers,
@@ -37,6 +38,7 @@ import { careEventContent, careEventError } from "./careEvents.js";
 import { validExternalSlot } from "./externalAppointmentSlots.js";
 import {
   assessmentSchedulingEnabled,
+  assessmentDueDatesEnabled,
   assessmentContactLinkingEnabled,
   assessmentSmsEnabled,
 } from "./assessmentFeatures.js";
@@ -554,7 +556,7 @@ function refreshOpenSampleDates(state) {
         !(person.id === "YS-1033" && person.name === "Jordan Lee")) continue;
     for (const episode of person.episodes || []) {
       for (const collection of episode.collections || []) {
-        if (episode.status === "Active" && collection.due < due &&
+        if (episode.status === "Active" && !collection.sampleDueExampleDate && !collection.scheduleRuleId && collection.due < due &&
             collection.response !== "Submitted" &&
             !["Fulfilled", "Cancelled", "Paused"].includes(collection.assignment) &&
             (collection.revision ?? 0) === 0)
@@ -584,7 +586,7 @@ function refreshOpenSampleDates(state) {
 }
 
 const withSampleFixtures = (state) =>
-  ensureSampleAssessmentCreatedDates(refreshOpenSampleDates(ensureCoherentMockData(ensureJordanPartialSmsExample(
+  ensureJordanDueExamples(ensureSampleAssessmentCreatedDates(refreshOpenSampleDates(ensureCoherentMockData(ensureJordanPartialSmsExample(
     ensureJordanDeliveryAttemptExamples(
       ensureJordanAssessmentContactExamples(
         ensureJordanFutureAssessment(
@@ -592,7 +594,7 @@ const withSampleFixtures = (state) =>
         ),
       ),
     ),
-  ))));
+  )))));
 
 export function sampleAppointmentsForSeed(seedIndex) {
   switch (seedIndex) {
@@ -1927,6 +1929,88 @@ function ensureJordanFutureAssessment(state) {
   return next;
 }
 
+const dueExampleDefinitions = [
+  { key: "k10-past", measureKey: "k10-plus", offset: -1 },
+  { key: "k5-today", measureKey: "k5", offset: 0 },
+  { key: "sdq-draft", measureKey: "sdq", offset: 7, draft: true },
+  { key: "sdq-next", measureKey: "sdq", offset: 14, next: true },
+  { key: "sidas-draft", measureKey: "sidas", offset: -2, draft: true },
+  { key: "sidas-next", measureKey: "sidas", offset: 14, next: true },
+  { key: "who5-draft", measureKey: "who-5", offset: 0, draft: true },
+  { key: "who5-next", measureKey: "who-5", offset: 14, next: true },
+];
+const dueExampleDate = (anchor, offset) =>
+  new Date(Date.parse(`${anchor}T12:00:00Z`) + offset * 86400000).toISOString().slice(0, 10);
+
+function createDueExample(person, definition, anchor) {
+  const instrument = MEASURE_INSTRUMENTS.find((item) => item.measureKey === definition.measureKey);
+  const id = `A-7-due-example-${definition.key}`;
+  const savedDate = dueExampleDate(anchor, -1);
+  const savedAt = `${savedDate}T10:00:00Z`;
+  const attemptId = `${id}-sample-session`;
+  const draftAnswers = questionnaireState(instrument, measureSampleAnswers(definition.measureKey, "latest")
+    .map((answer, index) => index < 2 ? answer : null)).answers;
+  return {
+    id,
+    label: `${instrument.name} · ${definition.next ? "next follow-up" : "follow-up"}`,
+    version: instrument.version,
+    due: dueExampleDate(anchor, definition.offset),
+    createdAt: `${dueExampleDate(anchor, -4)}T09:00:00Z`,
+    assignment: definition.draft ? "Active" : "Planned",
+    response: definition.draft ? "Draft" : "Not started",
+    review: "Pending",
+    link: definition.draft ? "Active" : "Not sent",
+    respondent: "Person",
+    respondentName: person.name,
+    recorder: "Person",
+    recorderName: person.name,
+    channel: "Clinic tablet",
+    assistance: "Independent",
+    appointmentId: null,
+    answers: [],
+    attempts: definition.draft ? [{
+      id: attemptId, date: savedDate, channel: "Clinic tablet", status: "Progress saved",
+      respondentName: person.name, recorderName: person.name, assistance: "Independent",
+      savedAt, endedAt: savedAt,
+    }] : [],
+    ...(definition.draft ? {
+      draftAnswers,
+      draftAnswerSources: Object.fromEntries(instrument.questions.slice(0, 2)
+        .map((question) => [question.id, attemptId])),
+    } : {}),
+    source: "Fictional assessment due-date example; no clinical score recorded",
+    sampleDueExampleDate: anchor,
+  };
+}
+
+function ensureJordanDueExamples(state) {
+  const person = state.people.find((item) => item.id === "YS-1034" &&
+    item.fixtureLabel === "Fictional full-report example");
+  const episode = person?.episodes.find((item) => item.id === "EP-1034-01" && item.status === "Active");
+  if (!episode) return state;
+  const updates = dueExampleDefinitions.flatMap((definition) => {
+    const id = `A-7-due-example-${definition.key}`;
+    const existing = episode.collections.find((item) => item.id === id);
+    if (!existing) return [createDueExample(person, definition, TODAY)];
+    // Roll only untouched demonstration records. Saving answers, completing,
+    // linking a contact or editing any field preserves the user's whole record.
+    if (existing.sampleDueExampleDate && existing.sampleDueExampleDate !== TODAY &&
+        JSON.stringify(existing) === JSON.stringify(createDueExample(person, definition, existing.sampleDueExampleDate)))
+      return [createDueExample(person, definition, TODAY)];
+    return [];
+  });
+  if (!updates.length) return state;
+  const next = structuredClone(state);
+  const updatedEpisode = next.people.find((item) => item.id === person.id)
+    .episodes.find((item) => item.id === episode.id);
+  for (const example of updates) {
+    const index = updatedEpisode.collections.findIndex((item) => item.id === example.id);
+    if (index < 0) updatedEpisode.collections.push(example);
+    else updatedEpisode.collections[index] = example;
+  }
+  return next;
+}
+
 // Explicit fictional creation dates for sample assessment ledgers. These are
 // fixture values, not dates inferred from a response or a due date.
 const sampleAssessmentCreatedDates = new Map([
@@ -2677,13 +2761,14 @@ function upgradeIntakeFlow(state) {
 }
 
 export function upgradeSampleData(state) {
-  if (!state.settings || ["scheduleAssessments", "linkAssessmentAppointments", "assessmentSms"]
+  if (!state.settings || ["scheduleAssessments", "showAssessmentDueDates", "linkAssessmentAppointments", "assessmentSms"]
     .some((feature) => typeof state.settings[feature] !== "boolean")) {
     state = {
       ...state,
       settings: {
         ...state.settings,
         scheduleAssessments: assessmentSchedulingEnabled(state.settings),
+        showAssessmentDueDates: assessmentDueDatesEnabled(state.settings),
         linkAssessmentAppointments: assessmentContactLinkingEnabled(state.settings),
         assessmentSms: assessmentSmsEnabled(state.settings),
       },
@@ -3699,7 +3784,7 @@ function prepareIntakes(next) {
 export function createSeed() {
   return withSampleFixtures(prepareQualityState(prepareSeed({
     schema: 1,
-    settings: { simpleAssessments: true, scheduleAssessments: false, linkAssessmentAppointments: true, assessmentSms: false },
+    settings: { simpleAssessments: true, scheduleAssessments: false, showAssessmentDueDates: true, automaticAssessmentDueDates: false, assessmentScheduleRules: [], linkAssessmentAppointments: true, assessmentSms: false, uiColorSetup: 1 },
     terminologyRevision: 1,
     people: [
       ...seeds.map((s, i) => ({
@@ -3967,12 +4052,36 @@ export function getTasks(state) {
   ];
 }
 export function reducer(state, action) {
+  const next = reduceState(state, action);
+  return next === state ? state : reconcileAssessmentSchedules(next, TODAY);
+}
+function reduceState(state, action) {
+  if (action.type === "SET_AUTOMATIC_ASSESSMENT_DUE_DATES") {
+    if (typeof action.enabled !== "boolean" || state.settings?.automaticAssessmentDueDates === action.enabled) return state;
+    return {...state, settings: {...state.settings, automaticAssessmentDueDates:action.enabled,
+      ...(action.enabled ? {showAssessmentDueDates:true} : {})}};
+  }
+  if (action.type === "SAVE_ASSESSMENT_SCHEDULE_RULE") {
+    const rules = state.settings?.assessmentScheduleRules || [];
+    if (scheduleRuleError(action.rule, rules) || typeof action.rule.enabled !== "boolean") return state;
+    return {...state, settings: {...state.settings, assessmentScheduleRules:
+      [...rules.filter(rule => rule.id !== action.rule.id), {...action.rule}]}};
+  }
+  if (action.type === "DELETE_ASSESSMENT_SCHEDULE_RULE") {
+    const rules = state.settings?.assessmentScheduleRules || [];
+    if (!rules.some(rule => rule.id === action.id)) return state;
+    return {...state, settings:{...state.settings, assessmentScheduleRules:rules.filter(rule => rule.id !== action.id)}};
+  }
+  if (action.type === "SET_UI_COLOR_SETUP") {
+    if (![1, 2, 3, 4].includes(action.setup) || state.settings?.uiColorSetup === action.setup) return state;
+    return { ...state, settings: { ...state.settings, uiColorSetup: action.setup } };
+  }
   if (action.type === "SET_SIMPLE_ASSESSMENTS") {
     if (typeof action.enabled !== "boolean" || state.settings?.simpleAssessments === action.enabled) return state;
     return { ...state, settings: { ...state.settings, simpleAssessments: action.enabled } };
   }
   if (action.type === "SET_ASSESSMENT_FEATURE") {
-    if (!["scheduleAssessments", "linkAssessmentAppointments", "assessmentSms"].includes(action.feature) ||
+    if (!["scheduleAssessments", "showAssessmentDueDates", "linkAssessmentAppointments", "assessmentSms"].includes(action.feature) ||
         typeof action.enabled !== "boolean" || state.settings?.[action.feature] === action.enabled) return state;
     return { ...state, settings: { ...state.settings, [action.feature]: action.enabled } };
   }

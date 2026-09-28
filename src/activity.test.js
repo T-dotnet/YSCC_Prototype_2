@@ -322,6 +322,29 @@ test("simple Care events retain a future planned contact linked to an assessment
   const entries = careEventEntries(person, episode, [], { simpleAssessments: true, today: "2026-09-27" });
   assert.ok(entries.some((entry) => entry.id === "appointment-linked-contact"));
   assert.ok(!entries.some((entry) => entry.id === "appointment-unlinked-contact"));
+  const schedulingOff = careEventEntries(person, episode, [], {
+    simpleAssessments: true, scheduleAssessments: false, today: "2026-09-27",
+  });
+  assert.ok(!schedulingOff.some((entry) => entry.id === "appointment-linked-contact"));
+});
+
+test("scheduling off excludes future care events and completed assessments", () => {
+  const person = { id: "P-1" };
+  const episode = {
+    events: [
+      { id: "past", actionType: "ADD_CARE_EVENT", eventDate: "2026-09-20", title: "Past event" },
+      { id: "future", actionType: "ADD_CARE_EVENT", eventDate: "2026-10-20", title: "Future event" },
+    ],
+    appointments: [],
+    collections: [
+      { id: "past", response: "Submitted", submittedAt: "2026-09-20T10:00:00Z", attempts: [] },
+      { id: "future", response: "Submitted", submittedAt: "2026-10-20T10:00:00Z", attempts: [] },
+    ],
+  };
+  const entries = careEventEntries(person, episode, [], {
+    simpleAssessments: false, scheduleAssessments: false, today: "2026-09-27",
+  });
+  assert.deepEqual(entries.map((entry) => entry.id).sort(), ["assessment-past", "past"]);
 });
 
 test("Zoe's assessment-rich sample also retains a compliance correction", () => {
