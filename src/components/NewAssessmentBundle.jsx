@@ -56,7 +56,18 @@ export default function NewAssessmentBundle({ person, episode, onClose, onCreate
   const sms = assessmentSmsEnabled(state.settings);
   const available = INSTRUMENTS.filter(instrument => !bundle?.assessments.some(item => item.version === instrument.version) &&
     !extras.some(item => item.version === instrument.version));
-  const count = bundle ? bundle.assessments.filter(item => item.requirement === 'Mandatory' || optionalIds.includes(item.id)).length + extras.length : 0;
+  const assessmentRows = bundle ? [
+              ...(group?.records || []).filter(record => record.bundleRequirement !== 'Additional' || extras.some(item => item.version === record.version)).map(record => ({
+                ...bundle.assessments.find(item => item.id === record.bundleAssessmentId),
+                ...extras.find(item => item.version === record.version),
+                record, version:record.version, requirement:record.bundleRequirement,
+              })),
+              ...bundleAssessmentsForCreation(bundle,assessmentOverrides).filter(item => !group?.records.some(record => record.bundleAssessmentId === item.id)),
+              ...extras.filter(item => !group?.records.some(record => record.version === item.version)).map(item => ({...item,requirement:'Additional'})),
+            ] : [];
+  const count = embedded
+    ? assessmentRows.filter(item => item.requirement === 'Mandatory' || item.requirement === 'Additional' || optionalIds.includes(item.id)).length
+    : bundle ? bundle.assessments.filter(item => item.requirement === 'Mandatory' || optionalIds.includes(item.id)).length + extras.length : 0;
   const selectionError = bundle ? newBundleError(validationBundle,optionalIds,extras,person,state.settings,assessmentOverrides) : '';
   const delivery = bundle ? bundleDelivery(bundle,assessmentOverrides) : {channel:'Clinic tablet',recipient:'Person'};
   const updateDelivery = (key,value) => {
@@ -106,15 +117,7 @@ export default function NewAssessmentBundle({ person, episode, onClose, onCreate
           {!embedded && <DeliveryFields item={delivery} person={person} sms={sms} onChange={updateDelivery} />}
           {embedded ? <div className="bundle-edit-table"><RelatedRecordsTable label={`Assessments in ${bundleName(bundle)}`} compact>
             <thead><tr><th scope="col">Assessment</th><SortableHeader label="Status" sortKey="status" sort={sort} onSort={toggleSort} /><SortableHeader label="Requirement" sortKey="requirement" sort={sort} onSort={toggleSort} /></tr></thead>
-            <tbody>{[
-              ...(group?.records || []).filter(record => record.bundleRequirement !== 'Additional' || extras.some(item => item.version === record.version)).map(record => ({
-                ...bundle.assessments.find(item => item.id === record.bundleAssessmentId),
-                ...extras.find(item => item.version === record.version),
-                record, version:record.version, requirement:record.bundleRequirement,
-              })),
-              ...bundleAssessmentsForCreation(bundle,assessmentOverrides).filter(item => !group?.records.some(record => record.bundleAssessmentId === item.id)),
-              ...extras.filter(item => !group?.records.some(record => record.version === item.version)).map(item => ({...item,requirement:'Additional'})),
-            ].sort((a,b) => {
+            <tbody>{[...assessmentRows].sort((a,b) => {
               if (!['status', 'requirement'].includes(sort.key)) return 0;
               const direction = sort.direction === 'asc' ? 1 : -1;
               if (sort.key === 'requirement') {
