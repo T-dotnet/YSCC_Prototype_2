@@ -33,7 +33,7 @@ function DeliveryFields({item, person, sms, onChange}) {
 
 export default function NewAssessmentBundle({ person, episode, onClose, onCreated, editBundleId = null, embedded = false, group, statusFor }) {
   const { state, commit } = useStore();
-  const { sort, toggleSort } = useQueueSort({ key: null, direction: 'asc' });
+  const { sort, toggleSort } = useQueueSort({ key: 'requirement', direction: 'asc' });
   const editingBundle = !!editBundleId;
   const [initialSelection] = useState(() => {
     const saved = state.settings?.assessmentScheduleRules?.find(item => item.id === editBundleId);
@@ -116,8 +116,12 @@ export default function NewAssessmentBundle({ person, episode, onClose, onCreate
               ...extras.filter(item => !group?.records.some(record => record.version === item.version)).map(item => ({...item,requirement:'Additional'})),
             ].sort((a,b) => {
               if (!['status', 'requirement'].includes(sort.key)) return 0;
-              const value = item => sort.key === 'status' ? rowStatus(item) : item.requirement || 'Optional';
-              return (sort.direction === 'asc' ? 1 : -1) * value(a).localeCompare(value(b));
+              const direction = sort.direction === 'asc' ? 1 : -1;
+              if (sort.key === 'requirement') {
+                const rank = item => item.requirement === 'Mandatory' ? 0 : item.requirement === 'Additional' ? 2 : 1;
+                return direction * (rank(a) - rank(b));
+              }
+              return direction * rowStatus(a).localeCompare(rowStatus(b));
             }).map((item,index) => {
               const instrument = INSTRUMENTS.find(instrument => instrument.version === item.version);
               const mandatory = item.requirement === 'Mandatory';
