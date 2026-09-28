@@ -14458,12 +14458,22 @@ h6 {
     align-items: stretch;
   }
 
-  .alerts-side-list {
-    grid-template-columns: minmax(0, 1fr);
+  .alerts-container-panel {
+    align-self: start;
+    height: auto;
   }
 
-  .alerts-side-list .alert-card-footer {
-    margin-top: auto;
+  .alerts-container-panel > [role="tabpanel"] {
+    flex: initial;
+  }
+
+  .alerts-side-list {
+    grid-template-columns: minmax(0, 1fr);
+    flex: initial;
+  }
+
+  .alerts-container-panel .table-footer {
+    margin-top: var(--space-3);
   }
 }
 
@@ -16449,6 +16459,11 @@ h6 {
 .queue-list-panel .table-footer {
   padding-right: var(--space-4);
   padding-left: var(--space-4);
+}
+@container worklist-panel (max-width: 860px) {
+  .worklist-main-panel .table-footer {
+    margin-top: var(--space-3);
+  }
 }
 .admin-panel .admin-row {
   padding: var(--space-5) 0;
