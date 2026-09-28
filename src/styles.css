@@ -14433,7 +14433,7 @@ h6 {
   min-width: 0;
 }
 
-/* Give the five-column worklist its reading width on laptop screens. */
+/* Keep the alert queue beside the worklist at desktop laptop widths. */
 @media (min-width: 1025px) and (max-width: 1550px) {
   .work-grid {
     grid-template-columns: minmax(0, 1fr);
@@ -14453,8 +14453,13 @@ h6 {
 }
 
 @media (min-width: 1200px) and (max-width: 1550px) {
+  .work-grid {
+    grid-template-columns: minmax(0, 2.1fr) minmax(300px, 0.95fr);
+    align-items: stretch;
+  }
+
   .alerts-side-list {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .alerts-side-list .alert-card-footer {
@@ -16442,8 +16447,8 @@ h6 {
   background: var(--surface-warm);
 }
 .queue-list-panel .table-footer {
-  padding-right: 0;
-  padding-left: 0;
+  padding-right: var(--space-4);
+  padding-left: var(--space-4);
 }
 .admin-panel .admin-row {
   padding: var(--space-5) 0;
