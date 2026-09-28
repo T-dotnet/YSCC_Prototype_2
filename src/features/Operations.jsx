@@ -45,6 +45,7 @@ import {
   Empty,
   Select,
   Tabs,
+  Switch,
 } from "../components/UI";
 
 const EMPTY_FILTERS = {
@@ -377,12 +378,9 @@ export function Administration({ openModal, navigate }) {
             <h3>General report</h3>
             <p>Show or hide the General report link in the sidebar. The page is a work in progress.</p>
           </div>
-          <label className="admin-setting-toggle">
-            <input type="checkbox" role="switch" aria-label="Show General report in sidebar"
-              checked={state.settings?.showGeneralReport !== false}
-              onChange={(event) => commit({ type: "SET_GENERAL_REPORT_VISIBILITY", enabled: event.target.checked })} />
-            <span>{state.settings?.showGeneralReport !== false ? "Shown" : "Hidden"}</span>
-          </label>
+          <Switch label="Show General report in sidebar" onLabel="Shown" offLabel="Hidden"
+            checked={state.settings?.showGeneralReport !== false}
+            onChange={(event) => commit({ type: "SET_GENERAL_REPORT_VISIBILITY", enabled: event.target.checked })} />
         </div>
         {[
           [

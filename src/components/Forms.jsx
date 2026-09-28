@@ -38,6 +38,7 @@ import {
   Select,
   Badge,
   StaffPicker,
+  Checkbox,
   ValidatedForm,
 } from "./UI";
 import CollectionDetails from "./CollectionDetails";
@@ -1560,12 +1561,7 @@ export default function Forms({
                 <p>Two new patient questionnaires will be assigned to this closed episode. If participation or contact settings are unsuitable, their links will wait for review.</p>
               )}
             </div>
-            <label className="check-field">
-              <input type="checkbox" required />
-              <span>
-                I have reviewed outstanding work and the next care step.
-              </span>
-            </label>
+            <Checkbox label="I have reviewed outstanding work and the next care step." required />
           </div>
           {footer(
             episodeAction === "Paused" ? "Pause care episode" : "Close care episode",

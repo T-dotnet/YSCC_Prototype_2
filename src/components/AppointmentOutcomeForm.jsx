@@ -1,6 +1,6 @@
 import { LABELS } from "../terminology.js";
 import { useState } from "react";
-import { ActionGroup, Field, Modal, Notice, Button, ValidatedForm } from "./UI";
+import { ActionGroup, Field, Modal, Notice, Button, ValidatedForm, Checkbox } from "./UI";
 import { APPOINTMENT_ATTENDANCE } from "../appointments";
 import { formatDate, TODAY } from "../model";
 import ContactFields from "./ContactFields";
@@ -76,11 +76,8 @@ export default function AppointmentOutcomeForm({
           </Field>
           <ContactFields appointment={appointment} attended={attendance === "Attended"} person={person} />
           {!simpleAssessments && initialAssessment && (
-            <label className="check-field">
-              <input type="checkbox" checked={linkedToInitialAssessment}
-                onChange={(event) => setLinkedToInitialAssessment(event.target.checked)} />
-              Associate this contact with the initial assessment
-            </label>
+            <Checkbox label="Associate this contact with the initial assessment" checked={linkedToInitialAssessment}
+              onChange={(event) => setLinkedToInitialAssessment(event.target.checked)} />
           )}
           {attendance === "Attended" && (
             <div className="appointment-actual-fields">

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { addCalendarMonths, addDays, EPISODE_REVIEW_TYPES, episodeReviewActionError, episodeReviewSchedule, nextRollingOutcomeDate, reviewTiming } from "../episodeReviews";
 import { formatDate, TODAY } from "../model";
-import { ActionGroup, EditAction, Button, Field, Modal, Panel, ValidatedForm } from "./UI";
+import { ActionGroup, EditAction, Button, Field, Modal, Panel, ValidatedForm, Checkbox } from "./UI";
 
 export default function EpisodeReviews({ episode, personId, commit, canEdit }) {
   const schedule = episodeReviewSchedule(episode, TODAY);
@@ -89,10 +89,7 @@ export default function EpisodeReviews({ episode, personId, commit, canEdit }) {
               <Field label="Next experience check">
                 <input type="date" name="experienceDue" min={episode.start} defaultValue={schedule.experience.due || ""} required />
               </Field>
-              <label className="check-field">
-                <input type="checkbox" name="confirmed" defaultChecked={schedule.confirmed} />
-                Service cadence confirmed for this care journey
-              </label>
+              <Checkbox label="Service cadence confirmed for this care journey" name="confirmed" defaultChecked={schedule.confirmed} />
               <Field label="Reason for schedule change">
                 <textarea name="reason" rows={3} required />
               </Field>

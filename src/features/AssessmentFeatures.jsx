@@ -9,7 +9,7 @@ import {
   assessmentModalityEnabled,
   assessmentBundleGroupingEnabled,
 } from "../assessmentFeatures";
-import { PageHeading, Panel, Notice } from "../components/UI";
+import { PageHeading, Panel, Notice, Switch } from "../components/UI";
 
 export default function AssessmentFeatures() {
   const { state, commit } = useStore();
@@ -36,22 +36,15 @@ export default function AssessmentFeatures() {
             <h3>Simple assessments</h3>
             <p>Use the compact assessment ledger and response view.</p>
           </div>
-          <label className="admin-setting-toggle">
-            <input type="checkbox" role="switch" aria-label="Simple assessments"
-              checked={!!settings.simpleAssessments}
-              onChange={(event) => commit({ type: "SET_SIMPLE_ASSESSMENTS", enabled: event.target.checked })} />
-            <span>{settings.simpleAssessments ? "On" : "Off"}</span>
-          </label>
+          <Switch label="Simple assessments" checked={!!settings.simpleAssessments}
+            onChange={(event) => commit({ type: "SET_SIMPLE_ASSESSMENTS", enabled: event.target.checked })} />
         </div>
         {features.map(([feature, title, description, enabled]) => (
           <div className="admin-row" key={feature}>
             <span className="admin-icon"><SlidersHorizontal size={24} /></span>
             <div><h3>{title}</h3><p>{description}</p></div>
-            <label className="admin-setting-toggle">
-              <input type="checkbox" role="switch" aria-label={title} checked={enabled}
-                onChange={(event) => commit({ type: "SET_ASSESSMENT_FEATURE", feature, enabled: event.target.checked })} />
-              <span>{enabled ? "On" : "Off"}</span>
-            </label>
+            <Switch label={title} checked={enabled}
+              onChange={(event) => commit({ type: "SET_ASSESSMENT_FEATURE", feature, enabled: event.target.checked })} />
           </div>
         ))}
       </Panel>

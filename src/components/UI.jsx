@@ -252,6 +252,12 @@ export function Checkbox({ label, className = "", ...props }) {
     <span>{label}</span>
   </label>;
 }
+export function Switch({ label, onLabel = "On", offLabel = "Off", className = "", checked, ...props }) {
+  return <label className={`admin-setting-toggle ${className}`.trim()}>
+    <input {...props} type="checkbox" role="switch" aria-label={label} checked={checked} />
+    <span>{checked ? onLabel : offLabel}</span>
+  </label>;
+}
 export function Field({ label, hint, error, children }) {
   const hintId = useId();
   const errorId = useId();

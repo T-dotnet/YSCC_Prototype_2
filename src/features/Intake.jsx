@@ -33,6 +33,7 @@ import {
   RecordTabs,
   Empty,
   StaffPicker,
+  Checkbox,
   ValidatedForm,
 } from "../components/UI";
 import Referrals from "./Referrals";
@@ -95,14 +96,7 @@ export function RegisterPerson({ onClose, navigate, notify }) {
               placeholder="e.g. Alex Morgan"
             />
           </Field>
-          <label className="check-field">
-            <input
-              type="checkbox"
-              checked={unknown}
-              onChange={(e) => setUnknown(e.target.checked)}
-            />
-            Name not yet known
-          </label>
+          <Checkbox label="Name not yet known" checked={unknown} onChange={(e) => setUnknown(e.target.checked)} />
           {duplicate && (
             <Notice tone="amber">
               A matching name exists.{" "}
@@ -672,17 +666,11 @@ export function IntakePanel({ person, intake, navigate, mobileReferrals }) {
           <Panel title="Consent for assessment participation">
             <div className="panel-body stack intake-detail-body">
               <div className={`intake-check-control ${validationErrors.consentRecorded ? "has-error" : ""}`}>
-                <label className="check-field">
-                  <input
-                    id="intake-consentRecorded"
-                    type="checkbox"
-                    checked={draft.consentRecorded === true}
-                    aria-invalid={Boolean(validationErrors.consentRecorded) || undefined}
-                    aria-describedby={validationErrors.consentRecorded ? "intake-consentRecorded-error" : undefined}
-                    onChange={(event) => change("consentRecorded", event.target.checked)}
-                  />
-                  Consent for assessment participation has been recorded
-                </label>
+                <Checkbox label="Consent for assessment participation has been recorded" id="intake-consentRecorded"
+                  checked={draft.consentRecorded === true}
+                  aria-invalid={Boolean(validationErrors.consentRecorded) || undefined}
+                  aria-describedby={validationErrors.consentRecorded ? "intake-consentRecorded-error" : undefined}
+                  onChange={(event) => change("consentRecorded", event.target.checked)} />
                 {validationErrors.consentRecorded && <small id="intake-consentRecorded-error" className="intake-check-error">{validationErrors.consentRecorded}</small>}
               </div>
               <Field
@@ -736,17 +724,10 @@ export function IntakePanel({ person, intake, navigate, mobileReferrals }) {
               </p>
               {INTAKE_CHECKS.map(([key, label]) => (
                 <div className={`intake-check-control ${validationErrors[key] ? "has-error" : ""}`} key={key}>
-                  <label className="check-field">
-                    <input
-                      id={`intake-${key}`}
-                      type="checkbox"
-                      checked={draft[key] === true}
-                      aria-invalid={Boolean(validationErrors[key]) || undefined}
-                      aria-describedby={validationErrors[key] ? `intake-${key}-error` : undefined}
-                      onChange={(e) => change(key, e.target.checked)}
-                    />
-                    {label}
-                  </label>
+                  <Checkbox label={label} id={`intake-${key}`} checked={draft[key] === true}
+                    aria-invalid={Boolean(validationErrors[key]) || undefined}
+                    aria-describedby={validationErrors[key] ? `intake-${key}-error` : undefined}
+                    onChange={(e) => change(key, e.target.checked)} />
                   {validationErrors[key] && <small id={`intake-${key}-error`} className="intake-check-error">{validationErrors[key]}</small>}
                 </div>
               ))}

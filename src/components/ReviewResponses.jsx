@@ -21,7 +21,7 @@ import {
   displayCollectionActor,
   TODAY,
 } from "../model";
-import { ActionGroup, EditAction, Modal, Button, Badge, Field, Notice, ValidatedForm } from "./UI";
+import { ActionGroup, EditAction, Modal, Button, Badge, Field, Notice, ValidatedForm, Checkbox } from "./UI";
 import SubmittedAnswers from "./SubmittedAnswers";
 import ResponseHistory from "./ResponseHistory";
 import DiscardChanges from "./DiscardChanges";
@@ -540,15 +540,8 @@ export default function ReviewResponses({
               </div>
             )}
 
-            <label className="check-field">
-              <input
-                type="checkbox"
-                required
-                checked={confirmed}
-                onChange={(event) => setConfirmed(event.target.checked)}
-              />
-              <span>I have reviewed these answers and their source.</span>
-            </label>
+            <Checkbox label="I have reviewed these answers and their source." required checked={confirmed}
+              onChange={(event) => setConfirmed(event.target.checked)} />
             <p className="response-footnote">
               {draftError
                 ? "Draft storage is unavailable. Keep this dialog open until you save your review."

@@ -1,7 +1,7 @@
 import { LABELS } from "../terminology.js";
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Search } from "lucide-react";
-import { ActionGroup, Field, Modal, Notice, Button, ValidatedForm } from "./UI";
+import { ActionGroup, Field, Modal, Notice, Button, ValidatedForm, Checkbox } from "./UI";
 import {
   APPOINTMENT_ATTENDANCE,
   APPOINTMENT_DELIVERY_MODES,
@@ -192,22 +192,14 @@ export default function AppointmentForm({
                     const relatedCount = contactsForAssessment(episode, collection.id).length;
                     const selected = collectionIds.includes(collection.id);
                     return (
-                      <label className="appointment-assessment-option" key={collection.id}>
-                        <input
-                          type="checkbox"
-                          checked={selected}
-                          disabled={availability === "Unavailable"}
-                          onChange={(event) => {
+                      <Checkbox className="appointment-assessment-option" key={collection.id}
+                        label={<><strong>{collection.label}</strong><small>{scheduleAssessments && collection.due ? `Due ${formatDate(collection.due)} · ` : ""}{availability}{relatedCount ? ` · ${relatedCount} related ${relatedCount === 1 ? "contact" : "contacts"}` : ""}</small></>}
+                        checked={selected} disabled={availability === "Unavailable"}
+                        onChange={(event) => {
                             setCollectionIds((current) => event.target.checked
                               ? [...current, collection.id]
                               : current.filter((id) => id !== collection.id));
-                          }}
-                        />
-                        <span>
-                          <strong>{collection.label}</strong>
-                          <small>{scheduleAssessments && collection.due ? `Due ${formatDate(collection.due)} · ` : ""}{availability}{relatedCount ? ` · ${relatedCount} related ${relatedCount === 1 ? "contact" : "contacts"}` : ""}</small>
-                        </span>
-                      </label>
+                        }} />
                     );
                   }) : <p>{searchTerm ? "No matching assessments." : "No assessments are in this care episode."}</p>}
                 </div>
@@ -215,17 +207,12 @@ export default function AppointmentForm({
                   <h3>New assessment</h3>
                   <p>Selected assessments will be created and linked when you save this contact.</p>
                   {visibleInstruments.map((instrument) => (
-                    <label className="appointment-assessment-option" key={instrument.version}>
-                      <input
-                        type="checkbox"
-                        checked={newAssessmentVersions.includes(instrument.version)}
-                        disabled={!canCreateAssessment}
-                        onChange={(event) => setNewAssessmentVersions((current) => event.target.checked
+                    <Checkbox className="appointment-assessment-option" key={instrument.version}
+                      label={<><strong>{instrument.name}</strong><small>{instrument.version}</small></>}
+                      checked={newAssessmentVersions.includes(instrument.version)} disabled={!canCreateAssessment}
+                      onChange={(event) => setNewAssessmentVersions((current) => event.target.checked
                           ? [...current, instrument.version]
-                          : current.filter((version) => version !== instrument.version))}
-                      />
-                      <span><strong>{instrument.name}</strong><small>{instrument.version}</small></span>
-                    </label>
+                          : current.filter((version) => version !== instrument.version))} />
                   ))}
                   {visibleInstruments.length === 0 && <p>No matching new assessments.</p>}
                   {!canCreateAssessment && <p>Complete intake before planning a new assessment.</p>}

@@ -19354,6 +19354,23 @@ thead th,
   gap: var(--action-control-gap);
 }
 .action-group.bundle-summary-actions .admin-setting-toggle { margin-right: 0; }
+.outcome-comparison-options .checkbox-control {
+  align-items: center;
+  gap: var(--space-2);
+}
+.outcome-comparison-options .checkbox-control > input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+.checkbox-control.appointment-assessment-option {
+  align-items: flex-start;
+  gap: var(--space-3);
+  line-height: normal;
+}
+.checkbox-control.appointment-assessment-option > input {
+  margin-top: var(--space-1);
+}
 
 /* Dividers separate whole controls, never an icon from its own label. */
 .action-group > :is(button, a, label) {

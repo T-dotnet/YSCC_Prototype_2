@@ -7,7 +7,7 @@ import { INSTRUMENTS } from '../instruments';
 import { PROGRAM_STREAMS, CARE_LEVELS } from '../carePeriods';
 import { bundleError, asBundle, bundleName, BUNDLE_EVENT_TYPES, bundleAgeLabel, bundleTiming } from '../assessmentBundles';
 import { assessmentSmsEnabled } from '../assessmentFeatures';
-import { ActionGroup, EditAction, DeleteAction, Panel, Button, Badge, Modal, Field, Select, Checkbox } from './UI';
+import { ActionGroup, EditAction, DeleteAction, Panel, Button, Badge, Modal, Field, Select, Checkbox, Switch } from './UI';
 import { QueueRow, QueueCell } from './QueueRow';
 import BundleAssessmentRow from './BundleAssessmentRow';
 
@@ -42,11 +42,8 @@ export default function AssessmentScheduleSettings() {
     <Panel title="Automatic assessment due dates" className="admin-panel assessment-schedule-settings">
       <div className="admin-row">
         <div><h3>Enable assessment bundles</h3><p>Prepare mandatory assessments automatically. Staff choose which optional assessments to include in each person’s Assessment tab.</p></div>
-        <label className="admin-setting-toggle">
-          <input type="checkbox" role="switch" aria-label="Automatic assessment due dates" checked={!!state.settings?.automaticAssessmentDueDates}
-            onChange={event=>commit({type:'SET_AUTOMATIC_ASSESSMENT_DUE_DATES', enabled:event.target.checked})}/>
-          <span>{state.settings?.automaticAssessmentDueDates ? 'On' : 'Off'}</span>
-        </label>
+        <Switch label="Automatic assessment due dates" checked={!!state.settings?.automaticAssessmentDueDates}
+          onChange={event=>commit({type:'SET_AUTOMATIC_ASSESSMENT_DUE_DATES', enabled:event.target.checked})}/>
       </div>
       <p>Program stream and care level bundles run at intake, at discharge, or after a set number of days from the care period’s effective date. Time-based bundles can repeat. Event bundles run once for each matching event recorded after the bundle is enabled.</p>
       <p>Assignments are prepared in this browser. Live SMS and tablet delivery are not connected. SMS assessments wait while Assessment SMS flow is off. Existing assessments and answers are retained.</p>
@@ -66,15 +63,12 @@ export default function AssessmentScheduleSettings() {
         return <Panel key={bundle.id} className="assessment-bundle-summary"
           title={<span className="bundle-summary-title">{bundle.name}<Badge tone={bundle.enabled ? 'green':'neutral'}>{bundle.enabled ? 'Enabled':'Disabled'}</Badge></span>}
           action={<ActionGroup className="button-row bundle-summary-actions">
-            <label className="admin-setting-toggle">
-              <input type="checkbox" role="switch" aria-label={`Enable ${bundle.name}`} checked={bundle.enabled}
-                onChange={event=> {
+            <Switch label={`Enable ${bundle.name}`} checked={bundle.enabled}
+              onChange={event=> {
                   const result=commit({type:'SAVE_ASSESSMENT_SCHEDULE_RULE',rule:{...saved,enabled:event.target.checked}});
                   setMessage(result.error || `${bundle.name} ${event.target.checked ? 'enabled':'disabled'}.`);
                   if (!result.error && draft?.id===bundle.id) setDraft(current=>({...current,enabled:event.target.checked}));
                 }}/>
-              <span>{bundle.enabled ? 'On':'Off'}</span>
-            </label>
             <EditAction onClick={()=>{setDraft(structuredClone(bundle));setAssessmentVersion('');setError('');setMessage('');}} aria-label={`Edit ${bundleName(saved)}`}>Edit</EditAction>
             <DeleteAction onClick={()=>{const result=commit({type:'DELETE_ASSESSMENT_SCHEDULE_RULE',id:bundle.id});if(result.error){setMessage(result.error);return;}setMessage('Bundle removed. Existing assessments retained.');if(draft?.id===bundle.id)setDraft(null);}} aria-label={`Delete ${bundleName(saved)}`}>Delete</DeleteAction>
           </ActionGroup>}>

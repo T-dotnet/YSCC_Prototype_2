@@ -10,7 +10,7 @@ import {
   questionnaireProgress,
   responseDate,
 } from "../progress";
-import { Badge, Notice, Select, TextLink } from "../components/UI";
+import { Badge, Notice, Select, TextLink, Checkbox } from "../components/UI";
 import { answerSession } from "../responseSessions";
 import { useStore } from "../store";
 import { assessmentSmsEnabled } from "../assessmentFeatures";
@@ -274,16 +274,8 @@ export default function QuestionnaireEvidence({
                         ))}
                       </select>
                     </label>
-                    <label className="check-field">
-                      <input
-                        type="checkbox"
-                        checked={changesOnly}
-                        onChange={(event) =>
-                          setChangesOnly(event.target.checked)
-                        }
-                      />
-                      Changed answers only
-                    </label>
+                    <Checkbox label="Changed answers only" checked={changesOnly}
+                      onChange={(event) => setChangesOnly(event.target.checked)} />
                   </div>
                   <p className="muted">
                     Showing {comparisonRows.length} of {comparison.rows.length}{" "}

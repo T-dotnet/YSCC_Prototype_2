@@ -11,7 +11,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { CareTimeline, hasCareTimelineEntries } from "./LongitudinalReport";
-import { ActionGroup, Button, Modal, Panel } from "../components/UI";
+import { ActionGroup, Button, Modal, Panel, Checkbox } from "../components/UI";
 import StandardTable from "../components/StandardTable";
 import ReportingIndicator from "../components/ReportingIndicator";
 import { GOVERNED_MEASURES } from "../measureGovernance";
@@ -681,15 +681,9 @@ function OutcomeComparison({ measures }) {
             {measures.map((measure) => {
               const checked = selectedKeys.includes(measure.key);
               return (
-                <label key={measure.key}>
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    disabled={!checked && selectedKeys.length >= 3}
-                    onChange={(event) => updateSelection(measure.key, event.target.checked)}
-                  />
-                  <span>{measure.displayName}</span>
-                </label>
+                <Checkbox key={measure.key} label={measure.displayName} checked={checked}
+                  disabled={!checked && selectedKeys.length >= 3}
+                  onChange={(event) => updateSelection(measure.key, event.target.checked)} />
               );
             })}
           </div>

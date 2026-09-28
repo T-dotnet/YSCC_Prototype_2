@@ -5,7 +5,7 @@ import {
   questionTitle,
   setQuestionAnswer,
 } from "../instruments";
-import { Button, Notice } from "./UI";
+import { Button, Notice, Checkbox } from "./UI";
 
 export default function QuestionnaireFlow({
   instrument,
@@ -179,14 +179,8 @@ export default function QuestionnaireFlow({
                 placeholder="Search questions or answers"
               />
             </label>
-            <label className="check-field">
-              <input
-                type="checkbox"
-                checked={missingOnly}
-                onChange={(event) => setMissingOnly(event.target.checked)}
-              />{" "}
-              Unanswered only
-            </label>
+            <Checkbox label="Unanswered only" checked={missingOnly}
+              onChange={(event) => setMissingOnly(event.target.checked)} />
           </div>
           {path.sections.map((s) => {
             const items = s.items.filter(
