@@ -172,13 +172,13 @@ export default function NewAssessmentBundle({ person, episode, onClose, onCreate
 
           </section>}
         </>}
-        {(error || selectionError) && <div role="alert"><Notice tone="amber">{error || selectionError}</Notice></div>}
-      </div>
-      <ActionGroup className="modal-footer">
         {bundle && <div className="new-bundle-creation-summary" role="status">
           <strong>{count} assessment{count === 1 ? '' : 's'} selected</strong>
           <small>{editingBundle ? 'Mandatory assessments stay included' : scheduling ? 'Ready on the chosen due date' : 'Ready to collect after creation'}</small>
         </div>}
+        {(error || selectionError) && <div role="alert"><Notice tone="amber">{error || selectionError}</Notice></div>}
+      </div>
+      <ActionGroup className="modal-footer">
         <Button type="button" onClick={onClose}>Cancel</Button>
         <Button type="submit" variant="primary" disabled={!bundle || !!selectionError}>{editingBundle ? 'Save changes' : 'Create bundle'}</Button>
       </ActionGroup>

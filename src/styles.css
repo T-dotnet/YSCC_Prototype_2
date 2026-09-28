@@ -18420,7 +18420,8 @@ thead th,
 .new-bundle-extra-picker > .field { flex: 1; min-width: 0; margin: 0; }
 .new-bundle-extra-record { margin-top: var(--space-5); padding-top: var(--space-2); border-top: 1px solid var(--line); border-bottom: 0; }
 .new-bundle-extra-record:last-child { border-bottom: 1px solid var(--line); }
-.new-bundle-creation-summary { margin-right: auto; min-width: 0; }
+.new-bundle-creation-summary { min-width: 0; }
+.bundle-edit-table + .new-bundle-creation-summary { padding-inline: var(--space-3); }
 .new-bundle-creation-summary > strong, .new-bundle-creation-summary > small { display: block; }
 .new-bundle-creation-summary > strong { font-size: var(--type-supporting); }
 .new-bundle-creation-summary > small { margin-top: var(--space-1); color: var(--muted); font-size: var(--type-compact); }
@@ -18430,7 +18431,6 @@ thead th,
   .assessment-bundle-group-actions > .assessment-simple-group-count { flex-wrap: wrap; justify-content: flex-start; }
   .new-bundle-extra-picker { flex-direction: column; align-items: stretch; }
   .new-bundle-record .button.text-link { min-height: 40px; }
-  .new-bundle-creation-summary { flex-basis: 100%; margin-bottom: var(--space-2); }
 }
 .assessment-simple-group-due,
 .assessment-record-due {
