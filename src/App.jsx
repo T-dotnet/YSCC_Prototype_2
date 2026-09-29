@@ -143,8 +143,8 @@ export default function App() {
       <GlobalChangeLog {...shared} />
     ) : path === "/administration" ? (
       <Administration {...shared} />
-    ) : path === "/assessment-features" ? (
-      <AssessmentFeatures />
+    ) : (path === "/assessment-features" || path === "/settings") ? (
+      <AssessmentFeatures {...shared} />
     ) : path === "/help" ? (
       <Help {...shared} />
     ) : (

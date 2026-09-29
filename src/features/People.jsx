@@ -2,10 +2,10 @@ import { useMemo } from "react";
 import useQueueView from "../useQueueView";
 import { Plus, ChevronRight, CircleAlert, CheckCircle2 } from "lucide-react";
 import { useStore } from "../store";
-import { assessmentSchedulingEnabled } from "../assessmentFeatures";
+import { assessmentSchedulingEnabled, assessmentBundleGroupingEnabled } from "../assessmentFeatures";
 import { formatDate, TODAY } from "../model";
 import { getQualityIssues, recordCompleteness } from "../dataQuality";
-import { comparePeople, peopleForList } from "../people";
+import { comparePeople, peopleForList, peopleBundleSummary } from "../people";
 import { sortQueueRows } from "../queueSort";
 import { patientIdentifier, patientSecondaryDetail } from "../patientIdentity";
 import { ActiveFilters, SortableHeader, useQueueSort } from "../components/QueueControls";
@@ -27,6 +27,8 @@ const PAGE_SIZE = 6;
 export default function People({ navigate, openModal }) {
   const { state } = useStore();
   const scheduleAssessments = assessmentSchedulingEnabled(state.settings);
+  const groupedBundles = assessmentBundleGroupingEnabled(state.settings);
+  const summaryLabel = groupedBundles ? 'Next / latest bundle' : 'Next / latest assessment';
   const view = useQueueView();
   const query = view.params.get("q") || "";
   const { sort: sortConfig, toggleSort } = useQueueSort({ key: "priority", direction: "asc" });
@@ -71,6 +73,8 @@ export default function People({ navigate, openModal }) {
       };
     });
 
+    if (groupedBundles) result = result.map(row => peopleBundleSummary(row,state.settings));
+
     return sortQueueRows(result, sortConfig, {
       priority: () => 0,
       name: (row) => row.person.name,
@@ -79,7 +83,7 @@ export default function People({ navigate, openModal }) {
       owner: (row) => row.episode?.owner || row.person.owner || "Unassigned",
       episodeStatus: (row) => row.episode?.status || "Intake",
     }, sortConfig.key === "priority" ? comparePeople : undefined);
-  }, [state.people, scheduleAssessments, status, query, sortConfig]);
+  }, [state.people, state.settings, groupedBundles, scheduleAssessments, status, query, sortConfig]);
 
   const statusOptions = [...new Set(rows.map((row) => row.status))];
   if (
@@ -183,7 +187,7 @@ export default function People({ navigate, openModal }) {
             <thead>
               <tr>
                 <SortableHeader label="Person" sortKey="name" sort={sortConfig} onSort={toggleSort} />
-                <th>Next / latest assessment</th>
+                <th>{summaryLabel}</th>
                 <SortableHeader label="Status" sortKey="status" sort={sortConfig} onSort={toggleSort} />
                 <SortableHeader label="Required data" sortKey="completeness" sort={sortConfig} onSort={toggleSort} />
                 <SortableHeader label="Care owner" sortKey="owner" sort={sortConfig} onSort={toggleSort} className="people-owner" />
@@ -223,9 +227,9 @@ export default function People({ navigate, openModal }) {
                         </span>
                       </div>
                     </QueueCell>
-                    <QueueCell label="Next / latest assessment" slot="summary" className="people-assessment">
+                    <QueueCell label={summaryLabel} slot="summary" className="people-assessment">
                       <span>
-                        {row.stage ? `Intake - ${row.stage}` : row.label}
+                        {!groupedBundles && row.stage ? `Intake - ${row.stage}` : row.label}
                       </span>
                       <small
                         className={
@@ -327,7 +331,7 @@ export default function People({ navigate, openModal }) {
           <span>
             Showing {showingFrom}–{showingTo} of {people.length} people
           </span>
-          <span>Highest-priority assessment shown first</span>
+          <span>{groupedBundles ? 'Next / latest bundle shown first' : 'Highest-priority assessment shown first'}</span>
           <Pagination
             label="People"
             page={page}

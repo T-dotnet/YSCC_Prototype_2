@@ -156,3 +156,15 @@ test("intake rows expose registration, triage and assessment stages", () => {
   });
   assert.equal(personStatus(person).stage, "Assessment");
 });
+
+test('People bundle summary uses the instance name and aggregate questionnaire progress', async () => {
+ const {peopleBundleSummary} = await import('./people.js');
+ const collections = [{id:'one',bundleId:'template',bundleInstanceId:'instance',response:'Submitted'},
+   {id:'two',bundleId:'template',bundleInstanceId:'instance',response:'Draft',assignment:'Active'}];
+ const episode = {collections,assessmentBundleInstances:[{id:'instance',name:'My review',customName:true}]};
+ const row = {collection:collections[0],episode,label:'Instrument',status:'Completed'};
+ const summary = peopleBundleSummary(row,{scheduleAssessments:false});
+ assert.equal(summary.label,'My review');assert.equal(summary.status,'In progress');
+ assert.equal(summary.detail,'1 of 2 questionnaires completed');
+ assert.equal(peopleBundleSummary({...row,collection:{id:'individual'},episode:{collections:[{id:'individual'}]}},{}).label,'No bundle scheduled');
+});

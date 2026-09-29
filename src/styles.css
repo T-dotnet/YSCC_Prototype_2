@@ -19577,3 +19577,9 @@ thead th,
 @container (max-width: 860px) {
   .quality-table .quality-issue-cell { display: block; width: auto; max-width: none; height: auto; }
 }
+
+.overview-bundle-instruments { display: flex; flex-direction: column; gap: var(--space-2); }
+.overview-bundle-instruments > span { display: block; }
+
+.main:has(.person-heading) .overview-side-container .episode-bar > .episode-care-level { align-items: start; }
+.main:has(.person-heading) .overview-side-container .episode-care-level > small { display: flex; align-items: center; min-height: 44px; padding-top: 0; }

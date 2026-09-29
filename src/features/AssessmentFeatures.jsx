@@ -1,3 +1,6 @@
+import { useState } from 'react';
+import useQueueView from '../useQueueView';
+import AppearanceSampleSettings from '../components/AppearanceSampleSettings';
 import { COLLECTION_METHOD_SETTING_LABEL } from "../terminology.js";
 import { SlidersHorizontal } from "lucide-react";
 import { useStore } from "../store";
@@ -10,10 +13,13 @@ import {
   assessmentBundleGroupingEnabled,
   assessmentBundleAccordionsEnabled,
 } from "../assessmentFeatures";
-import { PageHeading, Panel, Notice, Switch } from "../components/UI";
+import { PageHeading, Panel, Switch, Tabs } from "../components/UI";
 
-export default function AssessmentFeatures() {
+export default function AssessmentFeatures({navigate,openModal}) {
   const { state, commit } = useStore();
+  const view=useQueueView();
+  const [tab,setTab]=useState(() => view.params.get('tab') === 'preferences' ? 'preferences' : 'assessments');
+  const tabs=[{value:'assessments',label:'Assessment features'},{value:'preferences',label:'Appearance & sample data'}];
   const settings = state.settings || {};
   const features = [
     ["groupAssessmentsByBundle", "Group assessments by bundle", "Show the bundle ledger in the Assessment tab, with program and care-level conditions or event triggers. Show New bundle to select optional assessments and add extra assessments for a person.", assessmentBundleGroupingEnabled(settings)],
@@ -27,10 +33,10 @@ export default function AssessmentFeatures() {
 
   return (
     <>
-      <PageHeading title="Assessment features" subtitle="Choose which assessment flows are available in this workspace." />
-      <Notice>
-        These switches apply to both simplified and full assessment views. When a feature is off, its controls and related history are hidden. Saved records reappear when it is turned on again.
-      </Notice>
+      <PageHeading title="Settings" subtitle="Manage assessment features, appearance, and sample data." />
+      <Tabs id="settings" label="Settings sections" items={tabs} value={tab} onChange={value=>{setTab(value);view.set('tab',value,'assessments');}} />
+      <div role="tabpanel" id="settings-panel" aria-labelledby={`settings-tab-${tab === 'preferences' ? 1 : 0}`}>
+      {tab === 'preferences' ? <AppearanceSampleSettings navigate={navigate} openModal={openModal} /> : <>
       <Panel title="Assessment settings" className="admin-panel">
         <div className="admin-row">
           <span className="admin-icon"><SlidersHorizontal size={24} /></span>
@@ -50,7 +56,8 @@ export default function AssessmentFeatures() {
           </div>
         ))}
       </Panel>
-
+      </>}
+      </div>
     </>
   );
 }

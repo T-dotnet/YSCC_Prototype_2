@@ -30,7 +30,7 @@ const links = [
   ["/quality", "Data quality", ChartNoAxesColumnIncreasing],
   ["/change-log", "Change log", History],
   ["/administration", "Administration", Settings],
-  ["/assessment-features", "Assessment features", SlidersHorizontal],
+  ["/assessment-features", "Settings", SlidersHorizontal],
 ];
 export default function Shell({
   path,

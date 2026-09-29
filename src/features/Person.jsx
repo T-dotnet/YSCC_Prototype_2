@@ -1,3 +1,4 @@
+import { peopleBundleSummary } from "../people";
 import { personWithVisibleContacts } from "../assessmentFeatures.js";
 import { COLLECTION_METHOD_OPTIONS, LABELS } from "../terminology.js";
 import StandardTable from "../components/StandardTable";
@@ -341,6 +342,15 @@ export default function Person({ id, navigate, openModal }) {
   });
   const groupedAssessments = assessmentTypeGroups(assessmentEpisode, visibleCollections);
   const allBundleGroups = groupAssessmentsByBundle ? assessmentBundleGroups(e,assessmentCollections,state.settings?.assessmentScheduleRules) : [];
+  const overviewBundleSummary = groupAssessmentsByBundle ? peopleBundleSummary({person:p,episode:e,collection:c},state.settings) : null;
+  const overviewBundle = overviewBundleSummary && allBundleGroups.find(group => group.key !== 'individual' && group.records.some(record => record.id === overviewBundleSummary.collection?.id));
+  const upcomingBundle = !!overviewBundle && scheduleAssessments && overviewBundleSummary.due > TODAY;
+  const overviewCardStep = overviewBundle ? {
+    badge:overviewBundleSummary.status,
+    title:overviewBundleSummary.status === 'Completed' ? 'Bundle completed' : upcomingBundle ? 'Upcoming bundle' : overviewBundleSummary.status === 'In progress' ? 'Continue bundle' : 'Start bundle',
+    description:overviewBundleSummary.detail,
+    primary:{label:'Open bundle',tab:'Assessment'},
+  } : overviewStep;
   const selectedBundleGroup = allBundleGroups.find(group => group.key === bundleDetailsKey);
   const deliveryForBundle = group => {
     const template = state.settings?.assessmentScheduleRules?.find(item => item.id === (group.bundleId || group.key));
@@ -658,15 +668,15 @@ export default function Person({ id, navigate, openModal }) {
               <header className="overview-assessment-heading">
                 <div className="overview-assessment-topline">
                   <p className="overview-assessment-label">
-                    {["Closed", "Completed"].includes(e.status)
+                    {overviewBundle ? (["Closed", "Completed"].includes(e.status) || overviewBundleSummary.status === 'Completed' ? 'Latest bundle / review' : upcomingBundle ? 'Upcoming bundle / review' : 'Current bundle / review') : ["Closed", "Completed"].includes(e.status)
                       ? (c.closureKind ? "Post-closure patient check-in" : "Latest assessment in this period")
                       : "Current assessment"}
                   </p>
                 </div>
                 <div className="overview-assessment-title">
-                  <h2>{c.label}</h2>
+                  <h2>{overviewBundle?.name || c.label}</h2>
                 </div>
-                {scheduleAssessments && !simpleAssessments && <p className="overview-assessment-context">
+                {!overviewBundle && scheduleAssessments && !simpleAssessments && <p className="overview-assessment-context">
                   {nextStep.overdueText ? (
                     <>{nextStep.dueDateText} · <span className="status-overdue-text">{nextStep.overdueText}</span></>
                   ) : nextStep.dueText}
@@ -676,37 +686,42 @@ export default function Person({ id, navigate, openModal }) {
                 <div className="overview-assessment-layout">
                   <section className="next-step" aria-label="Next step">
                     <p className="next-step-label">Next step</p>
-                    <h3>{overviewStep.title}</h3>
-                    <p>{overviewStep.description}</p>
+                    <h3>{overviewCardStep.title}</h3>
+                    <p>{overviewCardStep.description}</p>
                     <ActionGroup className="actions">
                       <Button
                         variant="primary"
                         aria-haspopup={
-                          overviewStep.primary.modal ? "dialog" : undefined
+                          overviewCardStep.primary.modal ? "dialog" : undefined
                         }
                         onClick={() =>
-                          overviewStep.primary.modal
-                            ? modal(overviewStep.primary.modal)
-                            : setTab(overviewStep.primary.tab)
+                          overviewCardStep.primary.modal
+                            ? modal(overviewCardStep.primary.modal)
+                            : setTab(overviewCardStep.primary.tab)
                         }
                       >
-                        {overviewStep.primary.label}
+                        {overviewCardStep.primary.label}
                       </Button>
-                    <div className="assessment-preview-action">
+                    {!overviewBundle && <div className="assessment-preview-action">
                       <TextLink
                         aria-haspopup="dialog"
                         onClick={() => modal("questionnaire-preview")}
                       >
                         Preview questionnaire
                       </TextLink>
-                    </div>
+                    </div>}
                     </ActionGroup>
                   </section>
                   <section
                     className="overview-assessment-details"
                     aria-label="Assessment details"
                   >
-                    <dl className="metadata">
+                    {overviewBundle ? <dl className="metadata">
+                      <div><dt>Status</dt><dd><Badge>{overviewBundleSummary.status}</Badge></dd></div>
+                      <div><dt>Completion</dt><dd>{overviewBundleSummary.detail.split(' · ')[0]}</dd></div>
+                      <div><dt>Instrument</dt><dd className="overview-bundle-instruments">{overviewBundle.records.map(record => <span key={record.id}>{getInstrument(record.version)?.name || record.label}</span>)}</dd></div>
+                      {scheduleAssessments && overviewBundleSummary.due && <div><dt>Due</dt><dd>{formatDate(overviewBundleSummary.due)}</dd></div>}
+                    </dl> : <dl className="metadata">
                       {!simpleAssessments && <div>
                         <dt>Assessment</dt>
                         <dd>
@@ -716,7 +731,7 @@ export default function Person({ id, navigate, openModal }) {
                       <div>
                         <dt>Response</dt>
                         <dd>
-                          <Badge>{simpleAssessments ? overviewStep.badge : c.response}</Badge>
+                          <Badge>{simpleAssessments ? overviewCardStep.badge : c.response}</Badge>
                         </dd>
                       </div>
                       {!simpleAssessments && <div>
@@ -729,8 +744,8 @@ export default function Person({ id, navigate, openModal }) {
                         <dt>Instrument</dt>
                         <dd>{c.version}</dd>
                       </div>
-                    </dl>
-                    {!simpleAssessments && c.response === "Submitted" && (!reviewed || noClinicalReviewRequired(c)) && (
+                    </dl>}
+                    {!overviewBundle && !simpleAssessments && c.response === "Submitted" && (!reviewed || noClinicalReviewRequired(c)) && (
                       <Notice>
                         {noClinicalReviewRequired(c)
                           ? "The response is complete; no separate clinical review is required."
