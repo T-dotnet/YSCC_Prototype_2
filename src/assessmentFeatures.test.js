@@ -37,6 +37,7 @@ test("assessment feature switches persist across simplified and full views", () 
     scheduleAssessments: true,
     showAssessmentDueDates: true,
     groupAssessmentsByBundle: false,
+    bundleAccordions: false,
     automaticAssessmentDueDates: false,
     assessmentScheduleRules: [],
     linkAssessmentAppointments: false,
@@ -61,6 +62,20 @@ test("turning a feature off hides its earlier history without deleting it", () =
   assert.deepEqual(entries.map((entry) => assessmentHistoryEntryVisible(entry, {
     scheduleAssessments: true, linkAssessmentAppointments: true, assessmentSms: true,
   })), [true, true, true]);
+});
+
+test("bundle accordions default off and preserve records when toggled or upgraded", () => {
+  const initial = createSeed();
+  assert.equal(initial.settings.bundleAccordions, false);
+  const legacy = structuredClone(initial);
+  delete legacy.settings.bundleAccordions;
+  const upgraded = upgradeSampleData(legacy);
+  assert.equal(upgraded.settings.bundleAccordions, false);
+  const enabled = feature(upgraded, "bundleAccordions", true);
+  assert.equal(upgradeSampleData(enabled).settings.bundleAccordions, true);
+  const disabled = feature(enabled, "bundleAccordions", false);
+  assert.equal(disabled.settings.bundleAccordions, false);
+  assert.deepEqual(disabled.people, upgraded.people);
 });
 
 test("scheduling off blocks new planned and future contacts but allows recording past contacts", () => {

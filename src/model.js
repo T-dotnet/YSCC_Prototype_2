@@ -45,6 +45,7 @@ import {
   assessmentContactLinkingEnabled,
   assessmentSmsEnabled,
   assessmentBundleGroupingEnabled,
+  assessmentBundleAccordionsEnabled,
 } from "./assessmentFeatures.js";
 import {
   clinicalRecordContent,
@@ -2768,17 +2769,19 @@ function upgradeIntakeFlow(state) {
 }
 
 export function upgradeSampleData(state) {
-  if (!state.settings || ["scheduleAssessments", "showAssessmentDueDates", "linkAssessmentAppointments", "assessmentSms", "groupAssessmentsByBundle"]
+  if (!state.settings || ["simpleAssessments", "scheduleAssessments", "showAssessmentDueDates", "linkAssessmentAppointments", "assessmentSms", "groupAssessmentsByBundle", "bundleAccordions"]
     .some((feature) => typeof state.settings[feature] !== "boolean")) {
     state = {
       ...state,
       settings: {
         ...state.settings,
+        simpleAssessments: typeof state.settings?.simpleAssessments === "boolean" ? state.settings.simpleAssessments : true,
         scheduleAssessments: assessmentSchedulingEnabled(state.settings),
         showAssessmentDueDates: assessmentDueDatesEnabled(state.settings),
         linkAssessmentAppointments: assessmentContactLinkingEnabled(state.settings),
         assessmentSms: assessmentSmsEnabled(state.settings),
         groupAssessmentsByBundle: assessmentBundleGroupingEnabled(state.settings),
+        bundleAccordions: assessmentBundleAccordionsEnabled(state.settings),
       },
     };
   }
@@ -3792,7 +3795,7 @@ function prepareIntakes(next) {
 export function createSeed() {
   return withSampleFixtures(prepareQualityState(prepareSeed({
     schema: 1,
-    settings: { simpleAssessments: true, scheduleAssessments: false, showAssessmentDueDates: true, groupAssessmentsByBundle: false, automaticAssessmentDueDates: false, assessmentScheduleRules: [], linkAssessmentAppointments: true, assessmentSms: false, uiColorSetup: 1 },
+    settings: { simpleAssessments: true, scheduleAssessments: false, showAssessmentDueDates: true, groupAssessmentsByBundle: false, bundleAccordions: false, automaticAssessmentDueDates: false, assessmentScheduleRules: [], linkAssessmentAppointments: true, assessmentSms: false, uiColorSetup: 1 },
     terminologyRevision: 1,
     people: [
       ...seeds.map((s, i) => ({
@@ -4130,7 +4133,7 @@ function reduceState(state, action) {
     return { ...state, settings: { ...state.settings, simpleAssessments: action.enabled } };
   }
   if (action.type === "SET_ASSESSMENT_FEATURE") {
-    if (!["scheduleAssessments", "showAssessmentDueDates", "linkAssessmentAppointments", "assessmentSms", "assessmentModality", "groupAssessmentsByBundle"].includes(action.feature) ||
+    if (!["scheduleAssessments", "showAssessmentDueDates", "linkAssessmentAppointments", "assessmentSms", "assessmentModality", "groupAssessmentsByBundle", "bundleAccordions"].includes(action.feature) ||
         typeof action.enabled !== "boolean" || state.settings?.[action.feature] === action.enabled) return state;
     const next = { ...state, settings: { ...state.settings, [action.feature]: action.enabled } };
     return action.feature === "groupAssessmentsByBundle"
@@ -5219,7 +5222,6 @@ function reduceState(state, action) {
       }
       const progress = mergeAnswerSources(instrument, c.draftAnswers, c.draftAnswerSources,
         action.answers, attempt.id);
-      if (!progress.answers.some(Boolean)) return state;
       c.draftAnswers = progress.answers;
       c.draftAnswerSources = progress.sources;
       c.response = "Draft";

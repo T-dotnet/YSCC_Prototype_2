@@ -31,6 +31,7 @@ export default function DraftContactForm({ episode, collection, error, onCancel,
 
   return (
     <ValidatedForm
+      className="draft-contact-form"
       onSubmit={(event) => {
         event.preventDefault();
         if (!confirmedMethod && collection.channel !== "SMS link") {

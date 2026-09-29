@@ -8,7 +8,7 @@ export default function CollectionMethodChoice({ method, onChange, headingLevel 
   const selectable = !method || ["Clinic tablet", "Clinician entry"].includes(method);
 
   return (
-    <section className="questionnaire-confirmation-panel" aria-labelledby="collection-method-heading">
+    <section className="questionnaire-confirmation-panel collection-method-choice" aria-labelledby="collection-method-heading">
       <Heading id="collection-method-heading">Confirm {LABELS.collectionMethod.toLowerCase()}</Heading>
       <p>{selectable ? "Select how these answers were completed." : `These answers were collected through ${collectionMethodLabel(method)}.`}</p>
       {selectable && <div className="collection-method-cards" role="radiogroup" aria-labelledby="collection-method-heading">

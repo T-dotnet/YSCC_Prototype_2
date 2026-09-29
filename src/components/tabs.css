@@ -1,0 +1,71 @@
+/* One visual and interaction contract for navigation and filter tabs.
+   Context classes in styles.css only position the tab strip within its page. */
+.tabs {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-4);
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  border-bottom: 1px solid var(--line);
+}
+.tabs > .tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  gap: var(--space-2);
+  min-height: 48px;
+  margin: 0;
+  padding: var(--space-3) var(--space-2);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: var(--type-control);
+  font-weight: var(--type-weight-regular);
+  line-height: var(--type-leading-ui);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.tabs > .tab:hover {
+  color: var(--ink);
+}
+.tabs > .tab.selected {
+  border-bottom-color: var(--ui-selection-mark, var(--orygen-coral));
+  color: var(--ui-selection-ink, var(--accent-text));
+  font-weight: var(--type-weight-semibold);
+}
+.tabs > .tab:disabled {
+  color: var(--muted);
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+.tabs > .tab:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -3px;
+}
+.tabs .tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 var(--space-1);
+  border-radius: 999px;
+  background: var(--surface-subtle);
+  color: var(--muted);
+  font-size: var(--type-metadata);
+  font-weight: var(--type-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.tabs > .tab.selected .tab-count {
+  background: var(--ui-selection-surface, var(--orygen-coral-soft));
+  color: var(--ui-selection-ink, var(--accent-text));
+}

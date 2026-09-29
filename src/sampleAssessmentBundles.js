@@ -1,4 +1,4 @@
-import { bundleContext } from './assessmentBundles.js';
+import { assessmentBundleGroups, bundleContext } from './assessmentBundles.js';
 
 const preferences = 'Your preferences and next steps v2.0';
 const life = 'Life and care check-in v1.0';
@@ -14,7 +14,7 @@ export const SAMPLE_ASSESSMENT_BUNDLES = [
     id: 'sample-bundle-start', name: 'Getting started with care', enabled: true,
     trigger: 'event', eventType: 'episode-started', delayDays: 1,
     assessments: [assessment('start-life', life), assessment('start-preferences', preferences),
-      assessment('start-k10', k10, 'Optional'), assessment('start-who5', who5, 'Optional')],
+      assessment('start-k10', k10, 'Optional')],
   },
   {
     id: 'sample-bundle-review', name: 'General care review', enabled: true,
@@ -26,7 +26,7 @@ export const SAMPLE_ASSESSMENT_BUNDLES = [
     id: 'sample-bundle-youth', name: 'Youth and family check-in', enabled: true,
     trigger: 'current', programStream: 'General', careLevel: 'All', days: 56, minAge: 12, maxAge: 17,
     assessments: [assessment('youth-preferences', preferences), assessment('youth-sdq', sdq, 'Optional'),
-      assessment('youth-family', preferences, 'Optional', 'Family respondent', 'Clinician entry')],
+      assessment('youth-who5', who5, 'Optional')],
   },
   {
     id: 'sample-bundle-support', name: 'Higher-support care review', enabled: true,
@@ -61,29 +61,89 @@ function sampleBundleId(person, collection) {
 }
 
 function sampleBundleAssociation(person, collection, rules) {
-  if (collection.bundleId || collection.scheduleRuleId) return null;
+  if (collection.bundleId || collection.scheduleRuleId || collection.sampleBundleHistory) return null;
   const bundle = rules.find(rule => rule.id === sampleBundleId(person, collection));
   const item = bundle?.assessments?.find(item => item.version === collection.version &&
     item.recipient === (collection.respondent || 'Person'));
   return item ? { bundle, item } : null;
 }
 
+const isSampleBundle = rule => rule.id?.startsWith('sample-bundle-') || rule.name?.startsWith('Sample · ');
+
+function normalizeSampleEpisode(episode, rules) {
+  const groups = new Map();
+  for (const record of episode.collections) {
+    const id = record.bundleId || record.scheduleRuleId;
+    if (!id) continue;
+    if (!groups.has(id)) groups.set(id, []);
+    groups.get(id).push(record);
+  }
+  let active = [...groups].filter(([id, records]) => !rules.some(rule => rule.id === id && isSampleBundle(rule)) &&
+    records.some(record => record.response !== 'Submitted')).length;
+  const orderedRules = [...rules].filter(isSampleBundle).sort((a, b) =>
+    Number(!a.id.startsWith('sample-bundle-')) - Number(!b.id.startsWith('sample-bundle-')));
+  for (const rule of orderedRules) {
+    const records = groups.get(rule.id) || [];
+    const versions = new Set(rule.assessments.map(item => item.version));
+    const chosen = new Map();
+    // Show one collection per instrument, favouring current work over historical repeats.
+    const rank = record => record.response === 'Draft' ? 0 : record.response === 'Submitted' ? 2 : 1;
+    for (const record of [...records].sort((a, b) => rank(a) - rank(b) ||
+      (b.createdAt || b.due || '').localeCompare(a.createdAt || a.due || ''))) {
+      if (versions.has(record.version) && !chosen.has(record.version)) chosen.set(record.version, record);
+    }
+    let selected = [...chosen.values()];
+    if (selected.some(record => record.response !== 'Submitted')) {
+      if (active >= 2) selected = selected.filter(record => record.response === 'Submitted');
+      else if (selected.length >= 2) active += 1;
+    }
+    if (selected.length < 2) selected = [];
+    const ids = new Set(selected.map(record => record.id));
+    for (const record of records) {
+      if (ids.has(record.id)) continue;
+      // Retain every answer, score, contact and delivery record as an individual assessment.
+      for (const key of Object.keys(record))
+        if (key.startsWith('bundle') || ['scheduleRuleId', 'scheduleAnchor'].includes(key)) delete record[key];
+      record.sampleBundleHistory = true;
+    }
+    for (const instance of episode.assessmentBundleInstances || []) {
+      if (instance.bundleId === rule.id) instance.collectionIds = instance.collectionIds.filter(id => ids.has(id));
+    }
+  }
+}
+
 export function ensureSampleAssessmentBundles(state, isSamplePerson) {
   if (!state.settings?.groupAssessmentsByBundle) return state;
-  const needsTemplates = state.sampleAssessmentBundlesRevision !== 2;
+  const needsTemplates = state.sampleAssessmentBundlesRevision !== 4;
   const existingRules = state.settings.assessmentScheduleRules || [];
   const needsAssociation = state.people.some(person => isSamplePerson(person) &&
     person.episodes.some(episode => episode.collections.some(collection =>
       sampleBundleAssociation(person, collection, existingRules))));
-  if (!needsTemplates && !needsAssociation) return state;
+  const needsNormalization = state.people.some(person => isSamplePerson(person) && person.episodes.some(episode => {
+    const groups = assessmentBundleGroups(episode, episode.collections, existingRules).filter(group =>
+      existingRules.some(rule => rule.id === group.key && isSampleBundle(rule)));
+    return groups.some(group => group.records.length < 2 || group.records.length > 3 ||
+      new Set(group.records.map(record => record.version)).size !== group.records.length) ||
+      groups.filter(group => group.records.some(record => record.response !== 'Submitted')).length > 2;
+  }));
+  if (!needsTemplates && !needsAssociation && !needsNormalization) return state;
   const next = structuredClone(state);
   const rules = next.settings.assessmentScheduleRules ??= [];
   const eventIds = next.people.flatMap(person => person.episodes.flatMap(episode =>
     (episode.events || []).map(event => event.id)));
   for (const template of needsTemplates ? SAMPLE_ASSESSMENT_BUNDLES : []) {
-    if (!rules.some(rule => rule.id === template.id || rule.name?.toLowerCase() === template.name.toLowerCase())) {
+    const existing = rules.find(rule => rule.id === template.id);
+    if (!existing && !rules.some(rule => rule.name?.toLowerCase() === template.name.toLowerCase())) {
       rules.push({ ...structuredClone(template), activationEventIds: template.trigger === 'event' ? eventIds : [] });
     }
+  }
+  if (needsTemplates) for (const rule of rules.filter(isSampleBundle)) {
+    const versions = new Set();
+    rule.assessments = rule.assessments.filter(item => {
+      if (versions.has(item.version) || versions.size === 3) return false;
+      versions.add(item.version);
+      return true;
+    });
   }
   for (const person of next.people) {
     if (!isSamplePerson(person)) continue;
@@ -101,8 +161,9 @@ export function ensureSampleAssessmentBundles(state, isSamplePerson) {
           scheduleAnchor: episode.start,
         });
       }
+      normalizeSampleEpisode(episode, rules);
     }
   }
-  next.sampleAssessmentBundlesRevision = 2;
+  next.sampleAssessmentBundlesRevision = 4;
   return next;
 }

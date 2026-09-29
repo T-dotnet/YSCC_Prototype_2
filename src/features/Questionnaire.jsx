@@ -96,7 +96,7 @@ export default function Questionnaire({ session, navigate, onEnd }) {
     setStep(0);
   };
   const saveProgress = (contactLink, completionMethod, assistance) => {
-    if (!session || unavailable || !dirty || !answers.some(Boolean)) return;
+    if (!session || unavailable) return;
     const result = commit({ ...session, type: "SAVE_RESPONSE_PROGRESS", answers, contactLink, completionMethod, assistance });
     if (result.error) return setSubmitError(result.error);
     setSavedDraftContact(simpleAssessments ? "simple" : contactLink.kind);
@@ -350,8 +350,8 @@ export default function Questionnaire({ session, navigate, onEnd }) {
             )}
             {!pendingAnswers && (
               <div className="participant-help">
-                {!preview && dirty && answers.some(Boolean) && (
-                  <button onClick={() => { setSubmitError(""); setSaveContactOpen(true); }}>Save as draft and leave</button>
+                {!preview && (
+                  <button onClick={() => { setSubmitError(""); if (!dirty && answers.some(Boolean)) { end(); returnToStaff(); } else if (answers.some(Boolean)) setSaveContactOpen(true); else saveProgress({ kind: "none" }); }}>Save as draft and leave</button>
                 )}
                 <button onClick={() => setHelp(true)}>
                   <LifeBuoy size={18} />

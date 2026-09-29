@@ -8,6 +8,7 @@ import {
   assessmentSmsEnabled,
   assessmentModalityEnabled,
   assessmentBundleGroupingEnabled,
+  assessmentBundleAccordionsEnabled,
 } from "../assessmentFeatures";
 import { PageHeading, Panel, Notice, Switch } from "../components/UI";
 
@@ -15,7 +16,8 @@ export default function AssessmentFeatures() {
   const { state, commit } = useStore();
   const settings = state.settings || {};
   const features = [
-    ["groupAssessmentsByBundle", "Group assessments by bundle", "Use bundle accordions in the Assessment tab, with program and care-level conditions or event triggers. Show New bundle to select optional assessments and add extra assessments for a person.", assessmentBundleGroupingEnabled(settings)],
+    ["groupAssessmentsByBundle", "Group assessments by bundle", "Show the bundle ledger in the Assessment tab, with program and care-level conditions or event triggers. Show New bundle to select optional assessments and add extra assessments for a person.", assessmentBundleGroupingEnabled(settings)],
+    ["bundleAccordions", "Bundle accordions", "Expand bundle details inside the assessment ledger. When off, bundle details open in a dialog. Applies when Group assessments by bundle is on.", assessmentBundleAccordionsEnabled(settings)],
     ["showAssessmentDueDates", "Assessment due dates", "Show due dates with Due today and Past due labels in the Assessment tab. Show one upcoming assessment per type; hide the next one while a response is in progress until its due date is today or earlier. This does not enable future appointment booking.", assessmentDueDatesEnabled(settings)],
     ["scheduleAssessments", "Schedule assessments", "Allow future assessment due dates and planned contacts. When off, assessments start immediately, planned contacts are hidden, and contacts can only be recorded.", assessmentSchedulingEnabled(settings)],
     ["linkAssessmentAppointments", "Link service contacts and assessments", "Choose related contacts during assessment and appointment work, and show their links in both records.", assessmentContactLinkingEnabled(settings)],

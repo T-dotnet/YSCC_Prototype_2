@@ -12,7 +12,7 @@ import { RecordFacts } from './RecordItem';
 import { ActionGroup, Badge, Button, EditAction, Modal, Tabs } from './UI';
 
 export default function AssessmentBundleDetails({ group, episode, delivery, statusFor, showDueDates,
-  canEdit, onEdit, onClose, scheduleAssessments = true, assessmentEditor }) {
+  canEdit, onEdit, onClose, scheduleAssessments = true, assessmentEditor, embedded = false }) {
   const { sort, toggleSort } = useQueueSort({ key: null, direction: 'asc' });
   const [activeTab, setActiveTab] = useState('assessments');
   const tabsId = useId();
@@ -22,14 +22,14 @@ export default function AssessmentBundleDetails({ group, episode, delivery, stat
   const individual = group.key === 'individual';
   const contacts = contactsForAssessments(episode, group.records).sort((a,b) =>
     (b.contact.actualDate || b.contact.plannedDate || '').localeCompare(a.contact.actualDate || a.contact.plannedDate || ''));
-  return <Modal title={group.name} subtitle={individual ? 'Assessment group details' : 'Bundle details'} wide onClose={onClose} className="new-assessment-bundle-modal assessment-bundle-details-modal">
+  const content = <>
     <div className="form-body new-assessment-bundle-body">
-      <section aria-label="Collection settings">
+      {!embedded && <section aria-label="Collection settings">
         <RecordFacts columns={2} facts={[
           { label: LABELS.respondent, value: delivery.recipient },
           ...(showDueDates ? [{ label: 'Due date', value: bundleDue ? formatDate(bundleDue) : 'Not set' }] : []),
         ]} />
-      </section>
+      </section>}
       <div className="assessment-bundle-details-tabs">
         <Tabs id={tabsId} label="Bundle details" items={[
           { value: 'assessments', label: 'Assessments' },
@@ -70,9 +70,11 @@ export default function AssessmentBundleDetails({ group, episode, delivery, stat
         </div>
       </div>
     </div>
-    {(!assessmentEditor || activeTab === 'contacts') && <ActionGroup className="modal-footer">
+    {!embedded && (!assessmentEditor || activeTab === 'contacts') && <ActionGroup className="modal-footer">
       {onEdit && !assessmentEditor && <EditAction disabled={!canEdit} onClick={onEdit}>Edit bundle</EditAction>}
       <Button onClick={onClose}>Close</Button>
     </ActionGroup>}
-  </Modal>;
+  </>;
+  if (embedded) return <div className="assessment-bundle-inline-details">{content}</div>;
+  return <Modal title={group.name} subtitle={individual ? 'Assessment group details' : 'Bundle details'} wide onClose={onClose} className="new-assessment-bundle-modal assessment-bundle-details-modal">{content}</Modal>;
 }

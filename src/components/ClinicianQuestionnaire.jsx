@@ -219,9 +219,9 @@ export default function ClinicianQuestionnaire({
                     clinicianEntry
                   />
                 )}
-                {!pendingAnswers && dirty && answers.some(Boolean) && (
+                {!pendingAnswers && (
                   <div className="questionnaire-save-progress">
-                    <Button type="button" onClick={() => { setError(""); setSaveContactOpen(true); }}>Save as draft</Button>
+                    <Button type="button" onClick={() => { setError(""); if (!dirty && answers.some(Boolean)) onClose(); else if (answers.some(Boolean)) setSaveContactOpen(true); else saveProgress({ kind: "none" }); }}>Save as draft</Button>
                   </div>
                 )}
               </div>

@@ -54,7 +54,7 @@ import { assessmentDueByType, assessmentDueLabel, assessmentsWithDueVisibility, 
 import { responseDate } from "../progress";
 import { daysAgoLabel } from "../relativeDate";
 import { contactsForAssessment } from "../assessmentContacts";
-import { assessmentSchedulingEnabled, assessmentDueDatesEnabled, assessmentContactLinkingEnabled, assessmentSmsEnabled, assessmentBundleGroupingEnabled } from "../assessmentFeatures";
+import { assessmentSchedulingEnabled, assessmentDueDatesEnabled, assessmentContactLinkingEnabled, assessmentSmsEnabled, assessmentBundleGroupingEnabled, assessmentBundleAccordionsEnabled } from "../assessmentFeatures";
 import { episodeReviewSchedule, reviewTiming } from "../episodeReviews";
 import { careJourneyForEpisode } from "../ysccModel";
 import {
@@ -114,6 +114,7 @@ export default function Person({ id, navigate, openModal }) {
   const { state, commit } = useStore();
   const simpleAssessments = !!state.settings?.simpleAssessments;
   const groupAssessmentsByBundle = assessmentBundleGroupingEnabled(state.settings);
+  const bundleAccordions = assessmentBundleAccordionsEnabled(state.settings);
   const scheduleAssessments = assessmentSchedulingEnabled(state.settings);
   const assessmentDueDates = assessmentDueDatesEnabled(state.settings);
   const showDueDates = assessmentDueDates || scheduleAssessments;
@@ -132,6 +133,9 @@ export default function Person({ id, navigate, openModal }) {
   const [newBundleOpen, setNewBundleOpen] = useState(false);
   const [editBundleId, setEditBundleId] = useState(null);
   const [bundleDetailsKey, setBundleDetailsKey] = useState(null);
+  const [expandedBundleRows, setExpandedBundleRows] = useState([]);
+  const toggleBundleRow = key => setExpandedBundleRows(keys => keys.includes(key) ? keys.filter(value => value !== key) : [...keys, key]);
+  const openBundleDetails = key => bundleAccordions ? toggleBundleRow(key) : setBundleDetailsKey(key);
   const [bundleMessage, setBundleMessage] = useState('');
   const [createdBundleId, setCreatedBundleId] = useState(null);
   const groupAssessmentsByType = true;
@@ -257,14 +261,9 @@ export default function Person({ id, navigate, openModal }) {
     const override = e.assessmentBundleSelections?.[savedBundle?.id]?.assessmentOverrides?.[0];
     const collection = savedBundle ? {...record,channel:override?.channel || savedBundle.channel || savedBundle.assessments?.[0]?.channel || record.channel,
       respondent:override?.recipient || savedBundle.recipient || savedBundle.assessments?.[0]?.recipient || record.respondent} : record;
-    const openSetup = () => openModal({
-      type: "collection",
-      personId: p.id,
-      episodeId: e.id,
-      collectionId: collection.id,
-      channel: collection.channel || "Clinic tablet",
-      collectResponse: true,
-    });
+    const openSetup = () => navigate(`/questionnaire?${new URLSearchParams({
+      person: p.id, episode: e.id, collection: collection.id, overview: "1",
+    })}`);
     if (!canAssess(p, e) || (!collection.due && !collection.scheduleFree) || !getInstrument(collection.version) ||
         collection.response === "Submitted" ||
         ["Cancelled", "Paused"].includes(collection.assignment) ||
@@ -306,13 +305,8 @@ export default function Person({ id, navigate, openModal }) {
         return;
       }
     }
-    if (channel === "Clinician entry") {
-      openModal({ type: "clinician-questionnaire", personId: p.id,
-        episodeId: e.id, collectionId: collection.id });
-      return;
-    }
     navigate(`/questionnaire?${new URLSearchParams({
-      person: p.id, episode: e.id, collection: collection.id,
+      person: p.id, episode: e.id, collection: collection.id, overview: "1",
     })}`);
   };
   const modal = (type) =>
@@ -1081,7 +1075,10 @@ export default function Person({ id, navigate, openModal }) {
                     const sectionRows = sortedBundleRows.filter(row => row.completedSection === completedSection);
                     if (!sectionRows.length) return null;
                     return <tbody key={String(completedSection)}>
-                      {sectionRows.map(({ group, allRecords, completedCount, nextDue, sharedDue, bundleChannel, bundleRecipient }) => {
+                      {sectionRows.flatMap(({ group, allRecords, completedCount, nextDue, sharedDue, bundleChannel, bundleRecipient }) => {
+                        const expanded = bundleAccordions && expandedBundleRows.includes(group.key);
+                        const detailsId = `bundle-row-details-${group.key}`;
+                        const detailGroup = { ...group, records: allRecords };
                         const pendingRecord = allRecords.find(col => col.response === 'Draft') || allRecords.find(col => col.response !== 'Submitted');
                         const daysUntilDue = sharedDue ? Math.round((Date.parse(sharedDue) - Date.parse(TODAY)) / 86400000) : null;
                         const dueDaysLabel = daysUntilDue === null ? '' : daysUntilDue === 0 ? 'Today'
@@ -1095,11 +1092,13 @@ export default function Person({ id, navigate, openModal }) {
                           : hasDraft || completedCount > 0 ? 'in-progress'
                           : systemCreated ? 'new' : 'not-started';
                         const bundleStatusLabel = {completed:'Completed',overdue:'Overdue','due-soon':'Due soon','in-progress':'In progress',new:'New · created by system','not-started':'Not started'}[bundleStatus];
-                        return <QueueRow key={group.key} onClick={event => {if (!event.target.closest('button, a')) setBundleDetailsKey(group.key);}}>
+                        return [<QueueRow key={group.key} className={expanded ? 'assessment-bundle-row-expanded' : ''} onClick={event => {if (!event.target.closest('button, a')) openBundleDetails(group.key);}}>
                             <QueueCell label="Bundle name" slot="subject"><div className="assessment-bundle-name-status">
                               <button type="button" className="name-link assessment-bundle-table-name"
-                              aria-label={`View details for ${group.name}`} aria-haspopup="dialog"
-                              onClick={() => setBundleDetailsKey(group.key)}>{group.name}</button></div>
+                              aria-label={bundleAccordions ? `${expanded ? 'Collapse' : 'Expand'} details for ${group.name}` : `View details for ${group.name}`}
+                              aria-expanded={bundleAccordions ? expanded : undefined} aria-controls={bundleAccordions ? detailsId : undefined}
+                              aria-haspopup={bundleAccordions ? undefined : 'dialog'}
+                              onClick={event => {event.stopPropagation();openBundleDetails(group.key);}}>{bundleAccordions && <ChevronRight size={16} aria-hidden="true" />}{group.name}</button></div>
                               <small>{systemCreated ? 'System generated' : 'User created'}</small>
                             </QueueCell>
                             <QueueCell label="Due date" slot="summary">{sharedDue ? <><time dateTime={sharedDue}>{formatDate(sharedDue)}</time><small className={dueAlert === 'Past due' ? 'assessment-overdue-days' : undefined}>{dueDaysLabel}</small>
@@ -1118,7 +1117,16 @@ export default function Person({ id, navigate, openModal }) {
                                 aria-label={`Collect response for ${group.name}`}
                                 onClick={() => collectAssessmentResponse(pendingRecord)}>Collect response</Button>
                             </ActionGroup></QueueCell>
-                          </QueueRow>;
+                          </QueueRow>, ...(expanded ? [<tr key={`${group.key}-details`} className="assessment-bundle-details-row"><td colSpan={7}>
+                            <div id={detailsId} role="region" aria-label={`Details for ${group.name}`}>
+                              <AssessmentBundleDetails embedded group={detailGroup} episode={e} scheduleAssessments={scheduleAssessments}
+                                delivery={deliveryForBundle(detailGroup)} statusFor={assessmentState} showDueDates={showDueDates}
+                                onClose={() => toggleBundleRow(group.key)}
+                                assessmentEditor={group.key !== 'individual' && !p.archivedAt && !p.readOnly && !e.readOnly && e.status === 'Active' && canAssess(p,e) && state.settings?.assessmentScheduleRules?.some(bundle => bundle.id === group.key)
+                                  ? <NewAssessmentBundle embedded group={detailGroup} statusFor={assessmentState} editBundleId={group.key} person={p} episode={e}
+                                      onClose={() => toggleBundleRow(group.key)} onCreated={(bundleId,message) => {setCreatedBundleId(bundleId);setBundleMessage(message);}} /> : null} />
+                            </div>
+                          </td></tr>] : [])];
                       })}
                     </tbody>;
                   })}

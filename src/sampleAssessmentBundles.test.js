@@ -7,7 +7,7 @@ import { SAMPLE_ASSESSMENT_BUNDLES } from './sampleAssessmentBundles.js';
 const enable = state => reducer(state, { type: 'SET_ASSESSMENT_FEATURE', feature: 'groupAssessmentsByBundle', enabled: true });
 const episode = state => state.people.find(person => person.id === 'YS-1034').episodes[0];
 const withoutBundleMetadata = collection => Object.fromEntries(Object.entries(collection)
-  .filter(([key]) => !key.startsWith('bundle') && key !== 'scheduleAnchor'));
+  .filter(([key]) => !key.startsWith('bundle') && key !== 'scheduleAnchor' && key !== 'sampleBundleHistory'));
 
 test('turning bundles on adds usable templates and groups existing completed, draft and created examples', () => {
   const before = createSeed();
@@ -71,4 +71,22 @@ test('custom templates, existing associations and people outside the fictional f
   assert.deepEqual(next.settings.assessmentScheduleRules[0], custom);
   assert.equal(episode(next).collections[0].bundleId, custom.id);
   assert.deepEqual(next.people.find(person => person.id === customPerson.id), customPerson);
+});
+
+test('sample bundle rows contain two or three unique instruments and at most two current bundles per episode', () => {
+  const state = enable(createSeed());
+  for (const rule of state.settings.assessmentScheduleRules) {
+    assert.ok(rule.assessments.length >= 2 && rule.assessments.length <= 3);
+    assert.equal(new Set(rule.assessments.map(item => item.version)).size, rule.assessments.length);
+  }
+  for (const person of state.people) for (const ep of person.episodes) {
+    const groups = assessmentBundleGroups(ep, ep.collections, state.settings.assessmentScheduleRules)
+      .filter(group => group.key !== 'individual');
+    assert.ok(groups.filter(group => group.records.some(record => record.response !== 'Submitted')).length <= 2);
+    for (const group of groups) {
+      assert.ok(group.records.length >= 2 && group.records.length <= 3);
+      assert.equal(new Set(group.records.map(record => record.version)).size, group.records.length);
+    }
+  }
+  assert.deepEqual(upgradeSampleData(structuredClone(state)), state);
 });

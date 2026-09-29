@@ -94,7 +94,7 @@ export default function App() {
   const bundlePerson = state.people.find(person => person.id === activeQuestionnaireSession?.personId);
   const bundleEpisode = bundlePerson?.episodes.find(episode => episode.id === activeQuestionnaireSession?.episodeId);
   const bundleCollection = bundleEpisode?.collections.find(collection => collection.id === activeQuestionnaireSession?.collectionId);
-  if (path === "/questionnaire" && (bundleCollection?.bundleId || bundleCollection?.scheduleRuleId))
+  if (path === "/questionnaire" && (bundleCollection?.bundleId || bundleCollection?.scheduleRuleId || (bundleCollection && new URLSearchParams(window.location.search).get("overview") === "1")))
     return <BundleQuestionnaire key={bundleCollection.id} person={bundlePerson} episode={bundleEpisode}
       collection={bundleCollection} participant initialAttemptId={activeQuestionnaireSession?.attemptId} onClose={() => {
         finishSession();

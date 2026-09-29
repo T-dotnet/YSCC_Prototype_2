@@ -4,7 +4,7 @@ import { ArrowLeft, ArrowRight, ChevronDown, CircleAlert, FileCheck2, Plus } fro
 import ListFilterBar from "../components/ListFilterBar";
 import RecordItem from "../components/RecordItem";
 import CareEvents from "../features/CareEvents";
-import { Button, FilterTabs, Pagination, RecordTabs, Select, TextLink } from "../components/UI";
+import { Button, FilterTabs, Pagination, RecordTabs, Select, Tabs, TextLink } from "../components/UI";
 import { createSeed, formatDate } from "../model";
 
 const recordItems = ["Overview", "Assessment", { value: "Events", label: "Care events" }, "Report", { value: "Consent & respondents", label: "Consent" }];
@@ -59,10 +59,37 @@ export default {
     docs: {
       description: {
         component:
-          "The shared Tabs component provides keyboard behaviour for record navigation and quick filters. ListFilterBar adds search, advanced filters, result count, and clear actions.",
+          "Tabs, RecordTabs and FilterTabs share one underline style, selection tokens, counts and keyboard behaviour. Context classes only position the strip. ListFilterBar adds search, advanced filters, result count, and clear actions.",
       },
     },
   },
+};
+
+function SharedTabStylesExample() {
+  const [section, setSection] = useState("Overview");
+  const [record, setRecord] = useState("Overview");
+  const [filter, setFilter] = useState("all");
+  return <div className="ds-story stack">
+    <section>
+      <h2>Section tabs</h2>
+      <Tabs id="shared-section" label="Example sections" items={["Overview", "Details", { value: "Locked", disabled: true, title: "Unavailable in this example" }]} value={section} onChange={setSection} />
+      <div id="shared-section-panel" role="tabpanel" aria-labelledby={`shared-section-tab-${["Overview", "Details", "Locked"].indexOf(section)}`}>{section} content</div>
+    </section>
+    <section>
+      <h2>Record navigation</h2>
+      <RecordTabs id="shared-record" label="Example record" items={["Overview", "Assessment", "Care events", "Report"]} value={record} onChange={setRecord} />
+      <div id="shared-record-panel" role="tabpanel" aria-labelledby={`shared-record-tab-${["Overview", "Assessment", "Care events", "Report"].indexOf(record)}`}>{record} content</div>
+    </section>
+    <section>
+      <h2>Filter tabs with counts</h2>
+      <FilterTabs id="shared-filter" label="Example filters" items={[{ value: "all", label: "All", count: 12 }, { value: "draft", label: "Draft", count: 0 }, { value: "completed", label: "Completed", count: 12 }]} value={filter} onChange={setFilter} />
+      <div id="shared-filter-panel" role="tabpanel" aria-labelledby={`shared-filter-tab-${["all", "draft", "completed"].indexOf(filter)}`}>Showing {filter} records</div>
+    </section>
+  </div>;
+}
+
+export const SharedTabStyles = {
+  render: () => <SharedTabStylesExample />,
 };
 
 export const RecordNavigation = {

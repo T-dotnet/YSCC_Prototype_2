@@ -19,6 +19,9 @@ export const assessmentSmsEnabled = (settings) =>
 export const assessmentBundleGroupingEnabled = (settings) =>
   settings?.groupAssessmentsByBundle ?? false;
 
+export const assessmentBundleAccordionsEnabled = (settings) =>
+  settings?.bundleAccordions ?? false;
+
 export const assessmentHistoryEntryVisible = (entry, settings, contacts = []) => {
   const linkedContact = contacts.find(contact => contact.id === entry.appointmentId);
   if (linkedContact && !contactVisible(linkedContact, settings)) return false;

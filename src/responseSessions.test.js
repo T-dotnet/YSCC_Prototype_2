@@ -223,3 +223,26 @@ test("Jordan's sample shows an SMS contact with partial answers before clinic co
   assert.ok(contactsForAssessment(episode, checkIn.id).some((item) => item.id === sms.id));
   assert.ok(assessmentsForContact(episode, sms.id).some((item) => item.id === checkIn.id));
 });
+
+test("an empty questionnaire can be saved as a draft and resumed without submitting a response", () => {
+  const ready = deliver(createSeed(), "Clinic tablet", "Independent");
+  const attempt = collection(ready).attempts.at(-1);
+  const action = { ...context, type: "SAVE_RESPONSE_PROGRESS", channel: "Clinic tablet",
+    attemptId: attempt.id, answers: [], contactLink: { kind: "none" } };
+  const saved = reducer(ready, action);
+  assert.notEqual(saved, ready);
+  const draft = collection(saved);
+  assert.equal(draft.response, "Draft");
+  assert.equal(draft.draftAnswers.some(Boolean), false);
+  assert.equal(draft.answers.some(Boolean), false);
+  assert.equal(draft.submittedTimestamp, undefined);
+  assert.ok(draft.attempts.at(-1).savedAt);
+  assert.equal(draft.attempts.at(-1).endedAt, draft.attempts.at(-1).savedAt);
+  assert.equal(reducer(saved, action), saved);
+  const resumed = deliver(saved, "Clinic tablet", "Independent");
+  assert.equal(collection(resumed).response, "Draft");
+  assert.equal(collection(resumed).draftAnswers.some(Boolean), false);
+  assert.notEqual(collection(resumed).attempts.at(-1).id, attempt.id);
+  assert.equal(collection(resumed).attempts.at(-1).endedAt, undefined);
+  assert.equal(reducer(resumed, action), resumed);
+});

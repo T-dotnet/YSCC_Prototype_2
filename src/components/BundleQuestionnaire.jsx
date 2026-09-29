@@ -13,12 +13,15 @@ import QuestionnaireFlow from './QuestionnaireFlow';
 import QuestionnaireAppointmentConfirmation from './QuestionnaireAppointmentConfirmation';
 import TabletAssistanceConfirmation from './TabletAssistanceConfirmation';
 import DraftContactForm from './DraftContactForm';
+import QuestionnaireAccessPanel from './QuestionnaireAccessPanel';
 import DiscardChanges from './DiscardChanges';
+import { Tabs } from './Tabs';
 
 export default function BundleQuestionnaire({ person, episode, collection, onClose, participant = false, initialAttemptId }) {
   const { state, commit } = useStore();
   episode = episodeWithVisibleContacts(episode, state.settings);
-  const group = bundleCollectionGroup(episode, collection, state.settings?.assessmentScheduleRules);
+  const group = bundleCollectionGroup(episode, collection, state.settings?.assessmentScheduleRules) ||
+    { key: collection.id, name: collection.label || getInstrument(collection.version)?.name || "Questionnaire", records: [collection] };
   // Keep this session's list stable while submissions reorder the ledger.
   const [ids] = useState(() => group.records.map(record => record.id));
   const records = ids.map(id => episode.collections.find(record => record.id === id)).filter(Boolean);
@@ -39,12 +42,24 @@ export default function BundleQuestionnaire({ person, episode, collection, onClo
   const staff = currentStaff(state);
   const completed = records.filter(record => record.response === 'Submitted').length;
   const finished = records.length > 0 && completed === records.length;
+  const hasProgress = records.some(record => {
+    const progress = bundleQuestionnaireProgress(record, drafts[record.id] || record.draftAnswers || []);
+    return progress.completed || progress.answered > 0 || record.response === 'Draft';
+  });
   const dirtyRecords = records.filter(record => record.response !== 'Submitted' && drafts[record.id] &&
     JSON.stringify(drafts[record.id]) !== JSON.stringify(record.draftAnswers || []));
   const dirty = dirtyRecords.length > 0;
+  const draftRecords = records.filter(record => record.response !== 'Submitted' &&
+    (record.id === activeId || dirtyRecords.includes(record)));
   const savedBundle = state.settings?.assessmentScheduleRules?.find(rule => rule.id === group.key);
   const delivery = savedBundle ? bundleDelivery(savedBundle,
     episode.assessmentBundleSelections?.[savedBundle.id]?.assessmentOverrides) : null;
+  const [collectionTab, setCollectionTab] = useState(() => {
+    const method = delivery?.channel || collection.channel;
+    return method === 'SMS link' ? 'sms' : method === 'Clinic tablet' ? 'tablet' : 'clinician';
+  });
+  const collectionTabs = [{ value: 'clinician', label: 'Clinician' },
+    { value: 'tablet', label: 'Tablet' }, { value: 'sms', label: 'SMS' }];
   const context = id => ({ personId: person.id, episodeId: episode.id, collectionId: id });
   const blocker = record => !record ? 'This assessment is no longer in the bundle.'
     : !canAssess(person, episode) || !canCollectInEpisode(episode, record)
@@ -57,7 +72,6 @@ export default function BundleQuestionnaire({ person, episode, collection, onClo
   const unavailable = blocker(c) || (c?.response !== 'Submitted' &&
     (c?.assignment !== 'Active' || c?.link !== 'Active' || !attempt || attempt.endedAt ||
       attempt.id !== attemptIds.current[activeId] ||
-      participant && c.channel === 'Clinician entry' ||
       c.channel === 'SMS link' && !assessmentSmsEnabled(state.settings) ||
       c.channel === 'Clinician entry' && (staff?.role !== 'Clinician' || c.recorderId !== staff.id))
     ? 'This collection session is no longer available. Return to the record and reopen it.' : '');
@@ -128,9 +142,9 @@ export default function BundleQuestionnaire({ person, episode, collection, onClo
   };
   const saveDrafts = (contactLink, completionMethod, assistance) => {
     let sharedLink = contactLink;
-    for (const record of dirtyRecords) {
+    for (const record of draftRecords) {
       const result = commit({ ...context(record.id), type: 'SAVE_RESPONSE_PROGRESS',
-        channel: record.channel, attemptId: attemptIds.current[record.id], answers: drafts[record.id],
+        channel: record.channel, attemptId: attemptIds.current[record.id], answers: drafts[record.id] || record.draftAnswers || [],
         contactLink: sharedLink, completionMethod, assistance });
       if (result.error) { setError(result.error); return; }
       if (sharedLink?.kind === 'new') {
@@ -140,6 +154,13 @@ export default function BundleQuestionnaire({ person, episode, collection, onClo
       }
     }
     onClose();
+  };
+  const requestSaveDraft = () => {
+    setError('');
+    if (!dirty && answers.some(Boolean)) return onClose();
+    if (draftRecords.every(record => !(drafts[record.id] || record.draftAnswers || []).some(Boolean))) {
+      saveDrafts({ kind: 'none' });
+    } else setSaveOpen(true);
   };
   const linkedId = c?.attempts?.at(-1)?.appointmentId || c?.appointmentId;
   const linkedAppointment = !simple && episode.appointments?.find(item => item.id === linkedId &&
@@ -175,6 +196,8 @@ export default function BundleQuestionnaire({ person, episode, collection, onClo
                 {progress.completed ? <Check size={15} aria-hidden="true" /> : index + 1}
               </span>
               <span className="bundle-collection-item"><strong>{getInstrument(record.version)?.name || record.label}</strong>
+                <small>{progress.completed ? 'Completed and saved' : progress.answered
+                  ? `${progress.answered} of ${progress.total} answered` : progress.label}</small>
               </span>
             </button></li>;
           })}
@@ -182,19 +205,27 @@ export default function BundleQuestionnaire({ person, episode, collection, onClo
       </aside>
       <section className="bundle-collection-content" aria-label="Current questionnaire">
         <p className="sr-only" role="status">{announcement}</p>
-        {finished ? <Success title="Bundle completed" action={<Button variant="primary" onClick={onClose}>Back to record</Button>}>
+        {participant && !started && !finished && <Tabs id="collection-delivery" label="Collection method"
+          items={collectionTabs} value={collectionTab} onChange={setCollectionTab} />}
+        <div id="collection-delivery-panel" role={participant && !started && !finished ? 'tabpanel' : undefined}
+          aria-labelledby={participant && !started && !finished ? `collection-delivery-tab-${collectionTabs.findIndex(tab => tab.value === collectionTab)}` : undefined}>
+        {participant && !started && !finished && collectionTab !== 'clinician'
+          ? <QuestionnaireAccessPanel key={collection.id} person={person} episodeId={episode.id}
+              collectionId={collection.id} mode={collectionTab} onBack={requestClose} />
+          : finished ? <Success title="Bundle completed" action={<Button variant="primary" onClick={onClose}>Back to record</Button>}>
           All {records.length} questionnaire responses are saved. They are available in the assessment record.
         </Success> : !started ? <div className="bundle-collection-intro">
           <h2>A check-in, one questionnaire at a time.</h2>
           <p>This bundle has {records.length - completed} questionnaires left to complete. The list shows where you are and what is still to do.</p>
-          <p>You can save a draft and take a break at any time.</p>
-          <Button variant="primary" disabled={!!unavailable} onClick={begin}>Begin bundle <ArrowRight size={18} /></Button>
+          <p>{hasProgress ? 'Your saved progress is here. Drafts still need to be submitted to complete a questionnaire.'
+            : 'You can save a draft and take a break at any time.'}</p>
+          <Button variant="primary" disabled={!!unavailable} onClick={begin}>{hasProgress ? 'Continue bundle' : 'Begin bundle'} <ArrowRight size={18} /></Button>
           <Button variant="ghost" onClick={requestClose}>Back to record</Button>
           {unavailable && <Notice tone="amber">{unavailable}</Notice>}
         </div> : <>
           {saveOpen ? <>
-            <Notice>{dirtyRecords.length} {dirtyRecords.length === 1 ? 'questionnaire draft will' : 'questionnaire drafts will'} be saved. Completed responses are already saved.</Notice>
-            <DraftContactForm episode={episode} collection={dirtyRecords[0] || c} error={error}
+            <Notice>{draftRecords.length} {draftRecords.length === 1 ? 'questionnaire draft will' : 'questionnaire drafts will'} be saved. Completed responses are already saved.</Notice>
+            <DraftContactForm episode={episode} collection={draftRecords[0] || c} error={error}
               showContactChoice={!simple} confirmTabletAssistance={simple}
               onCancel={() => { setSaveOpen(false); setError(''); }} onSave={saveDrafts} />
           </> : c?.response === 'Submitted' ? <Notice>This response has already been completed and saved.
@@ -212,18 +243,24 @@ export default function BundleQuestionnaire({ person, episode, collection, onClo
             answers={answers} onChange={value => { setDrafts(prev => ({...prev, [activeId]:value})); setError(''); }}
             onSubmit={completeQuestions} initialReview={returnToReview} headingLevel="h3" showProgress={false}
             clinicianEntry={c.channel === 'Clinician entry'}
-            secondaryAction={<Button disabled={!dirty || !!unavailable} onClick={() => setSaveOpen(true)}>Save draft and leave</Button>}
+            secondaryAction={<Button disabled={!!unavailable} onClick={requestSaveDraft}>Save draft and leave</Button>}
             submitLabel={!simple ? 'Continue to completion details' : c.channel === 'Clinic tablet'
               ? 'Confirm tablet assistance' : nextBundleCollection(records, c.id) ? 'Save and continue' : 'Complete bundle'} />}
           {error && !saveOpen && !pendingAnswers && <p className="field-error" role="alert">{error}</p>}
         </>}
+        </div>
       </section>
     </div>
     {discard && <DiscardChanges onKeepEditing={() => setDiscard(false)} onDiscard={onClose} />}
   </>;
-  return participant ? <div className="participant">
+  return participant ? <div className="participant bundle-questionnaire">
     <header className="participant-header"><Logo /><span>Bundle questionnaires · sample content</span></header>
-    <main className="bundle-collection-participant"><header className="bundle-collection-page-heading"><h1>{group.name}</h1></header>{body}</main>
+    <main className="bundle-collection-participant">
+      <div className="bundle-questionnaire-workspace">
+        <header className="bundle-collection-page-heading"><h1>{group.name}</h1>
+        </header>{body}
+      </div>
+    </main>
     <footer className="participant-footer">YSCC · Care, connected</footer>
   </div> : <Modal title={group.name} subtitle={`${patientIdentifier(person)} · Collect bundle responses`}
     onClose={requestClose} wide className="bundle-collection-modal">{body}</Modal>;
