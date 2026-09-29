@@ -57,7 +57,7 @@ export function personStatus(person, episode) {
       status: episode.status,
       label: `${episode.status} care episode`,
       detail: episode.status === "Completed"
-        ? "Closure assessment and care experience feedback complete"
+        ? "Closure instruments and care experience feedback complete"
         : episode.nextCareStep || "No active assessment tasks",
     };
   }
@@ -72,7 +72,7 @@ export function personStatus(person, episode) {
   if (!collection) {
     return {
       status: "Not scheduled",
-      label: "No assessment planned",
+      label: "No instrument planned",
       detail: "Plan the next collection",
     };
   }
@@ -120,11 +120,11 @@ export function comparePeople(a, b) {
 }
 
 export function peopleBundleSummary(row, settings) {
-  if (!row.episode) return {...row, label:row.stage ? `Intake review · ${row.stage}` : 'No bundle yet'};
+  if (!row.episode) return {...row, label:row.stage ? `Intake review · ${row.stage}` : 'No assessment yet'};
   const groups = assessmentBundleGroups(row.episode, row.episode.collections, settings?.assessmentScheduleRules);
   const matching = groups.find(item => item.records.some(record => record.id === row.collection?.id));
   const group = matching && matching.key !== 'individual' ? matching : groups.find(item => item.key !== 'individual');
-  if (!group || group.key === 'individual') return {...row, label:'No bundle scheduled', detail:'Assessments are recorded individually'};
+  if (!group || group.key === 'individual') return {...row, label:'No assessment scheduled', detail:'Instruments are recorded individually'};
   const completed = group.records.filter(record => record.response === 'Submitted').length;
   const pending = group.records.filter(record => record.response !== 'Submitted' && !['Cancelled','Paused'].includes(record.assignment));
   const due = pending.map(record => record.due).filter(Boolean).sort()[0] || '';
@@ -133,5 +133,5 @@ export function peopleBundleSummary(row, settings) {
     : settings?.scheduleAssessments && due === TODAY ? 'Due today'
     : completed || pending.some(record => record.response === 'Draft') ? 'In progress' : 'Not started';
   return {...row, collection:pending[0] || group.records[0], label:group.name, status, due:settings?.scheduleAssessments ? due : '',
-    detail:`${completed} of ${group.records.length} questionnaires completed${settings?.scheduleAssessments && due ? ` · Due ${formatDate(due)}` : ''}`};
+    detail:`${completed} of ${group.records.length} instruments completed${settings?.scheduleAssessments && due ? ` · Due ${formatDate(due)}` : ''}`};
 }

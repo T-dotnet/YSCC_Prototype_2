@@ -153,8 +153,8 @@ export default function Questionnaire({ session, navigate, onEnd }) {
         <Logo />
         <span>
           {preview
-            ? "Sample questionnaire · practice only"
-            : "Questionnaire · sample content"}
+            ? "Sample instrument · practice only"
+            : "Instrument · sample content"}
         </span>
       </header>
       <main className="questionnaire">
@@ -173,7 +173,7 @@ export default function Questionnaire({ session, navigate, onEnd }) {
             }
           >
             {savedDraftContact
-              ? simpleAssessments ? "Your draft is saved on the assessment. You can continue it in another session." : `Your answers are saved on the assessment. ${savedDraftContact === "none" ? "No contact was linked." : "The contact is linked under Related contacts."} You can continue the questionnaire in another session.`
+              ? simpleAssessments ? "Your draft is saved on the instrument. You can continue it in another session." : `Your answers are saved on the instrument. ${savedDraftContact === "none" ? "No contact was linked." : "The contact is linked under Related contacts."} You can continue the instrument in another session.`
               : "The participant view has been cleared. In a live service, staff would sign in again before opening the workspace."}
           </Success>
         ) : finished ? (
@@ -194,7 +194,7 @@ export default function Questionnaire({ session, navigate, onEnd }) {
             {storageError
               ? "Your sample response is held in this open tab; browser storage is unavailable."
               : preview
-                ? "You’ve completed the sample questionnaire. This preview is separate from a care record."
+                ? "You’ve completed the sample instrument. This preview is separate from a care record."
                 : "Your sample answers have been added to the record for the care team to review."}{" "}
             This does not mean that a clinical review has taken place.
           </Success>
@@ -251,7 +251,7 @@ export default function Questionnaire({ session, navigate, onEnd }) {
                   <p>
                     <strong>
                       {preview
-                        ? "Practice questionnaire"
+                        ? "Practice instrument"
                         : "Requested by Northside Centre"}
                     </strong>
                     {p
@@ -293,11 +293,11 @@ export default function Questionnaire({ session, navigate, onEnd }) {
                   className="participant-next"
                   onClick={beginQuestionnaire}
                 >
-                  Begin questionnaire
+                  Begin instrument
                   <ArrowRight size={20} />
                 </Button>
                 <p className="privacy-copy">
-                  These are demonstration questions, not a clinical assessment.
+                  These are demonstration questions, not a clinical instrument.
                 </p>
               </>
             ) : pendingAnswers ? (
@@ -357,7 +357,7 @@ export default function Questionnaire({ session, navigate, onEnd }) {
                   <LifeBuoy size={18} />
                   Need help or a break?
                 </button>
-                <button onClick={requestEnd}>Leave questionnaire</button>
+                <button onClick={requestEnd}>Leave instrument</button>
               </div>
             )}
             {submitError && !pendingAnswers && (
@@ -425,7 +425,7 @@ export default function Questionnaire({ session, navigate, onEnd }) {
             </p>
             <ActionGroup className="actions">
               <Button onClick={() => setHelp(false)}>
-                Continue questionnaire
+                Continue instrument
               </Button>
               <Button
                 onClick={() => {

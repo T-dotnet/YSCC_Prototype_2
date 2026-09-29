@@ -96,7 +96,7 @@ export default function QuestionnaireAppointmentConfirmation({
           <fieldset className="draft-contact-choices">
             <legend>Which contact supplied these answers?</legend>
             {appointment && <label><input type="radio" name="contactChoice" value="linked" checked={contactChoice === "linked"}
-              onChange={() => setContactChoice("linked")} required /> Use the appointment linked to this assessment · {formatDate(appointment.actualDate || appointment.plannedDate)} · {appointment.attendance}</label>}
+              onChange={() => setContactChoice("linked")} required /> Use the appointment linked to this instrument · {formatDate(appointment.actualDate || appointment.plannedDate)} · {appointment.attendance}</label>}
             <label><input type="radio" name="contactChoice" value="existing" checked={contactChoice === "existing"}
               onChange={() => setContactChoice("existing")} required /> Choose another existing contact</label>
             <label><input type="radio" name="contactChoice" value="new" checked={contactChoice === "new"}

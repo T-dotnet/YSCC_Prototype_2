@@ -52,8 +52,8 @@ export function overviewNextStep(person, episode, collection, staff) {
     return {
       ...step(
         "Closure follow-up complete",
-        "The closure assessment has been reviewed and care experience feedback received. Both responses remain available in Assessment.",
-        { label: "View assessments", tab: "Assessment" },
+        "The closure instrument has been reviewed and care experience feedback received. Both responses remain available in Assessment.",
+        { label: "View instruments", tab: "Assessment" },
         "Completed",
       ),
       dueText: episode.completedAt
@@ -64,12 +64,12 @@ export function overviewNextStep(person, episode, collection, staff) {
   if (episode.status === "Closed" && c.closureKind)
     return step(
       submitted
-        ? (c.closureKind === "feedback" ? "Patient feedback received" : reviewed || reviewNotRequired ? "Closure assessment reviewed" : "Closure assessment needs review")
+        ? (c.closureKind === "feedback" ? "Patient feedback received" : reviewed || reviewNotRequired ? "Closure instrument reviewed" : "Closure instrument needs review")
         : "Awaiting post-closure response",
       submitted
         ? (c.closureKind === "feedback" ? "The patient feedback is retained with this closed episode." : reviewed || reviewNotRequired ? "The final check-in is retained with this closed episode. Care experience feedback is still outstanding." : "Review the patient's final check-in while the episode remains closed.")
-        : "The patient has a sample closure questionnaire assignment. Its link was prepared in this prototype; no SMS was sent.",
-      { label: "Open assessment", tab: "Assessment" },
+        : "The patient has a sample closure instrument assignment. Its link was prepared in this prototype; no SMS was sent.",
+      { label: "Open instrument", tab: "Assessment" },
     );
 
   if (episode.status !== "Active")
@@ -88,14 +88,14 @@ export function overviewNextStep(person, episode, collection, staff) {
   if (submitted) {
     if (reviewNotRequired)
       return step(
-        "Questionnaire completed",
+        "Instrument completed",
         "The response was recorded through a supported completion method. No separate clinical review is required.",
         details,
       );
     if (reviewed)
       return step(
         "Clinical review recorded",
-        `The response and review are saved. ${episode.owner || person.owner || "The care team"} owns the next care decision; assessment completion remains separate.`,
+        `The response and review are saved. ${episode.owner || person.owner || "The care team"} owns the next care decision; instrument completion remains separate.`,
         { label: "View clinical review", modal: "review" },
       );
     const clinician = staff?.role === "Clinician";
@@ -105,7 +105,7 @@ export function overviewNextStep(person, episode, collection, staff) {
         : "Responses are ready for review",
       c.needsReview
         ? "Answers changed after the previous review. A clinician needs to review the updated response; the earlier review is retained."
-        : "The questionnaire has been submitted. A clinician needs to review the answers and record their interpretation.",
+        : "The instrument has been submitted. A clinician needs to review the answers and record their interpretation.",
       {
         label: clinician
           ? c.needsReview
@@ -120,7 +120,7 @@ export function overviewNextStep(person, episode, collection, staff) {
   if (["Paused", "Cancelled"].includes(c.assignment))
     return step(
       `This collection is ${c.assignment.toLowerCase()}`,
-      "Check the recorded collection and episode history before agreeing further assessment work.",
+      "Check the recorded collection and episode history before agreeing further instrument work.",
       details,
       c.assignment,
     );
@@ -128,16 +128,16 @@ export function overviewNextStep(person, episode, collection, staff) {
   if (!canAssess(person, episode))
     return step(
       "Resolve intake before collecting",
-      "Review the intake evidence and proceed decision before starting or reissuing this questionnaire.",
+      "Review the intake evidence and proceed decision before starting or reissuing this instrument.",
       { label: "Open overview", tab: "Overview" },
       "Intake required",
     );
 
   if (!c.due)
     return step(
-      "Plan initial assessment",
-      "The initial assessment instrument was added after intake. Set its due date and program stream before collecting a response.",
-      { label: "Open assessment", tab: "Assessment" },
+      "Plan initial instrument",
+      "The initial instrument was added after intake. Set its due date and program stream before collecting a response.",
+      { label: "Open instrument", tab: "Assessment" },
       "Needs planning",
     );
 
@@ -159,7 +159,7 @@ export function overviewNextStep(person, episode, collection, staff) {
 
   if (!getInstrument(c.version))
     return step(
-      "Check the assigned questionnaire",
+      "Check the assigned instrument",
       "The assigned version is unavailable. Check the collection details with the care team before arranging another attempt.",
       details,
       "Version unavailable",
@@ -167,7 +167,7 @@ export function overviewNextStep(person, episode, collection, staff) {
 
   if (c.link === "Expired")
     return step(
-      "Replace the expired questionnaire link",
+      "Replace the expired instrument link",
       `The previous link has expired and no response has been submitted.${c.response === "Draft" ? " Saved answers can continue in a new session." : ""} Confirm the respondent and collection method for another attempt on this collection.`,
       { label: collectionSetupLabel(c), modal: "collection" },
     );
@@ -184,7 +184,7 @@ export function overviewNextStep(person, episode, collection, staff) {
       status === "Overdue"
         ? "Follow up the unfinished response"
         : "Check the response in progress",
-      "Answers are saved, but the questionnaire has not been submitted. Start another collection session to continue, using the same or a different collection method.",
+      "Answers are saved, but the instrument has not been submitted. Start another collection session to continue, using the same or a different collection method.",
       details,
     );
 
@@ -194,18 +194,18 @@ export function overviewNextStep(person, episode, collection, staff) {
     return step(
       status === "Overdue"
         ? "Follow up the overdue response"
-        : "Awaiting the questionnaire response",
-      `${active ? (channel === "SMS link" ? "The questionnaire link is still active." : "A collection session is active.") : "A collection attempt is recorded."} No response has been submitted. Check the activity and contact arrangements before deciding whether another attempt is needed.`,
+        : "Awaiting the instrument response",
+      `${active ? (channel === "SMS link" ? "The instrument link is still active." : "A collection session is active.") : "A collection attempt is recorded."} No response has been submitted. Check the activity and contact arrangements before deciding whether another attempt is needed.`,
       details,
     );
   }
 
   return step(
     status === "Overdue"
-      ? "Arrange the overdue questionnaire"
+      ? "Arrange the overdue instrument"
       : status === "Scheduled"
-        ? "Prepare the scheduled questionnaire"
-        : "Arrange questionnaire collection",
+        ? "Prepare the scheduled instrument"
+        : "Arrange instrument collection",
     "No collection attempt is recorded. Confirm who will answer and choose how to collect their response.",
     { label: "Set up collection", modal: "collection" },
   );

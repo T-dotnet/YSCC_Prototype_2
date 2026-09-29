@@ -10,6 +10,7 @@ import { TODAY, uid, formatDate } from '../model';
 import { asBundle, bundleName, uniqueBundleInstanceName, bundleAssessmentUnavailable, bundleAgeMatches, bundleAssessmentsForCreation, bundleDelivery, bundleSelectionForEpisode, newBundleError } from '../assessmentBundles';
 import { assessmentSchedulingEnabled, assessmentSmsEnabled } from '../assessmentFeatures';
 import { ActionGroup, Badge, Checkbox, IconButton, Modal, Button, Field, Select, Empty, Notice, ValidatedForm } from './UI';
+import AssessmentScheduleSettings from "./AssessmentScheduleSettings";
 import BundleAssessmentRow from './BundleAssessmentRow';
 
 function DeliveryFields({item, person, sms, onChange}) {
@@ -83,48 +84,58 @@ export default function NewAssessmentBundle({ person, episode, onClose, onCreate
     if (validation) { setError(validation); return; }
     const name = instanceName.trim();
     if ((!editingBundle || group?.instanceId) && (!name || episode.assessmentBundleInstances?.some(item => item.id !== group?.instanceId && item.name?.trim().toLowerCase() === name.toLowerCase()))) {
-      setError(!name ? 'Enter a bundle name.' : 'A bundle with this name already exists. Choose a unique name.'); return;
+      setError(!name ? 'Enter an assessment name.' : 'An assessment with this name already exists. Choose a unique name.'); return;
     }
     const result = commit({name, bundleInstanceId:group?.instanceId, type:editingBundle ? 'UPDATE_ASSESSMENT_BUNDLE' : 'CREATE_ASSESSMENT_BUNDLE',personId:person.id,episodeId:episode.id,
       id:instanceId,bundleId,optionalIds,assessmentOverrides,extraAssessments:extras,due:scheduling ? due : ''});
     if (result.error) { setError(result.error); return; }
-    onCreated(bundle.id,editingBundle ? `${bundleName(bundle)} updated. Drafts and completed assessments have been kept.`
-      : `${bundleName(bundle)} added with ${count} assessment${count === 1 ? '' : 's'}.`);
+    onCreated(bundle.id,editingBundle ? `${bundleName(bundle)} updated. Drafts and completed instruments have been kept.`
+      : `${bundleName(bundle)} added with ${count} instrument${count === 1 ? '' : 's'}.`);
     onClose();
   };
   const rowStatus = item => item.requirement !== 'Mandatory' && item.requirement !== 'Additional' && !optionalIds.includes(item.id)
     ? 'Not included' : item.record ? statusFor(item.record) : 'Not started';
   const instrumentPicker = <div className="field">
-                <Select label="Assessment type to add" value={extraVersion} onChange={event => setExtraVersion(event.target.value)}>
-                  <option value="">Choose an assessment</option>
+                <Select label="Instrument type to add" value={extraVersion} onChange={event => setExtraVersion(event.target.value)}>
+                  <option value="">Choose an instrument</option>
                   {available.map(instrument => <option key={instrument.version} value={instrument.version}>{instrument.name}</option>)}
                 </Select>
               </div>;
   const addInstrumentButton = <Button type="button" disabled={!extraVersion} onClick={() => {
                 setExtras(items => [...items,{id:uid(),version:extraVersion,...delivery,requirement:'Optional'}]);setExtraVersion('');setError('');
-              }}>Add assessment</Button>;
+              }}>Add instrument</Button>;
+  if (bundleId === 'blank') return <AssessmentScheduleSettings editorOnly onClose={onClose} bundleField={<Field label="Assessment"><Select label="Assessment" value={bundleId} onChange={event => {
+    setBundleId(event.target.value);
+    setInstanceName(uniqueBundleInstanceName(episode,bundles.find(item => item.id === event.target.value)?.name || 'Assessment'));
+    setError('');
+  }}><option value="">Choose an assessment</option><option value="blank">Blank</option>{bundles.map(item => <option key={item.id} value={item.id}>{bundleName(item)}</option>)}</Select></Field>} onSaved={saved => {
+    setBundleId(saved.id);
+    setInstanceName(uniqueBundleInstanceName(episode,saved.name));
+    if (saved.timing === 'date') setDue(saved.dueDate);
+  }} />;
   const content = <>
-    {!bundles.length ? <>
-      <div className="form-body"><Empty title="No enabled bundles available">Add or enable a bundle in Administration, and check its age conditions for this person.</Empty></div>
-      <ActionGroup className="modal-footer"><Button onClick={onClose}>Close</Button></ActionGroup>
+    {!bundles.length && editingBundle ? <>
+      <div className="form-body"><Empty title="No enabled assessments available">Add or enable an assessment in Administration, and check its age conditions for this person.</Empty></div>
+      <ActionGroup className="modal-footer bundle-form-footer"><Button onClick={onClose}>Close</Button></ActionGroup>
     </> : <ValidatedForm onSubmit={submit}>
       <div className="form-body new-assessment-bundle-body">
-        {!editingBundle && <Field label="Bundle" hint="Choose a bundle, then review the assessments to include.">
-          <Select label="Bundle" required value={bundleId} onChange={event => {
-            setBundleId(event.target.value); setInstanceName(uniqueBundleInstanceName(episode, bundles.find(item => item.id === event.target.value) ? bundleName(bundles.find(item => item.id === event.target.value)) : 'Assessment bundle')); setOptionalIds([]); setAssessmentOverrides([]); setExtras([]); setExtraVersion(''); setError('');
+        {!editingBundle && <Field label="Assessment" hint="Choose an assessment, then review the instruments to include.">
+          <Select label="Assessment" required value={bundleId} onChange={event => {
+            setBundleId(event.target.value); setInstanceName(uniqueBundleInstanceName(episode, bundles.find(item => item.id === event.target.value) ? bundleName(bundles.find(item => item.id === event.target.value)) : 'Assessment')); setOptionalIds([]); setAssessmentOverrides([]); setExtras([]); setExtraVersion(''); setError('');
           }}>
-            <option value="">Choose a bundle</option>
+            <option value="">Choose an assessment</option>
+            <option value="blank">Blank</option>
             {bundles.map(item => <option key={item.id} value={item.id}>{bundleName(item)}</option>)}
           </Select>
         </Field>}
         {bundle && <>
-          {(!editingBundle || group?.instanceId) && <Field label="Bundle name">
-            <input aria-label="Bundle name" required maxLength={120} value={instanceName} onChange={event => { setInstanceName(event.target.value); setError(''); }} />
+          {(!editingBundle || group?.instanceId) && <Field label="Assessment name">
+            <input aria-label="Assessment name" required maxLength={120} value={instanceName} onChange={event => { setInstanceName(event.target.value); setError(''); }} />
           </Field>}
-          {scheduling && <Field label={editingBundle ? 'Due date for added assessments' : 'Due date'} hint={editingBundle ? 'Existing assessment dates stay as recorded.' : 'Applies to all assessments created in this bundle.'}><input required type="date" min={TODAY} value={due} onChange={event => setDue(event.target.value)} /></Field>}
+          {scheduling && <Field label={editingBundle ? 'Due date for added instruments' : 'Due date'} hint={editingBundle ? 'Existing instrument dates stay as recorded.' : 'Applies to all instruments created in this assessment.'}><input required type="date" min={TODAY} value={due} onChange={event => setDue(event.target.value)} /></Field>}
           {!embedded && <DeliveryFields item={delivery} person={person} sms={sms} onChange={updateDelivery} />}
-          {embedded ? <div className="bundle-edit-table"><RelatedRecordsTable label={`Assessments in ${bundleName(bundle)}`} compact>
-            <thead><tr><th scope="col">Assessment</th><SortableHeader label="Status" sortKey="status" sort={sort} onSort={toggleSort} /><SortableHeader label="Requirement" sortKey="requirement" sort={sort} onSort={toggleSort} /></tr></thead>
+          {embedded ? <div className="bundle-edit-table"><RelatedRecordsTable label={`Instruments in ${bundleName(bundle)}`} compact>
+            <thead><tr><th scope="col">Instrument</th><SortableHeader label="Status" sortKey="status" sort={sort} onSort={toggleSort} /><SortableHeader label="Requirement" sortKey="requirement" sort={sort} onSort={toggleSort} /></tr></thead>
             <tbody>{[...assessmentRows].sort((a,b) => {
               if (!['status', 'requirement'].includes(sort.key)) return 0;
               const direction = sort.direction === 'asc' ? 1 : -1;
@@ -150,8 +161,8 @@ export default function NewAssessmentBundle({ person, episode, onClose, onCreate
               {available.length > 0 && <tr className="bundle-add-instrument-row"><td colSpan={2}>{instrumentPicker}</td><td>{addInstrumentButton}</td></tr>}
             </tbody>
           </RelatedRecordsTable></div> : <fieldset className="new-bundle-assessments">
-            <legend>Assessments in this bundle</legend>
-            <p className="new-bundle-section-caption">Mandatory assessments stay included. Choose which optional assessments to include.</p>
+            <legend>Instruments in this assessment</legend>
+            <p className="new-bundle-section-caption">Mandatory instruments stay included. Choose which optional instruments to include.</p>
             {bundleAssessmentsForCreation(bundle,assessmentOverrides).map(item => {
               const mandatory = item.requirement === 'Mandatory';
               const instrument = INSTRUMENTS.find(instrument => instrument.version === item.version);
@@ -161,7 +172,7 @@ export default function NewAssessmentBundle({ person, episode, onClose, onCreate
                 checkboxAriaLabel={`Include ${instrument?.name} (${COLLECTION_METHOD_OPTIONS.find(([value]) => value === item.channel)?.[1]}, ${item.recipient === 'Person' ? 'Patient' : item.recipient})`}
                 checked={mandatory || optionalIds.includes(item.id)} disabled={mandatory || !!unavailable}
                 onCheckedChange={checked => {setOptionalIds(ids => checked ? [...ids,item.id] : ids.filter(id => id !== item.id)); setError('');}}
-                secondary={unavailable && <Notice tone="amber">{unavailable}. Choose an available bundle collection method and respondent.</Notice>}
+                secondary={unavailable && <Notice tone="amber">{unavailable}. Choose an available assessment collection method and respondent.</Notice>}
               />;
             })}
             {extras.map(item => {
@@ -172,25 +183,25 @@ export default function NewAssessmentBundle({ person, episode, onClose, onCreate
               />;
             })}
           </fieldset>}
-          {!embedded && <section className="new-bundle-extras" aria-label="Additional assessments">
+          {!embedded && <section className="new-bundle-extras" aria-label="Additional instruments">
             {available.length ? <div className="new-bundle-extra-picker">
               {instrumentPicker}
               {addInstrumentButton}
-            </div> : <p className="muted">All available assessment types are included.</p>}
+            </div> : <p className="muted">All available instrument types are included.</p>}
 
           </section>}
         </>}
         {bundle && <div className="new-bundle-creation-summary" role="status">
-          <strong>{count} assessment{count === 1 ? '' : 's'} selected</strong>
-          <small>{editingBundle ? 'Mandatory assessments stay included' : scheduling ? 'Ready on the chosen due date' : 'Ready to collect after creation'}</small>
+          <strong>{count} instrument{count === 1 ? '' : 's'} selected</strong>
+          <small>{editingBundle ? 'Mandatory instruments stay included' : scheduling ? 'Ready on the chosen due date' : 'Ready to collect after creation'}</small>
         </div>}
         {(error || selectionError) && <div role="alert"><Notice tone="amber">{error || selectionError}</Notice></div>}
       </div>
-      <ActionGroup className="modal-footer">
+      <ActionGroup className="modal-footer bundle-form-footer">
         <Button type="button" onClick={onClose}>Cancel</Button>
-        <Button type="submit" variant="primary" disabled={!bundle || !!selectionError}>{editingBundle ? 'Save changes' : 'Create bundle'}</Button>
+        <Button type="submit" variant="primary" disabled={!bundle || !!selectionError}>{editingBundle ? 'Save changes' : 'Create assessment'}</Button>
       </ActionGroup>
     </ValidatedForm>}
   </>;
-  return embedded ? content : <Modal title={editingBundle ? 'Edit bundle' : 'New bundle'} subtitle={editingBundle ? bundleName(bundle) : `${person.name} · Care episode ${episode.number}`} onClose={onClose} wide className="new-assessment-bundle-modal">{content}</Modal>;
+  return embedded ? content : <Modal title={editingBundle ? 'Edit assessment' : 'New assessment'} subtitle={editingBundle ? bundleName(bundle) : `${person.name} · Care episode ${episode.number}`} onClose={onClose} wide className="new-assessment-bundle-modal">{content}</Modal>;
 }

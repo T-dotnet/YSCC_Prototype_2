@@ -72,7 +72,7 @@ test('bundle grouping keeps different assessment types together and individual o
   const groups = assessmentBundleGroups({collections:records},records,[rule]);
   assert.equal(groups.length,2);assert.equal(groups[0].records.length,2);assert.equal(groups[0].records[0].id,'two');
   assert.match(groups[0].description,/Program stream \/ care-level condition/);
-  assert.equal(groups[1].name,'Individual assessments');
+  assert.equal(groups[1].name,'Individual instruments');
   assert.equal(assessmentBundleGroups({collections:records},[records[1]],[])[0].name,rule.name);
   assert.match(assessmentBundleGroups({collections:records},[records[1]],[])[0].description,/Every 28 days/);
   assert.match(bundleDescription({trigger:'event',eventType:'harm',delayDays:2}),/Event trigger.*Due 2 days after event/);

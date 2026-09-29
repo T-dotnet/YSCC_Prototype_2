@@ -21,8 +21,39 @@ export default function BundleQuestionnaire({ person, episode, collection, onClo
   const { state, commit } = useStore();
   episode = episodeWithVisibleContacts(episode, state.settings);
   const group = bundleCollectionGroup(episode, collection, state.settings?.assessmentScheduleRules) ||
-    { key: collection.id, name: collection.label || getInstrument(collection.version)?.name || "Questionnaire", records: [collection] };
+    { key: collection.id, name: collection.label || getInstrument(collection.version)?.name || "Instrument", records: [collection] };
   // Keep this session's list stable while submissions reorder the ledger.
+  const [multipleInstances, setMultipleInstances] = useState(false);
+  const presenceKey = `${person.id}:${episode.id}:${group.instanceId || group.key}`;
+  useEffect(() => {
+    if (typeof BroadcastChannel === 'undefined') return;
+    const channel = new BroadcastChannel(`yscc-bundle:${presenceKey}`);
+    const id = crypto.randomUUID();
+    const peers = new Map();
+    const update = () => {
+      const now = Date.now();
+      for (const [peer, seen] of peers) if (now - seen > 45000) peers.delete(peer);
+      setMultipleInstances(peers.size > 0);
+    };
+    const send = type => channel.postMessage({ id, type });
+    channel.onmessage = ({ data }) => {
+      if (!data?.id || data.id === id) return;
+      if (data.type === 'bye') peers.delete(data.id);
+      else if (['hello', 'present'].includes(data.type)) peers.set(data.id, Date.now());
+      if (data.type === 'hello') send('present');
+      update();
+    };
+    const leave = () => send('bye');
+    window.addEventListener('pagehide', leave);
+    send('hello');
+    const heartbeat = setInterval(() => { send('hello'); update(); }, 15000);
+    return () => {
+      window.removeEventListener('pagehide', leave);
+      clearInterval(heartbeat);
+      send('bye');
+      channel.close();
+    };
+  }, [presenceKey]);
   const [ids] = useState(() => group.records.map(record => record.id));
   const records = ids.map(id => episode.collections.find(record => record.id === id)).filter(Boolean);
   const [activeId, setActiveId] = useState(collection.id);
@@ -61,13 +92,13 @@ export default function BundleQuestionnaire({ person, episode, collection, onClo
   const collectionTabs = [{ value: 'clinician', label: 'Clinician' },
     { value: 'tablet', label: 'Tablet' }, { value: 'sms', label: 'SMS' }];
   const context = id => ({ personId: person.id, episodeId: episode.id, collectionId: id });
-  const blocker = record => !record ? 'This assessment is no longer in the bundle.'
+  const blocker = record => !record ? 'This instrument is no longer in the assessment.'
     : !canAssess(person, episode) || !canCollectInEpisode(episode, record)
       ? 'This care episode is not available for collection.'
     : person.consent !== 'Recorded' || person.contact !== 'Suitable'
       ? 'Check participation consent and contact suitability in the record.'
-    : ['Cancelled', 'Paused'].includes(record.assignment) ? `This assessment is ${record.assignment.toLowerCase()}.`
-    : !getInstrument(record.version) ? 'This questionnaire version is unavailable.' : '';
+    : ['Cancelled', 'Paused'].includes(record.assignment) ? `This instrument is ${record.assignment.toLowerCase()}.`
+    : !getInstrument(record.version) ? 'This instrument version is unavailable.' : '';
   const attempt = c?.attempts?.at(-1);
   const unavailable = blocker(c) || (c?.response !== 'Submitted' &&
     (c?.assignment !== 'Active' || c?.link !== 'Active' || !attempt || attempt.endedAt ||
@@ -116,11 +147,26 @@ export default function BundleQuestionnaire({ person, episode, collection, onClo
     }
   };
   const begin = () => {
-    if (unavailable) return;
-    if (!attempt.startedAt) {
-      const result = commit({ ...context(c.id), type: 'START_RESPONSE_SESSION', channel: c.channel, attemptId: attempt.id });
+    if (blocker(c)) return;
+    let prepared = c;
+    if (unavailable) {
+      const channel = delivery?.channel || c.channel || 'Clinic tablet';
+      const result = commit({ ...context(c.id), type: 'DELIVER', channel,
+        respondent: c.draftAnswers?.some(Boolean) ? c.respondent : delivery?.recipient || c.respondent,
+        assistance: channel === 'Clinician entry' ? 'Transcribed' : 'Independent',
+        appointmentId: simple ? null : c.appointmentId || null });
+      if (result.error) { setError(result.error); return; }
+      prepared = result.state.people.find(item => item.id === person.id).episodes
+        .find(item => item.id === episode.id).collections.find(item => item.id === c.id);
+    }
+    const latest = prepared.attempts?.at(-1);
+    if (!latest || latest.endedAt) { setError('Unable to reopen this instrument.'); return; }
+    attemptIds.current[c.id] = latest.id;
+    if (!latest.startedAt) {
+      const result = commit({ ...context(c.id), type: 'START_RESPONSE_SESSION', channel: prepared.channel, attemptId: latest.id });
       if (result.error) { setError(result.error); return; }
     }
+    setError('');
     setStarted(true);
   };
   const submit = (finalAnswers, confirmation = {}) => {
@@ -131,7 +177,7 @@ export default function BundleQuestionnaire({ person, episode, collection, onClo
     const nextEpisode = result.state.people.find(item => item.id === person.id).episodes.find(item => item.id === episode.id);
     const nextRecords = ids.map(id => nextEpisode.collections.find(record => record.id === id)).filter(Boolean);
     const next = nextBundleCollection(nextRecords, c.id);
-    setAnnouncement(`${instrument.name} completed and saved.${next ? ' Continue with the next questionnaire.' : ''}`);
+    setAnnouncement(`${instrument.name} completed and saved.${next ? ' Continue with the next instrument.' : ''}`);
     setPendingAnswers(null);
     setError('');
     if (next) selectRecord(next, nextEpisode);
@@ -167,16 +213,16 @@ export default function BundleQuestionnaire({ person, episode, collection, onClo
     ['Planned', 'Attended'].includes(item.attendance));
   const body = <>
     <div className="bundle-collection-layout" hidden={discard}>
-      <aside className="bundle-collection-sidebar" aria-label="Bundle progress">
+      <aside className="bundle-collection-sidebar" aria-label="Assessment progress">
         <div className="bundle-collection-progress">
-          <h3>Questionnaires</h3>
+          <h3>Instruments</h3>
           <p><strong>{completed} of {records.length}</strong> completed</p>
-          <div className="progress-track" role="progressbar" aria-label="Questionnaires completed"
+          <div className="progress-track" role="progressbar" aria-label="Instruments completed"
             aria-valuemin={0} aria-valuemax={records.length} aria-valuenow={completed}>
             <span style={{width: `${completed / records.length * 100}%`}} />
           </div>
         </div>
-        <nav aria-label="Bundle questionnaires"><ol>
+        <nav aria-label="Assessment instruments"><ol>
           {records.map((record, index) => {
             const progress = bundleQuestionnaireProgress(record, drafts[record.id] || record.draftAnswers || []);
             const percent = progress.completed ? 100 : progress.total ? Math.round(progress.answered / progress.total * 100) : 0;
@@ -203,7 +249,8 @@ export default function BundleQuestionnaire({ person, episode, collection, onClo
           })}
         </ol></nav>
       </aside>
-      <section className="bundle-collection-content" aria-label="Current questionnaire">
+      <section className="bundle-collection-content" aria-label="Current instrument">
+        {multipleInstances && <div role="alert"><Notice tone="amber">This assessment is open in another tab or window. You can continue here; changes made in either instance may affect the other.</Notice></div>}
         <p className="sr-only" role="status">{announcement}</p>
         {participant && !started && !finished && <Tabs id="collection-delivery" label="Collection method"
           items={collectionTabs} value={collectionTab} onChange={setCollectionTab} />}
@@ -212,26 +259,26 @@ export default function BundleQuestionnaire({ person, episode, collection, onClo
         {participant && !started && !finished && collectionTab !== 'clinician'
           ? <QuestionnaireAccessPanel key={collection.id} person={person} episodeId={episode.id}
               collectionId={collection.id} mode={collectionTab} onBack={requestClose} />
-          : finished ? <Success title="Bundle completed" action={<Button variant="primary" onClick={onClose}>Back to record</Button>}>
-          All {records.length} questionnaire responses are saved. They are available in the assessment record.
+          : finished ? <Success title="Assessment completed" action={<Button variant="primary" onClick={onClose}>Back to record</Button>}>
+          All {records.length} instrument responses are saved. They are available in the assessment record.
         </Success> : !started ? <div className="bundle-collection-intro">
-          <h2>A check-in, one questionnaire at a time.</h2>
-          <p>This bundle has {records.length - completed} questionnaires left to complete. The list shows where you are and what is still to do.</p>
-          <p>{hasProgress ? 'Your saved progress is here. Drafts still need to be submitted to complete a questionnaire.'
+          <h2>A check-in, one instrument at a time.</h2>
+          <p>This assessment has {records.length - completed} instruments left to complete. The list shows where you are and what is still to do.</p>
+          <p>{hasProgress ? 'Your saved progress is here. Drafts still need to be submitted to complete an instrument.'
             : 'You can save a draft and take a break at any time.'}</p>
-          <Button variant="primary" disabled={!!unavailable} onClick={begin}>{hasProgress ? 'Continue bundle' : 'Begin bundle'} <ArrowRight size={18} /></Button>
+          <Button variant="primary" disabled={!!blocker(c)} onClick={begin}>{hasProgress ? 'Continue assessment' : 'Begin assessment'} <ArrowRight size={18} /></Button>
           <Button variant="ghost" onClick={requestClose}>Back to record</Button>
-          {unavailable && <Notice tone="amber">{unavailable}</Notice>}
+          {blocker(c) && <Notice tone="amber">{blocker(c)}</Notice>}
         </div> : <>
           {saveOpen ? <>
-            <Notice>{draftRecords.length} {draftRecords.length === 1 ? 'questionnaire draft will' : 'questionnaire drafts will'} be saved. Completed responses are already saved.</Notice>
+            <Notice>{draftRecords.length} {draftRecords.length === 1 ? 'instrument draft will' : 'instrument drafts will'} be saved. Completed responses are already saved.</Notice>
             <DraftContactForm episode={episode} collection={draftRecords[0] || c} error={error}
               showContactChoice={!simple} confirmTabletAssistance={simple}
               onCancel={() => { setSaveOpen(false); setError(''); }} onSave={saveDrafts} />
           </> : c?.response === 'Submitted' ? <Notice>This response has already been completed and saved.
-            <Button onClick={() => selectRecord(records.find(record => record.response !== 'Submitted'))}>Continue remaining questionnaires</Button>
+            <Button onClick={() => selectRecord(records.find(record => record.response !== 'Submitted'))}>Continue remaining instruments</Button>
           </Notice>
-          : unavailable ? <Notice tone="amber">{unavailable} Select another questionnaire or return to the record.</Notice>
+          : unavailable ? <Notice tone="amber">{unavailable} Select another instrument or return to the record.</Notice>
           : pendingAnswers ? simple ? <TabletAssistanceConfirmation error={error}
             onBack={() => { setPendingAnswers(null); setReturnToReview(true); setError(''); }}
             onConfirm={confirmation => submit(pendingAnswers, confirmation)} />
@@ -245,7 +292,7 @@ export default function BundleQuestionnaire({ person, episode, collection, onClo
             clinicianEntry={c.channel === 'Clinician entry'}
             secondaryAction={<Button disabled={!!unavailable} onClick={requestSaveDraft}>Save draft and leave</Button>}
             submitLabel={!simple ? 'Continue to completion details' : c.channel === 'Clinic tablet'
-              ? 'Confirm tablet assistance' : nextBundleCollection(records, c.id) ? 'Save and continue' : 'Complete bundle'} />}
+              ? 'Confirm tablet assistance' : nextBundleCollection(records, c.id) ? 'Save and continue' : 'Complete assessment'} />}
           {error && !saveOpen && !pendingAnswers && <p className="field-error" role="alert">{error}</p>}
         </>}
         </div>
@@ -254,7 +301,7 @@ export default function BundleQuestionnaire({ person, episode, collection, onClo
     {discard && <DiscardChanges onKeepEditing={() => setDiscard(false)} onDiscard={onClose} />}
   </>;
   return participant ? <div className="participant bundle-questionnaire">
-    <header className="participant-header"><Logo /><span>Bundle questionnaires · sample content</span></header>
+    <header className="participant-header"><Logo /><span>Assessment instruments · sample content</span></header>
     <main className="bundle-collection-participant">
       <div className="bundle-questionnaire-workspace">
         <header className="bundle-collection-page-heading"><h1>{group.name}</h1>
@@ -262,6 +309,6 @@ export default function BundleQuestionnaire({ person, episode, collection, onClo
       </div>
     </main>
     <footer className="participant-footer">YSCC · Care, connected</footer>
-  </div> : <Modal title={group.name} subtitle={`${patientIdentifier(person)} · Collect bundle responses`}
+  </div> : <Modal title={group.name} subtitle={`${patientIdentifier(person)} · Collect assessment responses`}
     onClose={requestClose} wide className="bundle-collection-modal">{body}</Modal>;
 }

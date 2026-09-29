@@ -72,7 +72,7 @@ export default function CollectionDetails({
               {c.response === "Draft"
                 ? `${savedAnswerCount} ${savedAnswerCount === 1 ? "answer is" : "answers are"} saved. Start another session to continue on the same or a different collection method.`
                 : simpleAssessments
-                  ? "No draft has been saved yet. Start the assessment when ready."
+                  ? "No draft has been saved yet. Start the instrument when ready."
                   : "No response has been submitted. Check delivery activity and contact arrangements before deciding whether another attempt is needed."}
             </p>
           )}
@@ -113,7 +113,7 @@ export default function CollectionDetails({
         </section>
         <details className="collection-details-accordion" open>
           <summary>
-            <span>Questionnaire and respondent</span>
+            <span>Instrument and respondent</span>
             <ChevronDown size={18} aria-hidden="true" />
           </summary>
           <div className="collection-details-accordion-body">
@@ -123,7 +123,7 @@ export default function CollectionDetails({
                 <dd>{c.version}</dd>
               </div>
               {c.bundleId && <>
-                <div><dt>Bundle</dt><dd>{c.bundleName}</dd></div>
+                <div><dt>Assessment</dt><dd>{c.bundleName}</dd></div>
                 <div><dt>Requirement</dt><dd>{c.bundleRequirement}</dd></div>
               </>}
               <div>

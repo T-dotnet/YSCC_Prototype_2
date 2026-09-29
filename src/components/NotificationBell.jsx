@@ -16,8 +16,8 @@ const CATEGORY_MAP = {
     badgeClass: "coral",
   },
   assessment_overdue: {
-    label: "Assessment overdue",
-    shortLabel: "Assessment overdue",
+    label: "Instrument overdue",
+    shortLabel: "Instrument overdue",
     badgeClass: "coral",
   },
   appointment_overdue: {
@@ -26,7 +26,7 @@ const CATEGORY_MAP = {
     badgeClass: "coral",
   },
   assessment_review: {
-    label: "Assessment ready for review",
+    label: "Instrument ready for review",
     shortLabel: "Ready for review",
     badgeClass: "purple",
   },
@@ -93,7 +93,7 @@ export default function NotificationBell({ navigate }) {
   const tabs = [
     { key: "all", label: "All", count: counts.all },
     { key: "data_quality", label: "Data quality", count: counts.data_quality },
-    { key: "assessment_overdue", label: "Assessment overdue", count: counts.assessment_overdue },
+    { key: "assessment_overdue", label: "Instrument overdue", count: counts.assessment_overdue },
     { key: "appointment_overdue", label: "Contact overdue", count: counts.appointment_overdue },
     { key: "assessment_review", label: "Ready for review", count: counts.assessment_review },
   ];

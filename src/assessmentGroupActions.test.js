@@ -1,0 +1,36 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createSeed, reducer} from './model.js';
+import {INSTRUMENTS} from './instruments.js';
+test('adding an instrument preserves group delivery and starts with empty response; user archive retains records',()=>{
+  let state=createSeed();
+  const person=state.people.find(person=>person.id==='YS-1034');
+  const episode=person.episodes.find(episode=>episode.status==='Active');
+  const source=episode.collections.find(record=>!record.bundleId);
+  source.bundleSource='Manual';
+  delete source.scheduleAnchor;
+  const version=INSTRUMENTS.find(instrument=>instrument.version!==source.version).version;
+  const action={personId:person.id,episodeId:episode.id,collectionIds:[source.id]};
+  const count=episode.collections.length;
+  state=reducer(state,{...action,type:'ADD_GROUP_INSTRUMENT',version});
+  const updated=state.people.find(person=>person.id===action.personId).episodes.find(episode=>episode.id===action.episodeId);
+  assert.equal(updated.collections.length,count+1);
+  const added=updated.collections.at(-1);
+  assert.equal(added.version,version);
+  assert.equal(added.response,'Not started');
+  assert.deepEqual(added.answers,[]);
+  assert.equal(added.submittedAt,null);
+  state=reducer(state,{...action,type:'ARCHIVE_ASSESSMENT_GROUP'});
+  const archived=state.people.find(person=>person.id===action.personId).episodes.find(episode=>episode.id===action.episodeId);
+  assert.ok(!archived.collections.some(record=>record.id===source.id));
+  assert.ok(archived.archivedCollections.some(record=>record.id===source.id));
+});
+test('system generated assessments cannot be archived',()=>{
+  const state=createSeed();
+  const person=state.people.find(person=>person.id==='YS-1034');
+  const episode=person.episodes.find(episode=>episode.status==='Active');
+  const source=episode.collections[0];
+  source.bundleSource='Scheduled';
+  const result=reducer(state,{type:'ARCHIVE_ASSESSMENT_GROUP',personId:person.id,episodeId:episode.id,collectionIds:[source.id]});
+  assert.ok(result.people.find(item=>item.id===person.id).episodes.find(item=>item.id===episode.id).collections.some(record=>record.id===source.id));
+});

@@ -41,7 +41,7 @@ export default function InstrumentPreview({
       <>
         <div className="form-body">
           <Notice>
-            This questionnaire version is unavailable in the workspace.
+            This instrument version is unavailable in the workspace.
           </Notice>
         </div>
         {footer}

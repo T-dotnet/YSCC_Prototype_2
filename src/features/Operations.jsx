@@ -359,7 +359,7 @@ export function Administration({ openModal, navigate }) {
         subtitle="The foundations of a consistent care experience."
       />
       <Tabs id="administration" panelId="administration-panel" label="Administration sections"
-        items={[{value:"workspace",label:"Workspace"},{value:"bundles",label:"Assessment bundles"}]}
+        items={[{value:"workspace",label:"Workspace"},{value:"bundles",label:"Assessments"}]}
         value={adminTab} onChange={value=>view.set("tab",value,"workspace")} />
       <div role="tabpanel" id="administration-panel" aria-labelledby={`administration-tab-${adminTabs.indexOf(adminTab)}`}>
       {adminTab === "bundles" && <AssessmentScheduleSettings />}
@@ -379,16 +379,16 @@ export function Administration({ openModal, navigate }) {
           [
             BookOpen,
             "Instrument library",
-            `${INSTRUMENTS.length} sample questionnaires · Browse topics and preview questions`,
+            `${INSTRUMENTS.length} sample instruments · Browse topics and preview questions`,
             "instrument",
             "Browse instruments",
           ],
           [
             SlidersHorizontal,
-            "Assessment bundles",
-            "Group assessments by program, care level, or a recorded event",
+            "Assessments",
+            "Group instruments into assessments by program, care level, or a recorded event",
             "bundles",
-            "Manage bundles",
+            "Manage assessments",
           ],
           [
             MessageSquare,
@@ -438,7 +438,7 @@ export function Help({ navigate, openModal }) {
           [
             ClipboardList,
             "Follow an overdue review",
-            "Open Kai’s record, choose Set up collection, confirm a sample collection method, and complete the questionnaire.",
+            "Open Kai’s record, choose Set up collection, confirm a sample collection method, and complete the instrument.",
             "Open Kai’s record",
             () => navigate("/people/YS-1024"),
           ],
@@ -459,8 +459,8 @@ export function Help({ navigate, openModal }) {
           [
             Users,
             "Try the participant experience",
-            "Try a longer questionnaire with questions that adapt to your answers, without updating a person’s care record. No account is needed.",
-            "Try a sample questionnaire",
+            "Try a longer instrument with questions that adapt to your answers, without updating a person’s care record. No account is needed.",
+            "Try a sample instrument",
             () => navigate("/preview"),
           ],
         ].map(([Icon, title, desc, label, fn]) => (

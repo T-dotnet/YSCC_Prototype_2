@@ -13,7 +13,7 @@ The shared product vocabulary lives in [src/terminology.js](../src/terminology.j
 
 | Context | Preferred label | Values / meaning |
 | --- | --- | --- |
-| Assessment setup, bundles, filters, response sessions and answer evidence | **${TERMINOLOGY.collectionMethod.label}** | ${TERMINOLOGY.collectionMethod.options.map(([, label]) => label).join(', ')} |
+| Assessment setup, instrument filters, response sessions and answer evidence | **${TERMINOLOGY.collectionMethod.label}** | ${TERMINOLOGY.collectionMethod.options.map(([, label]) => label).join(', ')} |
 | Service-contact forms, details and care chronology | **${TERMINOLOGY.contactMethod.label}** | How the contact takes place; for example In person, Phone or Video |
 | Consent-request forms, details and filters | **${TERMINOLOGY.deliveryMethod.label}** | How the request is delivered or presented |
 
@@ -30,11 +30,11 @@ ${Object.values(TERMINOLOGY).map(term => `| **${cell(term.label)}** | ${cell(ter
 ## Usage and compatibility
 
 - Import shared labels and collection-method options from \u0060src/terminology.js\u0060. Do not create a new local list or shorten option labels to Clinician, Tablet or SMS.
-- Use **Respondent** throughout assessment bundles and individual assessments. **Recipient** remains valid for service contacts and consent requests.
+- Use **Respondent** throughout assessments and individual instruments. **Recipient** remains valid for service contacts and consent requests.
 - Keep Created, Draft and Completed in the simple assessment view. Full views retain separate assignment, response and clinical-review statuses; these dimensions are not interchangeable.
 - Preserve existing storage keys (including \u0060channel\u0060, \u0060deliveryMode\u0060, \u0060recipient\u0060 and \u0060assessmentModality\u0060), persisted values, identifiers and historical audit records. Changing a visible label does not migrate data or alter a workflow.
 - Dated stakeholder documents and earlier handovers are historical snapshots. Use this glossary for current vocabulary; do not silently rewrite those snapshots.
-- Eligibility, mandatory assessment/contact linkage, care-intensity mappings and clinical intervals require separate decisions. This glossary does not settle them.
+- Eligibility, mandatory instrument/contact linkage, care-intensity mappings and clinical intervals require separate decisions. This glossary does not settle them.
 
 After changing the vocabulary, run \u0060npm run terminology:generate\u0060, \u0060npm run terminology:check\u0060, the relevant domain tests, typecheck and build. Review the rendered fields in both assessment views and in narrow layouts.
 `;

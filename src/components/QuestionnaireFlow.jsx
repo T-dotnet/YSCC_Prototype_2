@@ -129,7 +129,7 @@ export default function QuestionnaireFlow({
             of {path.sections.length} complete
           </span>
         </summary>
-        <nav aria-label="Questionnaire sections">
+        <nav aria-label="Instrument sections">
           {path.sections.map((s) => (
             <button
               type="button"

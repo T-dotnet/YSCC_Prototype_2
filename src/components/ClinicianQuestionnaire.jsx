@@ -112,12 +112,12 @@ export default function ClinicianQuestionnaire({
     <Modal
       title={
         finished
-          ? "Questionnaire submitted"
+          ? "Instrument submitted"
           : saveContactOpen
             ? simpleAssessments ? "Save draft" : "Save draft and link contact"
             : pendingAnswers
             ? "Completion details"
-            : "Complete questionnaire as clinician"
+            : "Complete instrument as clinician"
       }
       subtitle={`${patientIdentifier(person)} · ${c.label} · ${c.version}`}
       onClose={requestClose}
@@ -173,7 +173,7 @@ export default function ClinicianQuestionnaire({
             )}
             {!pendingAnswers && (
               <Notice>
-                Enter {respondent}’s answers using the questionnaire wording
+                Enter {respondent}’s answers using the instrument wording
                 below. Save progress to continue in another session, or review
                 and submit when complete.
               </Notice>
@@ -181,7 +181,7 @@ export default function ClinicianQuestionnaire({
             {!available ? (
               <Notice tone="amber">
                 This collection is no longer available for clinician completion.
-                Close it and check the assessment record.
+                Close it and check the instrument record.
               </Notice>
             ) : (
               <div hidden={discard}>
@@ -208,7 +208,7 @@ export default function ClinicianQuestionnaire({
                       setError("");
                     }}
                     onSubmit={completeQuestions}
-                    submitLabel={simpleAssessments ? "Complete assessment" : "Continue to completion details"}
+                    submitLabel={simpleAssessments ? "Complete instrument" : "Continue to completion details"}
                     completionNote={simpleAssessments ? undefined :
                       linkedAppointment
                         ? `Next, choose the linked appointment on ${formatDate(linkedAppointment.plannedDate)} at ${linkedAppointment.plannedTime}, another existing contact, or a new contact. Your answers have not been submitted yet.`

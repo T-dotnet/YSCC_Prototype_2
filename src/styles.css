@@ -4465,7 +4465,7 @@ td:last-child {
 .care-event-filter-bar {
   display: grid;
   gap: var(--space-3);
-  margin-bottom: var(--space-5);
+  margin-bottom: 0;
 }
 .care-event-period-filters {
   display: flex;
@@ -4622,11 +4622,11 @@ td:last-child {
   flex-wrap: wrap;
   gap: var(--space-3);
   margin: 0;
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-3) 0;
   border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
+  border-bottom: 0;
   color: var(--muted);
-  font-size: var(--type-supporting);
+  font-size: var(--type-metadata);
 }
 .filter-result-action {
   display: inline-flex;
@@ -6608,6 +6608,8 @@ dialog {
   animation: modal-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .modal::backdrop {
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
   background: rgba(15, 23, 42, 0.45);
 }
 .modal.wide {
@@ -18786,9 +18788,9 @@ thead th,
 .bundle-timing-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px 16px; }
 .bundle-timing-heading { margin:var(--space-2) 0 0; }
 .bundle-collection-heading { margin:var(--space-2) 0 0; }
-.assessment-schedule-fields .bundle-repeat-choice { grid-column:1; flex-direction:row; align-items:center; }
+.assessment-schedule-fields .bundle-repeat-choice { grid-column:2; flex-direction:row; align-items:center; align-self:end; min-height:44px; }
 .bundle-timing-fields > p { margin:0; }
-.bundle-timing-fields > .bundle-repeat-hint { grid-column:2; align-self:center; }
+.bundle-timing-fields > .bundle-repeat-hint { grid-column:1 / -1; }
 @media(max-width:600px) {
   .assessment-schedule-fields { grid-template-columns:1fr; }
   .bundle-timing-fields { grid-template-columns:1fr; }
@@ -18832,8 +18834,7 @@ thead th,
 .bundle-summary-actions .admin-setting-toggle { margin-right:var(--space-2); font-weight:var(--type-weight-regular); }
 .bundle-summary-conditions { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:var(--space-4); margin:0; }
 .bundle-summary-conditions > div { display:flex; flex-direction:column; gap:var(--space-1); padding:0; border:0; min-height:0; }
-.bundle-summary-conditions dt { font-size:var(--type-metadata); }
-.bundle-summary-conditions dd { font-weight:var(--type-weight-semibold); }
+.bundle-summary-conditions dd { font-size:var(--type-body); font-weight:var(--type-weight-regular); }
 .bundle-summary-assessments { margin-top:var(--space-5); border:0; border-top:1px solid var(--line); border-radius:0; background:transparent; }
 .bundle-summary-assessments > summary { padding:var(--space-4) 0; font-size:var(--type-supporting); }
 .bundle-summary-assessments-heading { display:flex; flex:1; min-width:0; flex-wrap:wrap; justify-content:space-between; align-items:baseline; gap:var(--space-2); }
@@ -19186,9 +19187,9 @@ thead th,
   background: var(--surface);
   line-height: var(--type-leading-ui);
 }
-.bundle-collection-content .answer-option.chosen { background: var(--ui-selection-surface); border-color: var(--ui-selection-mark); }
+.bundle-collection-content .answer-option.chosen { background: var(--orygen-lime-soft); border-color: var(--orygen-forest); }
 .bundle-collection-content .answer-option:hover { border-color: var(--control-border-hover); }
-.bundle-collection-content .answer-option.chosen:hover { border-color: var(--ui-selection-mark); }
+.bundle-collection-content .answer-option.chosen:hover { border-color: var(--orygen-forest); }
 .bundle-collection-content .answer-option:has(input:focus-visible) { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .bundle-collection-content .answer-option svg { flex-shrink: 0; }
 .bundle-collection-content .question-controls {
@@ -19559,8 +19560,9 @@ thead th,
 .questionnaire-qr-modal-body > p { margin: 0; color: var(--muted); line-height: var(--type-leading-body); }
 
 /* Give row controls a shared left edge, independent of their label length. */
-.bundle-editor-assessment-row .record-item-heading-action { flex: 0 0 128px; }
-.bundle-editor-assessment-row .bundle-editor-assessment-actions { justify-content: flex-start; }
+.bundle-editor-assessment-row .record-item-heading-action { flex: 0 0 184px; }
+.bundle-editor-assessment-row .bundle-editor-assessment-actions { justify-content: flex-start; flex-wrap: nowrap; }
+.bundle-editor-assessment-actions .checkbox-control { white-space: nowrap; }
 @container (max-width: 520px) {
   .bundle-editor-assessment-row .record-item-heading-action { flex-basis: 100%; }
 }
@@ -19589,3 +19591,32 @@ thead th,
 
 .main:has(.person-heading) .overview-side-container .episode-bar > .episode-care-level { align-items: start; }
 .main:has(.person-heading) .overview-side-container .episode-care-level > small { display: flex; align-items: center; min-height: 44px; padding-top: 0; }
+
+.bundle-form-footer.action-group > :is(button, a, label)::before { display: none; }
+
+.questionnaire-access-link > .button-row { justify-content: flex-start; }
+
+.questionnaire-access-section > .button-row {
+  justify-content: flex-start;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.assessment-ledger-section + .assessment-ledger-section { margin-top:var(--space-8); }
+.assessment-ledger-section > h2 { margin:0 0 var(--space-4); }
+
+.assessment-group-add-instrument { display:flex; align-items:flex-end; flex-wrap:wrap; gap:var(--space-3); margin-top:var(--space-4); }
+.assessment-group-add-instrument > label { flex:1 1 240px; min-width:0; }
+
+.modal.assessment-response-viewer { position:fixed; inset:0; transform:none; margin:auto; max-height:calc(100dvh - var(--space-8)); display:flex; flex-direction:column; }
+.assessment-response-viewer > .form-body { overflow-y:auto; min-height:0; }
+
+@container (min-width:861px) {
+  .assessment-bundle-table > thead > tr > th:last-child,
+  .assessment-bundle-table > tbody > .queue-row > td[data-slot="action"] { width:160px; min-width:160px; max-width:160px; }
+}
+
+/* Result summaries share the filter inset; table headers provide the next divider. */
+.assessment-ledger-section > .list-filter-bar { margin-bottom:0; }
+.assessment-ledger-surface #person-panel > .stack:has(> .assessment-filter-bar) { row-gap:var(--space-4); }
+.assessment-ledger-surface .assessment-filter-bar + .assessment-list { margin-top:calc(-1 * var(--space-4)); }

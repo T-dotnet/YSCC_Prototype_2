@@ -7,6 +7,7 @@ import InstrumentPreview from "./InstrumentPreview";
 export default function InstrumentLibrary({ onClose }) {
   const [search, setSearch] = useState("");
   const [preview, setPreview] = useState(null);
+  const [pendingFeature, setPendingFeature] = useState(null);
   const previewTrigger = useRef(null);
   const query = search.trim().toLowerCase();
   const instruments = INSTRUMENTS.filter((instrument) =>
@@ -19,12 +20,13 @@ export default function InstrumentLibrary({ onClose }) {
     requestAnimationFrame(() => previewTrigger.current?.focus());
   };
   return (
+    <>
     <Modal
-      title={preview ? "Questionnaire preview" : "Instrument library"}
+      title={preview ? "Instrument preview" : "Instrument library"}
       subtitle={
         preview
           ? preview.version
-          : `${INSTRUMENTS.length} sample questionnaires`
+          : `${INSTRUMENTS.length} sample instruments`
       }
       onClose={preview ? backToLibrary : onClose}
       closeLabel={preview ? "Close preview" : "Close dialog"}
@@ -34,16 +36,20 @@ export default function InstrumentLibrary({ onClose }) {
     >
       <div className="form-body instrument-library" hidden={!!preview}>
         <Notice>
-          Original sample questionnaires for exploring the workspace. These are
+          Original sample instruments for exploring the workspace. These are
           not validated clinical measures and do not calculate scores.
         </Notice>
+        <ActionGroup className="instrument-library-actions">
+          <Button type="button" variant="primary" onClick={()=>setPendingFeature("Create instrument")}>Create instrument</Button>
+          <Button type="button" variant="secondary" onClick={()=>setPendingFeature("Import instrument")}>Import</Button>
+        </ActionGroup>
         <SearchInput
           value={search}
           onChange={setSearch}
-          placeholder="Search questionnaires"
+          placeholder="Search instruments"
         />
         <p className="muted" role="status">
-          {instruments.length} of {INSTRUMENTS.length} questionnaires
+          {instruments.length} of {INSTRUMENTS.length} instruments
         </p>
         <div className="instrument-list">
           {instruments.map((instrument) => (
@@ -78,7 +84,7 @@ export default function InstrumentLibrary({ onClose }) {
             </article>
           ))}
           {!instruments.length && (
-            <Empty title="No matching questionnaires">
+            <Empty title="No matching instruments">
               Try a different name or topic.
             </Empty>
           )}
@@ -100,5 +106,10 @@ export default function InstrumentLibrary({ onClose }) {
         </ActionGroup>
       )}
     </Modal>
+    {pendingFeature && <Modal title={pendingFeature} onClose={()=>setPendingFeature(null)}>
+      <div className="form-body"><p>Feature is TBD.</p></div>
+      <ActionGroup className="modal-footer"><Button onClick={()=>setPendingFeature(null)}>Done</Button></ActionGroup>
+    </Modal>}
+    </>
   );
 }

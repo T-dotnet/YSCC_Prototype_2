@@ -129,7 +129,7 @@ export default function ReviewResponses({
       ? "Response recorded"
       : reviewed
         ? "Review recorded"
-        : "Review questionnaire";
+        : "Review instrument";
 
   const record = (
     <ValidatedForm
@@ -182,7 +182,7 @@ export default function ReviewResponses({
       }}
     >
       <div className="response-dialog-body">
-        {c.readOnly && <Notice>This historical assessment is view only. Its submitted answers and recorded review remain available.</Notice>}
+        {c.readOnly && <Notice>This historical instrument is view only. Its submitted answers and recorded review remain available.</Notice>}
         {saveError && (
           <p className="form-error" role="alert">
             {saveError}
@@ -383,7 +383,7 @@ export default function ReviewResponses({
                   }}
                 >
                   Capture the service contact outcome alongside your clinical
-                  assessment review.
+                  instrument review.
                 </p>
 
                 {plannedAppointments.length > 1 && (
@@ -578,7 +578,7 @@ export default function ReviewResponses({
           {reviewNotRequired
             ? "No separate clinical review required · Answers remain available above"
             : canReview
-              ? "Review stays separate from assessment completion."
+              ? "Review stays separate from instrument completion."
               : reviewed && !c.needsReview
                 ? "Saved review · Answers remain available above"
                 : "Awaiting a clinician’s review."}

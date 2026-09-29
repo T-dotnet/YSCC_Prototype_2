@@ -52,7 +52,7 @@ const CARE_EVENT_QUICK_TYPES = [
 
 const EVENT_CATEGORY_DISPLAY = {
   appointment: { label: "Contact", icon: CalendarDays },
-  assessment: { label: "Assessment", icon: ClipboardCheck },
+  assessment: { label: "Instrument", icon: ClipboardCheck },
   "contextual-event": { label: "Contextual event", icon: Flag },
   "clinical-record": { label: "Care record", icon: FileText },
 };
@@ -325,7 +325,7 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordA
                 isSelectedSource}
               eyebrow={groupByDate ? categoryDisplay?.label : undefined}
               title={contactSummary ? appointment.contactType || appointment.appointmentType || "Contact"
-                : completedCollection ? `${completedCollection.label} questionnaire completed` : entry.title || "Recorded event"}
+                : completedCollection ? `${completedCollection.label} instrument completed` : entry.title || "Recorded event"}
               subtitle={contactSummary ? appointment.practitionerService : item.subtitle}
               status={collection ? !scheduleAssessments
                   ? collection.response === "Submitted" ? "Completed" : collection.response === "Draft" ? "Draft" : "Not started"

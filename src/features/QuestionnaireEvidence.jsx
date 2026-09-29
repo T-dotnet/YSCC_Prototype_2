@@ -110,7 +110,7 @@ export default function QuestionnaireEvidence({
     <div className="stack patient-progress questionnaire-details">
       <details className="report-accordion questionnaire-comparison-panel" open>
         <summary>
-          <span>Questionnaire comparison and details</span>
+          <span>Instrument comparison and details</span>
           {latest && hasComparison && !comparison.reason && (
             <Badge>{changeCountLabel}</Badge>
           )}
@@ -277,12 +277,12 @@ export default function QuestionnaireEvidence({
                     <Checkbox label="Changed answers only" checked={changesOnly}
                       onChange={(event) => setChangesOnly(event.target.checked)} />
                   </div>
-                  <p className="muted">
+                  <p className="care-event-results-count">
                     Showing {comparisonRows.length} of {comparison.rows.length}{" "}
                     questions. Questions not asked on both paths are not
                     comparable.
                   </p>
-                  <StandardTable label="Questionnaire response comparison" variant="comparison" responsive={false} className="progress-table" scrollClassName="progress-table-scroll">
+                  <StandardTable label="Instrument response comparison" variant="comparison" responsive={false} className="progress-table" scrollClassName="progress-table-scroll">
                       <caption className="sr-only">
                         {selected.label} compared with {latest.label}. Changes
                         describe answers, not a clinical score.
@@ -381,7 +381,7 @@ export default function QuestionnaireEvidence({
                   {undated.length === 1 ? "response has" : "responses have"} no
                   recorded submission date and{" "}
                   {undated.length === 1 ? "is" : "are"} excluded from the
-                  comparison. Open Assessment to review all responses.
+                  comparison. Open Instrument to review all responses.
                 </Notice>
               )}
             </>
@@ -395,8 +395,8 @@ export default function QuestionnaireEvidence({
               </h3>
               <p>
                 {progress.responses.length
-                  ? "Open Assessment to review submitted responses and collection history."
-                  : "Once the first questionnaire is submitted, its answers will appear here. Follow-ups will add new points for comparison."}
+                  ? "Open Instrument to review submitted responses and collection history."
+                  : "Once the first instrument is submitted, its answers will appear here. Follow-ups will add new points for comparison."}
               </p>
             </div>
           )}

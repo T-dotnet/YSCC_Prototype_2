@@ -10,15 +10,15 @@ export const BUNDLE_EVENT_TYPES = [
   { value: 'level-change', label: 'Program or care level changed' },
   ...[...CARE_EVENT_TYPES, ...SYSTEM_EVENT_TYPES, ...REPORT_EVENT_TYPES].map(({value, label}) => ({value, label})),
 ];
-export const bundleName = rule => rule.name || `${INSTRUMENTS.find(i => i.version === rule.version)?.name || 'Assessment'} bundle`;
+export const bundleName = rule => rule.name || `${INSTRUMENTS.find(i => i.version === rule.version)?.name || 'Instrument'} assessment`;
 export const bundleIntervalDays = bundle => bundle.days ?? (bundle.weeks * 7);
 export const bundleTimingMode = bundle => bundle.timing ?? 'days';
-export const bundleRepeats = bundle => bundleTimingMode(bundle) === 'days' && (bundle.repeat ?? true);
+export const bundleRepeats = bundle => bundleTimingMode(bundle) === 'days' && bundle.after !== 'referral' && (bundle.repeat ?? true);
 export const bundleContext = bundle => ({trigger:bundle.trigger, programStream:bundle.programStream,
-  careLevel:bundle.careLevel, channel:bundle.channel, recipient:bundle.recipient, days:bundleIntervalDays(bundle), minAge:bundle.minAge, maxAge:bundle.maxAge, eventType:bundle.eventType, delayDays:bundle.delayDays,
+  careLevel:bundle.careLevel, channel:bundle.channel, recipient:bundle.recipient, days:bundleIntervalDays(bundle), dueDate:bundle.dueDate, after:bundle.after, referralStatus:bundle.referralStatus, minAge:bundle.minAge, maxAge:bundle.maxAge, eventType:bundle.eventType, delayDays:bundle.delayDays,
   ...(bundle.trigger === 'current' ? {timing:bundleTimingMode(bundle),repeat:bundleRepeats(bundle)} : {})});
 export function bundleDescription(bundle) {
-  if (!bundle) return 'Bundle configuration no longer available';
+  if (!bundle) return 'Assessment configuration no longer available';
   if (bundle.trigger === 'event') return `Event trigger · ${BUNDLE_EVENT_TYPES.find(event => event.value === bundle.eventType)?.label || bundle.eventType} · ${bundle.delayDays === 0 ? 'Due on event date' : `Due ${bundle.delayDays} ${bundle.delayDays === 1 ? 'day' : 'days'} after event`}`;
   return `Program stream / care-level condition · ${bundle.programStream === 'All' ? 'All program streams' : bundle.programStream} · ${bundle.careLevel === 'All' ? 'All care levels' : `${bundle.careLevel} care level`}${bundle.minAge != null || bundle.maxAge != null ? ` · ${bundleAgeLabel(bundle)}` : ''} · ${bundleTiming(bundle)}`;
 }
@@ -30,7 +30,10 @@ export function bundleTiming(bundle) {
   }
   if (bundleTimingMode(bundle) === 'intake') return 'At intake';
   if (bundleTimingMode(bundle) === 'discharge') return 'At discharge';
+  if (bundleTimingMode(bundle) === 'date') return bundle.dueDate ? `Due ${bundle.dueDate}` : 'Date not recorded';
   const days = bundleIntervalDays(bundle);
+  const after = bundle.after === 'referral' ? `referral ${(bundle.referralStatus || 'Accepted').toLowerCase()}` : bundle.after === 'intake' ? 'intake' : bundle.after === 'discharge' ? 'discharge' : BUNDLE_EVENT_TYPES.find(event=>event.value===bundle.after)?.label;
+  if (after) return bundleRepeats(bundle) ? `Every ${days} days after ${after}` : `Once, ${days} days after ${after}`;
   return Number.isFinite(days) ? bundleRepeats(bundle)
     ? `Every ${days} ${days === 1 ? 'day' : 'days'}`
     : `Once, ${days} ${days === 1 ? 'day' : 'days'} after care period starts` : 'Timing not recorded';
@@ -42,9 +45,9 @@ export function assessmentBundleGroups(episode, visibleCollections, rules = []) 
     const instance = episode.assessmentBundleInstances?.find(item => item.id === collection.bundleInstanceId && item.customName);
     const key = instance?.id || collection.bundleId || rule?.id || 'individual';
     const configuration = rule ? asBundle(rule) : collection.bundleContext;
-    if (!groups.has(key)) groups.set(key, {key, bundleId: collection.bundleId || rule?.id, instanceId: instance?.id, name:instance?.name || (key === 'individual' ? 'Individual assessments' : rule ? bundleName(rule) : collection.bundleName || 'Assessment bundle'),
+    if (!groups.has(key)) groups.set(key, {key, bundleId: collection.bundleId || rule?.id, instanceId: instance?.id, name:instance?.name || (key === 'individual' ? 'Individual instruments' : rule ? bundleName(rule) : collection.bundleName || 'Assessment'),
       triggeringEvent:configuration?.trigger === 'event' ? BUNDLE_EVENT_TYPES.find(event => event.value === configuration.eventType)?.label || configuration.eventType || 'Event not recorded' : null,
-      description:key === 'individual' ? 'Assessments created outside a bundle' : bundleDescription(rule ? asBundle(rule) : collection.bundleContext),
+      description:key === 'individual' ? 'Instruments created outside an assessment' : bundleDescription(rule ? asBundle(rule) : collection.bundleContext),
       timing:key === 'individual' ? null : bundleTiming(rule ? asBundle(rule) : collection.bundleContext), records:[]});
     groups.get(key).records.push(collection);
   }
@@ -90,7 +93,7 @@ export function bundleSelectionForEpisode(bundle, episode) {
   return {optionalIds,extraAssessments:bundleAdditionalAssessments(bundle,extras,assessmentOverrides),assessmentOverrides:assessmentOverrides.length ? bundle.assessments.map(item=>({id:item.id,...bundleDelivery(bundle,assessmentOverrides)})) : []};
 }
 export function newBundleError(bundle, optionalIds, extras, person, settings, overrides = []) {
-  if (!bundle?.enabled || bundleError(bundle)) return 'Choose an enabled bundle.';
+  if (!bundle?.enabled || bundleError(bundle)) return 'Choose an enabled assessment.';
   if (!Array.isArray(overrides) || new Set(overrides.map(value => value?.id)).size !== overrides.length ||
       overrides.some(value => !value || !bundle.assessments.some(item => item.id === value.id) ||
         Object.keys(value).some(key => !['id','channel','recipient'].includes(key))))
@@ -98,17 +101,17 @@ export function newBundleError(bundle, optionalIds, extras, person, settings, ov
   const delivery = bundleDelivery(bundle,overrides);
   if (overrides.some(value => value.channel != null && value.channel !== delivery.channel ||
       value.recipient != null && value.recipient !== delivery.recipient))
-    return 'Collection method and respondent apply to the whole bundle.';
+    return 'Collection method and respondent apply to the whole assessment.';
   if (!Array.isArray(optionalIds) || new Set(optionalIds).size !== optionalIds.length ||
       optionalIds.some(id => !bundle.assessments.some(item => item.id === id && item.requirement === 'Optional')))
-    return 'Check the optional assessment selection.';
+    return 'Check the optional instrument selection.';
   if (!Array.isArray(extras) || extras.some(item => !item || bundle.assessments.some(configured => configured.version === item.version)))
-    return 'Extra assessments must be assessment types outside this bundle.';
+    return 'Extra instruments must be instrument types outside this assessment.';
   const selected = [...bundleAssessmentsForCreation(bundle,overrides).filter(item => item.requirement === 'Mandatory' || optionalIds.includes(item.id)), ...bundleAdditionalAssessments(bundle,extras,overrides)];
-  if (!selected.length) return 'Include at least one assessment.';
+  if (!selected.length) return 'Include at least one instrument.';
   const error = bundleError({...bundle,...delivery, assessments:selected});
   if (error) return error;
-  if (new Set(extras.map(item => item.version)).size !== extras.length) return 'Add each extra assessment type only once.';
+  if (new Set(extras.map(item => item.version)).size !== extras.length) return 'Add each extra instrument type only once.';
   return selected.map(item => bundleAssessmentUnavailable(item, person, settings)).find(Boolean) || null;
 }
 export function asBundle(rule) {
@@ -135,19 +138,21 @@ export function bundleAgeMatches(bundle, person, today) {
   return (bundle.minAge == null || age >= bundle.minAge) && (bundle.maxAge == null || age <= bundle.maxAge);
 }
 export function bundleError(bundle, bundles=[]) {
-  if (!bundle?.id || !bundle.name?.trim()) return 'Enter a bundle name.';
-  if (bundle.name.trim().length > 80) return 'Use a bundle name of 80 characters or fewer.';
-  if (bundles.some(b => b.id !== bundle.id && bundleName(b).toLowerCase() === bundle.name.trim().toLowerCase())) return 'A bundle with this name already exists.';
-  if (!['current','event'].includes(bundle.trigger)) return 'Choose when the bundle applies.';
+  if (!bundle?.id || !bundle.name?.trim()) return 'Enter an assessment name.';
+  if (bundle.name.trim().length > 80) return 'Use an assessment name of 80 characters or fewer.';
+  if (bundles.some(b => b.id !== bundle.id && bundleName(b).toLowerCase() === bundle.name.trim().toLowerCase())) return 'An assessment with this name already exists.';
+  if (!['current','event'].includes(bundle.trigger)) return 'Choose when the assessment applies.';
   if (bundle.trigger === 'current') {
     if ([bundle.minAge, bundle.maxAge].some(value=>value != null && (!Number.isInteger(value) || value < 0 || value > 120))) return 'Enter ages from 0 to 120 years, or leave them blank.';
     if (bundle.minAge != null && bundle.maxAge != null && bundle.minAge > bundle.maxAge) return 'Maximum age must be at least the minimum age.';
     if (bundle.programStream !== 'All'  && !PROGRAM_STREAMS.includes(bundle.programStream)) return 'Choose a program stream.';
     if (bundle.careLevel !== 'All' && !CARE_LEVELS.includes(bundle.careLevel)) return 'Choose a care level.';
-    if (!['intake','discharge','days'].includes(bundleTimingMode(bundle))) return 'Choose Intake, Discharge, or Time (days).';
-    if (bundle.repeat != null && typeof bundle.repeat !== 'boolean') return 'Choose whether the bundle repeats.';
+    if (!['intake','discharge','days','date'].includes(bundleTimingMode(bundle))) return 'Choose Intake, Discharge, Event, or Date.';
+    if (bundle.repeat != null && typeof bundle.repeat !== 'boolean') return 'Choose whether the assessment repeats.';
     if (bundleTimingMode(bundle) !== 'days' && bundle.repeat === true) return 'Repeat is only available for Time (days).';
+    if (bundleTimingMode(bundle) === 'date' && (!/^\d{4}-\d{2}-\d{2}$/.test(bundle.dueDate || '') || !Number.isFinite(Date.parse(bundle.dueDate)) || new Date(bundle.dueDate).toISOString().slice(0,10) !== bundle.dueDate)) return 'Enter a valid due date.';
     if (bundleTimingMode(bundle) === 'days') {
+      if (bundle.after && !['care-period','intake','discharge','referral',...BUNDLE_EVENT_TYPES.map(event=>event.value)].includes(bundle.after)) return 'Choose an event to schedule after.';
       const days = bundleIntervalDays(bundle);
       if (!Number.isInteger(days) || days < 1 || days > 728) return 'Enter a time from 1 to 728 days.';
     }
@@ -155,19 +160,19 @@ export function bundleError(bundle, bundles=[]) {
     if (!BUNDLE_EVENT_TYPES.some(e => e.value === bundle.eventType)) return 'Choose a triggering event.';
     if (!Number.isInteger(bundle.delayDays) || bundle.delayDays < 0 || bundle.delayDays > 730) return 'Enter a delay from 0 to 730 days.';
   }
-  if (typeof bundle.enabled !== 'boolean') return 'Choose whether this bundle is enabled.';
-  if (!bundle.assessments?.length) return 'Add at least one assessment.';
+  if (typeof bundle.enabled !== 'boolean') return 'Choose whether this assessment is enabled.';
+  if (!bundle.assessments?.length) return 'Add at least one instrument.';
   const ids = new Set(), targets = new Set();
   for (const item of bundleAssessmentsForCreation(bundle)) {
     const instrument = INSTRUMENTS.find(i => i.version === item.version);
-    if (!item.id || ids.has(item.id)) return 'Each assessment must have a unique identifier.';
+    if (!item.id || ids.has(item.id)) return 'Each instrument must have a unique identifier.';
     ids.add(item.id);
-    if (!instrument) return 'Choose an assessment type for every assessment.';
-    if (!COLLECTION_METHOD_OPTIONS.some(([value]) => value === item.channel)) return 'Choose a collection method for every assessment.';
-    if (!instrument.respondents.includes(item.recipient)) return `${instrument.name} does not support the bundle respondent. Choose a compatible assessment or change the bundle respondent.`;
-    if (!['Mandatory','Optional'].includes(item.requirement)) return 'Choose Mandatory or Optional for every assessment.';
+    if (!instrument) return 'Choose an instrument type for every instrument.';
+    if (!COLLECTION_METHOD_OPTIONS.some(([value]) => value === item.channel)) return 'Choose a collection method for every instrument.';
+    if (!instrument.respondents.includes(item.recipient)) return `${instrument.name} does not support the assessment respondent. Choose a compatible instrument or change the assessment respondent.`;
+    if (!['Mandatory','Optional'].includes(item.requirement)) return 'Choose Mandatory or Optional for every instrument.';
     const target = `${item.version}|${item.channel}|${item.recipient}|${item.requirement}`;
-    if (targets.has(target)) return 'This assessment, collection method and respondent are already in the bundle.';
+    if (targets.has(target)) return 'This instrument, collection method and respondent are already in the assessment.';
     targets.add(target);
   }
   return null;
@@ -198,6 +203,7 @@ function matchingEvents(bundle, episode, today) {
     if (!date || date > today) return false;
     if (bundle.trigger === 'event' && bundle.eventType === 'episode-started')
       return event.actionType === 'START_ASSESSMENT' || event.title === 'Initial assessment added after intake' || event.title === 'Care episode started' || event.title === 'Care episode started after level change';
+    if (bundle.eventType === 'referral') return (event.eventType === 'referral' || event.kind === 'referral') && (event.referralStatus || event.status || event.outcome) === (bundle.referralStatus || 'Accepted');
     if (bundle.eventType === 'level-change') return event.title === 'Care episode started after level change';
     return event.actionType === 'ADD_CARE_EVENT' && event.eventType === bundle.eventType;
   });
@@ -221,11 +227,12 @@ export function reconcileAssessmentBundles(state, today) {
           ...bundleAdditionalAssessments(template,selection.extraAssessments,selection.assessmentOverrides),
         ]} : template;
         const timing = bundle.trigger === 'current' ? bundleTimingMode(bundle) : 'event';
-        if (timing === 'discharge' ? episode.status !== 'Closed' : episode.status !== 'Active') continue;
-        const intake = timing === 'intake' ? person.intakes?.find(record =>
+        const anchorTiming = timing === 'days' ? bundle.after || 'care-period' : timing;
+        if (anchorTiming === 'discharge' ? episode.status !== 'Closed' : episode.status !== 'Active') continue;
+        const intake = anchorTiming === 'intake' ? person.intakes?.find(record =>
           record.episodeId === episode.id && record.status === 'Completed' && record.outcome === 'Proceed') : null;
-        if (timing === 'intake' && !intake) continue;
-        const date = timing === 'discharge' ? episode.end : timing === 'intake'
+        if (anchorTiming === 'intake' && !intake) continue;
+        const date = anchorTiming === 'discharge' ? episode.end : anchorTiming === 'intake'
           ? intake.decisionAt?.slice(0,10) || episode.start : today;
         if (!date || date > today || !bundleAgeMatches(bundle, person, date)) continue;
         const period = carePeriodAt(episode, date);
@@ -239,9 +246,9 @@ export function reconcileAssessmentBundles(state, today) {
             !['Paused','Cancelled'].includes(collection.assignment) &&
             (!['Draft','In progress'].includes(collection.response) || !collection.due || collection.due > today))) continue;
           const sources = bundle.trigger === 'event' ? matchingEvents(bundle, episode, today).map(event => ({anchor:event.effectiveDate || event.eventDate || event.date, eventId:event.id}))
-            : timing === 'intake' ? [{anchor:date,timingSourceId:intake.id}]
-              : timing === 'discharge' ? [{anchor:date,timingSourceId:episode.id,dischargeFollowUp:true}]
-                : [{anchor:period.startDate}];
+            : anchorTiming === 'intake' ? [{anchor:date,timingSourceId:intake.id}]
+              : anchorTiming === 'discharge' ? [{anchor:date,timingSourceId:episode.id,dischargeFollowUp:true}]
+                : timing === 'date' ? [{anchor:bundle.dueDate}] : timing === 'days' && (anchorTiming === 'referral' || BUNDLE_EVENT_TYPES.some(event=>event.value===anchorTiming)) ? matchingEvents({...bundle,trigger:'event',eventType:anchorTiming},episode,today).map(event=>({anchor:event.effectiveDate || event.eventDate || event.date,eventId:event.id})) : [{anchor:period.startDate}];
           for (const source of sources) {
             let due;
             if (bundle.trigger === 'current') {

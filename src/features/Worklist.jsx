@@ -318,7 +318,7 @@ export default function Worklist({ navigate, openModal }) {
                         </QueueCell>
                         <QueueCell label={!scheduleAssessments ? "Progress" : "Due / review date"} slot="date">
                           {!scheduleAssessments && task.collection ? (
-                            <span className="muted">{status === "Draft" ? "Draft saved" : "Assessment created"}</span>
+                            <span className="muted">{status === "Draft" ? "Draft saved" : "Instrument created"}</span>
                           ) : c.response === "Submitted" ? (
                             <span className="muted">Response received · review pending</span>
                           ) : (

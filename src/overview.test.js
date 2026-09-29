@@ -16,12 +16,14 @@ function fixture(index = 4) {
 
 test("overdue active links lead to inspection, while expired links lead to replacement", () => {
   const active = fixture();
+  active.collection.due = "2026-09-14";
   const activeDaysLate = Math.round((Date.parse(TODAY) - Date.parse(active.collection.due)) / 86400000);
   assert.equal(active.step().primary.modal, "collection-details");
   assert.match(active.step().description, /link is still active/);
   assert.equal(active.step().dueText, `Due 14 Sep 2026 · ${activeDaysLate} ${activeDaysLate === 1 ? "day" : "days"} overdue`);
   assert.equal(active.step().overdueText, `${activeDaysLate} ${activeDaysLate === 1 ? "day" : "days"} overdue`);
   const expired = fixture(0);
+  expired.collection.due = "2026-09-14";
   const expiredDaysLate = Math.round((Date.parse(TODAY) - Date.parse(expired.collection.due)) / 86400000);
   assert.equal(expired.step().primary.modal, "collection");
   assert.equal(expired.step().primary.label, "Replace expired link");
@@ -54,9 +56,9 @@ test("preparing another attempt changes the recommendation without creating a ne
 test("an unsent questionnaire can be arranged whether overdue, due today or scheduled", () => {
   const { collection, step } = fixture(2);
   for (const [due, status, title] of [
-    ["2026-09-10", "Overdue", /overdue questionnaire/],
-    [TODAY, "Due today", /Arrange questionnaire collection/],
-    ["2026-12-01", "Scheduled", /scheduled questionnaire/],
+    ["2026-09-10", "Overdue", /overdue instrument/],
+    [TODAY, "Due today", /Arrange instrument collection/],
+    ["2026-12-01", "Scheduled", /scheduled instrument/],
   ]) {
     collection.due = due;
     assert.equal(step().badge, status);

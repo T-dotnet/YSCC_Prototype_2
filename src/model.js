@@ -4849,6 +4849,28 @@ function reduceState(state, action) {
       }
       break;
     }
+    case "ADD_GROUP_INSTRUMENT": {
+      if (!p || p.archivedAt || p.readOnly || !e || e.readOnly || e.status !== 'Active' || !canAssess(p,e)) return state;
+      const records = (e.collections || []).filter(record => action.collectionIds?.includes(record.id));
+      const template = records[0];
+      const instrument = INSTRUMENTS.find(item => item.version === action.version);
+      if (!template || !instrument || records.some(record => record.version === action.version)) return state;
+      e.collections.push({...template, id:uid(), version:instrument.version, label:instrument.name,
+        bundleRequirement:template.bundleId ? 'Additional' : undefined, bundleAssessmentId:uid(),
+        createdAt:recordedAt, assignment:'Planned', response:'Not started', review:'Pending', link:'Not sent',
+        answers:[], attempts:[], submittedAt:null, completedAt:null, responseDate:null, score:null, session:null, appointmentId:null, externalAppointment:null, answersUpdatedAt:null, reviewedAt:null});
+      event('Instrument added', instrument.name, {actionType:action.type});
+      break;
+    }
+    case "ARCHIVE_ASSESSMENT_GROUP": {
+      if (!p || p.archivedAt || p.readOnly || !e || e.readOnly || e.status !== 'Active' || !canAssess(p,e)) return state;
+      const records = (e.collections || []).filter(record => action.collectionIds?.includes(record.id));
+      if (!records.length || records.some(record => record.bundleSource === 'Scheduled' || record.bundleSource === 'System' || record.id?.startsWith('AUTO-') || (record.scheduleAnchor && record.bundleSource !== 'User'))) return state;
+      e.archivedCollections = [...(e.archivedCollections || []), ...records.map(record=>({...record,archivedAt:recordedAt}))];
+      e.collections = e.collections.filter(record=>!action.collectionIds.includes(record.id));
+      event('Assessment archived', 'User-created instruments retained in the archive.', {actionType:action.type});
+      break;
+    }
     case "UPDATE_ASSESSMENT_BUNDLE": {
       const saved = state.settings?.assessmentScheduleRules?.find(bundle => bundle.id === action.bundleId);
       const bundle = saved && asBundle(saved);

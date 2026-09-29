@@ -137,7 +137,7 @@ export default function DraftContactForm({ episode, collection, error, onCancel,
           </>
         )}
         {choice === "none" && (
-          <Notice>The draft will stay on the assessment record. Related contacts will remain unchanged.</Notice>
+          <Notice>The draft will stay on the instrument record. Related contacts will remain unchanged.</Notice>
         )}
         </>}
         {(choiceError || error) && <p className="field-error" role="alert">{choiceError || error}</p>}

@@ -149,7 +149,7 @@ export default function SubmittedAnswers({
       <div className="response-section-heading">
         <div>
           <h3>
-            {onAnswersChange ? "Questionnaire answers" : "Submitted answers"}
+            {onAnswersChange ? "Instrument answers" : "Submitted answers"}
           </h3>
           <p className="muted">
             {collectionActor(person, collection, "respondent")} ·{" "}
@@ -258,7 +258,7 @@ export default function SubmittedAnswers({
       ) : (
         <>
           <Notice>
-            Question text is unavailable for this questionnaire version.
+            Question text is unavailable for this instrument version.
           </Notice>
           {answers.length ? (
             answers.map((answer, index) => (

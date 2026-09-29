@@ -62,13 +62,13 @@ import { carePeriodError } from "../carePeriods";
 import ClinicalRecordForm from "./ClinicalRecordForm";
 import QualityIssueForm from "./QualityIssueForm";
 const COLLECTION_METHOD_PRESENTATION = {
-  "Clinician entry": ["Complete the questionnaire in your workspace", ClipboardPen],
+  "Clinician entry": ["Complete the instrument in your workspace", ClipboardPen],
   "Clinic tablet": ["In-person device handover", Tablet],
   "SMS link": ["Account-free sample link", MessageSquare],
 };
 const formValues = (e) => Object.fromEntries(new FormData(e.currentTarget));
 const suggestedAssessmentName = (collections = [], version) => {
-  const instrumentName = getInstrument(version)?.name || "Assessment";
+  const instrumentName = getInstrument(version)?.name || "Instrument";
   const existingNames = new Set(collections.map((collection) => collection.label?.trim()));
   if (!collections.some((collection) => collection.version === version) &&
       !existingNames.has(instrumentName)) return instrumentName;
@@ -361,7 +361,7 @@ export default function Forms({
   if (modal.type === "questionnaire-preview")
     return (
       <Modal
-        title="Questionnaire preview"
+        title="Instrument preview"
         subtitle={`${c.version} · ${displayPersonName(p)} · ${c.label}`}
         onClose={onClose}
         closeLabel="Close preview"
@@ -391,7 +391,7 @@ export default function Forms({
           const values = formValues(event);
           save({ type: "LINK_ASSESSMENT_CONTACT", appointmentId: values.appointmentId,
             attemptId: values.attemptId || null },
-            "Contact linked to assessment.");
+            "Contact linked to instrument.");
         }}>
           <div className="form-body">
             <Field label="Contact">
@@ -525,7 +525,7 @@ export default function Forms({
   if (modal.type === "plan")
     return (
       <Modal
-        title={previewOpen ? "Questionnaire preview" : scheduleAssessments ? "Schedule assessment" : "Start assessment"}
+        title={previewOpen ? "Instrument preview" : scheduleAssessments ? "Schedule instrument" : "Start instrument"}
         subtitle={
           previewOpen
             ? `${selectedInstrument.version} · ${displayPersonName(p)}`
@@ -548,7 +548,7 @@ export default function Forms({
             }
             if (scheduleAssessments && linkAssessmentAppointments && planChannel !== "SMS link" &&
                 (!planExternalSlot || planExternalSlot.date > dueDate)) {
-              setFormError("Choose an available contact on or before the assessment due date.");
+              setFormError("Choose an available contact on or before the instrument due date.");
               return;
             }
             const externalAppointment = !scheduleAssessments || !linkAssessmentAppointments || planChannel === "SMS link" ? null : planExternalSlot;
@@ -605,7 +605,7 @@ export default function Forms({
             }
             onClose();
             notify(
-              !scheduleAssessments ? "Assessment created." : externalAppointment
+              !scheduleAssessments ? "Instrument created." : externalAppointment
                 ? "Follow-up linked to an external contact."
                 : "Follow-up added to the existing care episode.",
             );
@@ -614,12 +614,12 @@ export default function Forms({
           <div className="form-body">
             <Notice>
               {!scheduleAssessments
-                ? `Start an assessment in care episode ${e.number}. Answers can be saved as a draft and then completed.`
-                : `Schedule an assessment in care episode ${e.number}, preserving the previous responses.`}
+                ? `Start an instrument in care episode ${e.number}. Answers can be saved as a draft and then completed.`
+                : `Schedule an instrument in care episode ${e.number}, preserving the previous responses.`}
             </Notice>
             {scheduleAssessments && <Field
               label="Due date"
-              hint="A sample due date is shown. Confirm or change it for this assessment."
+              hint="A sample due date is shown. Confirm or change it for this instrument."
             >
               <input
                 name="due"
@@ -665,7 +665,7 @@ export default function Forms({
               >
                 <Eye size={20} aria-hidden="true" />
                 <span>
-                  <strong>Preview questionnaire</strong>
+                  <strong>Preview instrument</strong>
                   <small>
                     Up to {selectedInstrument.questions.length} questions · Try
                     different paths
@@ -675,8 +675,8 @@ export default function Forms({
               </button>
             </div>
             <Field
-              label="Assessment name"
-              hint="Suggested from the instrument and existing assessments. You can edit it."
+              label="Instrument name"
+              hint="Suggested from the instrument and existing instruments. You can edit it."
             >
               <input
                 name="label"
@@ -690,11 +690,11 @@ export default function Forms({
               />
             </Field>
             {groupAssessmentsByBundle && <Field
-              label="Bundle"
-              hint="Choose a bundle for this assessment, or keep it as an individual assessment."
+              label="Assessment"
+              hint="Choose an assessment for this instrument, or keep it as an individual instrument."
             >
               <select value={assessmentBundleId} onChange={event => {setAssessmentBundleId(event.target.value);const bundle = availableAssessmentBundles.find(item => item.id === event.target.value);if(bundle){setPlanChannel(bundle.channel);setPlanRespondent(bundle.recipient);setPlanAssistance(bundle.channel === 'Clinician entry' ? 'Transcribed' : 'Independent');}}}>
-                <option value="">Individual assessment</option>
+                <option value="">Individual instrument</option>
                 {availableAssessmentBundles.map(bundle =>
                   <option key={bundle.id} value={bundle.id}>{bundleName(bundle)}</option>)}
               </select>
@@ -781,8 +781,8 @@ export default function Forms({
                   {plannedSmsDate && plannedSmsDate < TODAY && " This date has passed; arrange delivery now."}
                   {" "}A reminder is sent if the response is still outstanding.
                 </p>
-                <p>Saved answer progress and the submitted response appear in the assessment record for the clinician to review.</p>
-                <label className="sms-plan-link-label" htmlFor="planned-sms-link">Sample questionnaire link</label>
+                <p>Saved answer progress and the submitted response appear in the instrument record for the clinician to review.</p>
+                <label className="sms-plan-link-label" htmlFor="planned-sms-link">Sample instrument link</label>
                 <div className="sms-plan-link-row">
                   <input id="planned-sms-link" type="text" readOnly value={sampleQuestionnaireLink} />
                   <Button type="button" onClick={async () => {
@@ -818,9 +818,9 @@ export default function Forms({
               Cancel
             </Button>
             <Button variant="primary" type="submit">
-              {scheduleAssessments ? "Schedule assessment"
+              {scheduleAssessments ? "Schedule instrument"
                 : showPlanChannel && planChannel === "Clinic tablet" ? "Send to tablet"
-                : "Start assessment"}
+                : "Start instrument"}
             </Button>
           </ActionGroup>
         </ValidatedForm>
@@ -850,19 +850,19 @@ export default function Forms({
       !["Cancelled", "Paused"].includes(c.assignment);
     const blockers = [
       p.consent !== "Recorded" &&
-        `Assessment participation is ${p.consent.toLowerCase()}.`,
+        `Instrument participation is ${p.consent.toLowerCase()}.`,
       p.contact !== "Suitable" &&
         `Contact suitability is ${p.contact.toLowerCase()}.`,
       !canCollectInEpisode(e, c) &&
         `This care episode is ${e.status.toLowerCase()}.`,
       c.response === "Submitted" && "A response has already been submitted.",
-      !getInstrument(c.version) && "This questionnaire version is unavailable.",
+      !getInstrument(c.version) && "This instrument version is unavailable.",
       getInstrument(c.version) &&
         !getInstrument(c.version).respondents.includes(respondent) &&
-        "This questionnaire collects the person’s own perspective. They can receive support with their answers.",
+        "This instrument collects the person’s own perspective. They can receive support with their answers.",
       channel === "Clinician entry" &&
         staff?.role !== "Clinician" &&
-        "Choose a Clinician profile to complete this questionnaire.",
+        "Choose a Clinician profile to complete this instrument.",
       !assessmentSms && channel === "SMS link" && "Choose a collection method available in this workspace.",
       ["Cancelled", "Paused"].includes(c.assignment) &&
         `This collection is ${c.assignment.toLowerCase()}.`,
@@ -1104,7 +1104,7 @@ export default function Forms({
                   and how to get help.
                   <br />
                   <br />
-                  [Sample questionnaire link]
+                  [Sample instrument link]
                 </p>
                 <p className="muted">
                   Preview only. No message will be sent.
@@ -1119,7 +1119,7 @@ export default function Forms({
           </div>
           {footer(
             modal.collectResponse
-              ? channel === "Clinician entry" ? "Begin questionnaire" : "Open questionnaire"
+              ? channel === "Clinician entry" ? "Begin instrument" : "Open instrument"
               : "Save",
             !allowed,
           )}
@@ -1413,7 +1413,7 @@ export default function Forms({
                   final-measure rules must be confirmed before PMHC-MDS use.
                 </Notice>
                 <Notice>
-                  Closing assigns the patient an episode closure assessment and a separate care experience feedback questionnaire, due seven days from today. This prototype prepares sample links but sends no SMS.
+                  Closing assigns the patient an episode closure instrument and a separate care experience feedback instrument, due seven days from today. This prototype prepares sample links but sends no SMS.
                 </Notice>
                 <Field label="Actual care end date">
                   <input
@@ -1558,7 +1558,7 @@ export default function Forms({
               </p>
               <p>No clinical admission decision is made by this action.</p>
               {episodeAction === "Closed" && (
-                <p>Two new patient questionnaires will be assigned to this closed episode. If participation or contact settings are unsuitable, their links will wait for review.</p>
+                <p>Two new patient instruments will be assigned to this closed episode. If participation or contact settings are unsuitable, their links will wait for review.</p>
               )}
             </div>
             <Checkbox label="I have reviewed outstanding work and the next care step." required />
@@ -1667,7 +1667,7 @@ export default function Forms({
             <Notice>
               {resolution === "Needs investigation"
                 ? `The issue stays open, with ${staff?.name} responsible for the next investigation step.`
-                : "The original value, source and outcome stay in history. Submitted questionnaire answers are unaffected."}
+                : "The original value, source and outcome stay in history. Submitted instrument answers are unaffected."}
             </Notice>
           </div>
           {footer(
@@ -1700,7 +1700,7 @@ export default function Forms({
       "A working model of the YSCC assessment experience.",
       <>
         <p>
-          Explore staff work, people and care episodes, sample questionnaire
+          Explore staff work, people and care episodes, sample instrument
           collection, clinical review, and data corrections.
         </p>
         <Notice>
@@ -1796,9 +1796,9 @@ export default function Forms({
         <p>
           Questions adapt to earlier answers. Hidden questions are excluded from
           completion and comparison. {scheduleAssessments
-            ? "Scheduled assessments have an explicit due date inside an active episode."
-            : "Assessments can start immediately without a due date."}
-          {linkAssessmentAppointments ? " Appointments can be linked to assessments." : ""}
+            ? "Scheduled instruments have an explicit due date inside an active episode."
+            : "Instruments can start immediately without a due date."}
+          {linkAssessmentAppointments ? " Appointments can be linked to instruments." : ""}
         </p>
         <p>
           Reissuing adds a delivery attempt to the same assignment. Submission
@@ -1820,7 +1820,7 @@ export default function Forms({
           secure request to see what it involves and get help if you need it.
           <br />
           <br />
-          [Scoped questionnaire link]
+          [Scoped instrument link]
         </div>
         <Notice>
           This is a local preview. No SMS provider, contact number, or live send
@@ -1834,7 +1834,7 @@ export default function Forms({
       <>
         <p>
           Return to the original sample people and their tasks. Your local
-          demo changes and questionnaire drafts will be removed.
+          demo changes and instrument drafts will be removed.
         </p>
         <Button
           variant="primary"
@@ -1862,7 +1862,7 @@ export default function Forms({
       "Reset River and Samira",
       "Restore only these two fictional records for intake testing.",
       <>
-        <p>River returns to intake in progress. Samira returns to completed intake, ready to plan the initial assessment. Other people and their work stay as they are.</p>
+        <p>River returns to intake in progress. Samira returns to completed intake, ready to plan the initial instrument. Other people and their work stay as they are.</p>
         <Button
           variant="primary"
           onClick={() => {

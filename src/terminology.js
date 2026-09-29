@@ -3,14 +3,14 @@
 export const TERMINOLOGY = Object.freeze({
   collectionMethod: {
     label: "Collection method",
-    definition: "How an assessment response is collected. The method belongs to each response session; an assessment may use more than one method across sessions.",
+    definition: "How instrument responses are collected within an assessment. An assessment has a shared collection method; each response session records the method used.",
     aliases: ["Modality", "Assessment modality", "Delivery channel", "Channel", "Delivery method"],
     fields: ["collection.channel", "attempt.channel", "bundle.assessments[].channel"],
     options: [["Clinician entry", "Clinician entry"], ["Clinic tablet", "Clinic tablet"], ["SMS link", "SMS link"]],
   },
   contactMethod: {
     label: "Contact method",
-    definition: "How a service contact takes place, such as in person, by phone or by video. This is separate from the method used to collect questionnaire answers during that contact.",
+    definition: "How a service contact takes place, such as in person, by phone or by video. This is separate from the method used to collect instrument answers during that contact.",
     aliases: ["Delivery mode", "Delivery method"],
     fields: ["appointment.deliveryMode", "externalAppointment.deliveryMode"],
   },
@@ -22,13 +22,13 @@ export const TERMINOLOGY = Object.freeze({
   },
   respondent: {
     label: "Respondent",
-    definition: "The person supplying assessment answers: the patient or a family respondent. The respondent can differ from the person entering the answers.",
+    definition: "The person supplying instrument answers within an assessment: the patient or a family respondent. The respondent can differ from the person entering the answers.",
     aliases: ["Recipient (assessment only)"],
     fields: ["collection.respondent", "attempt.respondent", "bundle.assessments[].recipient"],
   },
   recipient: {
     label: "Recipient",
-    definition: "The person receiving a service contact or a consent request. Use Respondent when referring to the person supplying assessment answers.",
+    definition: "The person receiving a service contact or a consent request. Use Respondent when referring to the person supplying instrument answers.",
     aliases: [],
     fields: ["appointment.recipientType"],
   },
@@ -40,27 +40,21 @@ export const TERMINOLOGY = Object.freeze({
   },
   recorder: {
     label: "Recorder",
-    definition: "The person entering or transcribing assessment answers. Recording answers does not make the recorder the respondent.",
+    definition: "The person entering or transcribing instrument answers. Recording answers does not make the recorder the respondent.",
     aliases: [],
     fields: ["collection.recorder", "attempt.recorderName"],
   },
   assessment: {
     label: "Assessment",
-    definition: "One assigned assessment record, including its questionnaire version, response status, sessions and optional due date. A collection is the underlying stored record.",
-    aliases: ["Collection (record name)"],
-    fields: ["episode.collections[]"],
+    definition: "A collection of instruments with a shared name, respondent, collection method and schedule. Completion tracks the responses to each included instrument.",
+    aliases: ["Assessment bundle", "Bundle"],
+    fields: ["settings.assessmentScheduleRules[]", "episode.assessmentBundleInstances[]", "collection.bundleId"],
   },
-  questionnaire: {
-    label: "Questionnaire",
-    definition: "The versioned set of questions used by an assessment. Assessment type and questionnaire version remain distinct.",
-    aliases: [],
-    fields: ["collection.version", "instrument.questions"],
-  },
-  assessmentBundle: {
-    label: "Assessment bundle",
-    definition: "A configured group of mandatory and optional assessments, with collection methods, respondents and eligibility or trigger conditions. Bundle is an acceptable short label in context.",
-    aliases: [],
-    fields: ["settings.assessmentScheduleRules[]", "collection.bundleId"],
+  instrument: {
+    label: "Instrument",
+    definition: "A versioned set of questions included in an assessment. Each assigned instrument has its own answers, response status and collection sessions. Instruments can also be recorded individually.",
+    aliases: ["Questionnaire", "Collection (record name)"],
+    fields: ["collection.version", "instrument.questions", "episode.collections[]"],
   },
   serviceContact: {
     label: "Service contact",
@@ -76,7 +70,7 @@ export const TERMINOLOGY = Object.freeze({
   },
   programStream: {
     label: "Program stream",
-    definition: "The program stream recorded for a care period, also used by assessment-bundle conditions. Use the full label in fields, tables and conditions.",
+    definition: "The program stream recorded for a care period, also used by assessment conditions. Use the full label in fields, tables and conditions.",
     aliases: ["Program", "Stream (field label)"],
     fields: ["carePeriod.programStream", "bundle.programStream"],
   },

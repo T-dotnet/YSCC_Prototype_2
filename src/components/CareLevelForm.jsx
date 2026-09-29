@@ -23,11 +23,11 @@ export default function CareLevelForm({ episode, clinicians, error, onClose, onS
         <div className="form-body care-level-form">
           <Notice>{initial
             ? "Record the program stream and starting level for this episode."
-            : "Changing the program stream or care level closes this episode, assigns its closure assessment and care experience feedback, and starts a new episode with an initial assessment."}</Notice>
+            : "Changing the program stream or care level closes this episode, assigns its closure instrument and care experience feedback, and starts a new episode with an initial instrument."}</Notice>
           {initial ? (
             <p>Confirm the level in effect from the episode start, {formatDate(episode.start)}. No earlier level will be inferred.</p>
           ) : (
-            <p>Current stream: <strong>{episode.programStream || "Not recorded"}</strong>. Current level: <strong>{current.careLevel}</strong> since {formatDate(current.startDate)}. The current episode closes on the day before the effective date. Its existing records and closure assessment stay linked to it.</p>
+            <p>Current stream: <strong>{episode.programStream || "Not recorded"}</strong>. Current level: <strong>{current.careLevel}</strong> since {formatDate(current.startDate)}. The current episode closes on the day before the effective date. Its existing records and closure instrument stay linked to it.</p>
           )}
           <div className="form-grid">
             {initial && !episode.programStream && (
@@ -91,10 +91,10 @@ export default function CareLevelForm({ episode, clinicians, error, onClose, onS
                     {reviewedCollections.map((collection) => <option key={collection.id} value={collection.id}>{collection.label} · {collection.reviewDate ? formatDate(collection.reviewDate) : "date not recorded"}</option>)}
                   </select>
                 </Field>
-                <Field label="Initial assessment due in new episode">
+                <Field label="Initial instrument due in new episode">
                   <input name="assessmentDue" type="date" min={TODAY} defaultValue={TODAY} required />
                 </Field>
-                <Field label="Questionnaire for new assessment">
+                <Field label="Initial instrument">
                   <select name="assessmentVersion" defaultValue={episode.collections?.at(-1)?.version || DEMO_INSTRUMENT.version} required>
                     {INSTRUMENTS.map((instrument) => <option key={instrument.version} value={instrument.version}>{instrument.name} · {instrument.version}</option>)}
                   </select>

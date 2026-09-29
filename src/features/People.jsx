@@ -28,7 +28,7 @@ export default function People({ navigate, openModal }) {
   const { state } = useStore();
   const scheduleAssessments = assessmentSchedulingEnabled(state.settings);
   const groupedBundles = assessmentBundleGroupingEnabled(state.settings);
-  const summaryLabel = groupedBundles ? 'Next / latest bundle' : 'Next / latest assessment';
+  const summaryLabel = groupedBundles ? 'Next / latest assessment' : 'Next / latest instrument';
   const view = useQueueView();
   const query = view.params.get("q") || "";
   const { sort: sortConfig, toggleSort } = useQueueSort({ key: "priority", direction: "asc" });
@@ -67,8 +67,8 @@ export default function People({ navigate, openModal }) {
       return {
         ...row,
         status: assessmentState,
-        detail: assessmentState === "Completed" ? "Assessment completed"
-          : assessmentState === "Draft" ? "Draft saved" : "Assessment created",
+        detail: assessmentState === "Completed" ? "Instrument completed"
+          : assessmentState === "Draft" ? "Draft saved" : "Instrument created",
         due: "",
       };
     });
@@ -160,7 +160,7 @@ export default function People({ navigate, openModal }) {
           onClear={clearAll}
           advanced={
             <Select
-              label="Assessment status"
+              label={groupedBundles ? "Assessment status" : "Instrument status"}
               value={assessmentStatus}
               onChange={(e) =>
                 view.set("assessment", e.target.value, "All statuses", true)
@@ -178,7 +178,7 @@ export default function People({ navigate, openModal }) {
         <ActiveFilters
           items={[
             ...(query ? [{ id: "search", label: `Search: ${query}`, onRemove: () => setQuery("") }] : []),
-            ...(assessmentStatus !== "All statuses" ? [{ id: "assessment", label: `Assessment: ${assessmentStatus}`, onRemove: () => view.set("assessment", "All statuses", "All statuses", true) }] : []),
+            ...(assessmentStatus !== "All statuses" ? [{ id: "assessment", label: `${groupedBundles ? "Assessment" : "Instrument"}: ${assessmentStatus}`, onRemove: () => view.set("assessment", "All statuses", "All statuses", true) }] : []),
             ...(status !== "All episodes" ? [{ id: "episode", label: `Episode: ${status}`, onRemove: () => setStatus("All episodes") }] : []),
           ]}
           onClear={clearAll}
@@ -331,7 +331,7 @@ export default function People({ navigate, openModal }) {
           <span>
             Showing {showingFrom}–{showingTo} of {people.length} people
           </span>
-          <span>{groupedBundles ? 'Next / latest bundle shown first' : 'Highest-priority assessment shown first'}</span>
+          <span>{groupedBundles ? 'Next / latest assessment shown first' : 'Highest-priority instrument shown first'}</span>
           <Pagination
             label="People"
             page={page}

@@ -6,7 +6,7 @@ export default function ProductTerminology() {
     <section id="product-terminology" aria-label="Product terminology">
       <Panel title="Product terminology">
         <div className="panel-body">
-          <p>Use these terms throughout the workspace. {TERMINOLOGY.collectionMethod.label} describes assessment answers, {TERMINOLOGY.contactMethod.label} describes a service contact, and {TERMINOLOGY.deliveryMethod.label} describes a consent request.</p>
+          <p>Use these terms throughout the workspace. {TERMINOLOGY.collectionMethod.label} describes instrument answers, {TERMINOLOGY.contactMethod.label} describes a service contact, and {TERMINOLOGY.deliveryMethod.label} describes a consent request.</p>
           <dl className="metadata product-terminology-list">
             {Object.entries(TERMINOLOGY).map(([key, term]) => (
               <div key={key}>

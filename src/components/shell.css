@@ -1,3 +1,6 @@
+/* The framed workspace scrolls inside main, never on the document canvas. */
+html:has(.shell-modern), body:has(.shell-modern) { overflow: hidden; }
+
 /* Mobbin references: Descript's inset workspace and Asana's integrated chrome.
    All rules are opt-in through .shell-modern; ?shell=classic restores the old shell. */
 .shell.shell-modern {
@@ -9,6 +12,8 @@
   --sidebar-collapsed-width: 76px;
   min-height: 100dvh;
   height: 100dvh;
+  overflow: clip;
+  contain: layout paint;
   padding-bottom: 16px;
   background: var(--shell-frame);
 }
@@ -321,7 +326,11 @@
 }
 
 @media print {
+  html:has(.shell-modern), body:has(.shell-modern) { overflow: visible; }
   .shell.shell-modern {
+    height: auto;
+    overflow: visible;
+    contain: none;
     background: white;
     padding: 0;
   }

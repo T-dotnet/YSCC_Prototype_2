@@ -76,7 +76,7 @@ export default function AppointmentOutcomeForm({
           </Field>
           <ContactFields appointment={appointment} attended={attendance === "Attended"} person={person} />
           {!simpleAssessments && initialAssessment && (
-            <Checkbox label="Associate this contact with the initial assessment" checked={linkedToInitialAssessment}
+            <Checkbox label="Associate this contact with the initial instrument" checked={linkedToInitialAssessment}
               onChange={(event) => setLinkedToInitialAssessment(event.target.checked)} />
           )}
           {attendance === "Attended" && (

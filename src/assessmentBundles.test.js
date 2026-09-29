@@ -180,3 +180,27 @@ test('saving an old four-week bundle converts to 28 days and retains existing du
   assert.deepEqual(reloaded.settings.assessmentScheduleRules.find(item=>item.id===rule.id),saved);
   assert.match(bundleError({...rule,recipient:'Family respondent',assessments:[{id:'one',version:'Life and care check-in v1.0',requirement:'Mandatory'}]}),/does not support/);
  });
+
+test('fixed-date bundles validate dates and create each assessment once',()=>{
+ const rule=bundle({timing:'date',dueDate:'2026-10-15',repeat:false});
+ assert.equal(bundleError(rule),null);
+ assert.ok(bundleError({...rule,dueDate:''}));
+ assert.ok(bundleError({...rule,dueDate:'2026-02-30'}));
+ assert.ok(bundleError({...rule,repeat:true}));
+ const next=reconcileAssessmentBundles(make(rule),today);
+ assert.equal(ep(next).collections.length,1);
+ assert.equal(ep(next).collections[0].due,'2026-10-15');
+ assert.equal(reconcileAssessmentBundles(next,'2026-10-20'),next);
+});
+
+test('day timing anchors to intake, discharge, or a matching event',()=>{
+ const intake=make(bundle({timing:'days',after:'intake',days:7,repeat:false}));
+ intake.people[0].intakes=[{id:'I',episodeId:'E',status:'Completed',outcome:'Proceed',decisionAt:'2026-09-10'}];
+ assert.equal(ep(reconcileAssessmentBundles(intake,today)).collections[0].due,'2026-09-17');
+ const discharge=make(bundle({timing:'days',after:'discharge',days:7,repeat:false}));
+ ep(discharge).status='Closed';ep(discharge).end='2026-09-20';
+ assert.equal(ep(reconcileAssessmentBundles(discharge,today)).collections[0].due,'2026-09-27');
+ const event=make(bundle({timing:'days',after:'harm',days:3,repeat:false}));
+ ep(event).events=[{id:'event',actionType:'ADD_CARE_EVENT',eventType:'harm',date:'2026-09-15'}];
+ assert.equal(ep(reconcileAssessmentBundles(event,today)).collections[0].due,'2026-09-18');
+});

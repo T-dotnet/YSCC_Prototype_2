@@ -380,7 +380,7 @@ function OutcomeTrend({ measure, selectedRecord, onSelect }) {
       <div className="outcome-trend-heading">
         <div>
           <h4>Score trend</h4>
-          <p>Assessment dates and recorded scores</p>
+          <p>Instrument dates and recorded scores</p>
         </div>
         <span>
           Scale {minimum}–{maximum}
@@ -481,7 +481,7 @@ function OutcomeRecordDetail({ measure, record, onOpenAssessment }) {
     <section className="outcome-record-detail" aria-live="polite">
       <div className="outcome-record-detail-heading">
         <div>
-          <span>Selected assessment</span>
+          <span>Selected instrument</span>
           <h4>{formatDate(record.date)}</h4>
         </div>
         <strong>{completedScore ? `Score ${record.value}` : "Score unavailable"}</strong>
@@ -523,7 +523,7 @@ function OutcomeRecordDetail({ measure, record, onOpenAssessment }) {
           className="outcome-source-link"
           onClick={() => onOpenAssessment(record)}
         >
-          {record.sourceClinicalRecordId ? "Open care record" : "Open assessment record"}
+          {record.sourceClinicalRecordId ? "Open care record" : "Open instrument record"}
           <ExternalLink size={15} aria-hidden="true" />
         </button>
       )}
@@ -599,7 +599,7 @@ function OutcomeMeasureCard({
               <>
                 <ChangeIcon size={15} aria-hidden="true" />
                 <span>{measure.change?.label || "No change interpretation recorded"}</span>
-                {scoreChange && <small>{scoreChange} since previous assessment</small>}
+                {scoreChange && <small>{scoreChange} since previous instrument</small>}
               </>
             )}
           </div>
@@ -616,7 +616,7 @@ function OutcomeMeasureCard({
             onSelect={onSelectRecord}
           />
           <section className="outcome-history" aria-labelledby={`outcome-history-${measure.key}`}>
-            <h4 id={`outcome-history-${measure.key}`}>Assessment history</h4>
+            <h4 id={`outcome-history-${measure.key}`}>Instrument history</h4>
             <ol>
               {measure.records.map((record) => {
                 const selected = selectedRecord?.id === record.id;
@@ -695,10 +695,10 @@ function OutcomeComparison({ measures }) {
           can be combined or ranked.
         </p>
         {selectedMeasures.length ? (
-          <StandardTable label="Outcome measures by assessment date" variant="comparison" responsive={false} scrollClassName="outcome-comparison-table-wrap">
+          <StandardTable label="Outcome measures by instrument date" variant="comparison" responsive={false} scrollClassName="outcome-comparison-table-wrap">
               <thead>
                 <tr>
-                  <th scope="col">Assessment date</th>
+                  <th scope="col">Instrument date</th>
                   {selectedMeasures.map((measure) => (
                     <th key={measure.key} scope="col">{measure.displayName}</th>
                   ))}
@@ -947,7 +947,7 @@ function CompareMeasuresModal({ episode, onClose }) {
   return (
     <Modal
       title="Compare measures"
-      subtitle="Compare up to three outcome measures by recorded assessment date."
+      subtitle="Compare up to three outcome measures by recorded instrument date."
       onClose={onClose}
       wide
       className="compare-measures-dialog"
@@ -1082,7 +1082,7 @@ export default function RecordTwo({ person, episode, navigate }) {
             <div className="record-two-empty record-two-empty-wide">
               <strong>Outcome measures are not available yet</strong>
               <p>Completed, dated scores will appear when they are recorded for this care episode.</p>
-              <Button variant="secondary" onClick={openAssessment}>View assessment</Button>
+              <Button variant="secondary" onClick={openAssessment}>View assessments</Button>
             </div>
           ) : (
             <>
@@ -1092,7 +1092,7 @@ export default function RecordTwo({ person, episode, navigate }) {
                   <h4>About this report</h4>
                   <dl>
                     <div><dt>Care episode</dt><dd>{formatDate(episode.start)} – {episode.end ? formatDate(episode.end) : "present"}</dd></div>
-                    <div><dt>Evidence</dt><dd>Recorded assessments and care records</dd></div>
+                    <div><dt>Evidence</dt><dd>Recorded instruments and care records</dd></div>
                     <div><dt>Scored measures</dt><dd>{scoredMeasures.length}</dd></div>
                     {latestScoredRecord && <div><dt>Latest result</dt><dd>{formatDate(latestScoredRecord.date)}</dd></div>}
                   </dl>

@@ -28,56 +28,61 @@ export default function QuestionnaireAccessPanel({ person, episodeId, collection
   const [copyStatus, setCopyStatus] = useState('');
   const [smsStatus, setSmsStatus] = useState('');
   const qr = useMemo(() => qrImage(link), [link]);
-  const message = `Your YSCC questionnaires are ready. Open: ${qr?.url || link}`;
+  const message = `Your YSCC assessment is ready. Open: ${qr?.url || link}`;
 
-  return <section className={`questionnaire-access-panel${mode ? " questionnaire-access-tab" : ""}`} aria-label="Open questionnaire on another device">
+  return <section className={`questionnaire-access-panel${mode ? " questionnaire-access-tab" : ""}`} aria-label="Open assessment on another device">
     {mode !== "sms" && <section className="questionnaire-access-section" aria-labelledby="tablet-access-heading">
       <h2 id="tablet-access-heading"><QrCode size={20} aria-hidden="true" /> Open on a tablet</h2>
-      <p>Scan the QR code with the tablet camera to open the questionnaire link.</p>
+      <p>Scan the QR code with the tablet camera to open the assessment link.</p>
       <div className="questionnaire-tablet-access">
-        {qr ? <div className="questionnaire-qr-preview"><svg className="questionnaire-qr-code" role="img" aria-label="QR code for the questionnaire link"
+        {qr ? <div className="questionnaire-qr-preview"><svg className="questionnaire-qr-code" role="img" aria-label="QR code for the assessment link"
           viewBox={`0 0 ${qr.size} ${qr.size}`} shapeRendering="crispEdges">
           <rect width={qr.size} height={qr.size} fill="white" />
           <path d={qr.path} fill="#14200f" />
         </svg><Button type="button" variant="ghost" onClick={() => setQrExpanded(true)}>
           <Maximize2 size={14} aria-hidden="true" /> Enlarge QR
-        </Button></div> : <div className="questionnaire-qr-placeholder">Enter a valid questionnaire link to generate a QR code.</div>}
+        </Button></div> : <div className="questionnaire-qr-placeholder">Enter a valid assessment link to generate a QR code.</div>}
         <div className="questionnaire-access-link">
-          <Field label="Questionnaire link">
-            <input type="url" aria-label="Questionnaire link" value={link} onChange={event => {
+          <Field label="Assessment link">
+            <input type="url" aria-label="Assessment link" value={link} onChange={event => {
               setLink(event.target.value); setCopyStatus(''); setSmsStatus('');
             }} />
           </Field>
+          <div className="button-row">
           <Button type="button" disabled={!qr} onClick={async () => {
             try { await navigator.clipboard.writeText(qr.url); setCopyStatus('Link copied'); }
             catch { setCopyStatus('Select the link above and copy it manually.'); }
           }}><Copy size={16} aria-hidden="true" /> Copy link</Button>
+          {onBack && <Button variant="ghost" onClick={onBack}>Back to record</Button>}
+          </div>
           <p className="questionnaire-access-feedback" role="status">{copyStatus}</p>
         </div>
       </div>
     </section>}
     {mode !== "tablet" && <section className="questionnaire-access-section" aria-labelledby="sms-access-heading">
       <h2 id="sms-access-heading"><MessageSquare size={20} aria-hidden="true" /> Send SMS</h2>
-      <p>Send the questionnaire link to the mobile number already on the record.</p>
+      <p>Send the assessment link to the mobile number already on the record.</p>
       <dl className="questionnaire-sms-recipient">
         <div><dt>Recipient</dt><dd>{displayPersonName(person)}</dd></div>
         <div><dt>Destination</dt><dd>Mobile number on record</dd></div>
       </dl>
       <div className="questionnaire-sms-preview"><strong>Message preview</strong><p>{message}</p></div>
+      <div className="button-row">
       <Button type="button" variant="primary" disabled={!qr} onClick={() => {
         setSmsStatus(`SMS sent to ${displayPersonName(person)}.`);
       }}><MessageSquare size={16} aria-hidden="true" /> Send SMS</Button>
+      {onBack && mode === "sms" && <Button variant="ghost" onClick={onBack}>Back to record</Button>}
+      </div>
       <p className="questionnaire-access-feedback" role="status">{smsStatus}</p>
     </section>}
-    {onBack && <Button variant="ghost" onClick={onBack}>Back to record</Button>}
-    {qrExpanded && qr && <Modal title="Questionnaire QR code" onClose={() => setQrExpanded(false)}>
+    {qrExpanded && qr && <Modal title="Assessment QR code" onClose={() => setQrExpanded(false)}>
       <div className="questionnaire-qr-modal-body">
-      <svg className="questionnaire-qr-expanded" role="img" aria-label="Enlarged QR code for the questionnaire link"
+      <svg className="questionnaire-qr-expanded" role="img" aria-label="Enlarged QR code for the assessment link"
         viewBox={`0 0 ${qr.size} ${qr.size}`} shapeRendering="crispEdges">
         <rect width={qr.size} height={qr.size} fill="white" />
         <path d={qr.path} fill="#14200f" />
       </svg>
-      <p>Scan with the tablet camera to open the questionnaire.</p>
+      <p>Scan with the tablet camera to open the instrument.</p>
       </div>
     </Modal>}
   </section>;

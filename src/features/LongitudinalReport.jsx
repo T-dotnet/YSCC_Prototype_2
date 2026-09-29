@@ -140,7 +140,7 @@ function RecordDetail({ person, episode, entry, onClose, onOpenSource }) {
   const isPlanned = entry.kind === "planned";
   const sourceLabel =
     entry.sourceType === "collection"
-      ? "Assessment"
+      ? "Instrument"
       : entry.sourceType === "event"
         ? event?.eventType === "medication-course" ? "Medication course"
           : event?.eventType === "service-period" ? "Service period"
@@ -210,7 +210,7 @@ function RecordDetail({ person, episode, entry, onClose, onOpenSource }) {
         {collection && (
           <>
             <div>
-              <dt>Questionnaire</dt>
+              <dt>Instrument</dt>
               <dd>{collection.version || "Not recorded"}</dd>
             </div>
             {isPlanned ? (

@@ -27,7 +27,7 @@ export function getNotifications(state, today = TODAY) {
     });
   }
 
-  // 2. Assessment overdue & 4. Assessment ready for review
+  // 2. Instrument overdue & 4. Instrument ready for review
   for (const person of state.people || []) {
     for (const episode of person.episodes || []) {
       if (episode.status !== "Active") continue;
@@ -44,8 +44,8 @@ export function getNotifications(state, today = TODAY) {
           notifications.push({
             id: `ao-${person.id}-${c.id}`,
             category: "assessment_overdue",
-            categoryLabel: "Assessment overdue",
-            title: `${c.title || c.label || "Assessment"} overdue`,
+            categoryLabel: "Instrument overdue",
+            title: `${c.title || c.label || "Instrument"} overdue`,
             detail: `${person.name} · Due ${formatDate(c.due)}`,
             personName: person.name,
             personId: person.id,
@@ -60,8 +60,8 @@ export function getNotifications(state, today = TODAY) {
           notifications.push({
             id: `ar-${person.id}-${c.id}`,
             category: "assessment_review",
-            categoryLabel: "Assessment ready for review",
-            title: `${c.title || c.label || "Assessment"} ready for review`,
+            categoryLabel: "Instrument ready for review",
+            title: `${c.title || c.label || "Instrument"} ready for review`,
             detail: `${person.name} · Submitted ${c.submittedAt ? formatDate(c.submittedAt) : "recently"}`,
             personName: person.name,
             personId: person.id,
