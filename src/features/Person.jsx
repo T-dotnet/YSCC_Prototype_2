@@ -327,7 +327,7 @@ export default function Person({ id, navigate, openModal }) {
   const overviewConsentStatus = ({Recorded:'Accepted', Declined:'Denied', 'Not recorded':'Waiting', 'Not requested':'Waiting', Pending:'Waiting'})[
     episodeConsentRequest?.status || p.consent
   ] || episodeConsentRequest?.status || p.consent || 'Waiting';
-  const assessmentState = (col) => !scheduleAssessments
+  const assessmentState = (col) => col.notRequiredReason ? "Not required" : !scheduleAssessments
     ? col.response === "Submitted" ? "Completed" : col.response === "Draft" ? "Draft" : "Not started"
     : collectionStatus(col);
   const ledgerCollections = groupAssessmentsByBundle ? orderedCollections.filter(col=>assessmentState(col) !== "Completed") : orderedCollections;
@@ -1089,7 +1089,8 @@ export default function Person({ id, navigate, openModal }) {
             {selectedBundleGroup && <AssessmentBundleDetails group={selectedBundleGroup} episode={e} scheduleAssessments={scheduleAssessments} delivery={deliveryForBundle(selectedBundleGroup)}
               statusFor={assessmentState} showDueDates={showDueDates}
               onAddInstrument={!p.archivedAt && !p.readOnly && !e.readOnly && e.status === 'Active' && canAssess(p,e) ? version=>commit({type:'ADD_GROUP_INSTRUMENT',personId:p.id,episodeId:e.id,collectionIds:selectedBundleGroup.records.map(record=>record.id),version}) : null}
-              onArchive={!p.archivedAt && !p.readOnly && !e.readOnly && e.status === 'Active' && canAssess(p,e) && selectedBundleGroup.records.every(record=>record.bundleSource !== 'Scheduled' && record.bundleSource !== 'System' && !record.id?.startsWith('AUTO-') && (!record.scheduleAnchor || record.bundleSource === 'User')) ? ()=>{commit({type:'ARCHIVE_ASSESSMENT_GROUP',personId:p.id,episodeId:e.id,collectionIds:selectedBundleGroup.records.map(record=>record.id)});setBundleDetailsKey(null);} : null}
+              onNotRequired={!p.archivedAt && !p.readOnly && !e.readOnly && e.status === 'Active' && canAssess(p,e) && selectedBundleGroup.records.some(record=>record.bundleSource === 'Scheduled' || record.bundleSource === 'System' || record.id?.startsWith('AUTO-') || (record.scheduleAnchor && record.bundleSource !== 'User')) && !selectedBundleGroup.records.every(record=>record.notRequiredReason) ? reason=>{commit({type:'MARK_ASSESSMENT_NOT_REQUIRED',personId:p.id,episodeId:e.id,collectionIds:selectedBundleGroup.records.map(record=>record.id),reason});setBundleDetailsKey(null);} : null}
+              onArchive={!p.archivedAt && !p.readOnly && !e.readOnly && e.status === 'Active' && canAssess(p,e) && selectedBundleGroup.records.every(record=>record.bundleSource !== 'Scheduled' && record.bundleSource !== 'System' && !record.id?.startsWith('AUTO-') && (!record.scheduleAnchor || record.bundleSource === 'User')) ? record=>{commit({type:'ARCHIVE_ASSESSMENT_GROUP',personId:p.id,episodeId:e.id,collectionIds:record ? [record.id] : selectedBundleGroup.records.map(record=>record.id)});if(!record || selectedBundleGroup.records.length === 1) setBundleDetailsKey(null);} : null}
               assessmentEditor={selectedBundleGroup.key !== 'individual' && !p.archivedAt && !p.readOnly && !e.readOnly && e.status === 'Active' && canAssess(p,e) && state.settings?.assessmentScheduleRules?.some(bundle => bundle.id === (selectedBundleGroup.bundleId || selectedBundleGroup.key))
                 ? <NewAssessmentBundle embedded group={selectedBundleGroup} statusFor={assessmentState} key={selectedBundleGroup.key} editBundleId={selectedBundleGroup.bundleId || selectedBundleGroup.key} person={p} episode={e}
                     onClose={() => setBundleDetailsKey(null)} onCreated={(bundleId,message) => {setCreatedBundleId(bundleId);setBundleMessage(message);}} /> : null}
@@ -1142,7 +1143,7 @@ export default function Person({ id, navigate, openModal }) {
                         const expanded = bundleAccordions && expandedBundleRows.includes(group.key);
                         const detailsId = `bundle-row-details-${group.key}`;
                         const detailGroup = { ...group, records: allRecords };
-                        const pendingRecord = allRecords.find(col => col.response === 'Draft') || allRecords.find(col => col.response !== 'Submitted');
+                        const pendingRecord = allRecords.find(col => !col.notRequiredReason && col.response === 'Draft') || allRecords.find(col => !col.notRequiredReason && col.response !== 'Submitted');
                         const displayDate = completedSection ? completedDate : sharedDue;
                         const daysUntilDue = displayDate ? Math.round((Date.parse(displayDate) - Date.parse(TODAY)) / 86400000) : null;
                         const dueDaysLabel = daysUntilDue === null ? '' : daysUntilDue === 0 ? 'Today'
@@ -1150,12 +1151,12 @@ export default function Person({ id, navigate, openModal }) {
                         const dueAlert = nextDue && assessmentDueLabel(nextDue, TODAY);
                         const hasDraft = allRecords.some(record => record.response === 'Draft' || record.response === 'In progress');
                         const systemCreated = allRecords.some(record => record.bundleSource === 'Scheduled' || record.bundleSource === 'System' || record.id?.startsWith('AUTO-') || (record.scheduleAnchor && record.bundleSource !== 'Manual'));
-                        const bundleStatus = allRecords.length > 0 && completedCount === allRecords.length ? 'completed'
+                        const bundleStatus = allRecords.every(record=>record.notRequiredReason) ? 'not-required' : allRecords.length > 0 && completedCount === allRecords.length ? 'completed'
                           : dueAlert === 'Past due' ? 'overdue'
                           : nextDue && daysUntilDue !== null && daysUntilDue >= 0 && daysUntilDue <= 7 ? 'due-soon'
                           : hasDraft || completedCount > 0 ? 'in-progress'
                           : systemCreated ? 'new' : 'not-started';
-                        const bundleStatusLabel = {completed:'Completed',overdue:'Overdue','due-soon':'Due soon','in-progress':'In progress',new:'New · created by system','not-started':'Not started'}[bundleStatus];
+                        const bundleStatusLabel = {'not-required':'Not required',completed:'Completed',overdue:'Overdue','due-soon':'Due soon','in-progress':'In progress',new:'New · created by system','not-started':'Not started'}[bundleStatus];
                         return [<QueueRow key={group.key} className={expanded ? 'assessment-bundle-row-expanded' : ''} onClick={event => {if (!event.target.closest('button, a')) openBundleDetails(group.key);}}>
                             <QueueCell label="Assessment name" slot="subject"><div className="assessment-bundle-name-status">
                               <button type="button" className="name-link assessment-bundle-table-name"

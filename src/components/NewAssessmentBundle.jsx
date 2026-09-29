@@ -12,6 +12,7 @@ import { assessmentSchedulingEnabled, assessmentSmsEnabled } from '../assessment
 import { ActionGroup, Badge, Checkbox, IconButton, Modal, Button, Field, Select, Empty, Notice, ValidatedForm } from './UI';
 import AssessmentScheduleSettings from "./AssessmentScheduleSettings";
 import BundleAssessmentRow from './BundleAssessmentRow';
+import AssessmentModalActions from './AssessmentModalActions';
 
 function DeliveryFields({item, person, sms, onChange}) {
   const instrument = item.version ? INSTRUMENTS.find(instrument => instrument.version === item.version) : {respondents:['Person','Family respondent']};
@@ -32,7 +33,7 @@ function DeliveryFields({item, person, sms, onChange}) {
   </div>;
 }
 
-export default function NewAssessmentBundle({ person, episode, onClose, onCreated, editBundleId = null, embedded = false, group, statusFor }) {
+export default function NewAssessmentBundle({ person, episode, onClose, onCreated, editBundleId = null, embedded = false, group, statusFor, assessmentAction, onMarkNotRequired, onArchive, footerAction }) {
   const { state, commit } = useStore();
   const { sort, toggleSort } = useQueueSort({ key: 'requirement', direction: 'asc' });
   const editingBundle = !!editBundleId;
@@ -158,9 +159,9 @@ export default function NewAssessmentBundle({ person, episode, onClose, onCreate
                       onChange={event => {setOptionalIds(ids => event.target.checked ? [...new Set([...ids,item.id])] : ids.filter(id => id !== item.id));setError('');}} />}</td>
               </tr>;
             })}
-              {available.length > 0 && <tr className="bundle-add-instrument-row"><td colSpan={2}>{instrumentPicker}</td><td>{addInstrumentButton}</td></tr>}
+
             </tbody>
-          </RelatedRecordsTable></div> : <fieldset className="new-bundle-assessments">
+          </RelatedRecordsTable>{available.length > 0 && <div className="assessment-group-add-instrument">{instrumentPicker}{addInstrumentButton}</div>}</div> : <fieldset className="new-bundle-assessments">
             <legend>Instruments in this assessment</legend>
             <p className="new-bundle-section-caption">Mandatory instruments stay included. Choose which optional instruments to include.</p>
             {bundleAssessmentsForCreation(bundle,assessmentOverrides).map(item => {
@@ -197,10 +198,9 @@ export default function NewAssessmentBundle({ person, episode, onClose, onCreate
         </div>}
         {(error || selectionError) && <div role="alert"><Notice tone="amber">{error || selectionError}</Notice></div>}
       </div>
-      <ActionGroup className="modal-footer bundle-form-footer">
-        <Button type="button" onClick={onClose}>Cancel</Button>
-        <Button type="submit" variant="primary" disabled={!bundle || !!selectionError}>{editingBundle ? 'Save changes' : 'Create assessment'}</Button>
-      </ActionGroup>
+      <AssessmentModalActions assessment={assessmentAction || bundle}
+        onMarkNotRequired={onMarkNotRequired || (footerAction ? () => footerAction.props.onClick() : null)}
+        onArchive={onArchive} onCancel={onClose} saveLabel={editingBundle ? 'Save changes' : 'Create assessment'} disabled={!bundle || !!selectionError} />
     </ValidatedForm>}
   </>;
   return embedded ? content : <Modal title={editingBundle ? 'Edit assessment' : 'New assessment'} subtitle={editingBundle ? bundleName(bundle) : `${person.name} · Care episode ${episode.number}`} onClose={onClose} wide className="new-assessment-bundle-modal">{content}</Modal>;

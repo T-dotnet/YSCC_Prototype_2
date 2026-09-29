@@ -20,8 +20,16 @@ export default function ListFilterBar({
   onClear,
   resultAction,
   className = "",
+  open: controlledOpen,
+  onOpenChange,
 }) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = (next) => {
+    const value = typeof next === "function" ? next(open) : next;
+    if (controlledOpen === undefined) setInternalOpen(value);
+    onOpenChange?.(value);
+  };
 
   return (
     <div className={`care-event-filter-bar list-filter-bar ${className}`.trim()}>
@@ -35,7 +43,6 @@ export default function ListFilterBar({
         items={items}
       />
       <div className="care-event-search-row">
-        <SearchInput value={query} onChange={onQueryChange} placeholder={placeholder} />
         {advanced && <button
           type="button"
           className={`care-event-more-filters${activeAdvancedCount ? " has-active-filters" : ""}`}
@@ -49,6 +56,7 @@ export default function ListFilterBar({
           {activeAdvancedCount > 0 && <span className="care-event-more-count">{activeAdvancedCount}</span>}
           <ChevronDown size={16} aria-hidden="true" />
         </button>}
+        <SearchInput value={query} onChange={onQueryChange} placeholder={placeholder} />
       </div>
       {advanced && <div id={`${id}-advanced-filters`} className="care-event-advanced-filters" hidden={!open}>
         {advanced}

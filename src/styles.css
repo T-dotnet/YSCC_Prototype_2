@@ -6608,8 +6608,6 @@ dialog {
   animation: modal-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .modal::backdrop {
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
   background: rgba(15, 23, 42, 0.45);
 }
 .modal.wide {
@@ -17655,9 +17653,7 @@ thead th,
   padding-bottom: 0;
 }
 
-.queue-list-panel .care-event-search-row .search,
-.global-change-log .care-event-search-row .search,
-.assessment-filter-bar .care-event-search-row .search,
+.list-filter-bar .care-event-search-row .search,
 #clinical-history-timeline .care-event-search-row .search {
   background: #f7f7f5;
   border-radius: 8px;
@@ -17836,8 +17832,8 @@ thead th,
   background: #fbfbfa;
 }
 
-/* Start expanded facts under the event name and practitioner line. */
-#clinical-history-timeline .care-event-day-list .record-item-table-row > .record-item-content > .record-item-body {
+/* Align expanded facts under the primary text column in both event and change rows. */
+:is(#clinical-history-timeline, #change-log-timeline) .care-event-day-list .record-item-table-row > .record-item-content > .record-item-body {
   padding-left: calc(var(--space-4) + 128px + var(--space-4));
 }
 
@@ -17948,7 +17944,7 @@ thead th,
 @media (max-width: 850px) {
   .record-log-columns { display: none; }
 
-  #clinical-history-timeline .care-event-day-list .record-item-table-row > .record-item-content > .record-item-body {
+  :is(#clinical-history-timeline, #change-log-timeline) .care-event-day-list .record-item-table-row > .record-item-content > .record-item-body {
     padding-left: var(--space-4);
   }
 
@@ -19605,8 +19601,39 @@ thead th,
 .assessment-ledger-section + .assessment-ledger-section { margin-top:var(--space-8); }
 .assessment-ledger-section > h2 { margin:0 0 var(--space-4); }
 
-.assessment-group-add-instrument { display:flex; align-items:flex-end; flex-wrap:wrap; gap:var(--space-3); margin-top:var(--space-4); }
-.assessment-group-add-instrument > label { flex:1 1 240px; min-width:0; }
+.assessment-group-add-instrument {
+  display:grid;
+  grid-template-columns:minmax(0, 4fr) minmax(0, 3fr) minmax(0, 3fr);
+  align-items:end;
+  margin-top:var(--space-4);
+}
+.bundle-edit-table .related-records-native-table { table-layout:fixed; width:100%; }
+.bundle-edit-table .related-records-native-table th:first-child { width:40%; }
+.bundle-edit-table .related-records-native-table th:nth-child(2) { width:30%; }
+.bundle-edit-table .related-records-native-table th:nth-child(3) { width:30%; }
+.assessment-group-add-instrument > .field { grid-column:1 / 3; min-width:0; margin:0; padding-right:var(--space-3); }
+.assessment-group-add-instrument > button { grid-column:3; justify-self:start; margin-left:var(--space-3); max-width:calc(100% - var(--space-3)); }
+.individual-instruments-table td:last-child { width:100px; }
+@media (max-width:700px) {
+  .assessment-contacts-table { width:100%; min-width:0; }
+  .assessment-contacts-table thead { display:none; }
+  .assessment-contacts-table tbody { display:block; }
+  .assessment-contacts-table tbody tr { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--space-3); padding:var(--space-3) 0; border-bottom:1px solid var(--line-soft); }
+  .standard-table-container .assessment-contacts-table tbody tr > td { display:block; height:auto; width:auto; padding:0; border:0; min-width:0; }
+  .assessment-contacts-table td[data-label]::before { content:attr(data-label); display:block; margin-bottom:var(--space-1); color:var(--muted); font-size:var(--type-compact); font-weight:var(--type-weight-semibold); text-transform:uppercase; }
+  .individual-instruments-table { width:100%; min-width:0; }
+  .individual-instruments-table thead { display:none; }
+  .individual-instruments-table tbody { display:block; }
+  .individual-instruments-table tbody tr { display:grid; grid-template-columns:minmax(0,1fr); gap:var(--space-2); padding:var(--space-3) 0; border-bottom:1px solid var(--line-soft); align-items:center; }
+  .standard-table-container .individual-instruments-table tbody tr > td { display:block; height:auto; width:auto; padding:0; border:0; min-width:0; }
+  .individual-instruments-table td:first-child { grid-column:1 / -1; font-weight:var(--type-weight-semibold); }
+  .individual-instruments-table td:last-child { justify-self:stretch; }
+  .individual-instruments-table td:last-child > .button { width:100%; }
+}
+.new-bundle-extra-picker > button { flex:0 0 184px; }
+@media (max-width:700px) {
+  .new-bundle-extra-picker > button { flex:0 0 auto; }
+}
 
 .modal.assessment-response-viewer { position:fixed; inset:0; transform:none; margin:auto; max-height:calc(100dvh - var(--space-8)); display:flex; flex-direction:column; }
 .assessment-response-viewer > .form-body { overflow-y:auto; min-height:0; }
@@ -19620,3 +19647,145 @@ thead th,
 .assessment-ledger-section > .list-filter-bar { margin-bottom:0; }
 .assessment-ledger-surface #person-panel > .stack:has(> .assessment-filter-bar) { row-gap:var(--space-4); }
 .assessment-ledger-surface .assessment-filter-bar + .assessment-list { margin-top:calc(-1 * var(--space-4)); }
+
+/* Quick filters and their actions share one row, with search at the right edge. */
+.list-filter-bar,
+.worklist-main-panel .list-filter-bar {
+  grid-template-columns:minmax(0, 1fr) minmax(320px, 460px);
+  align-items:center;
+}
+.list-filter-bar > .care-event-quick-filters { grid-column:1; grid-row:1; min-width:0; }
+.list-filter-bar > .care-event-search-row { grid-column:2; grid-row:1; justify-content:flex-end; min-width:0; }
+.list-filter-bar > .care-event-advanced-filters { grid-column:1 / -1; grid-row:2; }
+.list-filter-bar > .care-event-results-count { grid-column:1 / -1; grid-row:2; }
+.list-filter-bar:has(> .care-event-advanced-filters:not([hidden])) > .care-event-results-count { grid-row:3; }
+.list-filter-bar .care-event-search-row > .search {
+  flex:0 1 280px;
+  width:280px;
+  max-width:280px;
+  font-weight:var(--type-weight-regular);
+}
+@media (max-width:1000px) {
+  .list-filter-bar,
+  .worklist-main-panel .list-filter-bar { grid-template-columns:minmax(0, 1fr); }
+  .list-filter-bar > .care-event-search-row { grid-column:1; grid-row:2; }
+  .list-filter-bar > .care-event-advanced-filters,
+  .list-filter-bar > .care-event-results-count { grid-row:3; }
+  .list-filter-bar:has(> .care-event-advanced-filters:not([hidden])) > .care-event-results-count { grid-row:4; }
+}
+@media (max-width:700px) {
+  .list-filter-bar .care-event-search-row > .search { flex:1 1 0; width:auto; max-width:none; }
+}
+
+.modal-footer .assessment-not-required-action { margin-right:auto; }
+
+.modal.assessment-bundle-details-modal,
+.modal.assessment-not-required-modal {
+  inset:0;
+  margin:auto;
+  transform:none;
+  height:fit-content;
+  max-height:calc(100dvh - 32px);
+  animation-name:new-assessment-bundle-in;
+}
+.assessment-bundle-details-modal > .modal-heading { position:sticky; top:0; z-index:2; background:var(--surface); }
+@media (max-width:700px) {
+  .assessment-bundle-details-modal .bundle-edit-table .related-records-native-table { min-width:0; width:100%; }
+  .assessment-bundle-details-modal .bundle-edit-table .related-records-native-table thead { display:none; }
+  .assessment-bundle-details-modal .bundle-edit-table .related-records-native-table tbody { display:block; }
+  .assessment-bundle-details-modal .bundle-edit-table .related-records-native-table tr {
+    display:grid; grid-template-columns:minmax(0,1fr); gap:12px; padding:16px 0; border-bottom:1px solid var(--line);
+  }
+  .assessment-bundle-details-modal .bundle-edit-table .related-records-native-table td { display:block; padding:0; border:0; min-width:0; }
+  .assessment-bundle-details-modal .bundle-edit-table .related-records-native-table td:first-child { grid-column:1 / -1; font-weight:var(--type-weight-semibold); }
+  .assessment-bundle-details-modal .bundle-edit-table .related-records-native-table td:last-child { grid-column:1; }
+  .assessment-bundle-details-modal .assessment-group-add-instrument { grid-template-columns:minmax(0, 1fr); gap:var(--space-2); }
+  .assessment-bundle-details-modal .assessment-group-add-instrument > .field,
+  .assessment-bundle-details-modal .assessment-group-add-instrument > button { grid-column:1; margin:0; max-width:100%; }
+  .assessment-bundle-details-modal .assessment-group-add-instrument > .field { padding:0; }
+  .assessment-bundle-details-modal .assessment-group-add-instrument > button { justify-self:stretch; }
+}
+@media (max-width:700px) {
+  .assessment-bundle-details-modal .bundle-form-footer .assessment-not-required-action {
+    width:100%;
+    justify-content:flex-start;
+    padding-bottom:var(--space-3);
+    border-bottom:1px solid var(--line);
+    border-radius:0;
+  }
+}
+@media (max-width:700px) {
+  .assessment-bundle-details-modal .new-assessment-bundle-body { gap:var(--space-4); }
+  .assessment-bundle-details-modal .bundle-edit-table .related-records-native-table td { height:auto; }
+  .assessment-bundle-details-modal .bundle-edit-table .related-records-native-table tr { gap:var(--space-2); padding:var(--space-3) 0; align-items:center; }
+  .assessment-bundle-details-modal .bundle-edit-table .standard-table-container { padding:0; }
+  .assessment-bundle-details-modal .assessment-group-add-instrument { margin-top:var(--space-3); }
+  .assessment-bundle-details-modal .bundle-form-footer { padding:var(--space-3) var(--space-5); gap:var(--space-3); }
+  .assessment-bundle-details-modal .bundle-form-footer .assessment-not-required-action { padding-top:0; padding-bottom:var(--space-3); min-height:44px; }
+}
+.assessment-bundle-details-modal {
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+.assessment-bundle-details-modal > .modal-heading { flex:0 0 auto; }
+.assessment-bundle-details-modal > .form-body.new-assessment-bundle-body {
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+}
+.assessment-bundle-details-modal .assessment-modal-actions {
+  position:sticky;
+  bottom:0;
+  z-index:2;
+  flex:0 0 auto;
+  background:var(--surface);
+}
+
+.assessment-modal-actions .assessment-tertiary-action { margin-right:auto; }
+.assessment-bundle-details-modal .assessment-modal-actions .assessment-archive-action { margin-right:auto; }
+@media (max-width:700px) {
+  .assessment-bundle-details-modal .assessment-modal-actions .assessment-tertiary-action {
+    grid-column:1 / -1; justify-self:start; width:100%; justify-content:flex-start;
+    margin:0; padding-bottom:var(--space-3); border-bottom:1px solid var(--line); border-radius:0;
+  }
+}
+
+/* Shared modal action order: tertiary actions lead; dismiss and primary actions trail. */
+.modal-footer:has(> .button.ghost, > .tertiary-action) > :is(.button.ghost, .tertiary-action) {
+  order:-1;
+  margin-right:auto;
+}
+@media (max-width:700px) {
+  .modal-footer:has(> .button.ghost, > .tertiary-action):has(> :nth-child(3)) {
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  .modal-footer:has(> .button.ghost, > .tertiary-action):has(> :nth-child(3)) > :is(.button.ghost, .tertiary-action) {
+    grid-column:1 / -1;
+    justify-self:start;
+    width:100%;
+    justify-content:flex-start;
+    margin:0;
+    padding-bottom:var(--space-3);
+    border-bottom:1px solid var(--line);
+    border-radius:0;
+  }
+  .modal-footer:has(> .button.ghost, > .tertiary-action):has(> :nth-child(3)) > .button:not(.ghost) {
+    min-width:0;
+    width:100%;
+  }
+  .modal-footer.modal-footer-stacked,
+  .modal-footer.modal-footer-stacked:has(> .button.ghost, > .tertiary-action):has(> :nth-child(3)) {
+    display:grid;
+    grid-template-columns:minmax(0,1fr);
+  }
+  .modal-footer.modal-footer-stacked > :is(.button, .tertiary-action) {
+    grid-column:1;
+    justify-self:stretch;
+    width:100%;
+    min-width:0;
+    margin:0;
+  }
+}

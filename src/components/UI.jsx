@@ -584,6 +584,9 @@ export function TextLink({ icon = ArrowRight, iconPosition = "end", className = 
 export function ActionGroup({ as: Element = "div", children, className = "", ...props }) {
   return <Element className={`action-group ${className}`.trim()} {...props}>{children}</Element>;
 }
+export function ModalFooter({ children, className = "", ...props }) {
+  return <ActionGroup className={`modal-footer modal-footer-stacked ${className}`.trim()} {...props}>{children}</ActionGroup>;
+}
 export function DeleteAction(props) {
   return <TertiaryAction icon={Trash2} {...props} />;
 }

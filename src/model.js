@@ -4862,6 +4862,14 @@ function reduceState(state, action) {
       event('Instrument added', instrument.name, {actionType:action.type});
       break;
     }
+    case "MARK_ASSESSMENT_NOT_REQUIRED": {
+      if (!p || p.archivedAt || p.readOnly || !e || e.readOnly || e.status !== 'Active' || !canAssess(p,e) || !action.reason?.trim()) return state;
+      const records = (e.collections || []).filter(record=>action.collectionIds?.includes(record.id));
+      if (!records.length || !records.some(record=>record.bundleSource === 'Scheduled' || record.bundleSource === 'System' || record.id?.startsWith('AUTO-') || (record.scheduleAnchor && record.bundleSource !== 'User'))) return state;
+      records.forEach(record=>{record.notRequiredReason=action.reason.trim();record.notRequiredAt=recordedAt;record.assignment='Cancelled';});
+      event('Assessment marked as not required', action.reason.trim(), {actionType:action.type});
+      break;
+    }
     case "ARCHIVE_ASSESSMENT_GROUP": {
       if (!p || p.archivedAt || p.readOnly || !e || e.readOnly || e.status !== 'Active' || !canAssess(p,e)) return state;
       const records = (e.collections || []).filter(record => action.collectionIds?.includes(record.id));

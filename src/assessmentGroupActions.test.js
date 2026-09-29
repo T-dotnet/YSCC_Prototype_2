@@ -34,3 +34,19 @@ test('system generated assessments cannot be archived',()=>{
   const result=reducer(state,{type:'ARCHIVE_ASSESSMENT_GROUP',personId:person.id,episodeId:episode.id,collectionIds:[source.id]});
   assert.ok(result.people.find(item=>item.id===person.id).episodes.find(item=>item.id===episode.id).collections.some(record=>record.id===source.id));
 });
+test('system assessment requires a reason and retains responses when marked not required',()=>{
+  const state=createSeed();
+  const person=state.people.find(person=>person.id==='YS-1034');
+  const episode=person.episodes.find(episode=>episode.status==='Active');
+  const source=episode.collections[0];
+  source.bundleSource='Scheduled';
+  source.answers=[{questionId:'example',value:'saved'}];
+  const action={type:'MARK_ASSESSMENT_NOT_REQUIRED',personId:person.id,episodeId:episode.id,collectionIds:[source.id]};
+  const invalid=reducer(state,{...action,reason:' '});
+  assert.equal(invalid.people.find(item=>item.id===person.id).episodes.find(item=>item.id===episode.id).collections[0].notRequiredReason,undefined);
+  const updated=reducer(state,{...action,reason:'Already completed in another service'});
+  const retained=updated.people.find(item=>item.id===person.id).episodes.find(item=>item.id===episode.id).collections.find(record=>record.id===source.id);
+  assert.equal(retained.notRequiredReason,'Already completed in another service');
+  assert.equal(retained.assignment,'Cancelled');
+  assert.deepEqual(retained.answers,source.answers);
+});

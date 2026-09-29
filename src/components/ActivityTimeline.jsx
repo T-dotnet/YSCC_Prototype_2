@@ -13,7 +13,6 @@ import {
   HeartPulse,
   House,
   Pill,
-  SlidersHorizontal,
   Users,
 } from "lucide-react";
 import {
@@ -24,7 +23,7 @@ import {
 } from "../activity";
 import { collectionStatus, formatDate, formatTimestamp, personEventText, TODAY } from "../model";
 import { associatedCareItems, contactCareEventFacts, historyCategory, HISTORY_CATEGORIES, historyDate, historyItem } from "../historyItem";
-import { SearchInput, Select, Button, Empty, FilterTabs } from "./UI";
+import { SearchInput, Select, Button, Empty } from "./UI";
 import RecordItem from "./RecordItem";
 import RelatedRecordsAccordion from "./RelatedRecordsAccordion";
 import { contactsForAssessment, assessmentsForContact } from "../assessmentContacts";
@@ -490,37 +489,25 @@ export function ClinicalHistory({
   return (
     <div className="clinical-history" id="clinical-history-timeline" ref={timelineRef}>
       {quickFilters ? (
-        <div className="care-event-filter-bar">
-          <FilterTabs
-            id="care-event-filter"
-            label="Care event type"
-            panelId="care-event-results"
-            className="care-event-quick-filters"
-            value={filters.type}
-            onChange={(value) => setFilter("type", value)}
-            items={quickItems}
-          />
-          <div className="care-event-search-row">
-            <SearchInput
-              value={filters.query}
-              onChange={(value) => setFilter("query", value)}
-              placeholder="Search care events"
-            />
-            <button
-              type="button"
-              className={`care-event-more-filters${advancedFilterCount ? " has-active-filters" : ""}`}
-              aria-expanded={filtersOpen}
-              aria-controls="care-event-advanced-filters"
-              onClick={() => setFiltersOpen((open) => !open)}
-            >
-              <SlidersHorizontal size={17} aria-hidden="true" />
-              <span className="care-event-more-label">More filters</span>
-              <span className="care-event-more-label-short">Filters</span>
-              {advancedFilterCount > 0 && <span className="care-event-more-count">{advancedFilterCount}</span>}
-              <ChevronDown size={16} aria-hidden="true" />
-            </button>
-          </div>
-          <div id="care-event-advanced-filters" className="care-event-advanced-filters" hidden={!filtersOpen}>
+        <ListFilterBar
+          id="care-event-filter"
+          label="Care event type"
+          panelId="care-event-results"
+          items={quickItems}
+          value={filters.type}
+          onChange={(value) => setFilter("type", value)}
+          query={filters.query}
+          onQueryChange={(value) => setFilter("query", value)}
+          placeholder="Search care events"
+          shown={visibleEntries.length}
+          total={entries.length}
+          noun="records"
+          activeAdvancedCount={advancedFilterCount}
+          onClear={resetFilters}
+          open={filtersOpen}
+          onOpenChange={setFiltersOpen}
+          resultAction={<TimelineExpandAll containerRef={timelineRef} containerId="clinical-history-timeline" itemCount={visibleEntries.length} />}
+          advanced={<>
             <div className="care-event-period-filters" role="group" aria-label="Care event date">
               {[
                 { value: "all", label: "All dates" },
@@ -546,17 +533,9 @@ export function ClinicalHistory({
                 {types.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
               </Select>
             </div>
-            </div>
-          <p className="care-event-results-count" aria-live="polite">
-            <span>Showing {visibleEntries.length} of {entries.length} records</span>
-            {visibleEntries.length !== entries.length && (
-              <button type="button" className="filter-count-clear" onClick={resetFilters}>Clear filters</button>
-            )}
-            <span className="filter-result-action">
-              <TimelineExpandAll containerRef={timelineRef} containerId="clinical-history-timeline" itemCount={visibleEntries.length} />
-            </span>
-          </p>
-        </div>
+          </>}
+          className="clinical-care-event-list-filter"
+        />
       ) : (
       <details
         className={`care-timeline-filters${hasFilters ? " has-active-filters" : ""}`}
