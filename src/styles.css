@@ -5381,10 +5381,6 @@ td:last-child {
 .section-toolbar > div:first-child {
   flex: 1 1 auto;
 }
-.care-events > .section-toolbar > div:first-child {
-  flex-basis: 0;
-  min-width: 0;
-}
 .section-toolbar p {
   color: var(--muted);
   font-size: var(--type-supporting);
@@ -15913,21 +15909,41 @@ h6 {
   }
 }
 
-.assessment-ledger-surface #person-panel > .stack > .assessment-ledger-toolbar {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--space-4) var(--space-6);
+.section-action-header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-width: 0;
 }
-.assessment-ledger-toolbar > .assessment-ledger-actions {
-  grid-column: 2;
-  grid-row: 1;
-}
-.assessment-ledger-toolbar > p {
-  grid-column: 1;
+.section-action-header > p {
   max-width: 880px;
   margin: 0;
+  color: var(--muted);
   font-size: var(--type-supporting);
+}
+.section-action-header-actions,
+.section-action-header-actions .button-row {
+  display: flex;
+  justify-content: flex-start;
+  max-width: 100%;
+}
+@media (min-width: 701px) {
+  .section-action-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-2) var(--space-5);
+    width: 100%;
+  }
+  .section-action-header > p {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .section-action-header-actions {
+    grid-column: 2;
+    grid-row: 1;
+  }
 }
 .assessment-ledger-surface .assessment-filter-bar {
   padding-bottom: 0;
@@ -16109,21 +16125,8 @@ h6 {
   .assessment-ledger-row .assessment-type-history {
     margin: var(--space-half) calc(-1 * var(--space-3)) calc(-1 * var(--space-4));
   }
-  .assessment-ledger-surface #person-panel > .stack > .assessment-ledger-toolbar {
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--space-3);
-  }
-  .assessment-ledger-toolbar > .assessment-ledger-actions {
-    grid-column: 1;
-    grid-row: 3;
-    width: 100%;
-  }
-  .assessment-ledger-toolbar > .assessment-ledger-actions .button {
-    flex: 1 1 auto;
-  }
-  .assessment-ledger-toolbar > p {
-    grid-column: 1;
-    grid-row: 2;
+  .section-action-header > p {
+    font-size: var(--type-metadata);
   }
 }
 
@@ -18661,6 +18664,9 @@ thead th,
   .report-primary-grid { grid-template-columns: 1fr; }
   .report-measure-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+@media (max-width: 700px) {
+  .report-measure-grid { grid-template-columns: 1fr; }
+}
 @media (max-width: 600px) {
   .report-overview-links { gap: var(--space-4); }
   .report-score-picker button { flex-wrap: wrap; align-content: center; gap: 2px; }
@@ -18668,7 +18674,6 @@ thead th,
   .report-featured-chart { height: 140px; }
   .report-featured-chart-heading strong { font-size: 2rem; }
   .report-featured-footer { flex-wrap: wrap; }
-  .report-measure-grid { grid-template-columns: 1fr; }
   .report-scope-card dl > div { grid-template-columns: 1fr; gap: var(--space-1); }
 }
 

@@ -7,6 +7,7 @@ import { QueueRow, QueueCell } from "../components/QueueRow";
 import { SortableHeader, useQueueSort } from "../components/QueueControls";
 import { sortQueueRows } from "../queueSort";
 import NewAssessmentBundle from "../components/NewAssessmentBundle";
+import SectionActionHeader from "../components/SectionActionHeader";
 import { assessmentBundleGroups } from "../assessmentBundles";
 import IntakeWorkspace, { IntakePanel, IntakeAssessmentPanel } from "./Intake";
 import Referrals from "./Referrals";
@@ -1006,9 +1007,12 @@ export default function Person({ id, navigate, openModal }) {
                 }}
               />
             )}
-            <div className="section-toolbar assessment-ledger-toolbar">
-              <h2>Assessment ledger</h2>
-              <ActionGroup className="button-row assessment-ledger-actions">
+            <SectionActionHeader
+              title="Assessment ledger"
+              description={simpleAssessments
+                ? `${orderedCollections.length} instruments in care episode ${e.number}. ${showDueDates ? "Records show due dates, drafts and completion." : "Records show creation, drafts and completion."}`
+                : `${orderedCollections.length} instruments in care episode ${e.number}. Each is a separate collection point. Closure instruments and feedback stay linked after this episode closes.`}
+              action={<ActionGroup className="button-row assessment-ledger-actions">
                 {groupAssessmentsByBundle ? <SplitButton
                   label="New assessment"
                   menuLabel="More assessment actions"
@@ -1026,13 +1030,8 @@ export default function Person({ id, navigate, openModal }) {
                 >
                   {scheduleAssessments ? "Schedule instrument" : "New instrument"}
                 </Button>}
-              </ActionGroup>
-              <p>
-                {simpleAssessments
-                  ? `${orderedCollections.length} instruments in care episode ${e.number}. ${showDueDates ? "Records show due dates, drafts and completion." : "Records show creation, drafts and completion."}`
-                  : `${orderedCollections.length} instruments in care episode ${e.number}. Each is a separate collection point. Closure instruments and feedback stay linked after this episode closes.`}
-              </p>
-            </div>
+              </ActionGroup>}
+            />
             {bundleMessage && <p role="status">{bundleMessage}</p>}
             {(newBundleOpen || editBundleId) && <NewAssessmentBundle key={editBundleId || 'new'} editBundleId={editBundleId} person={p} episode={e} onClose={() => {setNewBundleOpen(false);setEditBundleId(null);}} onCreated={(bundleId,message) => {
               setCreatedBundleId(bundleId);setBundleMessage(message);setAssessmentFilter('all');setAssessmentQuery('');setAssessmentMethod('all');

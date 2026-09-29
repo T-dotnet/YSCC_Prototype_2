@@ -1125,8 +1125,8 @@ export default function RecordTwo({ person, episode, navigate }) {
         {isFixture && <section className="report-dashboard-section" id="report-sample-charts" aria-labelledby="report-sample-heading">
           <ReportSectionHeading id="report-sample-heading"
             title="Illustrative charts" description="Sample patterns for exploring report layouts; values are not linked to source records." />
-          <details className="report-sample-details">
-            <summary>Show sample charts <ChevronDown size={18} aria-hidden="true" /></summary>
+          <details className="report-sample-details" open>
+            <summary>Sample charts <ChevronDown size={18} aria-hidden="true" /></summary>
             <div className="record-two-grid">
               <Symptoms />
               <Periods />

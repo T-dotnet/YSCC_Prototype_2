@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { SplitButton } from "../components/UI";
+import SectionActionHeader from "../components/SectionActionHeader";
 import { NEW_RECORD_TYPES, recordCategoryLabel } from "../components/CareTimelineEntryForm";
 import { ClinicalHistory } from "../components/ActivityTimeline";
 import { careEventEntries } from "../activity";
@@ -17,12 +18,10 @@ export default function CareEvents({ episode, person, audit = [], openModal, eve
 
   return (
     <div className="stack care-events">
-      <div className="section-toolbar">
-        <div>
-          <h2>Care events</h2>
-          <p>Contacts, assessments, contextual events and structured care records from this care period.</p>
-        </div>
-        <SplitButton
+      <SectionActionHeader
+        title="Care events"
+        description="Contacts, assessments, contextual events and structured care records from this care period."
+        action={<SplitButton
           label="Add event"
           menuLabel="Event categories"
           onClick={() => openModal({ type: "care-timeline-entry", episodeId: episode.id })}
@@ -35,8 +34,8 @@ export default function CareEvents({ episode, person, audit = [], openModal, eve
               ...(type !== "appointment" ? { initialType: type } : {}),
             }),
           }))}
-        />
-      </div>
+        />}
+      />
       <ClinicalHistory
         quickFilters
         episode={episode}
