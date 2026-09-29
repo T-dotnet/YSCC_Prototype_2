@@ -358,10 +358,6 @@ export function Administration({ openModal, navigate }) {
         title="Administration"
         subtitle="The foundations of a consistent care experience."
       />
-      <Notice>
-        Sample configuration for exploring the workspace. Publication, clinical
-        approval, and live permissions are not connected.
-      </Notice>
       <Tabs id="administration" panelId="administration-panel" label="Administration sections"
         items={[{value:"workspace",label:"Workspace"},{value:"bundles",label:"Assessment bundles"}]}
         value={adminTab} onChange={value=>view.set("tab",value,"workspace")} />
