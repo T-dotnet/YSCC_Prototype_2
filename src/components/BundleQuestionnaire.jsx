@@ -51,7 +51,7 @@ export default function BundleQuestionnaire({ person, episode, collection, onClo
   const dirty = dirtyRecords.length > 0;
   const draftRecords = records.filter(record => record.response !== 'Submitted' &&
     (record.id === activeId || dirtyRecords.includes(record)));
-  const savedBundle = state.settings?.assessmentScheduleRules?.find(rule => rule.id === group.key);
+  const savedBundle = state.settings?.assessmentScheduleRules?.find(rule => rule.id === (group.bundleId || group.key));
   const delivery = savedBundle ? bundleDelivery(savedBundle,
     episode.assessmentBundleSelections?.[savedBundle.id]?.assessmentOverrides) : null;
   const [collectionTab, setCollectionTab] = useState(() => {

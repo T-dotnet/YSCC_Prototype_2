@@ -4852,30 +4852,35 @@ function reduceState(state, action) {
     case "UPDATE_ASSESSMENT_BUNDLE": {
       const saved = state.settings?.assessmentScheduleRules?.find(bundle => bundle.id === action.bundleId);
       const bundle = saved && asBundle(saved);
+      const targetInstance = action.bundleInstanceId && e?.assessmentBundleInstances?.find(item => item.id === action.bundleInstanceId);
+      const matchesBundle = collection => collectionBelongsToBundle(collection,action.bundleId) &&
+        (!action.bundleInstanceId || collection.bundleInstanceId === action.bundleInstanceId);
+      if (action.bundleInstanceId && (!targetInstance || targetInstance.bundleId !== action.bundleId ||
+          !action.name?.trim() || e.assessmentBundleInstances.some(item => item.id !== targetInstance.id && item.name?.trim().toLowerCase() === action.name.trim().toLowerCase()))) return state;
       const optionalIds = action.optionalIds;
       if (action.extraAssessments?.some(item => item && (item.channel === 'SMS link' && !assessmentSms || !['Clinician entry','Clinic tablet','SMS link'].includes(item.channel)))) return state;
       const extras = Array.isArray(action.extraAssessments) ? action.extraAssessments.map(item => {
         if (!item) return item;
         const existing = [...(e?.collections || []), ...(e?.removedBundleAssessments || [])].find(collection =>
-          collectionBelongsToBundle(collection,action.bundleId) && collection.bundleRequirement === "Additional" && collection.version === item.version);
+          matchesBundle(collection) && collection.bundleRequirement === "Additional" && collection.version === item.version);
         const delivery = action.assessmentOverrides?.[0] || bundle;
         return {...item,...(existing ? {id:existing.bundleAssessmentId} : {}),channel:delivery.channel,recipient:delivery.recipient};
       }) : action.extraAssessments;
       const overrides = action.assessmentOverrides ?? [];
       if (!assessmentBundleGroupingEnabled(state.settings) || !p || p.archivedAt || p.readOnly || !e ||
           e.readOnly || e.status !== "Active" || !canAssess(p,e) || !action.id || !bundle ||
-          !e.collections.some(collection => collectionBelongsToBundle(collection,bundle.id)) ||
+          !e.collections.some(collection => matchesBundle(collection)) ||
           newBundleError({...bundle,enabled:true}, optionalIds, extras, p, state.settings, overrides) ||
           extras.some(item => item.requirement !== "Optional") ||
           (scheduleAssessments ? !validISODate(action.due) || action.due < TODAY : !!action.due)) return state;
-      const previous = bundleSelectionForEpisode(bundle,e);
+      const previous = bundleSelectionForEpisode(bundle, action.bundleInstanceId ? {...e,collections:e.collections.filter(matchesBundle)} : e);
       const linkedIds = new Set(assessmentContactLinks(e).map(link => link.collectionId));
       const recordedIds = new Set((e.events || []).map(entry => entry.collectionId));
       const canEditCollection = collection => bundleCollectionEditable(collection) &&
         !linkedIds.has(collection.id) && !recordedIds.has(collection.id);
       const selected = [...bundleAssessmentsForCreation(bundle,overrides).filter(item => item.requirement === "Mandatory" || optionalIds.includes(item.id)), ...bundleAdditionalAssessments(bundle,extras,overrides)];
       const selectedIds = new Set(selected.map(item => item.id));
-      const removed = e.collections.filter(collection => collectionBelongsToBundle(collection,bundle.id) &&
+      const removed = e.collections.filter(collection => matchesBundle(collection) &&
         !selectedIds.has(collection.bundleAssessmentId) && collection.bundleRequirement !== "Mandatory" &&
         (["Optional","Additional"].includes(collection.bundleRequirement) || bundle.assessments.some(item => item.id === collection.bundleAssessmentId && item.requirement === "Optional")) &&
         !bundle.assessments.some(item => item.id === collection.bundleAssessmentId && item.requirement === "Mandatory") &&
@@ -4888,13 +4893,13 @@ function reduceState(state, action) {
       for (const [index,item] of selected.entries()) {
         const additional = extras.some(extra => extra.id === item.id);
         const wasSelected = item.requirement === "Mandatory" || previous.optionalIds.includes(item.id) || previous.extraAssessments.some(extra => extra.id === item.id);
-        const records = e.collections.filter(collection => collectionBelongsToBundle(collection,bundle.id) && collection.bundleAssessmentId === item.id);
+        const records = e.collections.filter(collection => matchesBundle(collection) && collection.bundleAssessmentId === item.id);
         for (const collection of records.filter(canEditCollection)) {
           Object.assign(collection,{channel:item.channel,respondent:item.recipient,recorder:item.recipient,
             assistance:item.channel === "Clinician entry" ? "Transcribed" : "Independent"});
         }
         if (wasSelected || records.some(collection => collection.response !== "Submitted" && !["Paused","Cancelled"].includes(collection.assignment))) continue;
-        const restore = e.removedBundleAssessments.find(collection => collectionBelongsToBundle(collection,bundle.id) &&
+        const restore = e.removedBundleAssessments.find(collection => matchesBundle(collection) &&
           (collection.bundleAssessmentId === item.id || additional && collection.bundleRequirement === "Additional" && collection.version === item.version));
         const collection = restore ? {...restore, bundleAssessmentId:item.id, channel:item.channel,respondent:item.recipient,recorder:item.recipient,
           assistance:item.channel === "Clinician entry" ? "Transcribed" : "Independent"} : {
@@ -4902,6 +4907,7 @@ function reduceState(state, action) {
             bundleContext:bundleContext(bundle),assessment:item,due:scheduleAssessments ? action.due : ""},TODAY),
           label:INSTRUMENTS.find(instrument => instrument.version === item.version).name,
           createdAt:recordedAt,scheduleFree:!scheduleAssessments,bundleSource:"Manual",
+          ...(targetInstance ? {bundleInstanceId:targetInstance.id,bundleName:action.name.trim()} : {}),
           bundleRequirement:additional ? "Additional" : item.requirement};
         if (e.collections.some(existing => existing.id === collection.id)) return state;
         e.collections.push(collection);
@@ -4913,7 +4919,8 @@ function reduceState(state, action) {
       // Optional offers follow the episode selection on the next reconciliation.
       e.assessmentBundleOffers = (e.assessmentBundleOffers || []).filter(offer => offer.bundleId !== bundle.id || offer.status !== "Pending");
       for (const instance of e.assessmentBundleInstances || []) {
-        if (instance.bundleId !== bundle.id) continue;
+        if (instance.bundleId !== bundle.id || targetInstance && instance.id !== targetInstance.id) continue;
+        if (targetInstance) { instance.name = action.name.trim(); for (const record of e.collections.filter(matchesBundle)) record.bundleName = instance.name; }
         instance.collectionIds = e.collections.filter(collection => collection.bundleInstanceId === instance.id).map(collection => collection.id);
         instance.excludedOptionalIds = bundle.assessments.filter(item => item.requirement === "Optional" && !optionalIds.includes(item.id)).map(item => item.id);
       }
@@ -4934,18 +4941,21 @@ function reduceState(state, action) {
           newBundleError(bundle, optionalIds, extras, p, state.settings, overrides) ||
           !bundleAgeMatches(bundle,p,TODAY) ||
           (scheduleAssessments ? !validISODate(action.due) || action.due < TODAY : !!action.due)) return state;
+      const instanceName = action.name?.trim() || bundle.name;
+      if (action.name !== undefined && (!action.name.trim() || instanceName.length > 120 ||
+          e.assessmentBundleInstances?.some(instance => instance.name?.trim().toLowerCase() === instanceName.toLowerCase()))) return state;
       const selected = [...bundleAssessmentsForCreation(bundle,overrides).filter(item => item.requirement === "Mandatory" || optionalIds.includes(item.id)), ...bundleAdditionalAssessments(bundle,extras,overrides)];
       const collections = selected.map((item,index) => ({...bundleCollection({id:`${action.id}-${index}`, bundleId:bundle.id,
-        bundleName:bundle.name, bundleContext:bundleContext(bundle), assessment:item, due:scheduleAssessments ? action.due : ""}, TODAY),
+        bundleName:instanceName, bundleContext:bundleContext(bundle), assessment:item, due:scheduleAssessments ? action.due : ""}, TODAY),
         label:INSTRUMENTS.find(instrument => instrument.version === item.version).name,
         createdAt:recordedAt, scheduleFree:!scheduleAssessments, bundleInstanceId:action.id, bundleSource:"Manual",
         bundleRequirement:extras.some(extra=>extra.id===item.id) ? "Additional" : item.requirement}));
       if (collections.some(collection => e.collections.some(existing => existing.id === collection.id))) return state;
       e.collections.push(...collections);
       e.assessmentBundleInstances = [...(e.assessmentBundleInstances || []), {id:action.id, bundleId:bundle.id,
-        name:bundle.name, context:bundleContext(bundle), createdAt:recordedAt, collectionIds:collections.map(collection => collection.id),
+        name:instanceName, customName:action.name !== undefined, context:bundleContext(bundle), createdAt:recordedAt, collectionIds:collections.map(collection => collection.id),
         excludedOptionalIds:bundle.assessments.filter(item => item.requirement === "Optional" && !optionalIds.includes(item.id)).map(item => item.id)}];
-      event("Assessment bundle created", `${bundle.name} · ${collections.length} assessments · same care episode`,
+      event("Assessment bundle created", `${instanceName} · ${collections.length} assessments · same care episode`,
         {bundleId:bundle.id, bundleInstanceId:action.id});
       break;
     }

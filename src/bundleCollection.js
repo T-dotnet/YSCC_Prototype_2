@@ -2,7 +2,7 @@ import { assessmentBundleGroups } from './assessmentBundles.js';
 import { getInstrument, questionnaireState } from './instruments.js';
 
 export function bundleCollectionGroup(episode, collection, rules = []) {
-  const key = collection?.bundleId || collection?.scheduleRuleId;
+  const key = episode.assessmentBundleInstances?.find(item => item.id === collection?.bundleInstanceId && item.customName)?.id || collection?.bundleId || collection?.scheduleRuleId;
   if (!key) return null;
   return assessmentBundleGroups(episode, episode.collections, rules)
     .find(group => group.key === key) || { key, name: collection.bundleName || 'Assessment bundle',

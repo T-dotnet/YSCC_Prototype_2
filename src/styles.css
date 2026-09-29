@@ -19551,3 +19551,29 @@ thead th,
 
 .questionnaire-qr-modal-body { padding: var(--space-5); text-align: center; }
 .questionnaire-qr-modal-body > p { margin: 0; color: var(--muted); line-height: var(--type-leading-body); }
+
+/* Give row controls a shared left edge, independent of their label length. */
+.bundle-editor-assessment-row .record-item-heading-action { flex: 0 0 128px; }
+.bundle-editor-assessment-row .bundle-editor-assessment-actions { justify-content: flex-start; }
+@container (max-width: 520px) {
+  .bundle-editor-assessment-row .record-item-heading-action { flex-basis: 100%; }
+}
+
+/* Keep repeated administration action controls aligned as labels change. */
+.bundle-summary-actions .admin-setting-toggle { min-width: 76px; justify-content: flex-start; }
+@media (max-width: 760px) {
+  .bundle-summary-actions { justify-content: flex-start; }
+}
+
+/* Issue descriptions must contribute to the table row's natural height. */
+.quality-table .quality-issue-cell {
+  display: table-cell;
+  height: auto;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.quality-table .quality-issue-cell strong,
+.quality-table .quality-issue-cell span { position: static; }
+@container (max-width: 860px) {
+  .quality-table .quality-issue-cell { display: block; width: auto; max-width: none; height: auto; }
+}

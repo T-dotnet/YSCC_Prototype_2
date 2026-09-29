@@ -7,7 +7,7 @@ import { useStore } from '../store';
 import { INSTRUMENTS } from '../instruments';
 import { responseDate } from '../progress';
 import { TODAY, uid, formatDate } from '../model';
-import { asBundle, bundleName, bundleAssessmentUnavailable, bundleAgeMatches, bundleAssessmentsForCreation, bundleDelivery, bundleSelectionForEpisode, newBundleError } from '../assessmentBundles';
+import { asBundle, bundleName, uniqueBundleInstanceName, bundleAssessmentUnavailable, bundleAgeMatches, bundleAssessmentsForCreation, bundleDelivery, bundleSelectionForEpisode, newBundleError } from '../assessmentBundles';
 import { assessmentSchedulingEnabled, assessmentSmsEnabled } from '../assessmentFeatures';
 import { ActionGroup, Badge, Checkbox, IconButton, Modal, Button, Field, Select, Empty, Notice, ValidatedForm } from './UI';
 import BundleAssessmentRow from './BundleAssessmentRow';
@@ -37,8 +37,9 @@ export default function NewAssessmentBundle({ person, episode, onClose, onCreate
   const editingBundle = !!editBundleId;
   const [initialSelection] = useState(() => {
     const saved = state.settings?.assessmentScheduleRules?.find(item => item.id === editBundleId);
-    return saved ? bundleSelectionForEpisode(asBundle(saved),episode) : {optionalIds:[],assessmentOverrides:[],extraAssessments:[]};
+    return saved ? bundleSelectionForEpisode(asBundle(saved),group?.instanceId ? {...episode,collections:group.records,assessmentBundleSelections:{}} : episode) : {optionalIds:[],assessmentOverrides:[],extraAssessments:[]};
   });
+  const [instanceName, setInstanceName] = useState(group?.instanceId ? group.name : '');
   const [bundleId, setBundleId] = useState(editBundleId || '');
   const [optionalIds, setOptionalIds] = useState(initialSelection.optionalIds);
   const [assessmentOverrides, setAssessmentOverrides] = useState(initialSelection.assessmentOverrides);
@@ -80,7 +81,11 @@ export default function NewAssessmentBundle({ person, episode, onClose, onCreate
     event.preventDefault();
     const validation = newBundleError(validationBundle,optionalIds,extras,person,state.settings,assessmentOverrides);
     if (validation) { setError(validation); return; }
-    const result = commit({type:editingBundle ? 'UPDATE_ASSESSMENT_BUNDLE' : 'CREATE_ASSESSMENT_BUNDLE',personId:person.id,episodeId:episode.id,
+    const name = instanceName.trim();
+    if ((!editingBundle || group?.instanceId) && (!name || episode.assessmentBundleInstances?.some(item => item.id !== group?.instanceId && item.name?.trim().toLowerCase() === name.toLowerCase()))) {
+      setError(!name ? 'Enter a bundle name.' : 'A bundle with this name already exists. Choose a unique name.'); return;
+    }
+    const result = commit({name, bundleInstanceId:group?.instanceId, type:editingBundle ? 'UPDATE_ASSESSMENT_BUNDLE' : 'CREATE_ASSESSMENT_BUNDLE',personId:person.id,episodeId:episode.id,
       id:instanceId,bundleId,optionalIds,assessmentOverrides,extraAssessments:extras,due:scheduling ? due : ''});
     if (result.error) { setError(result.error); return; }
     onCreated(bundle.id,editingBundle ? `${bundleName(bundle)} updated. Drafts and completed assessments have been kept.`
@@ -106,13 +111,16 @@ export default function NewAssessmentBundle({ person, episode, onClose, onCreate
       <div className="form-body new-assessment-bundle-body">
         {!editingBundle && <Field label="Bundle" hint="Choose a bundle, then review the assessments to include.">
           <Select label="Bundle" required value={bundleId} onChange={event => {
-            setBundleId(event.target.value); setOptionalIds([]); setAssessmentOverrides([]); setExtras([]); setExtraVersion(''); setError('');
+            setBundleId(event.target.value); setInstanceName(uniqueBundleInstanceName(episode, bundles.find(item => item.id === event.target.value) ? bundleName(bundles.find(item => item.id === event.target.value)) : 'Assessment bundle')); setOptionalIds([]); setAssessmentOverrides([]); setExtras([]); setExtraVersion(''); setError('');
           }}>
             <option value="">Choose a bundle</option>
             {bundles.map(item => <option key={item.id} value={item.id}>{bundleName(item)}</option>)}
           </Select>
         </Field>}
         {bundle && <>
+          {(!editingBundle || group?.instanceId) && <Field label="Bundle name">
+            <input aria-label="Bundle name" required maxLength={120} value={instanceName} onChange={event => { setInstanceName(event.target.value); setError(''); }} />
+          </Field>}
           {scheduling && <Field label={editingBundle ? 'Due date for added assessments' : 'Due date'} hint={editingBundle ? 'Existing assessment dates stay as recorded.' : 'Applies to all assessments created in this bundle.'}><input required type="date" min={TODAY} value={due} onChange={event => setDue(event.target.value)} /></Field>}
           {!embedded && <DeliveryFields item={delivery} person={person} sms={sms} onChange={updateDelivery} />}
           {embedded ? <div className="bundle-edit-table"><RelatedRecordsTable label={`Assessments in ${bundleName(bundle)}`} compact>

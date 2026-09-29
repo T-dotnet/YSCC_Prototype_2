@@ -343,8 +343,8 @@ export default function Person({ id, navigate, openModal }) {
   const allBundleGroups = groupAssessmentsByBundle ? assessmentBundleGroups(e,assessmentCollections,state.settings?.assessmentScheduleRules) : [];
   const selectedBundleGroup = allBundleGroups.find(group => group.key === bundleDetailsKey);
   const deliveryForBundle = group => {
-    const template = state.settings?.assessmentScheduleRules?.find(item => item.id === group.key);
-    const override = e.assessmentBundleSelections?.[group.key]?.assessmentOverrides?.[0];
+    const template = state.settings?.assessmentScheduleRules?.find(item => item.id === (group.bundleId || group.key));
+    const override = e.assessmentBundleSelections?.[group.bundleId || group.key]?.assessmentOverrides?.[0];
     const record = group.records.find(col => col.response !== 'Submitted') || group.records[0];
     const respondentLabel = value => value === 'Family respondent' ? 'Family respondent' : 'Patient';
     return {
@@ -1047,11 +1047,11 @@ export default function Person({ id, navigate, openModal }) {
             />
             {selectedBundleGroup && <AssessmentBundleDetails group={selectedBundleGroup} episode={e} scheduleAssessments={scheduleAssessments} delivery={deliveryForBundle(selectedBundleGroup)}
               statusFor={assessmentState} showDueDates={showDueDates}
-              assessmentEditor={selectedBundleGroup.key !== 'individual' && !p.archivedAt && !p.readOnly && !e.readOnly && e.status === 'Active' && canAssess(p,e) && state.settings?.assessmentScheduleRules?.some(bundle => bundle.id === selectedBundleGroup.key)
-                ? <NewAssessmentBundle embedded group={selectedBundleGroup} statusFor={assessmentState} key={selectedBundleGroup.key} editBundleId={selectedBundleGroup.key} person={p} episode={e}
+              assessmentEditor={selectedBundleGroup.key !== 'individual' && !p.archivedAt && !p.readOnly && !e.readOnly && e.status === 'Active' && canAssess(p,e) && state.settings?.assessmentScheduleRules?.some(bundle => bundle.id === (selectedBundleGroup.bundleId || selectedBundleGroup.key))
+                ? <NewAssessmentBundle embedded group={selectedBundleGroup} statusFor={assessmentState} key={selectedBundleGroup.key} editBundleId={selectedBundleGroup.bundleId || selectedBundleGroup.key} person={p} episode={e}
                     onClose={() => setBundleDetailsKey(null)} onCreated={(bundleId,message) => {setCreatedBundleId(bundleId);setBundleMessage(message);}} /> : null}
               canEdit={!p.archivedAt && !p.readOnly && !e.readOnly && e.status === 'Active' && canAssess(p,e)}
-              onEdit={selectedBundleGroup.key !== 'individual' && state.settings?.assessmentScheduleRules?.some(bundle => bundle.id === selectedBundleGroup.key)
+              onEdit={selectedBundleGroup.key !== 'individual' && state.settings?.assessmentScheduleRules?.some(bundle => bundle.id === (selectedBundleGroup.bundleId || selectedBundleGroup.key))
                 ? () => {setEditBundleId(selectedBundleGroup.key);setBundleDetailsKey(null);} : null}
               onClose={() => setBundleDetailsKey(null)} />}
             <div className={`assessment-list${!groupAssessmentsByBundle && !simpleAssessments && groupAssessmentsByType ? " assessment-ledger-list" : ""}${!showDueDates ? " assessment-ledger-no-due" : ""}`} id="assessment-list" ref={assessmentListRef}>
@@ -1122,8 +1122,8 @@ export default function Person({ id, navigate, openModal }) {
                               <AssessmentBundleDetails embedded group={detailGroup} episode={e} scheduleAssessments={scheduleAssessments}
                                 delivery={deliveryForBundle(detailGroup)} statusFor={assessmentState} showDueDates={showDueDates}
                                 onClose={() => toggleBundleRow(group.key)}
-                                assessmentEditor={group.key !== 'individual' && !p.archivedAt && !p.readOnly && !e.readOnly && e.status === 'Active' && canAssess(p,e) && state.settings?.assessmentScheduleRules?.some(bundle => bundle.id === group.key)
-                                  ? <NewAssessmentBundle embedded group={detailGroup} statusFor={assessmentState} editBundleId={group.key} person={p} episode={e}
+                                assessmentEditor={group.key !== 'individual' && !p.archivedAt && !p.readOnly && !e.readOnly && e.status === 'Active' && canAssess(p,e) && state.settings?.assessmentScheduleRules?.some(bundle => bundle.id === (group.bundleId || group.key))
+                                  ? <NewAssessmentBundle embedded group={detailGroup} statusFor={assessmentState} editBundleId={group.bundleId || group.key} person={p} episode={e}
                                       onClose={() => toggleBundleRow(group.key)} onCreated={(bundleId,message) => {setCreatedBundleId(bundleId);setBundleMessage(message);}} /> : null} />
                             </div>
                           </td></tr>] : [])];

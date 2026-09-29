@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createSeed, reducer, TODAY, upgradeSampleData } from './model.js';
 import { INSTRUMENTS } from './instruments.js';
-import { assessmentBundleGroups, bundleContext, bundleDescription, bundleSelectionForEpisode, reconcileAssessmentBundles, newBundleError } from './assessmentBundles.js';
+import { assessmentBundleGroups, uniqueBundleInstanceName, bundleContext, bundleDescription, bundleSelectionForEpisode, reconcileAssessmentBundles, newBundleError } from './assessmentBundles.js';
 import { assessmentBundleGroupingEnabled } from './assessmentFeatures.js';
 
 const context = {personId:'YS-1034',episodeId:'EP-1034-01'};
@@ -209,4 +209,21 @@ test('single assessment bundle association persists while individual remains the
   const disabled = reducer(state,{type:'SET_ASSESSMENT_FEATURE',feature:'groupAssessmentsByBundle',enabled:false});
   assert.equal(reducer(disabled,{...plan,bundleId:rule.id}),disabled);
   assert.ok(getEpisode(reducer(disabled,plan)).collections.some(collection => collection.id === plan.id));
+});
+
+test('named bundle instances keep unique IDs and names and edit independently', () => {
+ let state = prepare();
+ state = reducer(state,action({name:'My care review'}));
+ const secondName = uniqueBundleInstanceName(getEpisode(state),'My care review');
+ assert.equal(secondName,'My care review (2)');
+ state = reducer(state,action({id:'second-bundle',name:secondName}));
+ const groups = assessmentBundleGroups(getEpisode(state),getEpisode(state).collections,state.settings.assessmentScheduleRules);
+ assert.equal(groups.find(group=>group.key==='manual-bundle').name,'My care review');
+ assert.equal(groups.find(group=>group.key==='second-bundle').records.length,1);
+ assert.equal(reducer(state,action({id:'duplicate',name:' MY CARE REVIEW '})),state);
+ const before = JSON.stringify(getEpisode(state).collections.filter(item=>item.bundleInstanceId==='second-bundle'));
+ state = reducer(state,action({type:'UPDATE_ASSESSMENT_BUNDLE',id:'edit',bundleInstanceId:'manual-bundle',name:'Renamed care review',optionalIds:['optional']}));
+ assert.equal(JSON.stringify(getEpisode(state).collections.filter(item=>item.bundleInstanceId==='second-bundle')),before);
+ assert.equal(getEpisode(state).assessmentBundleInstances.find(item=>item.id==='manual-bundle').name,'Renamed care review');
+ assert.ok(getEpisode(state).collections.filter(item=>item.bundleInstanceId==='manual-bundle').every(item=>item.bundleName==='Renamed care review'));
 });

@@ -39,9 +39,10 @@ export function assessmentBundleGroups(episode, visibleCollections, rules = []) 
   const groups = new Map();
   for (const collection of visibleCollections) {
     const rule = rules.find(bundle => bundle.id === (collection.bundleId || collection.scheduleRuleId));
-    const key = collection.bundleId || rule?.id || 'individual';
+    const instance = episode.assessmentBundleInstances?.find(item => item.id === collection.bundleInstanceId && item.customName);
+    const key = instance?.id || collection.bundleId || rule?.id || 'individual';
     const configuration = rule ? asBundle(rule) : collection.bundleContext;
-    if (!groups.has(key)) groups.set(key, {key, name:key === 'individual' ? 'Individual assessments' : rule ? bundleName(rule) : collection.bundleName || 'Assessment bundle',
+    if (!groups.has(key)) groups.set(key, {key, bundleId: collection.bundleId || rule?.id, instanceId: instance?.id, name:instance?.name || (key === 'individual' ? 'Individual assessments' : rule ? bundleName(rule) : collection.bundleName || 'Assessment bundle'),
       triggeringEvent:configuration?.trigger === 'event' ? BUNDLE_EVENT_TYPES.find(event => event.value === configuration.eventType)?.label || configuration.eventType || 'Event not recorded' : null,
       description:key === 'individual' ? 'Assessments created outside a bundle' : bundleDescription(rule ? asBundle(rule) : collection.bundleContext),
       timing:key === 'individual' ? null : bundleTiming(rule ? asBundle(rule) : collection.bundleContext), records:[]});
@@ -279,4 +280,12 @@ export function reconcileAssessmentBundles(state, today) {
     return personChanged ? {...person, episodes} : person;
   });
   return changed ? {...state, people} : state;
+}
+
+export function uniqueBundleInstanceName(episode, base) {
+  const names = new Set([...(episode.assessmentBundleInstances || []).map(item => item.name),
+    ...episode.collections.map(item => item.bundleName)].filter(Boolean).map(name => name.trim().toLowerCase()));
+  let name = base.trim(), suffix = 2;
+  while (names.has(name.toLowerCase())) name = `${base.trim()} (${suffix++})`;
+  return name;
 }
