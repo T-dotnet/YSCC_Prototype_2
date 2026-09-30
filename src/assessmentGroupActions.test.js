@@ -50,3 +50,24 @@ test('system assessment requires a reason and retains responses when marked not 
   assert.equal(retained.assignment,'Cancelled');
   assert.deepEqual(retained.answers,source.answers);
 });
+test('MVP scheduled assessment can be postponed or marked not required',()=>{
+  let state=createSeed();
+  state={...state,settings:{...state.settings,advancedAssessmentOptions:false}};
+  const person=state.people.find(item=>item.id==='YS-1034');
+  const episode=person.episodes.find(item=>item.status==='Active');
+  const source=episode.collections[0];
+  source.bundleSource='Scheduled';
+  const action={type:'MARK_ASSESSMENT_NOT_REQUIRED',personId:person.id,episodeId:episode.id,collectionIds:[source.id],reason:'Review at next visit'};
+  const originalDue=source.due;
+  const postponedDate='2026-12-31';
+  const postponed=reducer(state,{...action,postponedDate});
+  const postponedRecord=postponed.people.find(item=>item.id===person.id).episodes.find(item=>item.id===episode.id).collections.find(record=>record.id===source.id);
+  assert.equal(postponedRecord.due,postponedDate);
+  assert.equal(postponedRecord.postponedReason,action.reason);
+  assert.equal(postponedRecord.notRequiredReason,undefined);
+  assert.equal(postponedRecord.assignment,source.assignment);
+  const rejected=reducer(state,{...action,postponedDate:originalDue});
+  assert.equal(rejected.people.find(item=>item.id===person.id).episodes.find(item=>item.id===episode.id).collections.find(record=>record.id===source.id).due,originalDue);
+  const notRequired=reducer(state,action);
+  assert.equal(notRequired.people.find(item=>item.id===person.id).episodes.find(item=>item.id===episode.id).collections.find(record=>record.id===source.id).notRequiredReason,action.reason);
+});

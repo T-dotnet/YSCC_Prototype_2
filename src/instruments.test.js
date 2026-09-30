@@ -6,6 +6,7 @@ import {
   LIKERT_INSTRUMENT,
   LEGACY_INSTRUMENT,
   INSTRUMENTS,
+  STANDARD_INSTRUMENTS,
   INSTRUMENT_GROUPS,
   NINETY_DAY_REVIEW_INSTRUMENT,
   getInstrument,
@@ -43,7 +44,7 @@ function planned() {
     type: "PLAN",
     ...context,
     label: "Adaptive test",
-    due: TODAY,
+    due: "",
   });
   context.collectionId = state.people[0].episodes[0].collections.at(-1).id;
   state = reducer(state, {
@@ -96,7 +97,9 @@ test("initial assessment is available with person and family wording", () => {
 test("instrument selector groups every version and includes review questionnaires", () => {
   assert.deepEqual(INSTRUMENT_GROUPS.map((group) => group.label), ["Intake", "Assessments", "Review"]);
   assert.deepEqual(INSTRUMENT_GROUPS.flatMap((group) => group.instruments.map((item) => item.version)).sort(),
-    INSTRUMENTS.map((item) => item.version).sort());
+    STANDARD_INSTRUMENTS.map((item) => item.version).sort());
+  assert.ok(INSTRUMENTS.some((item) => item.mvpOnly));
+  assert.ok(STANDARD_INSTRUMENTS.every((item) => !item.mvpOnly));
   assert.deepEqual(INSTRUMENT_GROUPS.find((group) => group.label === "Review").instruments.map((item) => item.version), [
     NINETY_DAY_REVIEW_INSTRUMENT.version,
     "Episode closure assessment v1.0",
@@ -158,7 +161,7 @@ test("the youth check-in keeps verbal Likert anchors and nonresponse distinct", 
 });
 
 test("each selectable questionnaire stays pinned through collection and submission", () => {
-  for (const definition of INSTRUMENTS) {
+  for (const definition of STANDARD_INSTRUMENTS) {
     let state = createSeed();
     const before = structuredClone(state.people[0].episodes[0].collections);
     const context = {
@@ -169,7 +172,7 @@ test("each selectable questionnaire stays pinned through collection and submissi
       type: "PLAN",
       ...context,
       label: "Library follow-up",
-      due: "2026-09-16",
+      due: "",
       version: definition.version,
     });
     context.collectionId = collection(state).id;

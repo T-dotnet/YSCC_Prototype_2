@@ -3,6 +3,7 @@ import { INSTRUMENTS } from './instruments.js';
 import { PROGRAM_STREAMS, CARE_LEVELS, carePeriodAt } from './carePeriods.js';
 import { assessmentType } from './assessmentGroups.js';
 import { responseDate } from './progress.js';
+import { mvpAssessmentMode, reconcileMvpAssessmentPathway } from './mvpAssessmentPathway.js';
 
 export function scheduleRuleError(rule, rules = []) {
   if (rule?.assessments) return bundleError(rule, rules);
@@ -34,6 +35,7 @@ export function matchingScheduleRules(rules, episode, today) {
 }
 
 export function reconcileAssessmentSchedules(state, today) {
+  if (mvpAssessmentMode(state.settings)) return reconcileMvpAssessmentPathway(state, today);
   if (!state.settings?.automaticAssessmentDueDates) return state;
   const rules = state.settings.assessmentScheduleRules || [];
   let changed = false;

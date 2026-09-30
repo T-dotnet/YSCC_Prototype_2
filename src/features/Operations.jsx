@@ -3,7 +3,7 @@ import AssessmentScheduleSettings from "../components/AssessmentScheduleSettings
 import ProductTerminology from "../components/ProductTerminology";
 import useQueueView from "../useQueueView";
 import { useMemo } from "react";
-import { INSTRUMENTS } from "../instruments";
+import { INSTRUMENTS, STANDARD_INSTRUMENTS } from "../instruments";
 import {
   Plus,
   ArrowRight,
@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { useStore } from "../store";
 import { assessmentSmsEnabled } from "../assessmentFeatures";
+import { mvpAssessmentMode } from '../mvpAssessmentPathway';
 import { patientIdentifier, patientSecondaryDetail } from "../patientIdentity";
 import { currentStaff, formatDate, TODAY } from "../model";
 import { sortQueueRows } from "../queueSort";
@@ -43,7 +44,6 @@ import {
   Empty,
   Select,
   Tabs,
-  Switch,
 } from "../components/UI";
 
 const EMPTY_FILTERS = {
@@ -347,7 +347,7 @@ export function Quality({ openModal, navigate }) {
   );
 }
 export function Administration({ openModal, navigate }) {
-  const { state, commit } = useStore();
+  const { state } = useStore();
   const staff = currentStaff(state);
   const view = useQueueView();
   const adminTabs = ["workspace", "bundles"];
@@ -365,28 +365,20 @@ export function Administration({ openModal, navigate }) {
       {adminTab === "bundles" && <AssessmentScheduleSettings />}
       {adminTab === "workspace" && <div className="stack">
       <Panel title="Workspace configuration" className="admin-panel">
-        <div className="admin-row">
-          <span className="admin-icon"><SlidersHorizontal size={24} /></span>
-          <div>
-            <h3>General report</h3>
-            <p>Show or hide the General report link in the sidebar. The page is a work in progress.</p>
-          </div>
-          <Switch label="Show General report in sidebar" onLabel="Shown" offLabel="Hidden"
-            checked={state.settings?.showGeneralReport !== false}
-            onChange={(event) => commit({ type: "SET_GENERAL_REPORT_VISIBILITY", enabled: event.target.checked })} />
-        </div>
         {[
           [
             BookOpen,
             "Instrument library",
-            `${INSTRUMENTS.length} sample instruments · Browse topics and preview questions`,
+            `${(mvpAssessmentMode(state.settings) ? INSTRUMENTS : STANDARD_INSTRUMENTS).length} sample instruments · Browse topics and preview questions`,
             "instrument",
             "Browse instruments",
           ],
           [
             SlidersHorizontal,
             "Assessments",
-            "Group instruments into assessments by program, care level, or a recorded event",
+            mvpAssessmentMode(state.settings)
+              ? "Fixed 90-day reviews with mandatory young-person and family bundles"
+              : "Group instruments into assessments by program, care level, or a recorded event",
             "bundles",
             "Manage assessments",
           ],

@@ -8,7 +8,7 @@ import React, {
   useState,
   useRef,
 } from "react";
-import { createSeed, reducer, STORAGE_KEY, upgradeSampleData, TODAY } from "./model";
+import { createDefaultWorkspace, reducer, STORAGE_KEY, upgradeSampleData, TODAY } from "./model";
 import { uiColorSetup } from "./uiColorSetups";
 const Store = createContext(null);
 export function StoreProvider({ children }) {
@@ -27,9 +27,9 @@ export function StoreProvider({ children }) {
           Array.isArray(s.issues) &&
           Array.isArray(s.audit)
           ? upgradeSampleData(s)
-          : createSeed();
+          : createDefaultWorkspace();
       } catch {
-        initialState = createSeed();
+        initialState = createDefaultWorkspace();
       }
       initialState = reconcileAssessmentSchedules(initialState, TODAY);
       const requestedMode = new URLSearchParams(window.location.search).get("simpleAssessments");

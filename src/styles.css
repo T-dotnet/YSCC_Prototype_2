@@ -14719,6 +14719,7 @@ h6 {
 }
 
 .main:has(.person-heading) #person-panel > .stack > .section-toolbar h2,
+.main:has(.person-heading) #person-panel > .stack > .section-action-header > h2,
 .main:has(.person-heading) #person-panel > .consent-board > .section-toolbar h2,
 .main:has(.person-heading) .person-content-surface > .section-toolbar h2 {
   font-size: var(--type-feature);
@@ -16192,7 +16193,23 @@ h6 {
   }
 }
 .admin-panel .admin-row {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) max-content;
+  align-items: center;
   padding: var(--space-5) 0;
+}
+.admin-panel .admin-row-subsetting {
+  margin-left: var(--space-6);
+  padding-left: var(--space-4);
+  border-left: 2px solid var(--line);
+}
+.admin-panel .admin-row > div {
+  min-width: 0;
+  width: auto;
+}
+.admin-panel .admin-row .button {
+  justify-self: end;
+  margin: 0;
 }
 .admin-panel .admin-icon {
   width: 40px;
@@ -16421,7 +16438,7 @@ h6 {
   .admin-panel .admin-row .button {
     grid-column: 2;
     grid-row: 2;
-    justify-self: start;
+    justify-self: end;
     margin: 0;
   }
 }
@@ -18775,13 +18792,24 @@ thead th,
 .alert-label.danger { color: var(--status-danger-ink); }
 
 .assessment-schedule-settings > p { color: var(--muted); line-height: 1.5; margin-bottom: 16px; }
+#administration-panel > .stack > .assessment-schedule-settings { margin-top: var(--space-6); }
 .assessment-schedule-settings .admin-row { grid-template-columns: 1fr auto; }
 .assessment-schedule-rule-actions { display:flex; flex-wrap:wrap; gap:8px; }
 .assessment-schedule-form { margin-top:16px; padding:20px; border:1px solid var(--line); }
 .assessment-bundle-settings-modal > .assessment-schedule-form { margin:0; padding:0; border:0; }
 .assessment-schedule-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin:16px 0; }
 .assessment-schedule-fields label:not(.checkbox-control) { display:flex; flex-direction:column; gap:8px; }
+.bundle-parameter-list { display:grid; }
+.assessment-schedule-fields .bundle-parameter-row { display:flex; align-items:flex-end; gap:var(--space-3); padding:var(--space-3) 0; border-bottom:1px solid var(--line-soft); }
+.assessment-schedule-fields .bundle-parameter-row:first-child { padding-top:0; }
+.assessment-schedule-fields .bundle-parameter-row label { flex:1; min-width:0; }
+.assessment-schedule-fields .bundle-parameter-row button { flex:none; }
 .assessment-schedule-fields select, .assessment-schedule-fields input:not([type="checkbox"]) { width:100%; min-width:0; padding:10px; border:1px solid var(--line); border-radius:6px; background:var(--surface); color:var(--ink); }
+.assessment-schedule-fields label > select {
+  appearance: none;
+  padding-right: var(--space-10);
+  background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23677763' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 18px center;
+}
 .assessment-schedule-enabled { display:flex; align-items:center; gap:8px; margin-bottom:16px; }
 .assessment-schedule-fields .assessment-schedule-enabled { flex-direction:row; margin:0; }
 .assessment-schedule-fields .bundle-mandatory-choice { flex-direction:row; align-items:center; gap:8px; }
@@ -18837,8 +18865,13 @@ thead th,
 .bundle-summary-conditions > div { display:flex; flex-direction:column; gap:var(--space-1); padding:0; border:0; min-height:0; }
 .bundle-summary-conditions dd { font-size:var(--type-body); font-weight:var(--type-weight-regular); }
 .bundle-summary-assessments { margin-top:var(--space-5); border:0; border-top:1px solid var(--line); border-radius:0; background:transparent; }
-.bundle-summary-assessments > summary { padding:var(--space-4) 0; font-size:var(--type-supporting); }
-.bundle-summary-assessments-heading { display:flex; flex:1; min-width:0; flex-wrap:wrap; justify-content:space-between; align-items:baseline; gap:var(--space-2); }
+.bundle-summary-assessments > .bundle-summary-assessments-heading { margin:0; padding:var(--space-4) 0; font-size:var(--type-supporting); font-weight:var(--type-weight-semibold); list-style:none; cursor:pointer; }
+.bundle-summary-assessments-heading { display:flex; min-width:0; flex-wrap:wrap; align-items:center; gap:var(--space-2); }
+.bundle-summary-assessments-heading::-webkit-details-marker { display:none; }
+.bundle-summary-assessments-heading .muted { margin-left:auto; }
+.bundle-summary-assessments-heading svg { flex:0 0 auto; margin-left:auto; transition:transform .16s ease-out; }
+.bundle-summary-assessments-heading .muted + svg { margin-left:0; }
+.bundle-summary-assessments[open] > .bundle-summary-assessments-heading svg { transform:rotate(180deg); }
 .bundle-summary-assessments-heading .muted { font-weight:var(--type-weight-regular); }
 .bundle-summary-assessments > .collection-details-accordion-body { padding:0; border:0; }
 .assessment-bundle-summary .table-scroll { padding:0; }
@@ -19048,8 +19081,6 @@ thead th,
 .action-divider {
   display: inline-flex;
   align-items: center;
-  border-left: 1px solid var(--line);
-  padding-left: var(--action-group-gap);
 }
 .tertiary-action, .text-link, .checkbox-control {
   gap: var(--action-control-gap);
@@ -19071,22 +19102,6 @@ thead th,
 }
 .checkbox-control.appointment-assessment-option > input {
   margin-top: var(--space-1);
-}
-
-/* Dividers separate whole controls, never an icon from its own label. */
-.action-group > :is(button, a, label) {
-  position: relative;
-}
-.action-group > :is(button, a, label, .action-divider) + :is(button, a, label)::before {
-  content: "";
-  position: absolute;
-  width: 1px;
-  height: 24px;
-  left: calc(var(--action-group-gap) / -2);
-  top: 50%;
-  transform: translateY(-50%);
-  background: var(--line);
-  pointer-events: none;
 }
 
 /* Bundle collection: shared clinician and participant questionnaire workspace. */
@@ -19563,6 +19578,10 @@ thead th,
 /* Give row controls a shared left edge, independent of their label length. */
 .bundle-editor-assessment-row .record-item-heading-action { flex: 0 0 184px; }
 .bundle-editor-assessment-row .bundle-editor-assessment-actions { justify-content: flex-start; flex-wrap: nowrap; }
+.mvp-review-editor .bundle-editor-assessment-row .record-item-heading-action,
+.mvp-initial-editor .bundle-editor-assessment-row .record-item-heading-action { flex: 0 0 24px; margin-left:auto; }
+.mvp-review-editor .bundle-editor-assessment-row .bundle-editor-assessment-actions,
+.mvp-initial-editor .bundle-editor-assessment-row .bundle-editor-assessment-actions { justify-content:flex-end; }
 .bundle-editor-assessment-actions .checkbox-control { white-space: nowrap; }
 @container (max-width: 520px) {
   .bundle-editor-assessment-row .record-item-heading-action { flex-basis: 100%; }
@@ -19683,6 +19702,7 @@ thead th,
 }
 
 .modal-footer .assessment-not-required-action { margin-right:auto; }
+.assessment-bundle-details-modal > .modal-footer.action-group > button::before { display:none; }
 
 .modal.assessment-bundle-details-modal,
 .modal.assessment-not-required-modal {
@@ -19786,11 +19806,51 @@ thead th,
     display:grid;
     grid-template-columns:minmax(0,1fr);
   }
-  .modal-footer.modal-footer-stacked > :is(.button, .tertiary-action) {
+.modal-footer.modal-footer-stacked > :is(.button, .tertiary-action) {
     grid-column:1;
     justify-self:stretch;
     width:100%;
     min-width:0;
     margin:0;
   }
+}
+
+.mvp-assessment-summary { margin-bottom: var(--space-5); }
+.mvp-assessment-due-badge { white-space: nowrap; }
+.mvp-assessment-summary .panel-body > p { margin: 0; }
+.mvp-assessment-respondents { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
+.mvp-assessment-respondent { min-width: 0; padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-lg); }
+.mvp-assessment-respondent-heading { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); }
+.mvp-assessment-respondent-heading h3 { margin: 0; }
+.mvp-assessment-respondent > p { margin: var(--space-3) 0; }
+.mvp-assessment-respondent .field { max-width: 22rem; }
+.mvp-assessment-collect { margin-top: var(--space-4); }
+.mvp-user-assessments-heading { margin: var(--space-5) 0 0; }
+@media (max-width: 700px) {
+  .mvp-assessment-respondents { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Keep the complete MVP assessment ledger in table form at laptop widths. */
+@container (min-width: 700px) and (max-width: 860px) {
+  .standard-table-container:has(.assessment-bundle-table-mvp) .standard-table-compact-controls { display: none; }
+  .table-scroll:has(> .assessment-bundle-table-mvp) { overflow-x: auto; }
+  .assessment-bundle-table-mvp.responsive-queue-table { display: table; width: 100%; min-width: 960px; }
+  .assessment-bundle-table-mvp.responsive-queue-table > thead {
+    display: table-header-group; position: static; width: auto; height: auto;
+    overflow: visible; clip: auto; white-space: normal;
+  }
+  .assessment-bundle-table-mvp.responsive-queue-table > tbody { display: table-row-group; }
+  .assessment-bundle-table-mvp.responsive-queue-table > tbody > .queue-row,
+  .assessment-bundle-table-mvp.responsive-queue-table > tbody > .assessment-bundle-details-row {
+    display: table-row; padding: 0; border: 0; border-radius: 0; background: transparent;
+  }
+  .assessment-bundle-table-mvp.responsive-queue-table .queue-cell,
+  .assessment-bundle-table-mvp.responsive-queue-table .queue-cell[data-slot] {
+    display: table-cell; grid-area: auto; width: auto; max-width: none;
+    height: 64px; padding: var(--space-3); border-top: 0;
+    white-space: normal; vertical-align: middle;
+  }
+  .assessment-bundle-table-mvp.responsive-queue-table .queue-cell::before { display: none; }
+  .assessment-bundle-table-mvp.responsive-queue-table .queue-cell[data-slot="subject"] { min-width: 200px; }
+  .assessment-bundle-table-mvp.responsive-queue-table .queue-cell[data-slot="action"] { min-width: 160px; }
 }

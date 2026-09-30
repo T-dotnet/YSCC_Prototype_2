@@ -1,11 +1,13 @@
 // Older saved workspaces have only the presentation-mode setting. Preserve
 // their existing behaviour until each feature is explicitly configured.
+import { mvpAssessmentMode } from './mvpAssessmentPathway.js';
+
 export const assessmentSchedulingEnabled = (settings) =>
   settings?.scheduleAssessments ?? !settings?.simpleAssessments;
 
 // Display only: this switch must never grant assessment/contact scheduling.
 export const assessmentDueDatesEnabled = (settings) =>
-  settings?.showAssessmentDueDates ?? true;
+  mvpAssessmentMode(settings) || (settings?.showAssessmentDueDates ?? true);
 
 export const assessmentContactLinkingEnabled = (settings) =>
   settings?.linkAssessmentAppointments ?? !settings?.simpleAssessments;
@@ -17,7 +19,7 @@ export const assessmentSmsEnabled = (settings) =>
   settings?.assessmentSms ?? true;
 
 export const assessmentBundleGroupingEnabled = (settings) =>
-  settings?.groupAssessmentsByBundle ?? false;
+  mvpAssessmentMode(settings) || (settings?.groupAssessmentsByBundle ?? false);
 
 export const assessmentBundleAccordionsEnabled = (settings) =>
   settings?.bundleAccordions ?? false;

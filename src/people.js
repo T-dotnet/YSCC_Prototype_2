@@ -1,6 +1,7 @@
 import { collectionStatus, formatDate, TODAY } from "./model.js";
 import { canAssess, intakeReady, intakeStage, intakeTasks } from "./intake.js";
 import { assessmentBundleGroups } from "./assessmentBundles.js";
+import { mvpAssessmentMode } from './mvpAssessmentPathway.js';
 import { currentCollection } from "./workflow.js";
 
 const openIntake = (intake) =>
@@ -128,10 +129,11 @@ export function peopleBundleSummary(row, settings) {
   const completed = group.records.filter(record => record.response === 'Submitted').length;
   const pending = group.records.filter(record => record.response !== 'Submitted' && !['Cancelled','Paused'].includes(record.assignment));
   const due = pending.map(record => record.due).filter(Boolean).sort()[0] || '';
+  const showDueStatus = settings?.scheduleAssessments || mvpAssessmentMode(settings);
   const status = completed === group.records.length ? 'Completed'
-    : settings?.scheduleAssessments && due && due < TODAY ? 'Overdue'
-    : settings?.scheduleAssessments && due === TODAY ? 'Due today'
+    : showDueStatus && due && due < TODAY ? 'Overdue'
+    : showDueStatus && due === TODAY ? 'Due today'
     : completed || pending.some(record => record.response === 'Draft') ? 'In progress' : 'Not started';
-  return {...row, collection:pending[0] || group.records[0], label:group.name, status, due:settings?.scheduleAssessments ? due : '',
-    detail:`${completed} of ${group.records.length} instruments completed${settings?.scheduleAssessments && due ? ` · Due ${formatDate(due)}` : ''}`};
+  return {...row, collection:pending[0] || group.records[0], label:group.name, status, due:showDueStatus ? due : '',
+    detail:`${completed} of ${group.records.length} instruments completed${showDueStatus && due ? ` · Due ${formatDate(due)}` : ''}`};
 }

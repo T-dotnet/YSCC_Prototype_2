@@ -590,9 +590,6 @@ export function ModalFooter({ children, className = "", ...props }) {
 export function DeleteAction(props) {
   return <TertiaryAction icon={Trash2} {...props} />;
 }
-export function ActionDivider({ children, className = "" }) {
-  return <span className={`action-divider ${className}`.trim()}>{children}</span>;
-}
 export function IconButton({ icon: Icon, label, className = "", type = "button", ...props }) {
   return <button type={type} className={`icon-button ${className}`.trim()} aria-label={label} title={label} {...props}><Icon size={18} aria-hidden="true" /></button>;
 }

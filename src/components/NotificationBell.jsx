@@ -7,6 +7,7 @@ import {
 import { useStore } from "../store";
 import { TODAY, formatDate } from "../model";
 import { getNotifications } from "../notifications";
+import { mvpPathwayEnabled } from "../mvpAssessmentPathway";
 import { FilterTabs } from "./UI";
 
 const CATEGORY_MAP = {
@@ -30,6 +31,11 @@ const CATEGORY_MAP = {
     shortLabel: "Ready for review",
     badgeClass: "purple",
   },
+  scheduled_review: {
+    label: "Scheduled review",
+    shortLabel: "Scheduled review",
+    badgeClass: "purple",
+  },
 };
 
 export default function NotificationBell({ navigate }) {
@@ -39,6 +45,8 @@ export default function NotificationBell({ navigate }) {
   const containerRef = useRef(null);
 
   const notifications = getNotifications(state, TODAY);
+  const mvp = mvpPathwayEnabled(state.settings);
+  const activeFilter = !mvp && filter === "scheduled_review" ? "all" : filter;
 
   const counts = {
     all: notifications.length,
@@ -52,12 +60,15 @@ export default function NotificationBell({ navigate }) {
     assessment_review: notifications.filter(
       (n) => n.category === "assessment_review"
     ).length,
+    scheduled_review: notifications.filter(
+      (n) => n.category === "scheduled_review"
+    ).length,
   };
 
   const filteredNotifications =
-    filter === "all"
+    activeFilter === "all"
       ? notifications
-      : notifications.filter((n) => n.category === filter);
+      : notifications.filter((n) => n.category === activeFilter);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -96,6 +107,7 @@ export default function NotificationBell({ navigate }) {
     { key: "assessment_overdue", label: "Instrument overdue", count: counts.assessment_overdue },
     { key: "appointment_overdue", label: "Contact overdue", count: counts.appointment_overdue },
     { key: "assessment_review", label: "Ready for review", count: counts.assessment_review },
+    ...(mvp ? [{ key: "scheduled_review", label: "Scheduled reviews", count: counts.scheduled_review }] : []),
   ];
 
   return (
@@ -146,7 +158,7 @@ export default function NotificationBell({ navigate }) {
             id="notification"
             label="Notification categories"
             items={tabs.map((tab) => ({ value: tab.key, label: tab.label, count: tab.count }))}
-            value={filter}
+            value={activeFilter}
             onChange={setFilter}
             className="notification-category-tabs"
             panelId="notification-panel"
@@ -156,7 +168,7 @@ export default function NotificationBell({ navigate }) {
             className="notification-list"
             role="tabpanel"
             id="notification-panel"
-            aria-labelledby={`notification-tab-${tabs.findIndex((tab) => tab.key === filter)}`}
+            aria-labelledby={`notification-tab-${tabs.findIndex((tab) => tab.key === activeFilter)}`}
           >
             {filteredNotifications.length === 0 ? (
               <div className="notification-empty">

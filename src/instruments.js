@@ -438,12 +438,40 @@ export const NINETY_DAY_REVIEW_INSTRUMENT = sampleInstrument(
   ],
 );
 
+// Fictional, unscored placeholders for the fixed MVP pathway. Replace these
+// versions only when the approved stream batteries and wording are available.
+export const MVP_STREAM_QUESTIONNAIRES = Object.fromEntries([
+  ["Psychosis", "Psychosis stream check-in", "experiences and support"],
+  ["Eating Disorder", "Eating disorder stream check-in", "daily routines and support"],
+  ["Complex", "Complex care stream check-in", "coordination and support"],
+  ["General", "General stream check-in", "care and support"],
+].map(([stream, name, focus]) => {
+  const questions = [
+    { ...choice("support-fit", "check-in", `How well is the support for ${focus} working for you?`,
+      ["Working well", "Some changes would help", "Not working well", "Not sure"]),
+      family: `How well is the support for ${focus} working for the person you support?` },
+    { ...choice("change", "check-in", "Has anything changed since your last review?",
+      ["Things are easier", "About the same", "Things are harder", "Not sure"]),
+      family: "Has anything changed for the person you support since the last review?" },
+    { ...choice("next-step", "check-in", "What would be most useful to discuss next?",
+      ["Keep the current plan", "Change the plan", "Practical support", "Talk through options"]),
+      family: "What would be most useful to discuss next for the person you support?" },
+  ];
+  return [stream, {
+    ...sampleInstrument(name, `Fictional MVP sample questions about ${focus}; not a clinical measure.`,
+      [["check-in", "Your check-in"]], questions),
+    mvpOnly: true,
+    respondents: ["Person", "Family respondent"],
+  }];
+}));
+
 export const INSTRUMENTS = [
   INITIAL_ASSESSMENT_INSTRUMENT,
   DEMO_INSTRUMENT,
   LIKERT_INSTRUMENT,
   ...MEASURE_INSTRUMENTS,
   NINETY_DAY_REVIEW_INSTRUMENT,
+  ...Object.values(MVP_STREAM_QUESTIONNAIRES),
   sampleInstrument(
     "Episode closure assessment",
     "A final, unscored check-in about progress and support after care ends.",
@@ -888,6 +916,7 @@ export const INSTRUMENTS = [
     ],
   ),
 ];
+export const STANDARD_INSTRUMENTS = INSTRUMENTS.filter(instrument => !instrument.mvpOnly);
 
 const REVIEW_INSTRUMENT_VERSIONS = [
   NINETY_DAY_REVIEW_INSTRUMENT.version,
@@ -897,7 +926,7 @@ const REVIEW_INSTRUMENT_VERSIONS = [
 const reviewVersions = new Set(REVIEW_INSTRUMENT_VERSIONS);
 export const INSTRUMENT_GROUPS = [
   { label: "Intake", instruments: [INITIAL_ASSESSMENT_INSTRUMENT] },
-  { label: "Assessments", instruments: INSTRUMENTS.filter((instrument) =>
+  { label: "Assessments", instruments: STANDARD_INSTRUMENTS.filter((instrument) =>
     instrument !== INITIAL_ASSESSMENT_INSTRUMENT && !reviewVersions.has(instrument.version)) },
   { label: "Review", instruments: REVIEW_INSTRUMENT_VERSIONS.map((version) =>
     INSTRUMENTS.find((instrument) => instrument.version === version)) },

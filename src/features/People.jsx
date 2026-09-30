@@ -231,13 +231,11 @@ export default function People({ navigate, openModal }) {
                       <span>
                         {!groupedBundles && row.stage ? `Intake - ${row.stage}` : row.label}
                       </span>
-                      <small
-                        className={
-                          row.status === "Overdue" ? "people-overdue" : ""
-                        }
-                      >
-                        {row.detail}
-                      </small>
+                      {(!groupedBundles || row.due) && (
+                        <small className={row.status === "Overdue" ? "people-overdue" : ""}>
+                          {groupedBundles ? `Due ${formatDate(row.due)}` : row.detail}
+                        </small>
+                      )}
                     </QueueCell>
                     <QueueCell label="Status" slot="state" className="people-status">
                       <Badge>{row.status}</Badge>

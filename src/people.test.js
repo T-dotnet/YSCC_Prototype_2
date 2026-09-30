@@ -168,3 +168,15 @@ test('People bundle summary uses the instance name and aggregate questionnaire p
  assert.equal(summary.detail,'1 of 2 questionnaires completed');
  assert.equal(peopleBundleSummary({...row,collection:{id:'individual'},episode:{collections:[{id:'individual'}]}},{}).label,'No bundle scheduled');
 });
+test('MVP bundle summary reports an overdue pending assessment with scheduling off', async () => {
+ const {peopleBundleSummary} = await import('./people.js');
+ const collections = [
+   {id:'one',bundleId:'review',bundleInstanceId:'instance',response:'Not started',assignment:'Planned',due:'2026-09-13'},
+   {id:'two',bundleId:'review',bundleInstanceId:'instance',response:'Not started',assignment:'Planned',due:'2026-09-13'},
+ ];
+ const episode = {collections,assessmentBundleInstances:[{id:'instance',name:'90-day review',customName:true}]};
+ const summary = peopleBundleSummary({episode,collection:collections[0]}, {scheduleAssessments:false,advancedAssessmentOptions:false});
+ assert.equal(summary.status,'Overdue');
+ assert.equal(summary.due,'2026-09-13');
+ assert.match(summary.detail,/Due 13 Sep 2026/);
+});

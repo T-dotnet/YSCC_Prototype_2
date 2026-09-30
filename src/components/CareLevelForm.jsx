@@ -1,6 +1,6 @@
 import { ActionGroup, Button, Field, Modal, Notice, ValidatedForm } from "./UI";
 import { CARE_LEVELS, CARE_LEVEL_REASONS, PROGRAM_STREAMS, currentCarePeriod, nextDate } from "../carePeriods";
-import { DEMO_INSTRUMENT, INSTRUMENTS } from "../instruments";
+import { DEMO_INSTRUMENT, STANDARD_INSTRUMENTS } from "../instruments";
 import { formatDate, TODAY } from "../model";
 
 export default function CareLevelForm({ episode, clinicians, error, onClose, onSave }) {
@@ -96,7 +96,7 @@ export default function CareLevelForm({ episode, clinicians, error, onClose, onS
                 </Field>
                 <Field label="Initial instrument">
                   <select name="assessmentVersion" defaultValue={episode.collections?.at(-1)?.version || DEMO_INSTRUMENT.version} required>
-                    {INSTRUMENTS.map((instrument) => <option key={instrument.version} value={instrument.version}>{instrument.name} · {instrument.version}</option>)}
+                    {STANDARD_INSTRUMENTS.map((instrument) => <option key={instrument.version} value={instrument.version}>{instrument.name} · {instrument.version}</option>)}
                   </select>
                 </Field>
               </>

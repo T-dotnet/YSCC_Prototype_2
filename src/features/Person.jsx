@@ -7,6 +7,7 @@ import { QueueRow, QueueCell } from "../components/QueueRow";
 import { SortableHeader, useQueueSort } from "../components/QueueControls";
 import { sortQueueRows } from "../queueSort";
 import NewAssessmentBundle from "../components/NewAssessmentBundle";
+import MvpAssessmentSummary from '../components/MvpAssessmentSummary';
 import SectionActionHeader from "../components/SectionActionHeader";
 import { assessmentBundleGroups } from "../assessmentBundles";
 import IntakeWorkspace, { IntakePanel, IntakeAssessmentPanel } from "./Intake";
@@ -57,6 +58,7 @@ import { responseDate } from "../progress";
 import { daysAgoLabel } from "../relativeDate";
 import { contactsForAssessment } from "../assessmentContacts";
 import { assessmentSchedulingEnabled, assessmentDueDatesEnabled, assessmentContactLinkingEnabled, assessmentSmsEnabled, assessmentBundleGroupingEnabled, assessmentBundleAccordionsEnabled } from "../assessmentFeatures";
+import { mvpAssessmentMode, mvpPathwayEnabled, mvpClinicianCreationEnabled, mvpBundleEditingEnabled } from '../mvpAssessmentPathway';
 import { episodeReviewSchedule, reviewTiming } from "../episodeReviews";
 import { careJourneyForEpisode } from "../ysccModel";
 import {
@@ -114,6 +116,9 @@ function PersonRecordNavigation({ tabs, value, onChange }) {
 
 export default function Person({ id, navigate, openModal }) {
   const { state, commit } = useStore();
+  const mvpAssessments = mvpAssessmentMode(state.settings);
+  const highlightMvpReview = mvpPathwayEnabled(state.settings) && state.settings?.mvpReviewHighlight !== false;
+  const mvpLedgerShowsReviews = !highlightMvpReview || !mvpClinicianCreationEnabled(state.settings);
   const simpleAssessments = !!state.settings?.simpleAssessments;
   const groupAssessmentsByBundle = assessmentBundleGroupingEnabled(state.settings);
   const bundleAccordions = assessmentBundleAccordionsEnabled(state.settings);
@@ -192,6 +197,7 @@ export default function Person({ id, navigate, openModal }) {
   const e = selectedEpisode,
     c =
       e.collections.find((col) => col.id === searchParams.get("collection")) ||
+      (mvpAssessments ? e.collections.find(col => col.mvpTimepointId && col.response !== 'Submitted') || e.collections.find(col => col.mvpTimepointId) : null) ||
       currentCollection(e),
     nextStep = overviewNextStep(p, e, c, currentStaff(state));
   const overviewStep = !scheduleAssessments ? {
@@ -246,10 +252,14 @@ export default function Person({ id, navigate, openModal }) {
       : returnTo.split("?")[0] === "/quality"
         ? "Data quality"
         : "people";
-  const dueByType = assessmentDueByType(e.collections, TODAY);
-  const assessmentCollections = assessmentDueDates
-    ? assessmentsWithDueVisibility(e.collections, TODAY, dueByType)
+  const pathwayCollections = mvpAssessments
+    ? e.collections.filter(record => record.mvpInitialAssessment || record.mvpTimepointId ||
+        (mvpClinicianCreationEnabled(state.settings) && record.mvpCreatedAssessment))
     : e.collections;
+  const dueByType = assessmentDueByType(pathwayCollections, TODAY);
+  const assessmentCollections = assessmentDueDates
+    ? assessmentsWithDueVisibility(pathwayCollections, TODAY, dueByType)
+    : pathwayCollections;
   const assessmentEpisode = { ...e, collections: assessmentCollections };
   const orderedCollections = [...assessmentCollections].sort(
     (a, b) =>
@@ -331,20 +341,32 @@ export default function Person({ id, navigate, openModal }) {
   const assessmentState = (col) => col.notRequiredReason ? "Not required" : !scheduleAssessments
     ? col.response === "Submitted" ? "Completed" : col.response === "Draft" ? "Draft" : "Not started"
     : collectionStatus(col);
-  const ledgerCollections = groupAssessmentsByBundle ? orderedCollections.filter(col=>assessmentState(col) !== "Completed") : orderedCollections;
+  const currentMvpTimepointId = orderedCollections.filter(col => col.mvpTimepointId)
+    .sort((a, b) => a.due.localeCompare(b.due)).at(-1)?.mvpTimepointId;
+  const inMvpActiveTable = col => (mvpClinicianCreationEnabled(state.settings) && col.mvpCreatedAssessment) ||
+    (mvpLedgerShowsReviews && !!col.mvpTimepointId && col.mvpTimepointId === currentMvpTimepointId);
+  const ledgerCollections = groupAssessmentsByBundle ? orderedCollections.filter(col => mvpAssessments
+    ? inMvpActiveTable(col) && assessmentState(col) !== 'Completed'
+    : assessmentState(col) !== 'Completed') : orderedCollections;
+  const countMvpAssessments = collections => new Set(collections.map(col => col.bundleInstanceId || col.bundleId || col.id)).size;
   const assessmentStatuses = [...new Set(ledgerCollections.map(assessmentState))];
   const assessmentItems = ["all", ...assessmentStatuses].map((value) => ({
     value,
     label: value === "all" ? "All" : value,
-    count: value === "all" ? ledgerCollections.length : ledgerCollections.filter((col) => assessmentState(col) === value).length,
+    count: mvpAssessments
+      ? countMvpAssessments(value === "all" ? ledgerCollections : ledgerCollections.filter(col => assessmentState(col) === value))
+      : value === "all" ? ledgerCollections.length : ledgerCollections.filter((col) => assessmentState(col) === value).length,
   }));
   const visibleCollections = orderedCollections.filter((col) =>
     (assessmentFilter === "all" || assessmentState(col) === assessmentFilter) &&
-    (assessmentMethod === "all" || (col.channel || "Not set up") === assessmentMethod ||
+    (mvpAssessments || assessmentMethod === "all" || (col.channel || "Not set up") === assessmentMethod ||
       col.attempts?.some((attempt) => attempt.channel === assessmentMethod)) &&
-    `${col.label} ${col.version} ${col.assignment} ${col.response} ${assessmentState(col)} ${groupAssessmentsByBundle ? `${col.bundleName || ''} ${state.settings?.assessmentScheduleRules?.find(rule => rule.id === col.bundleId)?.name || ''}` : ''} ${col.attempts?.map((attempt) => attempt.channel).join(" ") || ""}`
-      .toLowerCase().includes(assessmentQuery.trim().toLowerCase()),
+    (mvpAssessments || `${col.label} ${col.version} ${col.assignment} ${col.response} ${assessmentState(col)} ${groupAssessmentsByBundle ? `${col.bundleName || ''} ${state.settings?.assessmentScheduleRules?.find(rule => rule.id === col.bundleId)?.name || ''}` : ''} ${col.attempts?.map((attempt) => attempt.channel).join(" ") || ""}`
+      .toLowerCase().includes(assessmentQuery.trim().toLowerCase())),
   );
+  const visibleActiveCollections = mvpAssessments
+    ? visibleCollections.filter(col => ledgerCollections.some(record => record.id === col.id))
+    : visibleCollections;
   const chronologicalCollections = [...visibleCollections].sort((a, b) =>
     (!scheduleAssessments ? Number(a.response === "Submitted") - Number(b.response === "Submitted") : 0) ||
     (!scheduleAssessments ? simpleAssessmentDate(b) || "" : responseDate(b) || b.due || "")
@@ -356,10 +378,17 @@ export default function Person({ id, navigate, openModal }) {
     return Boolean(date) && date <= TODAY;
   });
   const groupedAssessments = assessmentTypeGroups(assessmentEpisode, visibleCollections);
-  const allBundleGroups = groupAssessmentsByBundle ? assessmentBundleGroups(e,assessmentCollections,state.settings?.assessmentScheduleRules) : [];
+  const ledgerGroups = collections => {
+    const groups = assessmentBundleGroups(e,collections,state.settings?.assessmentScheduleRules);
+    return mvpAssessments ? groups.flatMap(group => group.key === 'individual'
+      ? group.records.map(record => ({...group, key:`individual:${record.id}`, name:record.label || getInstrument(record.version)?.name || 'Individual instrument',
+          records:[record], legacyIndividual:true}))
+      : [group]) : groups;
+  };
+  const allBundleGroups = groupAssessmentsByBundle ? ledgerGroups(assessmentCollections) : [];
   const overviewBundleSummary = groupAssessmentsByBundle ? peopleBundleSummary({person:p,episode:e,collection:c},state.settings) : null;
-  const overviewBundle = overviewBundleSummary && allBundleGroups.find(group => group.key !== 'individual' && group.records.some(record => record.id === overviewBundleSummary.collection?.id));
-  const upcomingBundle = !!overviewBundle && scheduleAssessments && overviewBundleSummary.due > TODAY;
+  const overviewBundle = overviewBundleSummary && allBundleGroups.find(group => group.key !== 'individual' && !group.legacyIndividual && group.records.some(record => record.id === overviewBundleSummary.collection?.id));
+  const upcomingBundle = !!overviewBundle && showDueDates && overviewBundleSummary.due > TODAY;
   const overviewCardStep = overviewBundle ? {
     badge:overviewBundleSummary.status,
     title:overviewBundleSummary.status === 'Completed' ? 'Assessment completed' : upcomingBundle ? 'Upcoming assessment' : overviewBundleSummary.status === 'In progress' ? 'Continue assessment' : 'Start assessment',
@@ -371,7 +400,7 @@ export default function Person({ id, navigate, openModal }) {
     const template = state.settings?.assessmentScheduleRules?.find(item => item.id === (group.bundleId || group.key));
     const override = e.assessmentBundleSelections?.[group.bundleId || group.key]?.assessmentOverrides?.[0];
     const record = group.records.find(col => col.response !== 'Submitted') || group.records[0];
-    const respondentLabel = value => value === 'Family respondent' ? 'Family respondent' : 'Patient';
+    const respondentLabel = value => value === 'Family respondent' ? 'Family respondent' : mvpAssessments ? 'Young person' : 'Patient';
     return {
       channel: group.key === 'individual' ? [...new Set(group.records.map(col => col.channel || 'Not set up'))].join(', ')
         : override?.channel || template?.channel || template?.assessments?.[0]?.channel || record?.channel || 'Not set up',
@@ -379,7 +408,7 @@ export default function Person({ id, navigate, openModal }) {
         : respondentLabel(override?.recipient || template?.recipient || template?.assessments?.[0]?.recipient || record?.respondent),
     };
   };
-  const bundleGroups = groupAssessmentsByBundle ? assessmentBundleGroups(e,visibleCollections,state.settings?.assessmentScheduleRules) : [];
+  const bundleGroups = groupAssessmentsByBundle ? ledgerGroups(visibleActiveCollections) : [];
   const bundleRows = allBundleGroups.map(group => {
     const allRecords = allBundleGroups.find(bundle => bundle.key === group.key)?.records || group.records;
     const completedCount = allRecords.filter(col => assessmentState(col) === 'Completed').length;
@@ -736,7 +765,7 @@ export default function Person({ id, navigate, openModal }) {
                       <div><dt>Status</dt><dd><Badge>{overviewBundleSummary.status}</Badge></dd></div>
                       <div><dt>Completion</dt><dd>{overviewBundleSummary.detail.split(' · ')[0]}</dd></div>
                       <div><dt>Instrument</dt><dd className="overview-bundle-instruments">{overviewBundle.records.map(record => <span key={record.id}>{getInstrument(record.version)?.name || record.label}</span>)}</dd></div>
-                      {scheduleAssessments && overviewBundleSummary.due && <div><dt>Due</dt><dd>{formatDate(overviewBundleSummary.due)}</dd></div>}
+                      {showDueDates && overviewBundleSummary.due && <div><dt>Due</dt><dd>{formatDate(overviewBundleSummary.due)}</dd></div>}
                     </dl> : <dl className="metadata">
                       {!simpleAssessments && <div>
                         <dt>Assessment</dt>
@@ -1008,11 +1037,16 @@ export default function Person({ id, navigate, openModal }) {
               />
             )}
             <SectionActionHeader
+              mvp={mvpAssessments}
               title="Assessment ledger"
-              description={simpleAssessments
+              description={mvpAssessments
+                ? mvpClinicianCreationEnabled(state.settings) ? 'Initial, 90-day and clinician-created assessments.' : 'Initial and 90-day assessments.'
+                : simpleAssessments
                 ? `${orderedCollections.length} instruments in care episode ${e.number}. ${showDueDates ? "Records show due dates, drafts and completion." : "Records show creation, drafts and completion."}`
                 : `${orderedCollections.length} instruments in care episode ${e.number}. Each is a separate collection point. Closure instruments and feedback stay linked after this episode closes.`}
-              action={<ActionGroup className="button-row assessment-ledger-actions">
+              action={mvpAssessments ? mvpClinicianCreationEnabled(state.settings) && <Button variant="primary"
+                disabled={e.status !== 'Active' || !canAssess(p,e) || !!p.archivedAt || !!p.readOnly || !!e.readOnly}
+                onClick={() => setNewBundleOpen(true)}>New assessment</Button> : <ActionGroup className="button-row assessment-ledger-actions">
                 {groupAssessmentsByBundle ? <SplitButton
                   label="New assessment"
                   menuLabel="More assessment actions"
@@ -1032,10 +1066,13 @@ export default function Person({ id, navigate, openModal }) {
                 </Button>}
               </ActionGroup>}
             />
+            {highlightMvpReview && <MvpAssessmentSummary person={p} episode={e} settings={state.settings} commit={commit}
+              onCollect={collectAssessmentResponse} onShowResponse={setResponseGroup} />}
             {bundleMessage && <p role="status">{bundleMessage}</p>}
             {(newBundleOpen || editBundleId) && <NewAssessmentBundle key={editBundleId || 'new'} editBundleId={editBundleId} person={p} episode={e} onClose={() => {setNewBundleOpen(false);setEditBundleId(null);}} onCreated={(bundleId,message) => {
               setCreatedBundleId(bundleId);setBundleMessage(message);setAssessmentFilter('all');setAssessmentQuery('');setAssessmentMethod('all');
             }} />}
+            {highlightMvpReview && mvpClinicianCreationEnabled(state.settings) && <h2 className="mvp-user-assessments-heading">User-created assessments</h2>}
             <ListFilterBar
               id="assessment-status"
               className={`assessment-filter-bar${simpleAssessments ? " assessment-filter-bar-simple" : ""}`}
@@ -1045,10 +1082,12 @@ export default function Person({ id, navigate, openModal }) {
               onChange={setAssessmentFilter}
               query={assessmentQuery}
               onQueryChange={setAssessmentQuery}
+              hideSearchRow={mvpAssessments}
               placeholder={groupAssessmentsByBundle ? "Search assessments or instruments" : "Search instruments"}
-              shown={groupAssessmentsByBundle ? visibleCollections.filter(col=>assessmentState(col) !== "Completed").length : visibleCollections.length}
-              total={ledgerCollections.length}
-              noun="instruments"
+              shown={mvpAssessments ? countMvpAssessments(visibleActiveCollections)
+                : groupAssessmentsByBundle ? visibleActiveCollections.filter(col=>assessmentState(col) !== "Completed").length : visibleCollections.length}
+              total={mvpAssessments ? countMvpAssessments(ledgerCollections) : ledgerCollections.length}
+              noun={mvpAssessments ? 'assessments' : 'instruments'}
               activeAdvancedCount={Number(assessmentMethod !== "all")}
               onClear={() => { setAssessmentFilter("all"); setAssessmentQuery(""); setAssessmentMethod("all"); }}
               resultAction={groupAssessmentsByBundle ? null :
@@ -1064,10 +1103,10 @@ export default function Person({ id, navigate, openModal }) {
                   />
                 </ActionGroup>
               }
-              advanced={simpleAssessments ? null :
+              advanced={simpleAssessments && !mvpAssessments ? null :
                 <Select label={LABELS.collectionMethod} value={assessmentMethod} onChange={(event) => setAssessmentMethod(event.target.value)}>
                   <option value="all">All methods</option>
-                  {[...new Set(orderedCollections.flatMap((col) => [col.channel || "Not set up", ...(col.attempts || []).map((attempt) => attempt.channel)])
+                  {[...new Set((mvpAssessments ? ledgerCollections : orderedCollections).flatMap((col) => [col.channel || "Not set up", ...(col.attempts || []).map((attempt) => attempt.channel)])
                     .filter((method) => method && (assessmentSmsEnabled(state.settings) || method !== "SMS link")))].map((method) => (
                     <option key={method} value={method}>{method}</option>
                   ))}
@@ -1086,15 +1125,19 @@ export default function Person({ id, navigate, openModal }) {
               <ActionGroup className="modal-footer"><Button onClick={()=>setResponseGroup(null)}>Close</Button></ActionGroup>
             </Modal>}
             {selectedBundleGroup && <AssessmentBundleDetails group={selectedBundleGroup} episode={e} scheduleAssessments={scheduleAssessments} delivery={deliveryForBundle(selectedBundleGroup)}
-              statusFor={assessmentState} showDueDates={showDueDates}
-              onAddInstrument={!p.archivedAt && !p.readOnly && !e.readOnly && e.status === 'Active' && canAssess(p,e) ? version=>commit({type:'ADD_GROUP_INSTRUMENT',personId:p.id,episodeId:e.id,collectionIds:selectedBundleGroup.records.map(record=>record.id),version}) : null}
-              onNotRequired={!p.archivedAt && !p.readOnly && !e.readOnly && e.status === 'Active' && canAssess(p,e) && selectedBundleGroup.records.some(record=>record.bundleSource === 'Scheduled' || record.bundleSource === 'System' || record.id?.startsWith('AUTO-') || (record.scheduleAnchor && record.bundleSource !== 'User')) && !selectedBundleGroup.records.every(record=>record.notRequiredReason) ? reason=>{commit({type:'MARK_ASSESSMENT_NOT_REQUIRED',personId:p.id,episodeId:e.id,collectionIds:selectedBundleGroup.records.map(record=>record.id),reason});setBundleDetailsKey(null);} : null}
-              onArchive={!p.archivedAt && !p.readOnly && !e.readOnly && e.status === 'Active' && canAssess(p,e) && selectedBundleGroup.records.every(record=>record.bundleSource !== 'Scheduled' && record.bundleSource !== 'System' && !record.id?.startsWith('AUTO-') && (!record.scheduleAnchor || record.bundleSource === 'User')) ? record=>{commit({type:'ARCHIVE_ASSESSMENT_GROUP',personId:p.id,episodeId:e.id,collectionIds:record ? [record.id] : selectedBundleGroup.records.map(record=>record.id)});if(!record || selectedBundleGroup.records.length === 1) setBundleDetailsKey(null);} : null}
-              assessmentEditor={selectedBundleGroup.key !== 'individual' && !p.archivedAt && !p.readOnly && !e.readOnly && e.status === 'Active' && canAssess(p,e) && state.settings?.assessmentScheduleRules?.some(bundle => bundle.id === (selectedBundleGroup.bundleId || selectedBundleGroup.key))
+              statusFor={assessmentState} showDueDates={showDueDates} hideRequirement={mvpAssessments && !mvpClinicianCreationEnabled(state.settings)}
+              onAddInstrument={mvpAssessments && mvpBundleEditingEnabled(state.settings) && selectedBundleGroup.records.some(record=>record.mvpTimepointId || record.mvpInitialAssessment) && !p.archivedAt && !p.readOnly && !e.readOnly && e.status === 'Active' && canAssess(p,e)
+                ? version=>commit({type:'CUSTOMIZE_MVP_BUNDLE',operation:'add',personId:p.id,episodeId:e.id,bundleId:selectedBundleGroup.bundleId,version})
+                : !mvpAssessments && !p.archivedAt && !p.readOnly && !e.readOnly && e.status === 'Active' && canAssess(p,e) ? version=>commit({type:'ADD_GROUP_INSTRUMENT',personId:p.id,episodeId:e.id,collectionIds:selectedBundleGroup.records.map(record=>record.id),version}) : null}
+              onRemoveInstrument={mvpAssessments && mvpBundleEditingEnabled(state.settings) && selectedBundleGroup.records.some(record=>record.mvpTimepointId || record.mvpInitialAssessment) && !p.archivedAt && !p.readOnly && !e.readOnly && e.status === 'Active' && canAssess(p,e)
+                ? record=>commit({type:'CUSTOMIZE_MVP_BUNDLE',operation:'remove',personId:p.id,episodeId:e.id,bundleId:selectedBundleGroup.bundleId,collectionId:record.id}) : null}
+              onNotRequired={!p.archivedAt && !p.readOnly && !e.readOnly && e.status === 'Active' && canAssess(p,e) && selectedBundleGroup.records.some(record=>record.bundleSource === 'Scheduled' || record.bundleSource === 'System' || record.id?.startsWith('AUTO-') || (record.scheduleAnchor && record.bundleSource !== 'User')) && !selectedBundleGroup.records.every(record=>record.notRequiredReason) ? (reason,postponedDate)=>{commit({type:'MARK_ASSESSMENT_NOT_REQUIRED',personId:p.id,episodeId:e.id,collectionIds:selectedBundleGroup.records.map(record=>record.id),reason,postponedDate});setBundleDetailsKey(null);} : null}
+              onArchive={!mvpAssessments && !p.archivedAt && !p.readOnly && !e.readOnly && e.status === 'Active' && canAssess(p,e) && selectedBundleGroup.records.every(record=>record.bundleSource !== 'Scheduled' && record.bundleSource !== 'System' && !record.id?.startsWith('AUTO-') && (!record.scheduleAnchor || record.bundleSource === 'User')) ? record=>{commit({type:'ARCHIVE_ASSESSMENT_GROUP',personId:p.id,episodeId:e.id,collectionIds:record ? [record.id] : selectedBundleGroup.records.map(record=>record.id)});if(!record || selectedBundleGroup.records.length === 1) setBundleDetailsKey(null);} : null}
+              assessmentEditor={!mvpAssessments && selectedBundleGroup.key !== 'individual' && !p.archivedAt && !p.readOnly && !e.readOnly && e.status === 'Active' && canAssess(p,e) && state.settings?.assessmentScheduleRules?.some(bundle => bundle.id === (selectedBundleGroup.bundleId || selectedBundleGroup.key))
                 ? <NewAssessmentBundle embedded group={selectedBundleGroup} statusFor={assessmentState} key={selectedBundleGroup.key} editBundleId={selectedBundleGroup.bundleId || selectedBundleGroup.key} person={p} episode={e}
                     onClose={() => setBundleDetailsKey(null)} onCreated={(bundleId,message) => {setCreatedBundleId(bundleId);setBundleMessage(message);}} /> : null}
               canEdit={!p.archivedAt && !p.readOnly && !e.readOnly && e.status === 'Active' && canAssess(p,e)}
-              onEdit={selectedBundleGroup.key !== 'individual' && state.settings?.assessmentScheduleRules?.some(bundle => bundle.id === (selectedBundleGroup.bundleId || selectedBundleGroup.key))
+              onEdit={!mvpAssessments && selectedBundleGroup.key !== 'individual' && state.settings?.assessmentScheduleRules?.some(bundle => bundle.id === (selectedBundleGroup.bundleId || selectedBundleGroup.key))
                 ? () => {setEditBundleId(selectedBundleGroup.key);setBundleDetailsKey(null);} : null}
               onClose={() => setBundleDetailsKey(null)} />}
             <div className={`assessment-list${!groupAssessmentsByBundle && !simpleAssessments && groupAssessmentsByType ? " assessment-ledger-list" : ""}${!showDueDates ? " assessment-ledger-no-due" : ""}`} id="assessment-list" ref={assessmentListRef}>
@@ -1102,17 +1145,25 @@ export default function Person({ id, navigate, openModal }) {
                 const completeRows = sortedBundleRows.filter(row=>row.completedSection);
                 const isSystem = row=>row.allRecords.some(record=>record.bundleSource === 'Scheduled' || record.bundleSource === 'System' || record.id?.startsWith('AUTO-') || (record.scheduleAnchor && record.bundleSource !== 'User'));
                 const sectionRows = sortedBundleRows.filter(row => row.completedSection === completedSection && (completedSection
-                  ? (!completedQuery.trim() || `${row.group.name} ${row.allRecords.map(record=>getInstrument(record.version)?.name || record.label).join(' ')}`.toLowerCase().includes(completedQuery.trim().toLowerCase())) &&
-                    (completedSource === 'all' || (completedSource === 'system') === !!isSystem(row)) &&
-                    (completedRespondent === 'all' || row.bundleRecipient === completedRespondent) &&
-                    (!completedFrom || row.completedDate >= completedFrom) && (!completedTo || (row.completedDate && row.completedDate <= completedTo))
+                  ? (mvpAssessments || !completedQuery.trim() || `${row.group.name} ${row.allRecords.map(record=>getInstrument(record.version)?.name || record.label).join(' ')}`.toLowerCase().includes(completedQuery.trim().toLowerCase())) &&
+                    ((mvpAssessments && !mvpClinicianCreationEnabled(state.settings)) || completedSource === 'all' || (completedSource === 'system') === !!isSystem(row)) &&
+                    (mvpAssessments || completedRespondent === 'all' || row.bundleRecipient === completedRespondent) &&
+                    (mvpAssessments || !completedFrom || row.completedDate >= completedFrom) && (mvpAssessments || !completedTo || (row.completedDate && row.completedDate <= completedTo))
                   : bundleGroups.some(group=>group.key === row.group.key)));
-                if (!completedSection && !sectionRows.length || completedSection && !completeRows.length) return null;
-                return <section key={String(completedSection)} className="assessment-ledger-section" aria-label={completedSection ? "Completed assessments" : "Active assessments"}>
+                const displayRows = !completedSection && mvpAssessments && mvpLedgerShowsReviews && !bundleSort.key
+                  ? [...sectionRows].sort((a, b) => Number(b.completedSection && b.allRecords.some(record =>
+                      record.mvpRespondent === 'Person' && record.mvpTimepointId === currentMvpTimepointId)) -
+                    Number(a.completedSection && a.allRecords.some(record =>
+                      record.mvpRespondent === 'Person' && record.mvpTimepointId === currentMvpTimepointId)))
+                  : sectionRows;
+                const columnCount = completedSection ? 5 : mvpAssessments ? 6 : 7;
+                if (!mvpAssessments && ((!completedSection && !sectionRows.length) || (completedSection && !completeRows.length))) return null;
+                return <section key={String(completedSection)} className="assessment-ledger-section" aria-label={completedSection ? "Completed assessments" : mvpAssessments ? mvpLedgerShowsReviews ? "Assessments" : "User-created assessments" : "Active assessments"}>
                   {completedSection && <><h2>Completed assessments</h2>
                     <ListFilterBar id="completed-assessments" label="Completed assessment source"
-                      items={[{value:'all',label:'All',count:completeRows.length},{value:'system',label:'System generated',count:completeRows.filter(isSystem).length},{value:'user',label:'User created',count:completeRows.filter(row=>!isSystem(row)).length}]}
+                      items={[{value:'all',label:'All',count:completeRows.length},{value:'system',label:'System generated',count:completeRows.filter(isSystem).length},...(mvpClinicianCreationEnabled(state.settings) || !mvpAssessments ? [{value:'user',label:'User created',count:completeRows.filter(row=>!isSystem(row)).length}] : [])]}
                       value={completedSource} onChange={setCompletedSource} query={completedQuery} onQueryChange={setCompletedQuery}
+                      hideSearchRow={mvpAssessments} hideTabs={mvpAssessments && !mvpClinicianCreationEnabled(state.settings)}
                       placeholder="Search completed assessments or instruments" shown={sectionRows.length} total={completeRows.length} noun="assessments"
                       activeAdvancedCount={Number(completedRespondent !== 'all') + Number(!!completedFrom) + Number(!!completedTo)}
                       onClear={()=>{setCompletedSource('all');setCompletedQuery('');setCompletedRespondent('all');setCompletedFrom('');setCompletedTo('');}}
@@ -1120,34 +1171,38 @@ export default function Person({ id, navigate, openModal }) {
                         <label className="field"><span>Completed from</span><input type="date" value={completedFrom} onChange={event=>setCompletedFrom(event.target.value)}/></label>
                         <label className="field"><span>Completed to</span><input type="date" value={completedTo} onChange={event=>setCompletedTo(event.target.value)}/></label></>}/>
                   </>}
-                  <StandardTable className="assessment-bundle-table" label={completedSection ? "Completed assessments" : "Active assessments in this care episode"} columnOrderKey={completedSection ? "yscc-completed-assessment-column-order" : "yscc-assessment-ledger-column-order"}
+                  <StandardTable className={`assessment-bundle-table${mvpAssessments ? ' assessment-bundle-table-mvp' : ''}`} label={completedSection ? "Completed assessments" : mvpAssessments ? mvpLedgerShowsReviews ? "Assessments" : "User-created assessments" : "Active assessments in this care episode"} columnOrderKey={completedSection ? "yscc-completed-assessment-column-order" : "yscc-assessment-ledger-column-order"}
                 compactControls={<Select label="Sort assessments" value={bundleSort.key ? `${bundleSort.key}:${bundleSort.direction}` : 'default'}
                   onChange={event => { const [key, direction] = event.target.value.split(':'); setBundleSort({ key: key === 'default' ? null : key, direction: direction || 'asc' }); }}>
                   <option value="default">Default order</option>
                   <option value="due:asc">{completedSection ? "Completion date" : "Due date"} · earliest first</option><option value="due:desc">{completedSection ? "Completion date" : "Due date"} · latest first</option>
-                  {!completedSection && <><option value="method:asc">Collection method · A to Z</option><option value="method:desc">Collection method · Z to A</option></>}
+                  {!completedSection && !mvpAssessments && <><option value="method:asc">Collection method · A to Z</option><option value="method:desc">Collection method · Z to A</option></>}
                   <option value="respondent:asc">Respondent · A to Z</option><option value="respondent:desc">Respondent · Z to A</option>
                   <option value="completion:asc">Completion · lowest first</option><option value="completion:desc">Completion · highest first</option>
                 </Select>}>
                   <thead><tr>
                     <th scope="col">Assessment name</th><SortableHeader label={completedSection ? "Completion date" : "Due date"} sortKey="due" sort={bundleSort} onSort={toggleBundleSort} />
-                    {!completedSection && <SortableHeader label="Collection method" sortKey="method" sort={bundleSort} onSort={toggleBundleSort} />}
+                    {!completedSection && !mvpAssessments && <SortableHeader label="Collection method" sortKey="method" sort={bundleSort} onSort={toggleBundleSort} />}
                     <SortableHeader label="Respondent" sortKey="respondent" sort={bundleSort} onSort={toggleBundleSort} />
                     {!completedSection && <th scope="col">Status</th>}
                     <SortableHeader label="Completion" sortKey="completion" sort={bundleSort} onSort={toggleBundleSort} /><th scope="col">Actions</th>
                   </tr></thead>
                   <tbody>
-                      {!sectionRows.length && <tr><td colSpan={5} className="muted">No completed assessments match these filters.</td></tr>}
-                      {sectionRows.flatMap(({ group, allRecords, completedCount, nextDue, sharedDue, completedDate, bundleChannel, bundleRecipient }) => {
+                      {!sectionRows.length && <tr><td colSpan={columnCount} className="muted">
+                        {completedSection ? completeRows.length ? 'No completed assessments match these filters.' : 'No completed assessments yet.'
+                          : ledgerCollections.length ? `No ${mvpAssessments && !mvpLedgerShowsReviews ? 'user-created ' : ''}assessments match these filters.` : `No ${mvpAssessments && !mvpLedgerShowsReviews ? 'user-created ' : ''}assessments yet.`}
+                      </td></tr>}
+                      {displayRows.flatMap(({ group, allRecords, completedCount, nextDue, sharedDue, completedDate, bundleChannel, bundleRecipient }) => {
                         const expanded = bundleAccordions && expandedBundleRows.includes(group.key);
                         const detailsId = `bundle-row-details-${group.key}`;
                         const detailGroup = { ...group, records: allRecords };
                         const pendingRecord = allRecords.find(col => !col.notRequiredReason && col.response === 'Draft') || allRecords.find(col => !col.notRequiredReason && col.response !== 'Submitted');
+                        const rowComplete = allRecords.length > 0 && completedCount === allRecords.length;
                         const displayDate = completedSection ? completedDate : sharedDue;
                         const daysUntilDue = displayDate ? Math.round((Date.parse(displayDate) - Date.parse(TODAY)) / 86400000) : null;
                         const dueDaysLabel = daysUntilDue === null ? '' : daysUntilDue === 0 ? 'Today'
                           : `${Math.abs(daysUntilDue)} ${Math.abs(daysUntilDue) === 1 ? 'day' : 'days'}${daysUntilDue < 0 ? completedSection ? ' ago' : ' overdue' : ' away'}`;
-                        const dueAlert = nextDue && assessmentDueLabel(nextDue, TODAY);
+                        const dueAlert = !completedSection && rowComplete ? null : nextDue && assessmentDueLabel(nextDue, TODAY);
                         const hasDraft = allRecords.some(record => record.response === 'Draft' || record.response === 'In progress');
                         const systemCreated = allRecords.some(record => record.bundleSource === 'Scheduled' || record.bundleSource === 'System' || record.id?.startsWith('AUTO-') || (record.scheduleAnchor && record.bundleSource !== 'Manual'));
                         const bundleStatus = allRecords.every(record=>record.notRequiredReason) ? 'not-required' : allRecords.length > 0 && completedCount === allRecords.length ? 'completed'
@@ -1163,12 +1218,13 @@ export default function Person({ id, navigate, openModal }) {
                               aria-expanded={bundleAccordions ? expanded : undefined} aria-controls={bundleAccordions ? detailsId : undefined}
                               aria-haspopup={bundleAccordions ? undefined : 'dialog'}
                               onClick={event => {event.stopPropagation();openBundleDetails(group.key);}}>{bundleAccordions && <ChevronRight size={16} aria-hidden="true" />}{group.name}</button></div>
-                              <small>{systemCreated ? 'System generated' : 'User created'}</small>
+                              {(!mvpAssessments || mvpClinicianCreationEnabled(state.settings)) &&
+                                <small>{systemCreated ? 'System generated' : 'User created'}</small>}
                             </QueueCell>
-                            <QueueCell label={completedSection ? "Completion date" : "Due date"} slot="summary">{displayDate ? <><time dateTime={displayDate}>{formatDate(displayDate)}</time><small className={dueAlert === 'Past due' ? 'assessment-overdue-days' : undefined}>{dueDaysLabel}</small>
+                            <QueueCell label={completedSection ? "Completion date" : "Due date"} slot="summary">{displayDate ? <><time dateTime={displayDate}>{formatDate(displayDate)}</time><small className={!completedSection && daysUntilDue < 0 ? 'assessment-overdue-days' : undefined}>{dueDaysLabel}</small>
                               {dueAlert && dueAlert !== 'Past due' && <AlertLabel tone="attention">{dueAlert}</AlertLabel>}</>
                               : <span className="muted">{completedSection ? "Not recorded" : "Not scheduled"}</span>}</QueueCell>
-                            {!completedSection && <QueueCell label="Collection method" slot="method">{bundleChannel}</QueueCell>}<QueueCell label="Respondent" slot="respondent">{bundleRecipient}</QueueCell>
+                            {!completedSection && !mvpAssessments && <QueueCell label="Collection method" slot="method">{bundleChannel}</QueueCell>}<QueueCell label="Respondent" slot="respondent">{bundleRecipient}</QueueCell>
                             {!completedSection && <QueueCell label="Status" slot="status"><Badge tone={{completed:'green',overdue:'coral','due-soon':'amber','in-progress':'blue',new:'purple','not-started':'neutral'}[bundleStatus]}>{bundleStatus === 'new' ? 'New' : bundleStatusLabel}</Badge></QueueCell>}
                             <QueueCell label="Completion" slot="metric"><div className="people-completeness-summary"><strong>{completedCount} / {allRecords.length}</strong>
                               <span className={`people-completeness-bar${completedCount === allRecords.length ? " complete-100" : ""}`} role="progressbar" aria-valuemin={0} aria-valuemax={allRecords.length || 1} aria-valuenow={completedCount}
@@ -1177,16 +1233,21 @@ export default function Person({ id, navigate, openModal }) {
                               </span>
                             </div></QueueCell>
                             <QueueCell label="Actions" slot="action"><ActionGroup className="assessment-bundle-table-actions">
-                              {completedSection ? <Button variant="secondary" aria-label={`Show response for ${group.name}`} onClick={()=>setResponseGroup(detailGroup)}>Show response</Button> : <Button variant="secondary" disabled={!pendingRecord || !canAssess(p,e)}
+                              {completedSection || rowComplete ? <Button variant="secondary" aria-label={`Show response for ${group.name}`} onClick={()=>setResponseGroup(detailGroup)}>Show response</Button> : <Button variant="secondary" disabled={!pendingRecord || !canAssess(p,e) || (mvpAssessments && pendingRecord?.respondent === 'Family respondent' && !p.family)}
                                 aria-label={`Collect response for ${group.name}`}
                                 onClick={() => collectAssessmentResponse(pendingRecord)}>Collect response</Button>}
                             </ActionGroup></QueueCell>
-                          </QueueRow>, ...(expanded ? [<tr key={`${group.key}-details`} className="assessment-bundle-details-row"><td colSpan={completedSection ? 5 : 7}>
+                          </QueueRow>, ...(expanded ? [<tr key={`${group.key}-details`} className="assessment-bundle-details-row"><td colSpan={columnCount}>
                             <div id={detailsId} role="region" aria-label={`Details for ${group.name}`}>
                               <AssessmentBundleDetails embedded group={detailGroup} episode={e} scheduleAssessments={scheduleAssessments}
                                 delivery={deliveryForBundle(detailGroup)} statusFor={assessmentState} showDueDates={showDueDates}
+                                hideRequirement={mvpAssessments && !mvpClinicianCreationEnabled(state.settings)}
                                 onClose={() => toggleBundleRow(group.key)}
-                                assessmentEditor={group.key !== 'individual' && !p.archivedAt && !p.readOnly && !e.readOnly && e.status === 'Active' && canAssess(p,e) && state.settings?.assessmentScheduleRules?.some(bundle => bundle.id === (group.bundleId || group.key))
+                                onAddInstrument={mvpAssessments && mvpBundleEditingEnabled(state.settings) && group.records.some(record=>record.mvpTimepointId || record.mvpInitialAssessment) && !p.archivedAt && !p.readOnly && !e.readOnly && e.status === 'Active' && canAssess(p,e)
+                                  ? version=>commit({type:'CUSTOMIZE_MVP_BUNDLE',operation:'add',personId:p.id,episodeId:e.id,bundleId:group.bundleId,version}) : null}
+                                onRemoveInstrument={mvpAssessments && mvpBundleEditingEnabled(state.settings) && group.records.some(record=>record.mvpTimepointId || record.mvpInitialAssessment) && !p.archivedAt && !p.readOnly && !e.readOnly && e.status === 'Active' && canAssess(p,e)
+                                  ? record=>commit({type:'CUSTOMIZE_MVP_BUNDLE',operation:'remove',personId:p.id,episodeId:e.id,bundleId:group.bundleId,collectionId:record.id}) : null}
+                                assessmentEditor={!mvpAssessments && group.key !== 'individual' && !p.archivedAt && !p.readOnly && !e.readOnly && e.status === 'Active' && canAssess(p,e) && state.settings?.assessmentScheduleRules?.some(bundle => bundle.id === (group.bundleId || group.key))
                                   ? <NewAssessmentBundle embedded group={detailGroup} statusFor={assessmentState} editBundleId={group.bundleId || group.key} person={p} episode={e}
                                       onClose={() => toggleBundleRow(group.key)} onCreated={(bundleId,message) => {setCreatedBundleId(bundleId);setBundleMessage(message);}} /> : null} />
                             </div>

@@ -1,7 +1,8 @@
 import { LABELS } from "./terminology.js";
 import { asBundle, bundleCollection, bundleContext, bundleIntervalDays, bundleTimingMode, bundleRepeats, bundleAgeMatches, bundleAssessmentsForCreation, bundleAdditionalAssessments, bundleSelectionForEpisode, collectionBelongsToBundle, bundleCollectionEditable, newBundleError } from "./assessmentBundles.js";
-import { ensureSampleAssessmentBundles } from "./sampleAssessmentBundles.js";
+import { ensureSampleAssessmentBundles, SAMPLE_ASSESSMENT_BUNDLES } from "./sampleAssessmentBundles.js";
 import { reconcileAssessmentSchedules, scheduleRuleError } from "./assessmentSchedules.js";
+import { mvpAssessmentMode, mvpPathwayEnabled, mvpBlankAssessmentTemplate, mvpClinicianCreationEnabled, mvpBundleEditingEnabled, mvpReviewBundles, MVP_REVIEW_BUNDLES, mvpReviewBundleError, MVP_INITIAL_BUNDLES, mvpInitialBundles, mvpInitialBundleError } from './mvpAssessmentPathway.js';
 import {
   createQualitativeSampleAnswers,
   createLikertSampleAnswers,
@@ -22,6 +23,7 @@ import {
   DEMO_INSTRUMENT,
   INITIAL_ASSESSMENT_INSTRUMENT,
   INSTRUMENTS,
+  STANDARD_INSTRUMENTS,
   LEGACY_INSTRUMENT,
   LIKERT_INSTRUMENT,
   getInstrument,
@@ -562,7 +564,7 @@ function refreshOpenSampleDates(state) {
         !(person.id === "YS-1033" && person.name === "Jordan Lee")) continue;
     for (const episode of person.episodes || []) {
       for (const collection of episode.collections || []) {
-        if (episode.status === "Active" && !collection.sampleDueExampleDate && !collection.scheduleRuleId && collection.due < due &&
+        if (episode.status === "Active" && !collection.sampleDueExampleDate && !collection.scheduleRuleId && !collection.mvpTimepointId && !collection.mvpInitialAssessment && collection.due < due &&
             collection.response !== "Submitted" &&
             !["Fulfilled", "Cancelled", "Paused"].includes(collection.assignment) &&
             (collection.revision ?? 0) === 0)
@@ -3795,7 +3797,7 @@ function prepareIntakes(next) {
 export function createSeed() {
   return withSampleFixtures(prepareQualityState(prepareSeed({
     schema: 1,
-    settings: { simpleAssessments: true, scheduleAssessments: false, showAssessmentDueDates: true, groupAssessmentsByBundle: false, bundleAccordions: false, automaticAssessmentDueDates: false, assessmentScheduleRules: [], linkAssessmentAppointments: true, assessmentSms: false, uiColorSetup: 1 },
+    settings: { simpleAssessments: true, scheduleAssessments: false, showAssessmentDueDates: true, groupAssessmentsByBundle: false, bundleAccordions: false, automaticAssessmentDueDates: false, assessmentScheduleRules: [], linkAssessmentAppointments: true, assessmentSms: true, uiColorSetup: 1 },
     terminologyRevision: 1,
     people: [
       ...seeds.map((s, i) => ({
@@ -3967,6 +3969,17 @@ export function createSeed() {
   })));
 }
 
+export function createDefaultWorkspace() {
+  const seed = createSeed();
+  const eventIds = seed.people.flatMap(person => person.episodes.flatMap(episode =>
+    (episode.events || []).map(event => event.id)));
+  const assessmentScheduleRules = SAMPLE_ASSESSMENT_BUNDLES.map(template => ({
+    ...structuredClone(template), activationEventIds: template.trigger === 'event' ? [...eventIds] : [],
+  }));
+  return {...seed,settings:{...seed.settings,assessmentScheduleRules,showGeneralReport:true,advancedAssessmentOptions:false,
+    mvpClinicianCreation:false,mvpBundleEditing:false,mvpAssessmentPathway:true,mvpReviewHighlight:false}};
+}
+
 export function collectionStatus(c) {
   if (c.assignment === "Cancelled") return "Cancelled";
   if (c.assignment === "Paused") return "Paused";
@@ -4069,6 +4082,68 @@ export function reducer(state, action) {
   return next === state ? state : reconcileAssessmentSchedules(next, TODAY);
 }
 function reduceState(state, action) {
+  if (action.type === 'SET_ADVANCED_ASSESSMENT_OPTIONS') {
+    if (typeof action.enabled !== 'boolean' || (state.settings?.advancedAssessmentOptions !== false) === action.enabled) return state;
+    return { ...state, settings: { ...state.settings, advancedAssessmentOptions: action.enabled } };
+  }
+  if (action.type === 'SET_MVP_REVIEW_HIGHLIGHT') {
+    if (!mvpAssessmentMode(state.settings) || typeof action.enabled !== 'boolean' ||
+        (state.settings?.mvpReviewHighlight !== false) === action.enabled) return state;
+    return { ...state, settings: { ...state.settings, mvpReviewHighlight: action.enabled } };
+  }
+  if (action.type === 'SAVE_MVP_INITIAL_BUNDLE') {
+    const bundle = action.bundle;
+    if (!mvpAssessmentMode(state.settings) || mvpInitialBundleError(bundle, state.settings)) return state;
+    const current = mvpInitialBundles(state.settings);
+    const original = MVP_INITIAL_BUNDLES.find(item => item.id === bundle.id);
+    return { ...state, settings: { ...state.settings, mvpInitialBundles: [
+      ...current.filter(item => item.id !== bundle.id), { ...original, ...bundle, name: bundle.name.trim() },
+    ] } };
+  }
+  if (action.type === 'DELETE_MVP_INITIAL_BUNDLE') {
+    if (!mvpAssessmentMode(state.settings) || !mvpInitialBundles(state.settings).some(item => item.id === action.id)) return state;
+    return { ...state, settings: { ...state.settings, mvpInitialBundles:
+      mvpInitialBundles(state.settings).filter(item => item.id !== action.id) } };
+  }
+  if (action.type === 'SAVE_MVP_REVIEW_BUNDLE') {
+    if (!mvpAssessmentMode(state.settings)) return state;
+    const bundle = action.bundle;
+    const original = MVP_REVIEW_BUNDLES.find(item => item.id === bundle?.id);
+    if (!original || bundle.programStream !== original.programStream || mvpReviewBundleError(bundle, state.settings) ||
+        mvpReviewBundles(state.settings).some(item => item.id !== bundle.id &&
+          item.name.toLowerCase() === bundle.name.trim().toLowerCase()) ||
+        mvpReviewBundles(state.settings).some(item => item.id !== bundle.id && item.enabled && bundle.enabled &&
+          item.programStream === bundle.programStream &&
+          MVP_REVIEW_BUNDLES.find(defaultBundle => defaultBundle.id === item.id)?.respondent === original.respondent) ||
+        (state.settings?.assessmentScheduleRules || []).some(item =>
+          item.name?.toLowerCase() === bundle.name.trim().toLowerCase())) return state;
+    const saved = { ...bundle, id: original.id, name: bundle.name.trim() };
+    const current = mvpReviewBundles(state.settings);
+    if (JSON.stringify(current.find(item => item.id === saved.id)) === JSON.stringify(saved)) return state;
+    return { ...state, settings: { ...state.settings, mvpReviewBundles:
+      [...current.filter(item => item.id !== saved.id), saved] } };
+  }
+  if (action.type === 'DELETE_MVP_REVIEW_BUNDLE') {
+    if (!mvpAssessmentMode(state.settings) || !mvpReviewBundles(state.settings).some(item => item.id === action.id)) return state;
+    return { ...state, settings: { ...state.settings, mvpReviewBundles:
+      mvpReviewBundles(state.settings).filter(item => item.id !== action.id) } };
+  }
+  if (action.type === 'SET_MVP_ASSESSMENT_PATHWAY') {
+    if (!mvpAssessmentMode(state.settings) || typeof action.enabled !== 'boolean' ||
+        mvpPathwayEnabled(state.settings) === action.enabled) return state;
+    return {...state,settings:{...state.settings,mvpAssessmentPathway:action.enabled}};
+  }
+  if (action.type === 'SET_MVP_CLINICIAN_CREATION' || action.type === 'SET_MVP_BUNDLE_EDITING') {
+    if (!mvpAssessmentMode(state.settings) || typeof action.enabled !== 'boolean') return state;
+    const key = action.type === 'SET_MVP_CLINICIAN_CREATION' ? 'mvpClinicianCreation' : 'mvpBundleEditing';
+    if ((key === 'mvpClinicianCreation' ? mvpClinicianCreationEnabled(state.settings) : mvpBundleEditingEnabled(state.settings)) === action.enabled) return state;
+    return {...state,settings:{...state.settings,[key]:action.enabled}};
+  }
+  if (mvpAssessmentMode(state.settings) && [
+    'SET_AUTOMATIC_ASSESSMENT_DUE_DATES', 'SELECT_BUNDLE_ASSESSMENTS',
+    'UPDATE_ASSESSMENT_BUNDLE', 'PLAN',
+    'ADD_GROUP_INSTRUMENT', 'ARCHIVE_ASSESSMENT_GROUP',
+  ].includes(action.type)) return state;
   if (action.type === "SET_AUTOMATIC_ASSESSMENT_DUE_DATES") {
     if (typeof action.enabled !== "boolean" || state.settings?.automaticAssessmentDueDates === action.enabled) return state;
     return {...state, settings: {...state.settings, automaticAssessmentDueDates:action.enabled,
@@ -4076,6 +4151,7 @@ function reduceState(state, action) {
   }
   if (action.type === "SAVE_ASSESSMENT_SCHEDULE_RULE") {
     const rules = state.settings?.assessmentScheduleRules || [];
+    if (action.rule?.assessments?.some(item => !STANDARD_INSTRUMENTS.some(instrument => instrument.version === item.version))) return state;
     if (scheduleRuleError(action.rule, rules) || typeof action.rule.enabled !== "boolean") return state;
     const previous = rules.find(rule => rule.id === action.rule.id);
     const rule = action.rule.assessments && action.rule.channel != null ? asBundle(action.rule) : {...action.rule};
@@ -4133,6 +4209,7 @@ function reduceState(state, action) {
     return { ...state, settings: { ...state.settings, simpleAssessments: action.enabled } };
   }
   if (action.type === "SET_ASSESSMENT_FEATURE") {
+    if (mvpAssessmentMode(state.settings) && action.feature !== "assessmentSms") return state;
     if (!["scheduleAssessments", "showAssessmentDueDates", "linkAssessmentAppointments", "assessmentSms", "assessmentModality", "groupAssessmentsByBundle", "bundleAccordions"].includes(action.feature) ||
         typeof action.enabled !== "boolean" || state.settings?.[action.feature] === action.enabled) return state;
     const next = { ...state, settings: { ...state.settings, [action.feature]: action.enabled } };
@@ -4143,7 +4220,7 @@ function reduceState(state, action) {
   const scheduleAssessments = assessmentSchedulingEnabled(state.settings);
   const linkAssessmentAppointments = assessmentContactLinkingEnabled(state.settings);
   const assessmentSms = assessmentSmsEnabled(state.settings);
-  if (action.type === "RESET") return createSeed();
+  if (action.type === "RESET") return createDefaultWorkspace();
   if (action.type === "RESET_INTAKE_EXAMPLES") {
     const ids = new Set(["YS-1031", "YS-1032"]);
     const seed = createSeed();
@@ -4234,6 +4311,64 @@ function reduceState(state, action) {
     );
   };
   switch (action.type) {
+    case 'CUSTOMIZE_MVP_BUNDLE': {
+      if (!mvpBundleEditingEnabled(state.settings) || !p || !e || p.archivedAt || p.readOnly || e.readOnly || e.status !== 'Active' ||
+          !canAssess(p,e) || !action.bundleId || !['add','remove'].includes(action.operation)) return state;
+      const records = e.collections.filter(record => record.bundleId === action.bundleId &&
+        (record.mvpInitialAssessment || record.mvpTimepointId));
+      if (!records.length) return state;
+      const exemplar = records[0];
+      if (action.operation === 'remove') {
+        const target = records.find(record => record.id === action.collectionId);
+        if (!target || records.length < 2 || !bundleCollectionEditable(target) ||
+            target.draftAnswers?.some(answer => answer != null)) return state;
+        e.collections = e.collections.filter(record => record.id !== target.id);
+        event('Review instrument removed', `${target.bundleName} · ${getInstrument(target.version)?.name || target.label}`,
+          {collectionId:target.id,bundleId:action.bundleId});
+      } else {
+        const instrument = getInstrument(action.version);
+        if (!instrument?.respondents.includes(exemplar.respondent) ||
+            records.some(record => record.version === action.version) ||
+            (exemplar.channel === 'SMS link' && !assessmentSms)) return state;
+        const id = `${action.bundleId}-${uid()}`;
+        e.collections.push({...exemplar,id,version:instrument.version,label:`${instrument.name} · ${exemplar.bundleName}`,
+          bundleAssessmentId:id,bundleRequirement:'Mandatory',response:'Not started',assignment:'Planned',
+          link:'Not sent',attempts:[],answers:[],draftAnswers:[],submittedAt:null,submittedTimestamp:null,
+          review:'Pending',reviewDate:null,reviewNote:null,createdAt:recordedAt});
+        event('Review instrument added', `${exemplar.bundleName} · ${instrument.name}`,
+          {collectionId:id,bundleId:action.bundleId});
+      }
+      break;
+    }
+    case 'SET_MVP_FAMILY_RESPONDENT': {
+      const name = typeof action.name === 'string' ? action.name.trim() : '';
+      if (!mvpAssessmentMode(state.settings) || !p || !e || e.status !== 'Active' ||
+          p.archivedAt || p.readOnly || e.readOnly || p.family || !name || name.length > 120) return state;
+      p.family = name;
+      event('Family respondent added', name, { collectionId: null });
+      break;
+    }
+    case 'SET_MVP_BUNDLE_METHOD': {
+      if (!mvpAssessmentMode(state.settings) || !e || !['Clinician entry', 'Clinic tablet', 'SMS link'].includes(action.channel) ||
+          (action.channel === 'SMS link' && !assessmentSms) || !action.bundleId) return state;
+      const records = e.collections.filter(record => record.bundleId === action.bundleId && record.mvpTimepointId);
+      if (!records.length || records.every(record => record.channel === action.channel) ||
+          records.some(record => record.response !== 'Not started' ||
+            record.draftAnswers?.some(Boolean) || record.answers?.some(Boolean))) return state;
+      for (const record of records) {
+        const activeAttempt = record.attempts?.at(-1);
+        if (activeAttempt && !activeAttempt.endedAt) {
+          activeAttempt.endedAt = recordedAt;
+          activeAttempt.status = 'Collection method changed';
+          record.assignment = 'Planned';
+          record.link = 'Not sent';
+        }
+        record.channel = action.channel;
+        record.assistance = action.channel === 'Clinician entry' ? 'Transcribed' : 'Independent';
+      }
+      event('Review collection method set', `${records[0].bundleName} · ${action.channel}`, { collectionId: null, bundleId: action.bundleId });
+      break;
+    }
     case "ADD_PERSON_TAG":
     case "REMOVE_PERSON_TAG": {
       if (!p || !staff || p.archivedAt) return state;
@@ -4320,7 +4455,7 @@ function reduceState(state, action) {
       if (carePeriodError(e, action, staff, TODAY, DEMO_STAFF.filter((item) => item.role === "Clinician")))
         return state;
       if (!getInstrument(action.assessmentVersion) ||
-          !INSTRUMENTS.some((instrument) => instrument.version === action.assessmentVersion) ||
+          !STANDARD_INSTRUMENTS.some((instrument) => instrument.version === action.assessmentVersion) ||
           (action.newEpisodeId && p.episodes.some((episode) => episode.id === action.newEpisodeId)))
         return state;
       const previous = currentCarePeriod(e);
@@ -4502,7 +4637,7 @@ function reduceState(state, action) {
           new Set(newAssessmentVersions).size !== newAssessmentVersions.length ||
           (newAssessmentVersions.length && !canAssess(p, e)) ||
           newAssessmentVersions.some((version) =>
-            !INSTRUMENTS.some((instrument) => instrument.version === version)))
+            !STANDARD_INSTRUMENTS.some((instrument) => instrument.version === version)))
         return state;
       const appointment = {
         id: action.id || uid(),
@@ -4853,7 +4988,7 @@ function reduceState(state, action) {
       if (!p || p.archivedAt || p.readOnly || !e || e.readOnly || e.status !== 'Active' || !canAssess(p,e)) return state;
       const records = (e.collections || []).filter(record => action.collectionIds?.includes(record.id));
       const template = records[0];
-      const instrument = INSTRUMENTS.find(item => item.version === action.version);
+      const instrument = STANDARD_INSTRUMENTS.find(item => item.version === action.version);
       if (!template || !instrument || records.some(record => record.version === action.version)) return state;
       e.collections.push({...template, id:uid(), version:instrument.version, label:instrument.name,
         bundleRequirement:template.bundleId ? 'Additional' : undefined, bundleAssessmentId:uid(),
@@ -4866,6 +5001,23 @@ function reduceState(state, action) {
       if (!p || p.archivedAt || p.readOnly || !e || e.readOnly || e.status !== 'Active' || !canAssess(p,e) || !action.reason?.trim()) return state;
       const records = (e.collections || []).filter(record=>action.collectionIds?.includes(record.id));
       if (!records.length || !records.some(record=>record.bundleSource === 'Scheduled' || record.bundleSource === 'System' || record.id?.startsWith('AUTO-') || (record.scheduleAnchor && record.bundleSource !== 'User'))) return state;
+      if (action.postponedDate) {
+        const latestDue = records.map(record=>record.due).filter(Boolean).sort().at(-1) || '';
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(action.postponedDate) || action.postponedDate <= TODAY || action.postponedDate <= latestDue ||
+          Number.isNaN(Date.parse(`${action.postponedDate}T12:00:00Z`))) return state;
+        records.forEach(record=>{
+          record.due=action.postponedDate;
+          record.postponedReason=action.reason.trim();
+          record.postponedAt=recordedAt;
+          if (record.notRequiredReason) {
+            delete record.notRequiredReason;
+            delete record.notRequiredAt;
+            record.assignment='Planned';
+          }
+        });
+        event('Assessment postponed', `${action.reason.trim()} · due ${action.postponedDate}`, {actionType:action.type});
+        break;
+      }
       records.forEach(record=>{record.notRequiredReason=action.reason.trim();record.notRequiredAt=recordedAt;record.assignment='Cancelled';});
       event('Assessment marked as not required', action.reason.trim(), {actionType:action.type});
       break;
@@ -4959,7 +5111,21 @@ function reduceState(state, action) {
       break;
     }
     case "CREATE_ASSESSMENT_BUNDLE": {
-      const saved = state.settings?.assessmentScheduleRules?.find(bundle => bundle.id === action.bundleId);
+      if (mvpAssessmentMode(state.settings) && !mvpClinicianCreationEnabled(state.settings)) return state;
+      const bundleScheduling = !mvpAssessmentMode(state.settings) && scheduleAssessments;
+      const blankMvp = mvpAssessmentMode(state.settings) && action.bundleId === 'blank';
+      if (blankMvp && (!Array.isArray(action.blankVersions) || !action.blankVersions.length ||
+          new Set(action.blankVersions).size !== action.blankVersions.length ||
+          !['Person','Family respondent'].includes(action.blankRespondent) ||
+          (action.blankRespondent === 'Family respondent' && !p?.family) ||
+          !['Clinician entry','Clinic tablet','SMS link'].includes(action.blankChannel) ||
+          (action.blankChannel === 'SMS link' && !assessmentSms) ||
+          action.blankVersions.some(version => !getInstrument(version)?.respondents.includes(action.blankRespondent)))) return state;
+      const saved = mvpAssessmentMode(state.settings)
+        ? blankMvp
+          ? mvpBlankAssessmentTemplate(e,TODAY,action.blankVersions,action.blankRespondent,action.blankChannel)
+          : null
+        : state.settings?.assessmentScheduleRules?.find(bundle => bundle.id === action.bundleId);
       const bundle = saved && asBundle(saved);
       const optionalIds = action.optionalIds;
       if (action.extraAssessments?.some(item => item && (item.channel === 'SMS link' && !assessmentSms || !['Clinician entry','Clinic tablet','SMS link'].includes(item.channel)))) return state;
@@ -4970,16 +5136,19 @@ function reduceState(state, action) {
           e.assessmentBundleInstances?.some(instance => instance.id === action.id) ||
           newBundleError(bundle, optionalIds, extras, p, state.settings, overrides) ||
           !bundleAgeMatches(bundle,p,TODAY) ||
-          (scheduleAssessments ? !validISODate(action.due) || action.due < TODAY : !!action.due)) return state;
+          (mvpAssessmentMode(state.settings) && (optionalIds.length > 0 || extras.length > 0 ||
+            overrides.some(override => override.recipient != null && override.recipient !== bundle.recipient))) ||
+          (bundleScheduling ? !validISODate(action.due) || action.due < TODAY : !!action.due)) return state;
       const instanceName = action.name?.trim() || bundle.name;
       if (action.name !== undefined && (!action.name.trim() || instanceName.length > 120 ||
           e.assessmentBundleInstances?.some(instance => instance.name?.trim().toLowerCase() === instanceName.toLowerCase()))) return state;
       const selected = [...bundleAssessmentsForCreation(bundle,overrides).filter(item => item.requirement === "Mandatory" || optionalIds.includes(item.id)), ...bundleAdditionalAssessments(bundle,extras,overrides)];
       const collections = selected.map((item,index) => ({...bundleCollection({id:`${action.id}-${index}`, bundleId:bundle.id,
-        bundleName:instanceName, bundleContext:bundleContext(bundle), assessment:item, due:scheduleAssessments ? action.due : ""}, TODAY),
+        bundleName:instanceName, bundleContext:bundleContext(bundle), assessment:item, due:bundleScheduling ? action.due : mvpAssessmentMode(state.settings) ? TODAY : ""}, TODAY),
         label:INSTRUMENTS.find(instrument => instrument.version === item.version).name,
-        createdAt:recordedAt, scheduleFree:!scheduleAssessments, bundleInstanceId:action.id, bundleSource:"Manual",
-        bundleRequirement:extras.some(extra=>extra.id===item.id) ? "Additional" : item.requirement}));
+        createdAt:recordedAt, scheduleFree:!bundleScheduling, bundleInstanceId:action.id, bundleSource:"Manual",
+        bundleRequirement:extras.some(extra=>extra.id===item.id) ? "Additional" : item.requirement,
+        ...(mvpAssessmentMode(state.settings) ? {mvpCreatedAssessment:true} : {})}));
       if (collections.some(collection => e.collections.some(existing => existing.id === collection.id))) return state;
       e.collections.push(...collections);
       e.assessmentBundleInstances = [...(e.assessmentBundleInstances || []), {id:action.id, bundleId:bundle.id,
@@ -4995,7 +5164,7 @@ function reduceState(state, action) {
         !e ||
         e.status !== "Active" ||
         !action.label?.trim() ||
-        !INSTRUMENTS.some(
+        !STANDARD_INSTRUMENTS.some(
           (instrument) => instrument.version === (action.version ?? VERSION),
         ) ||
         (scheduleAssessments && (!/^\d{4}-\d{2}-\d{2}$/.test(action.due || "") || action.due < TODAY)) ||
@@ -5072,6 +5241,8 @@ function reduceState(state, action) {
             action.externalAppointment.date > c.due))
       ) return state;
       if (!linkAssessmentAppointments && action.externalAppointment) return state;
+      if (mvpAssessmentMode(state.settings) && c.mvpTimepointId &&
+          (action.respondent !== c.mvpRespondent || action.channel !== c.channel)) return state;
       c.channel = action.channel;
       c.respondent = action.respondent;
       c.respondentName = action.respondent === "Person" ? p.name : p.family;
@@ -5110,6 +5281,8 @@ function reduceState(state, action) {
       )
         return state;
       if (action.respondent === "Family respondent" && !p.family) return state;
+      if (mvpAssessmentMode(state.settings) && c.mvpTimepointId &&
+          (action.respondent !== c.mvpRespondent || action.channel !== c.channel)) return state;
       if (c.draftAnswers?.some(Boolean) && action.respondent !== c.respondent)
         return state;
       if (

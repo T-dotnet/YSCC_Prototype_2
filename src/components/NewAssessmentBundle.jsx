@@ -4,17 +4,18 @@ import RelatedRecordsTable from "./RelatedRecordsTable";
 import { COLLECTION_METHOD_OPTIONS, LABELS } from "../terminology.js";
 import { useState } from 'react';
 import { useStore } from '../store';
-import { INSTRUMENTS } from '../instruments';
+import { INSTRUMENTS, STANDARD_INSTRUMENTS } from '../instruments';
 import { responseDate } from '../progress';
 import { TODAY, uid, formatDate } from '../model';
 import { asBundle, bundleName, uniqueBundleInstanceName, bundleAssessmentUnavailable, bundleAgeMatches, bundleAssessmentsForCreation, bundleDelivery, bundleSelectionForEpisode, newBundleError } from '../assessmentBundles';
 import { assessmentSchedulingEnabled, assessmentSmsEnabled } from '../assessmentFeatures';
+import { mvpAssessmentMode, mvpBlankAssessmentTemplate } from '../mvpAssessmentPathway';
 import { ActionGroup, Badge, Checkbox, IconButton, Modal, Button, Field, Select, Empty, Notice, ValidatedForm } from './UI';
 import AssessmentScheduleSettings from "./AssessmentScheduleSettings";
 import BundleAssessmentRow from './BundleAssessmentRow';
 import AssessmentModalActions from './AssessmentModalActions';
 
-function DeliveryFields({item, person, sms, onChange}) {
+function DeliveryFields({item, person, sms, onChange, youngPersonLabel = false}) {
   const instrument = item.version ? INSTRUMENTS.find(instrument => instrument.version === item.version) : {respondents:['Person','Family respondent']};
   return <div className="form-grid">
     <Field label={LABELS.collectionMethod}>
@@ -26,7 +27,7 @@ function DeliveryFields({item, person, sms, onChange}) {
     <Field label={LABELS.respondent}>
       <Select label={LABELS.respondent} value={item.recipient} onChange={event => onChange('recipient',event.target.value)}>
         {instrument?.respondents.map(recipient => <option key={recipient} value={recipient} disabled={recipient === 'Family respondent' && !person.family}>
-          {recipient === 'Person' ? 'Patient' : `Family respondent${!person.family ? ' (not recorded)' : ''}`}
+          {recipient === 'Person' ? youngPersonLabel ? 'Young person' : 'Patient' : `Family respondent${!person.family ? ' (not recorded)' : ''}`}
         </option>)}
       </Select>
     </Field>
@@ -35,6 +36,7 @@ function DeliveryFields({item, person, sms, onChange}) {
 
 export default function NewAssessmentBundle({ person, episode, onClose, onCreated, editBundleId = null, embedded = false, group, statusFor, assessmentAction, onMarkNotRequired, onArchive, footerAction }) {
   const { state, commit } = useStore();
+  const mvpAssessments = mvpAssessmentMode(state.settings);
   const { sort, toggleSort } = useQueueSort({ key: 'requirement', direction: 'asc' });
   const editingBundle = !!editBundleId;
   const [initialSelection] = useState(() => {
@@ -42,22 +44,29 @@ export default function NewAssessmentBundle({ person, episode, onClose, onCreate
     return saved ? bundleSelectionForEpisode(asBundle(saved),group?.instanceId ? {...episode,collections:group.records,assessmentBundleSelections:{}} : episode) : {optionalIds:[],assessmentOverrides:[],extraAssessments:[]};
   });
   const [instanceName, setInstanceName] = useState(group?.instanceId ? group.name : '');
-  const [bundleId, setBundleId] = useState(editBundleId || '');
+  const [bundleId, setBundleId] = useState(editBundleId || (mvpAssessments ? 'blank' : ''));
   const [optionalIds, setOptionalIds] = useState(initialSelection.optionalIds);
   const [assessmentOverrides, setAssessmentOverrides] = useState(initialSelection.assessmentOverrides);
 
   const [extras, setExtras] = useState(initialSelection.extraAssessments);
+  const [blankVersions, setBlankVersions] = useState([]);
+  const [blankRespondent, setBlankRespondent] = useState('Person');
+  const [blankChannel, setBlankChannel] = useState('Clinic tablet');
   const [extraVersion, setExtraVersion] = useState('');
   const [due, setDue] = useState(TODAY);
   const [error, setError] = useState('');
   const [instanceId] = useState(uid);
-  const bundles = (state.settings?.assessmentScheduleRules || []).map(asBundle)
+  const bundles = (mvpAssessments ? [] : (state.settings?.assessmentScheduleRules || [])).map(asBundle)
     .filter(bundle => editingBundle ? bundle.id === editBundleId : bundle.enabled && bundleAgeMatches(bundle,person,TODAY));
-  const bundle = bundles.find(item => item.id === bundleId);
+  const blankMvp = mvpAssessments && bundleId === 'blank';
+  const bundle = blankMvp
+    ? mvpBlankAssessmentTemplate(episode,TODAY,blankVersions,blankRespondent,blankChannel)
+    : bundles.find(item => item.id === bundleId);
   const validationBundle = editingBundle && bundle ? {...bundle,enabled:true} : bundle;
-  const scheduling = assessmentSchedulingEnabled(state.settings);
+  const scheduling = !mvpAssessments && assessmentSchedulingEnabled(state.settings);
   const sms = assessmentSmsEnabled(state.settings);
-  const available = INSTRUMENTS.filter(instrument => !bundle?.assessments.some(item => item.version === instrument.version) &&
+  const available = (mvpAssessments ? INSTRUMENTS : STANDARD_INSTRUMENTS).filter(instrument => (!blankMvp || instrument.respondents.includes(blankRespondent)) &&
+    !bundle?.assessments.some(item => item.version === instrument.version) &&
     !extras.some(item => item.version === instrument.version));
   const assessmentRows = bundle ? [
               ...(group?.records || []).filter(record => record.bundleRequirement !== 'Additional' || extras.some(item => item.version === record.version)).map(record => ({
@@ -71,9 +80,16 @@ export default function NewAssessmentBundle({ person, episode, onClose, onCreate
   const count = embedded
     ? assessmentRows.filter(item => item.requirement === 'Mandatory' || item.requirement === 'Additional' || optionalIds.includes(item.id)).length
     : bundle ? bundle.assessments.filter(item => item.requirement === 'Mandatory' || optionalIds.includes(item.id)).length + extras.length : 0;
-  const selectionError = bundle ? newBundleError(validationBundle,optionalIds,extras,person,state.settings,assessmentOverrides) : '';
+  const selectionError = bundle && (!blankMvp || blankVersions.length)
+    ? newBundleError(validationBundle,optionalIds,extras,person,state.settings,assessmentOverrides) : '';
   const delivery = bundle ? bundleDelivery(bundle,assessmentOverrides) : {channel:'Clinic tablet',recipient:'Person'};
   const updateDelivery = (key,value) => {
+    if (blankMvp) {
+      if (key === 'channel') setBlankChannel(value);
+      else { setBlankRespondent(value); setBlankVersions(versions => versions.filter(version => INSTRUMENTS.find(item => item.version === version)?.respondents.includes(value))); }
+      setError('');
+      return;
+    }
     const next = {...delivery,[key]:value};
     setAssessmentOverrides(bundle.assessments.map(item => ({id:item.id,...next})));
     setExtras(items => items.map(item => ({...item,...next})));
@@ -88,10 +104,11 @@ export default function NewAssessmentBundle({ person, episode, onClose, onCreate
       setError(!name ? 'Enter an assessment name.' : 'An assessment with this name already exists. Choose a unique name.'); return;
     }
     const result = commit({name, bundleInstanceId:group?.instanceId, type:editingBundle ? 'UPDATE_ASSESSMENT_BUNDLE' : 'CREATE_ASSESSMENT_BUNDLE',personId:person.id,episodeId:episode.id,
-      id:instanceId,bundleId,optionalIds,assessmentOverrides,extraAssessments:extras,due:scheduling ? due : ''});
+      id:instanceId,bundleId,optionalIds,assessmentOverrides,extraAssessments:extras,due:scheduling ? due : '',
+      ...(blankMvp ? {blankVersions,blankRespondent,blankChannel} : {})});
     if (result.error) { setError(result.error); return; }
     onCreated(bundle.id,editingBundle ? `${bundleName(bundle)} updated. Drafts and completed instruments have been kept.`
-      : `${bundleName(bundle)} added with ${count} instrument${count === 1 ? '' : 's'}.`);
+      : `${blankMvp ? name : bundleName(bundle)} added with ${count} instrument${count === 1 ? '' : 's'}.`);
     onClose();
   };
   const rowStatus = item => item.requirement !== 'Mandatory' && item.requirement !== 'Additional' && !optionalIds.includes(item.id)
@@ -103,9 +120,11 @@ export default function NewAssessmentBundle({ person, episode, onClose, onCreate
                 </Select>
               </div>;
   const addInstrumentButton = <Button type="button" disabled={!extraVersion} onClick={() => {
-                setExtras(items => [...items,{id:uid(),version:extraVersion,...delivery,requirement:'Optional'}]);setExtraVersion('');setError('');
+                if (blankMvp) setBlankVersions(items => [...items,extraVersion]);
+                else setExtras(items => [...items,{id:uid(),version:extraVersion,...delivery,requirement:'Optional'}]);
+                setExtraVersion('');setError('');
               }}>Add instrument</Button>;
-  if (bundleId === 'blank') return <AssessmentScheduleSettings editorOnly onClose={onClose} bundleField={<Field label="Assessment"><Select label="Assessment" value={bundleId} onChange={event => {
+  if (bundleId === 'blank' && !mvpAssessments) return <AssessmentScheduleSettings editorOnly onClose={onClose} bundleField={<Field label="Assessment"><Select label="Assessment" value={bundleId} onChange={event => {
     setBundleId(event.target.value);
     setInstanceName(uniqueBundleInstanceName(episode,bundles.find(item => item.id === event.target.value)?.name || 'Assessment'));
     setError('');
@@ -120,7 +139,7 @@ export default function NewAssessmentBundle({ person, episode, onClose, onCreate
       <ActionGroup className="modal-footer bundle-form-footer"><Button onClick={onClose}>Close</Button></ActionGroup>
     </> : <ValidatedForm onSubmit={submit}>
       <div className="form-body new-assessment-bundle-body">
-        {!editingBundle && <Field label="Assessment" hint="Choose an assessment, then review the instruments to include.">
+        {!editingBundle && !mvpAssessments && <Field label="Assessment" hint="Choose an assessment, then review the instruments to include.">
           <Select label="Assessment" required value={bundleId} onChange={event => {
             setBundleId(event.target.value); setInstanceName(uniqueBundleInstanceName(episode, bundles.find(item => item.id === event.target.value) ? bundleName(bundles.find(item => item.id === event.target.value)) : 'Assessment')); setOptionalIds([]); setAssessmentOverrides([]); setExtras([]); setExtraVersion(''); setError('');
           }}>
@@ -134,7 +153,7 @@ export default function NewAssessmentBundle({ person, episode, onClose, onCreate
             <input aria-label="Assessment name" required maxLength={120} value={instanceName} onChange={event => { setInstanceName(event.target.value); setError(''); }} />
           </Field>}
           {scheduling && <Field label={editingBundle ? 'Due date for added instruments' : 'Due date'} hint={editingBundle ? 'Existing instrument dates stay as recorded.' : 'Applies to all instruments created in this assessment.'}><input required type="date" min={TODAY} value={due} onChange={event => setDue(event.target.value)} /></Field>}
-          {!embedded && <DeliveryFields item={delivery} person={person} sms={sms} onChange={updateDelivery} />}
+          {!embedded && <DeliveryFields item={delivery} person={person} sms={sms} onChange={updateDelivery} youngPersonLabel={mvpAssessments} />}
           {embedded ? <div className="bundle-edit-table"><RelatedRecordsTable label={`Instruments in ${bundleName(bundle)}`} compact>
             <thead><tr><th scope="col">Instrument</th><SortableHeader label="Status" sortKey="status" sort={sort} onSort={toggleSort} /><SortableHeader label="Requirement" sortKey="requirement" sort={sort} onSort={toggleSort} /></tr></thead>
             <tbody>{[...assessmentRows].sort((a,b) => {
@@ -163,8 +182,8 @@ export default function NewAssessmentBundle({ person, episode, onClose, onCreate
             </tbody>
           </RelatedRecordsTable>{available.length > 0 && <div className="assessment-group-add-instrument">{instrumentPicker}{addInstrumentButton}</div>}</div> : <fieldset className="new-bundle-assessments">
             <legend>Instruments in this assessment</legend>
-            <p className="new-bundle-section-caption">Mandatory instruments stay included. Choose which optional instruments to include.</p>
-            {bundleAssessmentsForCreation(bundle,assessmentOverrides).map(item => {
+            <p className="new-bundle-section-caption">{blankMvp ? 'Add instruments to this assessment. Each selected instrument is mandatory.' : mvpAssessments ? 'Configured mandatory instruments are included.' : 'Mandatory instruments stay included. Choose which optional instruments to include.'}</p>
+            {bundleAssessmentsForCreation(bundle,assessmentOverrides).filter(item => !mvpAssessments || item.requirement === 'Mandatory').map(item => {
               const mandatory = item.requirement === 'Mandatory';
               const instrument = INSTRUMENTS.find(instrument => instrument.version === item.version);
               const unavailable = bundleAssessmentUnavailable(item,person,state.settings);
@@ -172,6 +191,7 @@ export default function NewAssessmentBundle({ person, episode, onClose, onCreate
                 checkboxLabel={mandatory ? 'Mandatory' : 'Optional'}
                 checkboxAriaLabel={`Include ${instrument?.name} (${COLLECTION_METHOD_OPTIONS.find(([value]) => value === item.channel)?.[1]}, ${item.recipient === 'Person' ? 'Patient' : item.recipient})`}
                 checked={mandatory || optionalIds.includes(item.id)} disabled={mandatory || !!unavailable}
+                onRemove={blankMvp ? () => {setBlankVersions(versions => versions.filter(version => version !== item.version));setError('');} : undefined}
                 onCheckedChange={checked => {setOptionalIds(ids => checked ? [...ids,item.id] : ids.filter(id => id !== item.id)); setError('');}}
                 secondary={unavailable && <Notice tone="amber">{unavailable}. Choose an available assessment collection method and respondent.</Notice>}
               />;
@@ -184,7 +204,7 @@ export default function NewAssessmentBundle({ person, episode, onClose, onCreate
               />;
             })}
           </fieldset>}
-          {!embedded && <section className="new-bundle-extras" aria-label="Additional instruments">
+          {!embedded && (!mvpAssessments || blankMvp) && <section className="new-bundle-extras" aria-label="Additional instruments">
             {available.length ? <div className="new-bundle-extra-picker">
               {instrumentPicker}
               {addInstrumentButton}
@@ -200,7 +220,7 @@ export default function NewAssessmentBundle({ person, episode, onClose, onCreate
       </div>
       <AssessmentModalActions assessment={assessmentAction || bundle}
         onMarkNotRequired={onMarkNotRequired || (footerAction ? () => footerAction.props.onClick() : null)}
-        onArchive={onArchive} onCancel={onClose} saveLabel={editingBundle ? 'Save changes' : 'Create assessment'} disabled={!bundle || !!selectionError} />
+        onArchive={onArchive} onCancel={onClose} saveLabel={editingBundle ? 'Save changes' : 'Create assessment'} disabled={!bundle || blankMvp && !blankVersions.length || !!selectionError} />
     </ValidatedForm>}
   </>;
   return embedded ? content : <Modal title={editingBundle ? 'Edit assessment' : 'New assessment'} subtitle={editingBundle ? bundleName(bundle) : `${person.name} · Care episode ${episode.number}`} onClose={onClose} wide className="new-assessment-bundle-modal">{content}</Modal>;

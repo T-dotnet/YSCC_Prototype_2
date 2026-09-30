@@ -1,11 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createSeed, reducer, upgradeSampleData } from './model.js';
+import { createSeed, createDefaultWorkspace, reducer, upgradeSampleData } from './model.js';
 import { assessmentBundleGroups, bundleError, newBundleError } from './assessmentBundles.js';
 import { SAMPLE_ASSESSMENT_BUNDLES } from './sampleAssessmentBundles.js';
 
 const enable = state => reducer(state, { type: 'SET_ASSESSMENT_FEATURE', feature: 'groupAssessmentsByBundle', enabled: true });
 const episode = state => state.people.find(person => person.id === 'YS-1034').episodes[0];
+
+test('reset restores every sample assessment bundle in the MVP workspace', () => {
+  const state = createDefaultWorkspace();
+  assert.equal(state.settings.advancedAssessmentOptions, false);
+  assert.deepEqual(state.settings.assessmentScheduleRules.map(bundle => bundle.id), SAMPLE_ASSESSMENT_BUNDLES.map(bundle => bundle.id));
+  const edited = reducer(state, {type:'DELETE_ASSESSMENT_SCHEDULE_RULE',id:SAMPLE_ASSESSMENT_BUNDLES[0].id});
+  const reset = reducer(edited, {type:'RESET'});
+  assert.deepEqual(reset.settings.assessmentScheduleRules.map(bundle => bundle.id), SAMPLE_ASSESSMENT_BUNDLES.map(bundle => bundle.id));
+});
 const withoutBundleMetadata = collection => Object.fromEntries(Object.entries(collection)
   .filter(([key]) => !key.startsWith('bundle') && key !== 'scheduleAnchor' && key !== 'sampleBundleHistory'));
 
@@ -31,7 +40,7 @@ test('turning bundles on adds usable templates and groups existing completed, dr
   }
   const groups = assessmentBundleGroups(episode(next), episode(next).collections, next.settings.assessmentScheduleRules);
   assert.deepEqual(new Set(groups.map(group => group.name)), new Set([
-    'Getting started with care', 'General care review', 'Youth and family check-in', 'Individual assessments',
+    'Getting started with care', 'General care review', 'Youth and family check-in', 'Individual instruments',
   ]));
   for (const group of groups.filter(group => group.key !== 'individual')) {
     assert.ok(new Set(group.records.map(record => record.version)).size >= 2);

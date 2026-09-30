@@ -3,20 +3,21 @@ import { cloneElement, useId, useState } from 'react';
 import { episodeWithVisibleContacts } from "../assessmentFeatures.js";
 import { contactsForAssessments } from '../assessmentContacts';
 import { earliestPendingAssessment } from '../assessmentDue';
-import { INSTRUMENTS, getInstrument } from '../instruments';
-import { formatDate } from '../model';
+import { INSTRUMENTS, STANDARD_INSTRUMENTS, getInstrument } from '../instruments';
+import { formatDate, TODAY } from '../model';
 import { responseDate } from '../progress';
 import { LABELS } from '../terminology';
 import RelatedRecordsTable from './RelatedRecordsTable';
 import { RecordFacts } from './RecordItem';
 import { ActionGroup, Badge, Button, EditAction, Field, Modal, ModalFooter, Select, Tabs } from './UI';
 
-export default function AssessmentBundleDetails({ group, episode, delivery, statusFor, showDueDates,
-  canEdit, onEdit, onClose, scheduleAssessments = true, assessmentEditor, onAddInstrument, onArchive, onNotRequired, embedded = false }) {
+export default function AssessmentBundleDetails({ group, episode, delivery, statusFor, showDueDates, hideRequirement = false,
+  canEdit, onEdit, onClose, scheduleAssessments = true, assessmentEditor, onAddInstrument, onRemoveInstrument, onArchive, onNotRequired, embedded = false }) {
   const { sort, toggleSort } = useQueueSort({ key: null, direction: 'asc' });
   const [reasonMode, setReasonMode] = useState(false);
   const [archiveConfirmation, setArchiveConfirmation] = useState(false);
   const [reason, setReason] = useState('');
+  const [postponedDate, setPostponedDate] = useState('');
   const [addVersion, setAddVersion] = useState('');
   const [activeTab, setActiveTab] = useState('assessments');
   const tabsId = useId();
@@ -32,12 +33,13 @@ export default function AssessmentBundleDetails({ group, episode, delivery, stat
     <div className="form-body"><p>{archiveRecord ? 'This instrument will move to the archive. Saved responses will be retained.' : 'This assessment and its instruments will move to the archive. Saved responses will be retained.'}</p></div>
     <ModalFooter><Button type="button" onClick={()=>setArchiveConfirmation(false)}>Cancel</Button><Button type="button" variant="primary" onClick={()=>{onArchive(archiveRecord);setArchiveConfirmation(false);}}>{archiveRecord ? 'Archive instrument' : 'Archive assessment'}</Button></ModalFooter>
   </Modal>;
-  const notRequiredAction = onNotRequired && <Button variant="ghost" className="assessment-not-required-action" onClick={()=>setReasonMode(true)}>Mark as not required</Button>;
-  if (reasonMode) return <Modal title="Mark assessment as not required" subtitle={group.name} className="assessment-not-required-modal" wide onClose={onClose}>
-    <form onSubmit={event=>{event.preventDefault();if(reason.trim()) onNotRequired(reason.trim());}}>
+  const notRequiredAction = onNotRequired && <Button variant="ghost" className="assessment-not-required-action" onClick={()=>setReasonMode(true)}>Mark as not required or postpone</Button>;
+  if (reasonMode) return <Modal title="Mark assessment as not required or postpone" subtitle={group.name} className="assessment-not-required-modal" wide onClose={onClose}>
+    <form onSubmit={event=>{event.preventDefault();if(reason.trim() && (!postponedDate || postponedDate > TODAY && postponedDate > bundleDue)) onNotRequired(reason.trim(), postponedDate);}}>
       <div className="form-body"><Field label="Reason"><textarea required rows={4} value={reason} onChange={event=>setReason(event.target.value)} /></Field>
+        <Field label="Postpone until (optional)" hint="Choose a future date to keep this assessment active. Leave blank to mark it as not required."><input type="date" min={[TODAY, bundleDue || ''].sort().at(-1)} value={postponedDate} onChange={event=>setPostponedDate(event.target.value)} /></Field>
         <p className="muted">Existing instruments and responses will be retained.</p></div>
-      <ModalFooter><Button type="button" onClick={()=>setReasonMode(false)}>Cancel</Button><Button type="submit" variant="primary" disabled={!reason.trim()}>Mark as not required</Button></ModalFooter>
+      <ModalFooter><Button type="button" onClick={()=>setReasonMode(false)}>Cancel</Button><Button type="submit" variant="primary" disabled={!reason.trim() || !!postponedDate && (postponedDate <= TODAY || postponedDate <= bundleDue)}>{postponedDate ? 'Postpone assessment' : 'Mark as not required'}</Button></ModalFooter>
     </form>
   </Modal>;
   const content = <>
@@ -58,7 +60,7 @@ export default function AssessmentBundleDetails({ group, episode, delivery, stat
           {assessmentEditor && <div hidden={activeTab !== 'assessments'}>{cloneElement(assessmentEditor, {assessmentAction:group,onMarkNotRequired:onNotRequired ? ()=>setReasonMode(true) : null,onArchive:requestArchive})}</div>}
           {activeTab === 'assessments' && !assessmentEditor && <>
             <RelatedRecordsTable label={`Instruments in ${group.name}`} compact className={individual ? 'individual-instruments-table' : ''}>
-              <thead><tr><th scope="col">Instrument</th><SortableHeader label="Status" sortKey="status" sort={sort} onSort={toggleSort} /><th scope="col">{individual ? 'Actions' : 'Requirement'}</th></tr></thead>
+              <thead><tr><th scope="col">Instrument</th><SortableHeader label="Status" sortKey="status" sort={sort} onSort={toggleSort} />{(!hideRequirement || individual) && <th scope="col">{individual ? 'Actions' : 'Requirement'}</th>}{onRemoveInstrument && <th scope="col">Actions</th>}</tr></thead>
               <tbody>{[...group.records].sort((a,b) => sort.key === 'status' ? (sort.direction === 'asc' ? 1 : -1) * statusFor(a).localeCompare(statusFor(b)) : 0).map(record => {
                 const submitted = responseDate(record);
                 return <tr key={record.id}>
@@ -66,14 +68,17 @@ export default function AssessmentBundleDetails({ group, episode, delivery, stat
                     {submitted && <small>Completed {formatDate(submitted)}</small>}
                   </td>
                   <td><Badge>{statusFor(record)}</Badge></td>
-                  <td>{individual ? <Button variant="ghost" disabled={!onArchive} aria-label={`Archive ${getInstrument(record.version)?.name || record.label}`} onClick={()=>setArchiveConfirmation(record)}>Archive</Button> : record.bundleRequirement || 'Individual'}</td>
+                  {(!hideRequirement || individual) && <td>{individual ? <Button variant="ghost" disabled={!onArchive} aria-label={`Archive ${getInstrument(record.version)?.name || record.label}`} onClick={()=>setArchiveConfirmation(record)}>Archive</Button> : record.bundleRequirement || 'Individual'}</td>}
+                  {onRemoveInstrument && <td><Button variant="ghost" disabled={group.records.length < 2 || record.response !== 'Not started' || record.assignment !== 'Planned' || record.attempts?.length > 0 || record.answers?.some(Boolean) || record.draftAnswers?.some(Boolean)}
+                    aria-label={`Remove ${getInstrument(record.version)?.name || record.label}`} onClick={()=>onRemoveInstrument(record)}>Remove</Button></td>}
                 </tr>;
               })}</tbody>
             </RelatedRecordsTable>
             {onAddInstrument && <ActionGroup className="assessment-group-add-instrument">
               <div className="field"><Select label="Instrument to add" value={addVersion} onChange={event=>setAddVersion(event.target.value)}>
                 <option value="">Choose an instrument</option>
-                {INSTRUMENTS.filter(instrument=>!group.records.some(record=>record.version === instrument.version)).map(instrument=><option key={instrument.version} value={instrument.version}>{instrument.name}</option>)}
+                {(onRemoveInstrument ? INSTRUMENTS.filter(instrument=>instrument.respondents.includes(group.records[0]?.mvpRespondent)) : STANDARD_INSTRUMENTS)
+                  .filter(instrument=>!group.records.some(record=>record.version === instrument.version)).map(instrument=><option key={instrument.version} value={instrument.version}>{instrument.name}</option>)}
               </Select></div>
               <Button disabled={!addVersion} onClick={()=>{onAddInstrument(addVersion);setAddVersion('');}}>Add instrument</Button>
             </ActionGroup>}

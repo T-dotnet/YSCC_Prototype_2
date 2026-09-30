@@ -8,7 +8,7 @@ import {
   appointmentMatchesCollectionDate,
 } from "../appointments";
 import { formatDate, practitionerServiceOptions, TODAY } from "../model";
-import { INSTRUMENTS } from "../instruments";
+import { STANDARD_INSTRUMENTS } from "../instruments";
 import { contactsForAssessment } from "../assessmentContacts";
 import ContactFields from "./ContactFields";
 
@@ -68,7 +68,7 @@ export default function AppointmentForm({
   const searchTerm = assessmentSearch.trim().toLocaleLowerCase();
   const visibleDueAssessments = dueAssessments.filter((collection) =>
     `${collection.label} ${scheduleAssessments && collection.due ? `${collection.due} ${formatDate(collection.due)}` : ""}`.toLocaleLowerCase().includes(searchTerm));
-  const visibleInstruments = INSTRUMENTS.filter((instrument) =>
+  const visibleInstruments = STANDARD_INSTRUMENTS.filter((instrument) =>
     `${instrument.name} ${instrument.version}`.toLocaleLowerCase().includes(searchTerm));
   const selectedCount = collectionIds.length + newAssessmentVersions.length;
 

@@ -27,7 +27,7 @@ test("assessment feature switches persist across simplified and full views", () 
   let state = createSeed();
   assert.equal(assessmentSchedulingEnabled(state.settings), false);
   assert.equal(assessmentContactLinkingEnabled(state.settings), true);
-  assert.equal(assessmentSmsEnabled(state.settings), false);
+  assert.equal(assessmentSmsEnabled(state.settings), true);
   state = feature(state, "scheduleAssessments", true);
   state = feature(state, "linkAssessmentAppointments", false);
   state = feature(state, "assessmentSms", true);
@@ -49,6 +49,16 @@ test("assessment feature switches persist across simplified and full views", () 
   assert.equal(state.settings.linkAssessmentAppointments, false);
   assert.equal(state.settings.assessmentSms, true);
   assert.deepEqual(upgradeSampleData(state).settings, state.settings);
+});
+
+test("Assessment SMS flow remains independently adjustable with Stage 2 off", () => {
+  let state = reducer(createSeed(), { type: "SET_ADVANCED_ASSESSMENT_OPTIONS", enabled: false });
+  assert.equal(assessmentSmsEnabled(state.settings), true);
+  state = feature(state, "assessmentSms", false);
+  assert.equal(assessmentSmsEnabled(state.settings), false);
+  assert.equal(feature(state, "scheduleAssessments", true), state);
+  state = feature(state, "assessmentSms", true);
+  assert.equal(assessmentSmsEnabled(state.settings), true);
 });
 
 test("turning a feature off hides its earlier history without deleting it", () => {

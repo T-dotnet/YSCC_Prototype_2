@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createSeed, getTasks, reducer } from "./model.js";
+import { createSeed, createDefaultWorkspace, getTasks, reducer } from "./model.js";
 import { DEMO_INSTRUMENT } from "./instruments.js";
 import { createSampleAnswers } from "./sampleQuestionnaires.js";
 
@@ -10,14 +10,15 @@ test("new sample workspaces use the selected assessment configuration", () => {
     scheduleAssessments: false,
     showAssessmentDueDates: true,
     groupAssessmentsByBundle: false,
+    bundleAccordions: false,
     automaticAssessmentDueDates: false,
     assessmentScheduleRules: [],
     linkAssessmentAppointments: true,
-    assessmentSms: false,
+    assessmentSms: true,
     uiColorSetup: 1,
   };
   assert.deepEqual(createSeed().settings, defaults);
-  assert.deepEqual(reducer(createSeed(), { type: "RESET" }).settings, defaults);
+  assert.deepEqual(reducer(createSeed(), { type: "RESET" }).settings, createDefaultWorkspace().settings);
 });
 
 test("simple assessments move from creation to draft to completion without a schedule or contact", () => {

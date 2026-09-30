@@ -1,16 +1,20 @@
 import { useRef, useState } from "react";
 import { ArrowRight, Eye } from "lucide-react";
-import { INSTRUMENTS } from "../instruments";
+import { INSTRUMENTS, STANDARD_INSTRUMENTS } from "../instruments";
+import { mvpAssessmentMode } from "../mvpAssessmentPathway";
+import { useStore } from "../store";
 import { ActionGroup, Button, Empty, Modal, Notice, SearchInput } from "./UI";
 import InstrumentPreview from "./InstrumentPreview";
 
 export default function InstrumentLibrary({ onClose }) {
+  const { state } = useStore();
+  const catalog = mvpAssessmentMode(state.settings) ? INSTRUMENTS : STANDARD_INSTRUMENTS;
   const [search, setSearch] = useState("");
   const [preview, setPreview] = useState(null);
   const [pendingFeature, setPendingFeature] = useState(null);
   const previewTrigger = useRef(null);
   const query = search.trim().toLowerCase();
-  const instruments = INSTRUMENTS.filter((instrument) =>
+  const instruments = catalog.filter((instrument) =>
     `${instrument.name} ${instrument.description} ${instrument.sections.map((section) => section.title).join(" ")}`
       .toLowerCase()
       .includes(query),
@@ -26,7 +30,7 @@ export default function InstrumentLibrary({ onClose }) {
       subtitle={
         preview
           ? preview.version
-          : `${INSTRUMENTS.length} sample instruments`
+          : `${catalog.length} sample instruments`
       }
       onClose={preview ? backToLibrary : onClose}
       closeLabel={preview ? "Close preview" : "Close dialog"}
@@ -49,7 +53,7 @@ export default function InstrumentLibrary({ onClose }) {
           placeholder="Search instruments"
         />
         <p className="muted" role="status">
-          {instruments.length} of {INSTRUMENTS.length} instruments
+          {instruments.length} of {catalog.length} instruments
         </p>
         <div className="instrument-list">
           {instruments.map((instrument) => (

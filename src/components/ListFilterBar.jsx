@@ -19,6 +19,8 @@ export default function ListFilterBar({
   activeAdvancedCount = 0,
   onClear,
   resultAction,
+  hideSearchRow = false,
+  hideTabs = false,
   className = "",
   open: controlledOpen,
   onOpenChange,
@@ -33,7 +35,7 @@ export default function ListFilterBar({
 
   return (
     <div className={`care-event-filter-bar list-filter-bar ${className}`.trim()}>
-      <FilterTabs
+      {!hideTabs && <FilterTabs
         id={id}
         label={label}
         panelId={panelId}
@@ -41,8 +43,8 @@ export default function ListFilterBar({
         value={value}
         onChange={onChange}
         items={items}
-      />
-      <div className="care-event-search-row">
+      />}
+      {!hideSearchRow && <div className="care-event-search-row">
         {advanced && <button
           type="button"
           className={`care-event-more-filters${activeAdvancedCount ? " has-active-filters" : ""}`}
@@ -57,8 +59,8 @@ export default function ListFilterBar({
           <ChevronDown size={16} aria-hidden="true" />
         </button>}
         <SearchInput value={query} onChange={onQueryChange} placeholder={placeholder} />
-      </div>
-      {advanced && <div id={`${id}-advanced-filters`} className="care-event-advanced-filters" hidden={!open}>
+      </div>}
+      {!hideSearchRow && advanced && <div id={`${id}-advanced-filters`} className="care-event-advanced-filters" hidden={!open}>
         {advanced}
       </div>}
       <p className="care-event-results-count" aria-live="polite">
