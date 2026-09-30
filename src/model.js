@@ -2771,7 +2771,7 @@ function upgradeIntakeFlow(state) {
 }
 
 export function upgradeSampleData(state) {
-  if (!state.settings || ["simpleAssessments", "scheduleAssessments", "showAssessmentDueDates", "linkAssessmentAppointments", "assessmentSms", "groupAssessmentsByBundle", "bundleAccordions"]
+  if (!state.settings || ["simpleAssessments", "scheduleAssessments", "showAssessmentDueDates", "linkAssessmentAppointments", "assessmentSms", "groupAssessmentsByBundle", "bundleAccordions", "advancedAssessmentOptions"]
     .some((feature) => typeof state.settings[feature] !== "boolean")) {
     state = {
       ...state,
@@ -2784,6 +2784,8 @@ export function upgradeSampleData(state) {
         assessmentSms: assessmentSmsEnabled(state.settings),
         groupAssessmentsByBundle: assessmentBundleGroupingEnabled(state.settings),
         bundleAccordions: assessmentBundleAccordionsEnabled(state.settings),
+        advancedAssessmentOptions: typeof state.settings?.advancedAssessmentOptions === "boolean"
+          ? state.settings.advancedAssessmentOptions : false,
       },
     };
   }
