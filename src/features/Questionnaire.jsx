@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useStore } from "../store";
 import { assessmentContactLinkingEnabled, assessmentSmsEnabled } from "../assessmentFeatures";
+import { mvpAssessmentMode } from "../mvpAssessmentPathway";
 import { canCollectInEpisode, displayFamilyName, displayPersonName, formatDate } from "../model";
 import {
   DEMO_INSTRUMENT,
@@ -28,6 +29,7 @@ export default function Questionnaire({ session, navigate, onEnd }) {
     e = episodeWithVisibleContacts(p?.episodes.find((e) => e.id === session?.episodeId), state.settings),
     c = e?.collections.find((c) => c.id === session?.collectionId);
   const simpleAssessments = !assessmentContactLinkingEnabled(state.settings);
+  const separateMeasuresContacts = mvpAssessmentMode(state.settings) && !!state.settings?.mvpSeparateMeasuresContacts;
   const [step, setStep] = useState(-1),
     [answers, setAnswers] = useState(() => [...(session ? (c?.draftAnswers || []) : [])]),
     [help, setHelp] = useState(false),
@@ -123,6 +125,7 @@ export default function Questionnaire({ session, navigate, onEnd }) {
     setStep(4);
   };
   const completeQuestions = (finalAnswers) => {
+    if (separateMeasuresContacts) return submit(finalAnswers);
     if (simpleAssessments && c?.channel === "Clinic tablet") {
       setPendingAnswers(finalAnswers);
       setSubmitError("");
@@ -255,7 +258,7 @@ export default function Questionnaire({ session, navigate, onEnd }) {
                         : "Requested by Northside Centre"}
                     </strong>
                     {p
-                      ? ` · ${session?.respondent === "Family respondent" ? displayFamilyName(p) : displayPersonName(p)} · ${session?.respondent === "Family respondent" ? "family contribution" : "own answers"}`
+                      ? session?.respondent === "Clinician" ? " · clinician response" : ` · ${session?.respondent === "Family respondent" ? displayFamilyName(p) : displayPersonName(p)} · ${session?.respondent === "Family respondent" ? "family contribution" : "own answers"}`
                       : " · no care record is updated"}
                   </p>
                   {instrument.timeframe && (
@@ -330,12 +333,12 @@ export default function Questionnaire({ session, navigate, onEnd }) {
                 onChange={setAnswers}
                 onSubmit={completeQuestions}
                 submitLabel={
-                  c?.channel === "Clinic tablet"
+                  separateMeasuresContacts ? "Complete assessment" : c?.channel === "Clinic tablet"
                     ? simpleAssessments ? "Confirm tablet assistance" : "Continue to completion details"
                     : undefined
                 }
                 completionNote={
-                  simpleAssessments && c?.channel === "Clinic tablet"
+                  separateMeasuresContacts ? undefined : simpleAssessments && c?.channel === "Clinic tablet"
                     ? "Next, confirm whether the tablet answers were completed independently or with assistance. Your answers have not been submitted yet."
                     : !simpleAssessments && c?.channel === "Clinic tablet" && linkedAppointment
                     ? `Next, choose the linked appointment on ${formatDate(linkedAppointment.plannedDate)} at ${linkedAppointment.plannedTime}, another existing contact, or a new contact. Your answers have not been submitted yet.`
@@ -351,7 +354,7 @@ export default function Questionnaire({ session, navigate, onEnd }) {
             {!pendingAnswers && (
               <div className="participant-help">
                 {!preview && (
-                  <button onClick={() => { setSubmitError(""); if (!dirty && answers.some(Boolean)) { end(); returnToStaff(); } else if (answers.some(Boolean)) setSaveContactOpen(true); else saveProgress({ kind: "none" }); }}>Save as draft and leave</button>
+                  <button onClick={() => { setSubmitError(""); if (separateMeasuresContacts) saveProgress({ kind: "none" }); else if (!dirty && answers.some(Boolean)) { end(); returnToStaff(); } else if (answers.some(Boolean)) setSaveContactOpen(true); else saveProgress({ kind: "none" }); }}>Save as draft and leave</button>
                 )}
                 <button onClick={() => setHelp(true)}>
                   <LifeBuoy size={18} />

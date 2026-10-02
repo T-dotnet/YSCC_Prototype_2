@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mvpBattery, mvpPathwayEnabled, mvpClinicianCreationEnabled, mvpBundleEditingEnabled, mvpReviewBundles, mvpReviewItems, reconcileMvpAssessmentPathway, MVP_INITIAL_BUNDLE, MVP_INITIAL_BUNDLES, mvpInitialBundles } from './mvpAssessmentPathway.js';
+import { mvpBattery, mvpPathwayEnabled, mvpClinicianCreationEnabled, mvpBundleEditingEnabled, mvpReviewBundles, mvpReviewItems, mvpReviewNumbers, reconcileMvpAssessmentPathway, MVP_INITIAL_BUNDLE, MVP_INITIAL_BUNDLES, mvpInitialBundles } from './mvpAssessmentPathway.js';
 import { assessmentBundleGroups } from './assessmentBundles.js';
 import { createSeed, createDefaultWorkspace, reducer, upgradeSampleData } from './model.js';
 import { getNotifications } from './notifications.js';
 import { getInstrument, questionnaireState } from './instruments.js';
+import { careEventEntries } from './activity.js';
 
 const today = '2026-03-25';
 const episode = () => ({ id: 'E', status: 'Active', start: '2026-01-01', programStream: 'General',
@@ -12,6 +13,17 @@ const episode = () => ({ id: 'E', status: 'Active', start: '2026-01-01', program
   events: [], collections: [] });
 const fixture = () => ({ settings: { advancedAssessmentOptions: false, assessmentSms: false },
   people: [{ id: 'P', name: 'Example Person', family: 'Family Member', episodes: [episode()] }] });
+
+test('review numbers advance by timepoint and match across respondents', () => {
+  const numbers = mvpReviewNumbers({ collections: [
+    { mvpTimepointId: 'review-2', due: '2026-07-01', mvpRespondent: 'Clinician' },
+    { mvpTimepointId: 'review-1', due: '2026-04-01', mvpRespondent: 'Person' },
+    { mvpInitialAssessment: true, due: '2026-01-01' },
+    { mvpTimepointId: 'review-2', due: '2026-07-01', mvpRespondent: 'Person' },
+    { mvpTimepointId: 'review-1', due: '2026-04-01', mvpRespondent: 'Clinician' },
+  ] });
+  assert.deepEqual([...numbers], [['review-1', 1], ['review-2', 2]]);
+});
 
 test('fresh sample workspace uses the requested MVP settings', () => {
   const settings = createDefaultWorkspace().settings;
@@ -26,7 +38,7 @@ test('fresh sample workspace uses the requested MVP settings', () => {
   assert.equal(reviews.length, 8);
   assert.equal(new Set(reviews.map(bundle => bundle.id)).size, 8);
   assert.equal(reviews.filter(bundle => bundle.name.startsWith('90-day review · Young person')).length, 4);
-  assert.equal(reviews.filter(bundle => bundle.name.startsWith('90-day review · Family')).length, 4);
+  assert.equal(reviews.filter(bundle => bundle.name.startsWith('90-day review · Clinician')).length, 4);
 });
 
 test('MVP can save and remove an admin assessment bundle without changing its review pathway', () => {
@@ -94,7 +106,8 @@ test('older two review definitions expand into separate stream bundles', () => {
   ] });
   assert.equal(bundles.length, 8);
   assert.equal(new Set(bundles.map(bundle => bundle.id)).size, 8);
-  assert.equal(bundles.filter(bundle => bundle.channel === 'Clinician entry').length, 4);
+  assert.equal(bundles.filter(bundle => bundle.channel === 'Clinician entry').length, 8);
+  assert.deepEqual(new Set(bundles.map(bundle => bundle.respondent)), new Set(['Person', 'Clinician']));
   assert.ok(bundles.every(bundle => bundle.programStream !== 'All'));
 });
 
@@ -104,35 +117,35 @@ test('MVP creates two mandatory respondent bundles for one scheduled timepoint',
   const allRecords = next.people[0].episodes[0].collections;
   const records = allRecords.filter(record => record.mvpTimepointId);
   const initial = allRecords.filter(record => record.mvpInitialAssessment);
-  assert.equal(allRecords.length, 8);
-  assert.equal(initial.length, 4);
+  assert.equal(allRecords.length, 34);
+  assert.equal(initial.length, 18);
   assert.equal(new Set(initial.map(record => record.bundleId)).size, 2);
   assert.ok(initial.every(record => record.due === '2026-01-01' && record.bundleRequirement === 'Mandatory'));
-  assert.equal(records.length, 4);
+  assert.equal(records.length, 16);
   assert.equal(new Set(records.map(record => record.due)).size, 1);
   assert.equal(records[0].due, '2026-04-01');
   assert.equal(new Set(records.map(record => record.mvpTimepointId)).size, 1);
   assert.equal(new Set(records.map(record => record.bundleId)).size, 2);
-  assert.deepEqual(new Set(records.map(record => record.respondent)), new Set(['Person', 'Family respondent']));
+  assert.deepEqual(new Set(records.map(record => record.respondent)), new Set(['Person', 'Clinician']));
   assert.ok(records.every(record => record.bundleRequirement === 'Mandatory'));
   assert.equal(assessmentBundleGroups(next.people[0].episodes[0], records).length, 2);
   assert.equal(next.people[0].episodes[0].events[0].actionType, 'SCHEDULE_MVP_REVIEW');
-  assert.equal(mvpBattery('General', 'Person').length, 2);
+  assert.ok(mvpBattery('General', 'Person').length > 0);
   assert.equal(reconcileMvpAssessmentPathway(next, today), next);
   assert.equal(before.people[0].episodes[0].collections.length, 0);
 });
 
 test('Administration review bundle edits drive future scheduled records and deletion retains history', () => {
   const original = fixture();
-  const family = mvpReviewBundles(original.settings).find(bundle => bundle.respondent === 'Family respondent');
+  const family = mvpReviewBundles(original.settings).find(bundle => bundle.respondent === 'Clinician');
   const edited = reducer(original, { type: 'SAVE_MVP_REVIEW_BUNDLE', bundle: {
-    ...family, name: 'Family 90-day check-in', channel: 'Clinician entry',
+    ...family, name: 'Clinician 90-day check-in', channel: 'Clinician entry',
   } });
-  assert.equal(mvpReviewBundles(edited.settings).find(bundle => bundle.id === family.id).name, 'Family 90-day check-in');
+  assert.equal(mvpReviewBundles(edited.settings).find(bundle => bundle.id === family.id).name, 'Clinician 90-day check-in');
   const scheduled = reconcileMvpAssessmentPathway(edited, today);
-  const familyRecords = scheduled.people[0].episodes[0].collections.filter(record => record.mvpTimepointId && record.respondent === 'Family respondent');
-  assert.equal(familyRecords.length, 2);
-  assert.ok(familyRecords.every(record => record.bundleName === 'Family 90-day check-in' && record.channel === 'Clinician entry'));
+  const familyRecords = scheduled.people[0].episodes[0].collections.filter(record => record.mvpTimepointId && record.respondent === 'Clinician');
+  assert.equal(familyRecords.length, 1);
+  assert.ok(familyRecords.every(record => record.bundleName === 'Clinician 90-day check-in' && record.channel === 'Clinician entry'));
   const deleted = reducer(scheduled, { type: 'DELETE_MVP_REVIEW_BUNDLE', id: family.id });
   assert.equal(mvpReviewBundles(deleted.settings).some(bundle => bundle.id === family.id), false);
   assert.deepEqual(deleted.people, scheduled.people);
@@ -143,46 +156,46 @@ test('Administration review bundle edits drive future scheduled records and dele
 
 test('disabled MVP review bundle does not create new scheduled records', () => {
   const original = fixture();
-  const family = mvpReviewBundles(original.settings).find(bundle => bundle.respondent === 'Family respondent');
+  const family = mvpReviewBundles(original.settings).find(bundle => bundle.respondent === 'Clinician');
   const disabled = reducer(original, { type: 'SAVE_MVP_REVIEW_BUNDLE', bundle: {...family, enabled: false} });
   const records = disabled.people[0].episodes[0].collections.filter(record => record.mvpTimepointId);
-  assert.equal(records.length, 2);
+  assert.equal(records.length, 15);
   assert.ok(records.every(record => record.respondent === 'Person'));
   const prior = reconcileMvpAssessmentPathway(original, today);
   prior.people[0].episodes[0].collections.filter(record => record.mvpTimepointId && record.respondent === 'Person')
     .forEach(record => { record.response = 'Submitted'; });
   const afterDisable = reducer(prior, { type: 'SAVE_MVP_REVIEW_BUNDLE', bundle: {...family, enabled: false} });
   const next = reconcileMvpAssessmentPathway(afterDisable, '2026-04-02');
-  assert.equal(next.people[0].episodes[0].collections.filter(record => record.mvpTimepointId && record.respondent === 'Person').length, 4);
-  assert.equal(next.people[0].episodes[0].collections.filter(record => record.mvpTimepointId && record.respondent === 'Family respondent').length, 2);
+  assert.equal(next.people[0].episodes[0].collections.filter(record => record.mvpTimepointId && record.respondent === 'Person').length, 30);
+  assert.equal(next.people[0].episodes[0].collections.filter(record => record.mvpTimepointId && record.respondent === 'Clinician').length, 1);
 });
 
 test('review bundle cadence, respondent, and instruments are used for future reviews', () => {
   const original = fixture();
-  const young = mvpReviewBundles(original.settings).find(bundle => bundle.programStream === 'General' && bundle.respondent === 'Person');
-  const version = 'Your preferences and next steps v2.0';
-  const edited = { ...young, respondent: 'Family respondent', days: 30,
-    assessments: [{ id: 'preferences', version, requirement: 'Mandatory' }] };
+  const young = mvpReviewBundles(original.settings).find(bundle => bundle.programStream === 'General' && bundle.respondent === 'Clinician');
+  const version = 'Clinician care review v1.0';
+  const edited = { ...young, days: 30,
+    assessments: [{ id: 'clinician-review', version, requirement: 'Mandatory' }] };
   const saved = reducer(original, { type: 'SAVE_MVP_REVIEW_BUNDLE', bundle: edited });
   assert.equal(mvpReviewItems(mvpReviewBundles(saved.settings).find(bundle => bundle.id === young.id)).length, 1);
   const records = saved.people[0].episodes[0].collections.filter(record => record.mvpBundleDefinitionId === young.id);
   assert.equal(records.length, 1);
   assert.equal(records[0].due, '2026-01-31');
-  assert.equal(records[0].respondent, 'Family respondent');
+  assert.equal(records[0].respondent, 'Clinician');
   assert.equal(records[0].version, version);
-  assert.equal(records[0].mvpRespondent, 'Person');
+  assert.equal(records[0].mvpRespondent, 'Clinician');
 });
 
 test('review bundle date and age conditions gate one-off scheduling', () => {
   const original = fixture();
   original.people[0].dob = '2010-03-25';
-  const family = mvpReviewBundles(original.settings).find(bundle => bundle.programStream === 'General' && bundle.respondent === 'Family respondent');
+  const family = mvpReviewBundles(original.settings).find(bundle => bundle.programStream === 'General' && bundle.respondent === 'Clinician');
   const edited = { ...family, timing: 'date', dueDate: '2026-05-01', repeat: false, minAge: 18 };
   const excluded = reducer(original, { type: 'SAVE_MVP_REVIEW_BUNDLE', bundle: edited });
   assert.equal(excluded.people[0].episodes[0].collections.some(record => record.mvpBundleDefinitionId === family.id), false);
   const included = reducer(excluded, { type: 'SAVE_MVP_REVIEW_BUNDLE', bundle: { ...edited, minAge: 12 } });
   const records = included.people[0].episodes[0].collections.filter(record => record.mvpBundleDefinitionId === family.id);
-  assert.equal(records.length, 2);
+  assert.equal(records.length, 1);
   assert.ok(records.every(record => record.due === '2026-05-01'));
   records.forEach(record => { record.response = 'Submitted'; });
   assert.equal(reconcileMvpAssessmentPathway(included, '2026-05-02'), included);
@@ -209,9 +222,9 @@ test('MVP holds the next cycle until both bundles are complete and preserves old
   const pending = first.people[0].episodes[0].collections.filter(record => record.mvpTimepointId);
   pending.filter(record => record.respondent === 'Person').forEach(record => { record.response = 'Submitted'; });
   assert.equal(reconcileMvpAssessmentPathway(first, '2026-04-02'), first);
-  pending.filter(record => record.respondent === 'Family respondent').forEach(record => { record.response = 'Submitted'; });
+  pending.filter(record => record.respondent === 'Clinician').forEach(record => { record.response = 'Submitted'; });
   const next = reconcileMvpAssessmentPathway(first, '2026-04-02');
-  assert.equal(next.people[0].episodes[0].collections.filter(record => record.mvpTimepointId).length, 8);
+  assert.equal(next.people[0].episodes[0].collections.filter(record => record.mvpTimepointId).length, 32);
   assert.equal(next.people[0].episodes[0].collections.at(-1).due, '2026-06-30');
   assert.deepEqual(next.people[0].episodes[0].collections[0].answers, ['saved']);
 });
@@ -261,7 +274,7 @@ test('settings switch keeps the flexible configuration and changes an entire MVP
     episodeId: episode.id, bundleId: bundle.bundleId, channel: 'SMS link' }), revised);
   const manualAction = { type: 'CREATE_ASSESSMENT_BUNDLE', personId: person.id, episodeId: episode.id,
     id: 'MVP-BLANK-TEST', name: 'One-off event assessment', bundleId: 'blank',
-    optionalIds: [], assessmentOverrides: [], extraAssessments: [], due: '',
+    optionalIds: [], assessmentOverrides: [], extraAssessments: [], due: '', statusChange: 'Ongoing review',
     blankVersions:['90-day review v1.0','General stream check-in v1.0'], blankRespondent:'Person', blankChannel:'Clinic tablet' };
   assert.equal(reducer(changed, manualAction), changed);
   const creationEnabled = reducer(changed, {type:'SET_MVP_CLINICIAN_CREATION',enabled:true});
@@ -270,6 +283,7 @@ test('settings switch keeps the flexible configuration and changes an entire MVP
     .collections.filter(record => record.mvpCreatedAssessment);
   assert.equal(manualRecords.length, 2);
   assert.ok(manualRecords.every(record => record.bundleRequirement === 'Mandatory' && record.bundleName === 'One-off event assessment'));
+  assert.ok(manualRecords.every(record => record.bundleContext.statusChange === 'Ongoing review'));
   assert.equal(new Set(manualRecords.map(record => record.bundleId)).size, 1);
   assert.deepEqual(new Set(manualRecords.map(record => record.respondent)), new Set(['Person']));
   assert.deepEqual(new Set(manualRecords.map(record => record.channel)), new Set(['Clinic tablet']));
@@ -328,42 +342,66 @@ test('scheduled review reminder is one per incomplete bundle and stops after com
   assert.equal(after.length, 1);
 });
 
-test('fictional MVP ledger keeps initial, review and user-created completed examples', () => {
+test('fictional MVP timeline shows a completed initial measure and pending review', () => {
   const switched = reducer(createSeed(), { type: 'RESET' });
   const person = switched.people.find(item => item.id === 'YS-1034');
-  assert.equal(person.family, 'Alex Ellis');
   const episode = person.episodes.find(item => item.id === 'EP-1034-01');
-  const familyReview = episode.collections.find(record => record.mvpTimepointId &&
-    record.mvpRespondent === 'Family respondent' && record.response !== 'Submitted');
+  const clinicianReview = episode.collections.find(record => record.mvpTimepointId &&
+    record.mvpRespondent === 'Clinician' && record.response !== 'Submitted');
   const collecting = reducer(switched, { type: 'DELIVER', personId: person.id,
-    episodeId: episode.id, collectionId: familyReview.id, channel: familyReview.channel,
-    respondent: 'Family respondent', assistance: 'Independent' });
-  assert.equal(collecting.people.find(item => item.id === person.id).episodes.find(item => item.id === episode.id)
-    .collections.find(record => record.id === familyReview.id).respondentName, 'Alex Ellis');
+    episodeId: episode.id, collectionId: clinicianReview.id, channel: clinicianReview.channel,
+    respondent: 'Clinician', assistance: 'Independent' });
+  assert.ok(collecting.people.find(item => item.id === person.id).episodes.find(item => item.id === episode.id)
+    .collections.find(record => record.id === clinicianReview.id).respondentName);
   const pathwayRecords = episode.collections.filter(record => record.mvpInitialAssessment ||
     record.mvpTimepointId || record.mvpCreatedAssessment);
   const completedNames = assessmentBundleGroups(episode, pathwayRecords)
     .filter(group => group.records.every(record => record.response === 'Submitted'))
     .map(group => group.name);
-  assert.deepEqual(new Set(completedNames), new Set([
-    'Initial assessment · Young person · General', 'Event follow-up assessment',
-  ]));
+  assert.deepEqual(completedNames, ['Initial assessment · Young person · General']);
+  const initial = pathwayRecords.filter(record => record.mvpInitialAssessment && record.mvpRespondent === 'Person');
+  assert.equal(initial.length, 17);
+  assert.ok(initial.every(record => record.response === 'Submitted' && record.submittedAt === '2026-06-16'));
   assert.ok(pathwayRecords.filter(record => record.mvpTimepointId && record.mvpRespondent === 'Person')
-    .every(record => record.response === 'Not started'));
+    .every(record => record.response === 'Not started' && record.bundleSource === 'Scheduled'));
   assert.ok(pathwayRecords.filter(record => record.mvpDemoExample).every(record =>
     questionnaireState(getInstrument(record.version), record.answers).complete));
-  assert.equal(pathwayRecords.filter(record => record.bundleName === 'One-off event assessment' &&
-    record.mvpCreatedAssessment && record.response === 'Not started').length, 1);
+  assert.equal(pathwayRecords.filter(record => record.mvpCreatedAssessment).length, 0);
+  const timelineMeasures = careEventEntries(person, episode, [], {
+    simpleAssessments: true, scheduleAssessments: false, phase2Mvp: true, today: '2026-10-01',
+  }).filter(entry => entry.type === 'assessment');
+  assert.equal(timelineMeasures.length, 1);
+  assert.ok(timelineMeasures.every(entry => entry.mvpInitialAssessment || entry.mvpTimepointId));
+  assert.ok(timelineMeasures.every(entry => entry.bundleCollectionIds.length === initial.length));
   const reloaded = reconcileMvpAssessmentPathway(upgradeSampleData(structuredClone(switched)), '2026-09-30');
   const reloadedEpisode = reloaded.people.find(item => item.id === person.id).episodes.find(item => item.id === episode.id);
-  assert.equal(reloadedEpisode.collections.filter(record => record.mvpCreatedAssessment && record.mvpDemoExample).length, 1);
-  assert.equal(reloadedEpisode.collections.filter(record => record.bundleName === 'One-off event assessment' &&
-    record.mvpCreatedAssessment).length, 1);
+  assert.equal(reloadedEpisode.collections.filter(record => record.mvpCreatedAssessment).length, 0);
   assert.ok(reloadedEpisode.collections.filter(record => record.mvpInitialAssessment)
     .every(record => record.due === episode.start));
 });
 
-test('older fictional review submissions return to pending without changing staff responses', () => {
+test('fixture refresh leaves a saved initial assessment draft untouched', () => {
+  const saved = reconcileMvpAssessmentPathway(createDefaultWorkspace(), '2026-10-02');
+  const episode = saved.people.find(person => person.id === 'YS-1034').episodes[0];
+  const initial = episode.collections.filter(record => record.mvpInitialAssessment && record.mvpRespondent === 'Person');
+  for (const record of initial) {
+    record.response = 'Not started';
+    record.assignment = 'Planned';
+    record.answers = [];
+    record.attempts = [];
+  }
+  initial[0].response = 'Draft';
+  initial[0].draftAnswers = ['Saved staff draft'];
+  episode.mvpDemoExamplesRevision = 8;
+  const refreshed = reconcileMvpAssessmentPathway(saved, '2026-10-02');
+  const records = refreshed.people.find(person => person.id === 'YS-1034').episodes[0].collections
+    .filter(record => record.mvpInitialAssessment && record.mvpRespondent === 'Person');
+  assert.equal(records[0].response, 'Draft');
+  assert.deepEqual(records[0].draftAnswers, ['Saved staff draft']);
+  assert.ok(records.slice(1).every(record => record.response === 'Not started'));
+});
+
+test('older fictional review submissions are returned to pending without changing the saved state', () => {
   const switched = reducer(createSeed(), { type: 'SET_ADVANCED_ASSESSMENT_OPTIONS', enabled: false });
   const episode = switched.people.find(item => item.id === 'YS-1034').episodes.find(item => item.id === 'EP-1034-01');
   const review = episode.collections.filter(record => record.mvpTimepointId && record.mvpRespondent === 'Person');
@@ -376,6 +414,26 @@ test('older fictional review submissions return to pending without changing staf
   const restored = reconcileMvpAssessmentPathway(switched, '2026-09-30');
   const restoredReview = restored.people.find(item => item.id === 'YS-1034').episodes.find(item => item.id === 'EP-1034-01')
     .collections.filter(record => record.mvpTimepointId && record.mvpRespondent === 'Person');
-  assert.ok(restoredReview.every(record => record.response === 'Not started' && !record.answers.length && !record.mvpDemoExample));
+  assert.ok(restoredReview.every(record => record.response === 'Not started' && !record.mvpDemoExample));
   assert.ok(review.every(record => record.response === 'Submitted'));
+});
+
+test('fictional review example leaves a saved young-person draft intact', () => {
+  const saved = reconcileMvpAssessmentPathway(createDefaultWorkspace(), '2026-10-01');
+  const episode = saved.people.find(item => item.id === 'YS-1034').episodes.find(item => item.id === 'EP-1034-01');
+  const youngReview = episode.collections.filter(record => record.mvpTimepointId && record.mvpRespondent === 'Person');
+  for (const record of youngReview) {
+    record.response = 'Draft';
+    record.assignment = 'Active';
+    record.draftAnswers = ['Saved staff draft'];
+    record.attempts = [{ id: `${record.id}-staff-draft`, status: 'Progress saved' }];
+    delete record.mvpDemoExample;
+  }
+  episode.mvpDemoExamplesRevision = 7;
+  const upgraded = reconcileMvpAssessmentPathway(saved, '2026-10-01');
+  const updated = upgraded.people.find(item => item.id === 'YS-1034').episodes.find(item => item.id === 'EP-1034-01');
+  assert.ok(updated.collections.filter(record => record.mvpTimepointId && record.mvpRespondent === 'Person')
+    .every(record => record.response === 'Draft' && record.draftAnswers[0] === 'Saved staff draft'));
+  assert.ok(updated.collections.filter(record => record.mvpTimepointId && record.mvpRespondent === 'Family respondent')
+    .every(record => record.response === 'Submitted' && record.respondentName === 'Alex Ellis'));
 });

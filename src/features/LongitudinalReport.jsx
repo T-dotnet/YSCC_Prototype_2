@@ -93,10 +93,10 @@ function reportLanes(timeline) {
   ];
 }
 
-export function hasCareTimelineEntries(episode, { simpleAssessments = false, scheduleAssessments = true, assessmentSms = true } = {}) {
+export function hasCareTimelineEntries(episode, { simpleAssessments = false, scheduleAssessments = true, assessmentSms = true, mvpReport = false } = {}) {
   const timeline = careTimelineData(episode, { simpleAssessments, scheduleAssessments, assessmentSms });
-  return reportLanes(timeline).some((lane) => lane.entries.length > 0) ||
-    timeline.lanes.some((lane) => lane.id === "k10" && lane.entries.length > 0);
+  return reportLanes(timeline).some((lane) => (!mvpReport || lane.group === "care") && lane.entries.length > 0) ||
+    !mvpReport && timeline.lanes.some((lane) => lane.id === "k10" && lane.entries.length > 0);
 }
 
 function sourceRecord(episode, entry) {
@@ -426,19 +426,20 @@ function SharedTimeline({
   undated,
   isVisible = true,
   onToggle,
+  mvpReport = false,
 }) {
-  const allLanes = reportLanes(timeline);
+  const allLanes = reportLanes(timeline).filter((lane) => !mvpReport || lane.group === "care");
   const k10Points = k10Series(episode).points;
   const k10Entries =
-    timeline.lanes.find((lane) => lane.id === "k10")?.entries || [];
+    mvpReport ? [] : timeline.lanes.find((lane) => lane.id === "k10")?.entries || [];
   const plottedEntries = [...allLanes.flatMap((lane) => lane.entries), ...k10Entries];
   const plotRange = timelineExtent(plottedEntries);
   const [activeGroup, setActiveGroup] = useState("all");
   const [selectedId, setSelectedId] = useState(null);
   const visibleLanes = allLanes.filter(
-    (lane) => activeGroup === "all" || lane.group === activeGroup,
+    (lane) => mvpReport || activeGroup === "all" || lane.group === activeGroup,
   );
-  const showMeasure = activeGroup === "all" || activeGroup === "measure";
+  const showMeasure = !mvpReport && (activeGroup === "all" || activeGroup === "measure");
   const visibleEntries = [
     ...visibleLanes.flatMap((lane) => lane.entries),
     ...(showMeasure ? k10Entries : []),
@@ -490,7 +491,7 @@ function SharedTimeline({
       </header>
       {isVisible && (visibleEntries.length ? (
         <>
-          <div className="longitudinal-view-toolbar">
+          {!mvpReport && <div className="longitudinal-view-toolbar">
             <span>Show tracks</span>
             <div
               className="longitudinal-filter"
@@ -510,7 +511,7 @@ function SharedTimeline({
                 </button>
               ))}
             </div>
-          </div>
+          </div>}
           <div className="longitudinal-key" aria-label="Timeline key">
             <strong>How to read this timeline</strong>
             <span>
@@ -523,7 +524,7 @@ function SharedTimeline({
               <i className="longitudinal-key-medication-bar" /> Medication
               course
             </span>
-            <span>
+            {!mvpReport && <><span>
               <i className="longitudinal-key-event" /> Contextual event
             </span>
             <span>
@@ -531,7 +532,7 @@ function SharedTimeline({
             </span>
             <span>
               <i className="longitudinal-key-goal" /> Dated goal milestone
-            </span>
+            </span></>}
           </div>
           <div
             className="longitudinal-scroll"
@@ -683,7 +684,7 @@ function SharedTimeline({
         proximity does not show that one caused a change in an answer or
         outcome.
       </p>}
-      {isVisible && undated > 0 && (
+      {isVisible && !mvpReport && undated > 0 && (
         <p className="longitudinal-caveat">
           {undated} submitted response{undated === 1 ? " has" : "s have"} no
           valid submission date and cannot appear on this timeline.
@@ -901,7 +902,7 @@ function CareAndMedicationChart({ timeline }) {
   );
 }
 
-export function CareTimeline({ person, episode, navigate, isVisible, onToggle, simpleAssessments = false, scheduleAssessments = true, linkAssessmentAppointments = true, assessmentSms = true }) {
+export function CareTimeline({ person, episode, navigate, isVisible, onToggle, simpleAssessments = false, scheduleAssessments = true, linkAssessmentAppointments = true, assessmentSms = true, mvpReport = false }) {
   const timeline = careTimelineData(episode, { simpleAssessments, scheduleAssessments, assessmentSms });
   const evidence = reportEvidence(person, episode);
 
@@ -928,6 +929,7 @@ export function CareTimeline({ person, episode, navigate, isVisible, onToggle, s
       undated={evidence.undated.length}
       isVisible={isVisible}
       onToggle={onToggle}
+      mvpReport={mvpReport}
     />
   );
 }

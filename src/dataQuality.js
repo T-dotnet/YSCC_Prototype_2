@@ -72,7 +72,7 @@ const RULES = [
     group: "mandatory",
     label: "Intake outcome",
     workflow: "Intake",
-    applicable: (person) => Boolean(person.episodes?.length),
+    applicable: (person) => Boolean(person.episodes?.length) && !person.mvpProfile,
     complete: (person) => completedIntake(person),
   },
   {

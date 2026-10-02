@@ -11,14 +11,16 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { CareTimeline, hasCareTimelineEntries } from "./LongitudinalReport";
-import { ActionGroup, Button, Modal, Panel, Checkbox } from "../components/UI";
+import { Button, Modal, Panel, Checkbox } from "../components/UI";
 import StandardTable from "../components/StandardTable";
-import ReportingIndicator from "../components/ReportingIndicator";
+import ChartCard from "../components/ReportChartCard";
 import { GOVERNED_MEASURES } from "../measureGovernance";
 import { formatDate } from "../model";
 import { currentCollection } from "../workflow";
 import { useStore } from "../store";
 import { assessmentSchedulingEnabled, assessmentContactLinkingEnabled, assessmentSmsEnabled } from "../assessmentFeatures";
+import { appTerm } from "../terminology.js";
+import { mvpAssessmentMode } from "../mvpAssessmentPathway.js";
 import {
   episodeOutcomeRecords,
   isCompletedScore,
@@ -42,44 +44,6 @@ const axis = ({ fullWidth = false, className = "" } = {}) => (
 
 const point = (month, value) => `${(month / 18) * 100},${100 - value}`;
 const pointEdge = (position) => position < 28 ? "start" : position > 72 ? "end" : undefined;
-
-function ChartCard({
-  title,
-  description,
-  children,
-  className = "",
-  isVisible = true,
-  onToggle,
-  reportingType = "context",
-  showReportingIndicator = true,
-}) {
-  return (
-    <section
-      className={`record-two-card ${className}${isVisible ? "" : " report-section-collapsed"}`}
-    >
-      <header>
-        <div>
-          <h3>{title}</h3>
-          <p>{description}</p>
-        </div>
-        <ActionGroup className="record-two-header-actions">
-          {showReportingIndicator && <ReportingIndicator type={reportingType} />}
-          {onToggle && (
-            <button
-              type="button"
-              className="report-section-toggle"
-              aria-expanded={isVisible}
-              onClick={onToggle}
-            >
-              {isVisible ? "Hide" : "Show"}
-            </button>
-          )}
-        </ActionGroup>
-      </header>
-      {isVisible && children}
-    </section>
-  );
-}
 
 function Symptoms() {
   const [selected, setSelected] = useState(null);
@@ -266,7 +230,7 @@ function LineChart() {
   return (
     <ChartCard
       title="Activity rating over time"
-      description="The line shows the trajectory between recorded activity assessments."
+      description={`The line shows the trajectory between recorded ${appTerm("measures").toLowerCase()}.`}
       showReportingIndicator={false}
     >
       <div className="record-two-line-wrap">
@@ -652,6 +616,23 @@ function OutcomeMeasureCard({
   );
 }
 
+function scoreTone(record, measure) {
+  if (!isCompletedScore(record)) return null;
+  const [minimum, maximum] = measure.scoreRange || [];
+  if (!Number.isFinite(minimum) || !Number.isFinite(maximum) || maximum <= minimum) return null;
+  const position = Math.max(0, Math.min(1, (Number(record.value) - minimum) / (maximum - minimum)));
+  if (position < 1 / 3) return "low";
+  if (position < 2 / 3) return "medium";
+  return "high";
+}
+
+function ScoreColourKey({ className = "" }) {
+  return <div className={`report-matrix-key${className ? ` ${className}` : ""}`}>
+    <span>Lower recorded score</span><span className="report-matrix-gradient" aria-hidden="true" /><span>Higher recorded score</span>
+    <small>Green, amber and coral show lower, middle and higher scores within each measure's scale. Colour does not indicate severity or improvement.</small>
+  </div>;
+}
+
 function OutcomeComparison({ measures }) {
   const [selectedKeys, setSelectedKeys] = useState(
     measures.slice(0, 2).map((measure) => measure.key),
@@ -710,12 +691,13 @@ function OutcomeComparison({ measures }) {
                     <th scope="row"><time dateTime={date}>{formatDate(date)}</time></th>
                     {selectedMeasures.map((measure) => {
                       const record = measure.records.find((item) => item.date === date);
+                      const tone = scoreTone(record, measure);
                       return (
                         <td key={measure.key} data-label={measure.displayName}>
                           {record ? (
                             isCompletedScore(record) ? (
-                              <span className="outcome-comparison-score">
-                                <strong>{record.value}</strong>
+                              <span className={`outcome-comparison-score${tone ? ` has-score score-${tone}` : ""}`}>
+                                <strong>{record.value}{measure.scoreRange?.[1] != null ? ` / ${measure.scoreRange[1]}` : ""}</strong>
                               </span>
                             ) : statusLabel(record.status)
                           ) : <span className="outcome-comparison-unrecorded">Not recorded</span>}
@@ -729,6 +711,7 @@ function OutcomeComparison({ measures }) {
         ) : (
           <p className="outcome-comparison-empty">Select a measure to compare.</p>
         )}
+        {selectedMeasures.length > 0 && <ScoreColourKey className="outcome-comparison-key" />}
       </div>
     </div>
   );
@@ -852,6 +835,72 @@ function OutcomeMeasureCards({ episode, onShowResponses }) {
       )}
     </>
   );
+}
+
+function OutcomeMeasureMatrix({ episode }) {
+  const measures = outcomeMeasuresFor(episode).filter((measure) => measure.records.length);
+  const collections = new Map((episode.collections || []).map((collection) => [collection.id, collection]));
+  const rounds = [];
+  const datedRecords = measures.flatMap((measure) => measure.records.map((record) => ({ measure, record })))
+    .filter(({ record }) => /^\d{4}-\d{2}-\d{2}$/.test(record.date || ""))
+    .sort((a, b) => a.record.date.localeCompare(b.record.date));
+  datedRecords.forEach(({ measure, record }) => {
+    const timepointId = collections.get(record.sourceCollectionId)?.mvpTimepointId;
+    const recordedAt = Date.parse(`${record.date}T12:00:00Z`);
+    let round = timepointId
+      ? rounds.find((item) => item.timepointId === timepointId)
+      : rounds.find((item) => !item.timepointId && recordedAt - Date.parse(`${item.dates[0]}T12:00:00Z`) <= 14 * 86400000);
+    if (!round) {
+      round = { key: timepointId || `round-${record.date}`, timepointId, dates: [], records: new Map() };
+      rounds.push(round);
+    }
+    round.dates.push(record.date);
+    const scores = round.records.get(measure.key) || [];
+    scores.push(record);
+    round.records.set(measure.key, scores);
+  });
+  const orderedRounds = rounds.sort((a, b) => a.dates[0].localeCompare(b.dates[0]));
+  if (!orderedRounds.length) return null;
+  const roundDate = (round) => {
+    const dates = [...round.dates].sort();
+    return dates[0] === dates.at(-1)
+      ? formatDate(dates[0])
+      : `${formatDate(dates[0])} – ${formatDate(dates.at(-1))}`;
+  };
+  return <section className="report-outcome-matrix" aria-labelledby="report-outcome-matrix-heading">
+    <div className="report-section-heading">
+      <div>
+        <h3 id="report-outcome-matrix-heading">Outcome measure matrix</h3>
+        <p>Results from the same review or nearby dates are grouped together. Each score keeps its own date and scale.</p>
+      </div>
+    </div>
+    <StandardTable label="Outcome measure results" variant="comparison" responsive={false} scrollClassName="outcome-comparison-table-wrap">
+      <thead><tr>
+        <th scope="col">Measure</th>
+        {orderedRounds.map((round, index) => <th scope="col" key={round.key}>
+          <span>Review {index + 1}</span><small>{roundDate(round)}</small>
+        </th>)}
+      </tr></thead>
+      <tbody>
+        {measures.map((measure) => <tr key={measure.key}>
+          <th scope="row">{measure.displayName}</th>
+          {orderedRounds.map((round, index) => {
+            const records = round.records.get(measure.key) || [];
+            return <td key={round.key} data-label={`Review ${index + 1}`}>
+              {records.length ? records.map((record) => {
+                const tone = scoreTone(record, measure);
+                return <span className={`report-matrix-result${tone ? ` has-score score-${tone}` : ""}`} key={record.id}>
+                  <strong>{isCompletedScore(record) ? `${record.value} / ${measure.scoreRange?.[1] ?? 100}` : statusLabel(record.status)}</strong>
+                  <time dateTime={record.date}>{formatDate(record.date)}</time>
+                </span>;
+              }) : <span className="outcome-comparison-unrecorded">Not recorded</span>}
+            </td>;
+          })}
+        </tr>)}
+      </tbody>
+    </StandardTable>
+    <ScoreColourKey />
+  </section>;
 }
 
 function OutcomeScoreSummary({ episode, onShowResponses }) {
@@ -1007,12 +1056,16 @@ export default function RecordTwo({ person, episode, navigate }) {
   const scheduleAssessments = assessmentSchedulingEnabled(state.settings);
   const linkAssessmentAppointments = assessmentContactLinkingEnabled(state.settings);
   const assessmentSms = assessmentSmsEnabled(state.settings);
+  const phase2CareActivity = !!state.settings?.phase2CareActivity;
+  const showReportCareActivity = !phase2CareActivity;
+  const mvpReport = mvpAssessmentMode(state.settings);
   const isFixture = Boolean(person.fixtureLabel) &&
     person.fixtureLabel !== "Fictional closed episode with patient follow-up";
   const hasOutcomeMeasures = episodeOutcomeRecords(episode).some(
     (measure) => measure.records?.length,
   );
-  const isEmptyReport = !isFixture && !hasOutcomeMeasures && !hasCareTimelineEntries(episode, { simpleAssessments, scheduleAssessments, assessmentSms });
+  const isEmptyReport = !isFixture && !hasOutcomeMeasures &&
+    (!showReportCareActivity || !hasCareTimelineEntries(episode, { simpleAssessments, scheduleAssessments, assessmentSms, mvpReport }));
   const scoredMeasures = outcomeMeasuresFor(episode).filter((measure) => measure.records.some(isCompletedScore));
   const latestScoredRecord = scoredMeasures.flatMap((measure) => measure.records.filter(isCompletedScore))
     .sort((a, b) => a.date.localeCompare(b.date)).at(-1);
@@ -1044,7 +1097,9 @@ export default function RecordTwo({ person, episode, navigate }) {
       <div className="section-toolbar">
         <div>
           <h2>Report</h2>
-          <p>Dated measures and care activity from this care episode.</p>
+          <p>{showReportCareActivity
+            ? "Dated measures and care activity from this care episode."
+            : "Dated measures from this care episode."}</p>
         </div>
         {hasOutcomeMeasures && (
           <Button variant="secondary" onClick={() => setCompareMeasuresOpen(true)}>
@@ -1060,21 +1115,17 @@ export default function RecordTwo({ person, episode, navigate }) {
             <h3 id="report-empty-title">Waiting for recorded evidence</h3>
             <p>
               This care episode has no completed evidence to display in the report yet.
-              Dated care activity and supported outcome measures will appear here when
-              those records are available.
+              {showReportCareActivity
+                ? "Dated care activity and supported outcome measures will appear here when those records are available."
+                : "Supported outcome measures will appear here when they are recorded."}
             </p>
             <div className="report-empty-sections" aria-label="Report sections awaiting evidence">
-              <span>Care timeline <strong>No reportable activity yet</strong></span>
+              {showReportCareActivity && <span>Care timeline <strong>No reportable activity yet</strong></span>}
               <span>Outcome measures <strong>Awaiting completed scores</strong></span>
             </div>
           </div>
         </section>
       ) : <div className="report-dashboard">
-        <nav className="report-overview-links" aria-label="Report sections">
-          <a href="#report-outcomes">Outcome measures</a>
-          <a href="#report-activity">Care activity</a>
-          {isFixture && <a href="#report-sample-charts">Illustrative charts</a>}
-        </nav>
         <section className="report-dashboard-section" id="report-outcomes" aria-labelledby="report-outcomes-heading">
           <ReportSectionHeading id="report-outcomes-heading"
             title="Outcome measures" description="Completed, dated scores retain each measure's own scale." />
@@ -1092,7 +1143,6 @@ export default function RecordTwo({ person, episode, navigate }) {
                   <h4>About this report</h4>
                   <dl>
                     <div><dt>Care episode</dt><dd>{formatDate(episode.start)} – {episode.end ? formatDate(episode.end) : "present"}</dd></div>
-                    <div><dt>Evidence</dt><dd>Recorded instruments and care records</dd></div>
                     <div><dt>Scored measures</dt><dd>{scoredMeasures.length}</dd></div>
                     {latestScoredRecord && <div><dt>Latest result</dt><dd>{formatDate(latestScoredRecord.date)}</dd></div>}
                   </dl>
@@ -1102,12 +1152,15 @@ export default function RecordTwo({ person, episode, navigate }) {
               <div className="record-two-grid report-measure-grid">
                 <OutcomeMeasureCards episode={episode} onShowResponses={setResponseListKey} />
               </div>
+              {mvpReport && <OutcomeMeasureMatrix episode={episode} />}
             </>
           )}
         </section>
-        <section className="report-dashboard-section" id="report-activity" aria-labelledby="report-activity-heading">
+        {showReportCareActivity && <section className="report-dashboard-section" id="report-activity" aria-labelledby="report-activity-heading">
           <ReportSectionHeading id="report-activity-heading"
-            title="Care activity" description="Contacts, care context and dated events across this episode." />
+            title="Care activity" description={mvpReport
+              ? "Care settings, contacts and medication records across this episode."
+              : "Contacts, care context and dated events across this episode."} />
           <div className="record-two-grid">
             <CareTimeline
               person={person}
@@ -1117,12 +1170,13 @@ export default function RecordTwo({ person, episode, navigate }) {
               scheduleAssessments={scheduleAssessments}
               linkAssessmentAppointments={linkAssessmentAppointments}
               assessmentSms={assessmentSms}
+              mvpReport={mvpReport}
               isVisible={careTimelineVisible}
               onToggle={() => setCareTimelineVisible((visible) => !visible)}
             />
           </div>
-        </section>
-        {isFixture && <section className="report-dashboard-section" id="report-sample-charts" aria-labelledby="report-sample-heading">
+        </section>}
+        {isFixture && !phase2CareActivity && <section className="report-dashboard-section" id="report-sample-charts" aria-labelledby="report-sample-heading">
           <ReportSectionHeading id="report-sample-heading"
             title="Illustrative charts" description="Sample patterns for exploring report layouts; values are not linked to source records." />
           <details className="report-sample-details" open>

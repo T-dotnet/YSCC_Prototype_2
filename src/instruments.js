@@ -1,3 +1,6 @@
+import { EP_BATCH_2_INSTRUMENTS, EP_BATCH_3_INSTRUMENTS } from './epCodebookInstruments.js';
+import { CLIENT_PROFILE_INSTRUMENTS } from './clientProfileMeasure.js';
+
 export const LEGACY_INSTRUMENT = {
   version: "Demo check-in v1.0",
   respondents: ["Person", "Family respondent"],
@@ -438,6 +441,29 @@ export const NINETY_DAY_REVIEW_INSTRUMENT = sampleInstrument(
   ],
 );
 
+// Fictional staff-completed measures; these contain no licensed scale content.
+export const CLINICIAN_INITIAL_INSTRUMENT = {
+  ...sampleInstrument('Clinician initial assessment', 'A staff summary of initial care needs.',
+    [['review', 'Clinical summary']], [
+      choice('presenting-needs', 'review', 'What is the main care need identified at intake?',
+        ['Assessment', 'Care planning', 'Practical support', 'Further discussion']),
+      choice('next-step', 'review', 'What is the agreed next clinical step?',
+        ['Complete assessment', 'Agree a care plan', 'Arrange follow-up', 'Seek consultation']),
+    ]),
+  respondents: ['Clinician'],
+};
+
+export const CLINICIAN_REVIEW_INSTRUMENT = {
+  ...sampleInstrument('Clinician care review', 'A staff summary of progress and the next care step.',
+    [['review', 'Clinical review']], [
+      choice('progress', 'review', 'How is progress since the last review recorded?',
+        ['Improved', 'Stable', 'More support needed', 'Further assessment needed']),
+      choice('plan', 'review', 'What is the next care plan action?',
+        ['Continue current plan', 'Update care plan', 'Arrange follow-up', 'Seek consultation']),
+    ]),
+  respondents: ['Clinician'],
+};
+
 // Fictional, unscored placeholders for the fixed MVP pathway. Replace these
 // versions only when the approved stream batteries and wording are available.
 export const MVP_STREAM_QUESTIONNAIRES = Object.fromEntries([
@@ -466,11 +492,16 @@ export const MVP_STREAM_QUESTIONNAIRES = Object.fromEntries([
 }));
 
 export const INSTRUMENTS = [
+  ...CLIENT_PROFILE_INSTRUMENTS,
   INITIAL_ASSESSMENT_INSTRUMENT,
   DEMO_INSTRUMENT,
   LIKERT_INSTRUMENT,
   ...MEASURE_INSTRUMENTS,
   NINETY_DAY_REVIEW_INSTRUMENT,
+  CLINICIAN_INITIAL_INSTRUMENT,
+  CLINICIAN_REVIEW_INSTRUMENT,
+  ...EP_BATCH_2_INSTRUMENTS,
+  ...EP_BATCH_3_INSTRUMENTS,
   ...Object.values(MVP_STREAM_QUESTIONNAIRES),
   sampleInstrument(
     "Episode closure assessment",
@@ -916,7 +947,7 @@ export const INSTRUMENTS = [
     ],
   ),
 ];
-export const STANDARD_INSTRUMENTS = INSTRUMENTS.filter(instrument => !instrument.mvpOnly);
+export const STANDARD_INSTRUMENTS = INSTRUMENTS.filter(instrument => !instrument.mvpOnly && !instrument.clientProfileSection);
 
 const REVIEW_INSTRUMENT_VERSIONS = [
   NINETY_DAY_REVIEW_INSTRUMENT.version,
@@ -941,6 +972,28 @@ export const questionTitle = (question, respondent) =>
   respondent === "Family respondent" && question.family
     ? question.family
     : question.title;
+
+function validAnswer(question, answer) {
+  if (typeof answer !== 'string' || !answer) return false;
+  if (question.options.includes(answer) || question.nonResponseOptions?.includes(answer)) return true;
+  if (question.multiple) {
+    const values = answer.split('||');
+    return values.length > 0 && new Set(values).size === values.length &&
+      values.every(value => question.options.includes(value));
+  }
+  if (question.responseType === 'number') {
+    const value = Number(answer);
+    return /^\d+$/.test(answer) && Number.isSafeInteger(value) &&
+      (question.min == null || value >= question.min) &&
+      (question.max == null || value <= question.max);
+  }
+  if (question.responseType === 'date') {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(answer)) return false;
+    const date = new Date(`${answer}T00:00:00Z`);
+    return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === answer;
+  }
+  return question.responseType === 'text' && answer.trim().length > 0;
+}
 
 // Three-valued evaluation distinguishes unresolved branches from excluded ones.
 function matches(rule, values, statuses) {
@@ -989,7 +1042,7 @@ export function questionnaireState(instrument, answers = []) {
       match === true ? "visible" : match === false ? "hidden" : "pending";
     statuses[question.id] = status;
     const answer =
-      status === "visible" && question.options.includes(answers[index])
+      status === "visible" && validAnswer(question, answers[index])
         ? answers[index]
         : null;
     if (answer) values[question.id] = answer;

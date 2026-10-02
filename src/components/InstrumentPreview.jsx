@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Eye, RotateCcw } from "lucide-react";
-import { ActionGroup, Button, Notice } from "./UI";
+import { ActionGroup, Button, Modal, Notice } from "./UI";
 import QuestionnaireFlow from "./QuestionnaireFlow";
 import {
   describeRule,
@@ -19,10 +19,12 @@ export default function InstrumentPreview({
   const [run, setRun] = useState(0);
   const [finished, setFinished] = useState(false);
   const [search, setSearch] = useState("");
+  const [confirmReset, setConfirmReset] = useState(false);
   const reset = () => {
     setAnswers([]);
     setFinished(false);
     setRun((value) => value + 1);
+    setConfirmReset(false);
   };
   const footer = (
     <ActionGroup className="modal-footer preview-footer">
@@ -72,7 +74,7 @@ export default function InstrumentPreview({
           >
             All questions ({instrument.questions.length})
           </Button>
-          <Button type="button" onClick={reset}>
+          <Button type="button" onClick={() => setConfirmReset(true)}>
             <RotateCcw size={15} />
             Reset answers
           </Button>
@@ -85,7 +87,7 @@ export default function InstrumentPreview({
                 {questionnaireState(instrument, answers).answered} questions
                 answered on this path. No response was submitted.
               </p>
-              <Button type="button" onClick={reset}>
+              <Button type="button" onClick={() => setConfirmReset(true)}>
                 Try another path
               </Button>
             </div>
@@ -148,11 +150,13 @@ export default function InstrumentPreview({
                             {question.scale.instruction}
                           </p>
                         )}
-                        <ul className="preview-answer-options">
-                          {question.options.map((option) => (
-                            <li key={option}>{option}</li>
-                          ))}
-                        </ul>
+                        {question.responseType === 'number' || question.responseType === 'date' || question.responseType === 'text'
+                          ? <p className="muted">{question.responseType === 'number'
+                            ? `Whole number${question.min != null && question.max != null ? ` (${question.min}–${question.max})` : ''}`
+                            : question.responseType === 'date' ? 'Date' : 'Text response'}</p>
+                          : <ul className="preview-answer-options">
+                            {question.options.map((option) => <li key={option}>{option}</li>)}
+                          </ul>}
                       </article>
                     ))}
                   </details>
@@ -168,6 +172,13 @@ export default function InstrumentPreview({
         )}
       </div>
       {footer}
+      {confirmReset && <Modal title="Reset preview answers?" onClose={() => setConfirmReset(false)}>
+        <div className="form-body"><p>Your practice answers for this instrument will be cleared.</p></div>
+        <ActionGroup className="modal-footer">
+          <Button type="button" onClick={() => setConfirmReset(false)}>Cancel</Button>
+          <Button type="button" variant="primary" onClick={reset}>Reset answers</Button>
+        </ActionGroup>
+      </Modal>}
     </>
   );
 }

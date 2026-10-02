@@ -1,18 +1,19 @@
 import { SortableHeader, useQueueSort } from "./QueueControls";
-import { cloneElement, useId, useState } from 'react';
+import { cloneElement, useEffect, useId, useRef, useState } from 'react';
 import { episodeWithVisibleContacts } from "../assessmentFeatures.js";
 import { contactsForAssessments } from '../assessmentContacts';
 import { earliestPendingAssessment } from '../assessmentDue';
 import { INSTRUMENTS, STANDARD_INSTRUMENTS, getInstrument } from '../instruments';
+import InstrumentPreview from './InstrumentPreview';
 import { formatDate, TODAY } from '../model';
 import { responseDate } from '../progress';
-import { LABELS } from '../terminology';
+import { LABELS, appTerm, displayTerminology } from '../terminology';
 import RelatedRecordsTable from './RelatedRecordsTable';
 import { RecordFacts } from './RecordItem';
-import { ActionGroup, Badge, Button, EditAction, Field, Modal, ModalFooter, Select, Tabs } from './UI';
+import { ActionGroup, Badge, Button, EditAction, Field, Modal, ModalFooter, Select, Tabs, TextLink } from './UI';
 
-export default function AssessmentBundleDetails({ group, episode, delivery, statusFor, showDueDates, hideRequirement = false,
-  canEdit, onEdit, onClose, scheduleAssessments = true, assessmentEditor, onAddInstrument, onRemoveInstrument, onArchive, onNotRequired, embedded = false }) {
+export default function AssessmentBundleDetails({ group, episode, delivery, statusFor, showDueDates, hideRequirement = false, showContacts = true,
+  canEdit, onEdit, onClose, onCollect, canCollect, scheduleAssessments = true, assessmentEditor, onAddInstrument, onRemoveInstrument, onArchive, onNotRequired, embedded = false }) {
   const { sort, toggleSort } = useQueueSort({ key: null, direction: 'asc' });
   const [reasonMode, setReasonMode] = useState(false);
   const [archiveConfirmation, setArchiveConfirmation] = useState(false);
@@ -20,27 +21,44 @@ export default function AssessmentBundleDetails({ group, episode, delivery, stat
   const [postponedDate, setPostponedDate] = useState('');
   const [addVersion, setAddVersion] = useState('');
   const [activeTab, setActiveTab] = useState('assessments');
+  useEffect(() => {
+    if (!showContacts && activeTab === 'contacts') setActiveTab('assessments');
+  }, [showContacts, activeTab]);
+  const visibleTab = showContacts ? activeTab : 'assessments';
+  const [previewRecord, setPreviewRecord] = useState(null);
+  const previewTriggers = useRef(new Map());
+  const returnFocusRecord = useRef(null);
+  useEffect(() => {
+    if (!previewRecord && returnFocusRecord.current) {
+      previewTriggers.current.get(returnFocusRecord.current)?.focus();
+      returnFocusRecord.current = null;
+    }
+  }, [previewRecord]);
   const tabsId = useId();
   episode = episodeWithVisibleContacts(episode, { scheduleAssessments });
   const dates = [...new Set(group.records.map(record => record.due).filter(Boolean))].sort();
   const bundleDue = earliestPendingAssessment(group.records)?.due || dates.at(-1);
+  const pendingRecord = group.records.find(record => !record.notRequiredReason && record.response === 'Draft') || group.records.find(record => !record.notRequiredReason && record.response !== 'Submitted');
   const individual = group.key === 'individual';
   const contacts = contactsForAssessments(episode, group.records).sort((a,b) =>
     (b.contact.actualDate || b.contact.plannedDate || '').localeCompare(a.contact.actualDate || a.contact.plannedDate || ''));
   const requestArchive = onArchive ? () => setArchiveConfirmation(true) : null;
   const archiveRecord = archiveConfirmation && typeof archiveConfirmation === 'object' ? archiveConfirmation : null;
-  if (archiveConfirmation) return <Modal title={archiveRecord ? 'Archive instrument?' : 'Archive assessment?'} subtitle={archiveRecord ? getInstrument(archiveRecord.version)?.name || archiveRecord.label : group.name} className="assessment-not-required-modal" wide onClose={()=>setArchiveConfirmation(false)}>
-    <div className="form-body"><p>{archiveRecord ? 'This instrument will move to the archive. Saved responses will be retained.' : 'This assessment and its instruments will move to the archive. Saved responses will be retained.'}</p></div>
-    <ModalFooter><Button type="button" onClick={()=>setArchiveConfirmation(false)}>Cancel</Button><Button type="button" variant="primary" onClick={()=>{onArchive(archiveRecord);setArchiveConfirmation(false);}}>{archiveRecord ? 'Archive instrument' : 'Archive assessment'}</Button></ModalFooter>
+  if (archiveConfirmation) return <Modal title={archiveRecord ? 'Archive instrument?' : `Archive ${appTerm("measures", "singular").toLowerCase()}?`} subtitle={archiveRecord ? getInstrument(archiveRecord.version)?.name || archiveRecord.label : group.name} className="assessment-not-required-modal" wide onClose={()=>setArchiveConfirmation(false)}>
+    <div className="form-body"><p>{archiveRecord ? 'This instrument will move to the archive. Saved responses will be retained.' : `This ${appTerm("measures", "singular").toLowerCase()} and its instruments will move to the archive. Saved responses will be retained.`}</p></div>
+    <ModalFooter><Button type="button" onClick={()=>setArchiveConfirmation(false)}>Cancel</Button><Button type="button" variant="primary" onClick={()=>{onArchive(archiveRecord);setArchiveConfirmation(false);}}>{archiveRecord ? 'Archive instrument' : `Archive ${appTerm("measures", "singular").toLowerCase()}`}</Button></ModalFooter>
   </Modal>;
   const notRequiredAction = onNotRequired && <Button variant="ghost" className="assessment-not-required-action" onClick={()=>setReasonMode(true)}>Mark as not required or postpone</Button>;
-  if (reasonMode) return <Modal title="Mark assessment as not required or postpone" subtitle={group.name} className="assessment-not-required-modal" wide onClose={onClose}>
+  if (reasonMode) return <Modal title={`Mark ${appTerm("measures", "singular").toLowerCase()} as not required or postpone`} subtitle={group.name} className="assessment-not-required-modal" wide onClose={onClose}>
     <form onSubmit={event=>{event.preventDefault();if(reason.trim() && (!postponedDate || postponedDate > TODAY && postponedDate > bundleDue)) onNotRequired(reason.trim(), postponedDate);}}>
       <div className="form-body"><Field label="Reason"><textarea required rows={4} value={reason} onChange={event=>setReason(event.target.value)} /></Field>
-        <Field label="Postpone until (optional)" hint="Choose a future date to keep this assessment active. Leave blank to mark it as not required."><input type="date" min={[TODAY, bundleDue || ''].sort().at(-1)} value={postponedDate} onChange={event=>setPostponedDate(event.target.value)} /></Field>
+        <Field label="Postpone until (optional)" hint={`Choose a future date to keep this ${appTerm("measures", "singular").toLowerCase()} active. Leave blank to mark it as not required.`}><input type="date" min={[TODAY, bundleDue || ''].sort().at(-1)} value={postponedDate} onChange={event=>setPostponedDate(event.target.value)} /></Field>
         <p className="muted">Existing instruments and responses will be retained.</p></div>
-      <ModalFooter><Button type="button" onClick={()=>setReasonMode(false)}>Cancel</Button><Button type="submit" variant="primary" disabled={!reason.trim() || !!postponedDate && (postponedDate <= TODAY || postponedDate <= bundleDue)}>{postponedDate ? 'Postpone assessment' : 'Mark as not required'}</Button></ModalFooter>
+      <ModalFooter><Button type="button" onClick={()=>setReasonMode(false)}>Cancel</Button><Button type="submit" variant="primary" disabled={!reason.trim() || !!postponedDate && (postponedDate <= TODAY || postponedDate <= bundleDue)}>{postponedDate ? `Postpone ${appTerm("measures", "singular").toLowerCase()}` : 'Mark as not required'}</Button></ModalFooter>
     </form>
+  </Modal>;
+  if (previewRecord) return <Modal title="Instrument preview" subtitle={`${getInstrument(previewRecord.version)?.name || previewRecord.label} · ${previewRecord.version}`} onClose={()=>setPreviewRecord(null)} closeLabel="Close preview" className="questionnaire-preview-modal">
+    <InstrumentPreview key={previewRecord.id} instrument={getInstrument(previewRecord.version)} respondent={previewRecord.respondent || delivery.recipient} onBack={()=>setPreviewRecord(null)} backLabel="Back to measure details" />
   </Modal>;
   const content = <>
     <div className="form-body new-assessment-bundle-body">
@@ -52,15 +70,16 @@ export default function AssessmentBundleDetails({ group, episode, delivery, stat
         ]} />
       </section>}
       <div className="assessment-bundle-details-tabs">
-        <Tabs id={tabsId} label="Assessment details" items={[
+        {showContacts && <Tabs id={tabsId} label={`${appTerm("measures", "singular")} details`} items={[
           { value: 'assessments', label: 'Instruments' },
           { value: 'contacts', label: 'Contacts' },
-        ]} value={activeTab} onChange={setActiveTab} />
-        <div id={`${tabsId}-panel`} role="tabpanel" aria-labelledby={`${tabsId}-tab-${activeTab === 'assessments' ? 0 : 1}`}>
-          {assessmentEditor && <div hidden={activeTab !== 'assessments'}>{cloneElement(assessmentEditor, {assessmentAction:group,onMarkNotRequired:onNotRequired ? ()=>setReasonMode(true) : null,onArchive:requestArchive})}</div>}
-          {activeTab === 'assessments' && !assessmentEditor && <>
+        ]} value={visibleTab} onChange={setActiveTab} />}
+        <div id={showContacts ? `${tabsId}-panel` : undefined} role={showContacts ? 'tabpanel' : undefined}
+          aria-labelledby={showContacts ? `${tabsId}-tab-${visibleTab === 'assessments' ? 0 : 1}` : undefined}>
+          {assessmentEditor && <div hidden={visibleTab !== 'assessments'}>{cloneElement(assessmentEditor, {assessmentAction:group,onMarkNotRequired:onNotRequired ? ()=>setReasonMode(true) : null,onArchive:requestArchive})}</div>}
+          {visibleTab === 'assessments' && !assessmentEditor && <>
             <RelatedRecordsTable label={`Instruments in ${group.name}`} compact className={individual ? 'individual-instruments-table' : ''}>
-              <thead><tr><th scope="col">Instrument</th><SortableHeader label="Status" sortKey="status" sort={sort} onSort={toggleSort} />{(!hideRequirement || individual) && <th scope="col">{individual ? 'Actions' : 'Requirement'}</th>}{onRemoveInstrument && <th scope="col">Actions</th>}</tr></thead>
+              <thead><tr><th scope="col">Instrument</th><SortableHeader label="Status" sortKey="status" sort={sort} onSort={toggleSort} />{!hideRequirement && !individual && <th scope="col">Requirement</th>}<th scope="col">Action</th></tr></thead>
               <tbody>{[...group.records].sort((a,b) => sort.key === 'status' ? (sort.direction === 'asc' ? 1 : -1) * statusFor(a).localeCompare(statusFor(b)) : 0).map(record => {
                 const submitted = responseDate(record);
                 return <tr key={record.id}>
@@ -68,9 +87,13 @@ export default function AssessmentBundleDetails({ group, episode, delivery, stat
                     {submitted && <small>Completed {formatDate(submitted)}</small>}
                   </td>
                   <td><Badge>{statusFor(record)}</Badge></td>
-                  {(!hideRequirement || individual) && <td>{individual ? <Button variant="ghost" disabled={!onArchive} aria-label={`Archive ${getInstrument(record.version)?.name || record.label}`} onClick={()=>setArchiveConfirmation(record)}>Archive</Button> : record.bundleRequirement || 'Individual'}</td>}
-                  {onRemoveInstrument && <td><Button variant="ghost" disabled={group.records.length < 2 || record.response !== 'Not started' || record.assignment !== 'Planned' || record.attempts?.length > 0 || record.answers?.some(Boolean) || record.draftAnswers?.some(Boolean)}
-                    aria-label={`Remove ${getInstrument(record.version)?.name || record.label}`} onClick={()=>onRemoveInstrument(record)}>Remove</Button></td>}
+                  {!hideRequirement && !individual && <td>{record.bundleRequirement || 'Individual'}</td>}
+                  <td data-label="Action"><ActionGroup className="assessment-instrument-actions">
+                    <TextLink className="assessment-instrument-preview" aria-label={`Preview ${getInstrument(record.version)?.name || record.label}`} ref={node => {if (node) previewTriggers.current.set(record.id, node); else previewTriggers.current.delete(record.id);}} onClick={()=>{returnFocusRecord.current = record.id; setPreviewRecord(record);}}>Preview</TextLink>
+                    {individual && <Button variant="ghost" disabled={!onArchive} aria-label={`Archive ${getInstrument(record.version)?.name || record.label}`} onClick={()=>setArchiveConfirmation(record)}>Archive</Button>}
+                    {onRemoveInstrument && <Button variant="ghost" disabled={group.records.length < 2 || record.response !== 'Not started' || record.assignment !== 'Planned' || record.attempts?.length > 0 || record.answers?.some(Boolean) || record.draftAnswers?.some(Boolean)}
+                      aria-label={`Remove ${getInstrument(record.version)?.name || record.label}`} onClick={()=>onRemoveInstrument(record)}>Remove</Button>}
+                  </ActionGroup></td>
                 </tr>;
               })}</tbody>
             </RelatedRecordsTable>
@@ -83,15 +106,15 @@ export default function AssessmentBundleDetails({ group, episode, delivery, stat
               <Button disabled={!addVersion} onClick={()=>{onAddInstrument(addVersion);setAddVersion('');}}>Add instrument</Button>
             </ActionGroup>}
           </>}
-          {activeTab === 'contacts' && <>
+          {showContacts && visibleTab === 'contacts' && <>
             <RelatedRecordsTable label={`Contacts associated with ${group.name}`} compact className="assessment-contacts-table">
-              <thead><tr><th scope="col">Date</th><th scope="col">Assessment name</th><th scope="col">Contact</th><th scope="col">Status / outcome</th></tr></thead>
+              <thead><tr><th scope="col">Date</th><th scope="col">{appTerm("measures", "singular")} name</th><th scope="col">Contact</th><th scope="col">Status / outcome</th></tr></thead>
               <tbody>{contacts.length ? contacts.map(({contact, assessments}) => {
                 const date = contact.actualDate || contact.plannedDate;
                 const assessmentNames = [...new Set(assessments.map(assessment => getInstrument(assessment.version)?.name || assessment.label).filter(Boolean))];
                 return <tr key={contact.id}>
                   <td data-label="Date">{date ? formatDate(date) : 'Not recorded'}{!contact.actualDate && contact.plannedDate && <small>Planned</small>}</td>
-                  <td data-label="Assessment">{assessmentNames.map(name => <div key={name}>{name}</div>)}</td>
+                  <td data-label={appTerm("measures", "singular")}>{assessmentNames.map(name => <div key={name}>{name}</div>)}</td>
                   <td data-label="Contact">{contact.contactType || contact.appointmentType || contact.practitionerService || 'Service contact'}
                     {contact.practitionerService && (contact.contactType || contact.appointmentType) && <small>{contact.practitionerService}</small>}
                   </td>
@@ -103,13 +126,14 @@ export default function AssessmentBundleDetails({ group, episode, delivery, stat
         </div>
       </div>
     </div>
-    {!embedded && (!assessmentEditor || activeTab === 'contacts') && <ModalFooter>
-      {onEdit && !assessmentEditor && <EditAction disabled={!canEdit} onClick={onEdit}>Edit assessment</EditAction>}
+    {!embedded && (!assessmentEditor || visibleTab === 'contacts') && <ModalFooter>
+      {onEdit && !assessmentEditor && <EditAction disabled={!canEdit} onClick={onEdit}>Edit {appTerm("measures", "singular").toLowerCase()}</EditAction>}
       {notRequiredAction}
-      {onArchive && !individual && <Button variant="ghost" className="assessment-tertiary-action assessment-archive-action" onClick={requestArchive}>Archive assessment</Button>}
+      {onArchive && !individual && <Button variant="ghost" className="assessment-tertiary-action assessment-archive-action" onClick={requestArchive}>Archive {appTerm("measures", "singular").toLowerCase()}</Button>}
       <Button onClick={onClose}>Close</Button>
+      {onCollect && pendingRecord && <Button variant="primary" disabled={canCollect && !canCollect(pendingRecord)} onClick={()=>onCollect(pendingRecord)}>Collect response</Button>}
     </ModalFooter>}
   </>;
   if (embedded) return <div className="assessment-bundle-inline-details">{content}</div>;
-  return <Modal title={group.name} subtitle={individual ? 'Instrument group details' : 'Assessment details'} wide onClose={onClose} className="new-assessment-bundle-modal assessment-bundle-details-modal">{content}</Modal>;
+  return <Modal title={displayTerminology(group.name)} subtitle={individual ? 'Instrument group details' : `${appTerm("measures", "singular")} details`} wide onClose={onClose} className="new-assessment-bundle-modal assessment-bundle-details-modal">{content}</Modal>;
 }

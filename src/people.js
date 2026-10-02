@@ -2,7 +2,7 @@ import { collectionStatus, formatDate, TODAY } from "./model.js";
 import { canAssess, intakeReady, intakeStage, intakeTasks } from "./intake.js";
 import { assessmentBundleGroups } from "./assessmentBundles.js";
 import { mvpAssessmentMode } from './mvpAssessmentPathway.js';
-import { currentCollection } from "./workflow.js";
+import { currentCollection, currentMvpStageCollection } from "./workflow.js";
 
 const openIntake = (intake) =>
   !["Completed", "Closed incomplete"].includes(intake.status) ||
@@ -23,6 +23,7 @@ export function peopleInEpisodes(people, status = "All episodes") {
             person.episodes[0]
           : person.episodes.find((e) => e.status === status);
     if (status === "Intake") {
+      if (person.mvpProfile) return [];
       if (person.episodes.length && !person.intakes?.some(openIntake))
         return [];
     } else if (status !== "All episodes" && !episode) return [];
@@ -69,7 +70,7 @@ export function personStatus(person, episode) {
       detail: "Resolve intake before assessment",
     };
   }
-  const collection = currentCollection(episode);
+  const collection = person.mvpProfile ? currentMvpStageCollection(episode) : currentCollection(episode);
   if (!collection) {
     return {
       status: "Not scheduled",

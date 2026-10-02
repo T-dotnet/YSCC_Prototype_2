@@ -1,17 +1,23 @@
 import { useRef, useState } from 'react';
 import { INSTRUMENTS } from '../instruments';
-import { CARE_LEVELS } from '../carePeriods';
+import { CARE_LEVELS, PROGRAM_STREAMS } from '../carePeriods';
 import { COLLECTION_METHOD_OPTIONS, LABELS } from '../terminology';
 import { mvpBattery, mvpReviewBundleError, mvpReviewItems } from '../mvpAssessmentPathway';
 import { ActionGroup, Button, Checkbox, Field, Modal, Select } from './UI';
 import BundleAssessmentRow from './BundleAssessmentRow';
+import SpecificMeasureFields from './SpecificMeasureFields';
+import ProfileValueTriggerFields from './ProfileValueTriggerFields';
+import StatusChangeFields from './StatusChangeFields';
+
+const parameterOptions = [['careLevel', 'Care level'], ['minAge', 'Minimum age (years)'],
+  ['maxAge', 'Maximum age (years)'], ['profileValue', 'Profile data field']];
 
 export default function MvpReviewBundleEditor({ bundle, settings, onClose, onSave }) {
   const [draft, setDraft] = useState(bundle);
   const [version, setVersion] = useState('');
   const [parameterToAdd, setParameterToAdd] = useState('');
-  const [parameters, setParameters] = useState(['careLevel', 'minAge', 'maxAge'].filter(key =>
-    key === 'careLevel' ? bundle.careLevel !== 'All' : bundle[key] != null));
+  const [parameters, setParameters] = useState(parameterOptions.map(([key]) => key).filter(key =>
+    key === 'profileValue' ? !!bundle.triggerDataEnabled : key === 'careLevel' ? bundle.careLevel !== 'All' : bundle[key] != null));
   const [error, setError] = useState('');
   const nameInput = useRef(null);
   const change = (key, value) => { setDraft(current => ({ ...current, [key]: value })); setError(''); };
@@ -41,38 +47,51 @@ export default function MvpReviewBundleEditor({ bundle, settings, onClose, onSav
           <h3 className="bundle-name-field bundle-collection-heading">Collection settings</h3>
           <label><span>{LABELS.respondent}</span><select value={draft.respondent} onChange={event => {
             const respondent = event.target.value;
-            setDraft(current => ({ ...current, respondent, assessments: mvpBattery(current.programStream, respondent)
+            setDraft(current => ({ ...current, respondent, channel: respondent === 'Clinician' ? 'Clinician entry' : current.channel, assessments: mvpBattery(current.programStream, respondent)
               .map((itemVersion, index) => ({ id: `${current.programStream}-${index}`, version: itemVersion, requirement: 'Mandatory' })) }));
             setError('');
-          }}><option value="Person">Patient</option><option value="Family respondent">Family respondent</option></select></label>
+          }}><option value="Person">Patient</option><option value="Clinician">Clinician</option></select></label>
           <label><span>{LABELS.collectionMethod}</span><select value={draft.channel} onChange={event => change('channel', event.target.value)}>
-            {COLLECTION_METHOD_OPTIONS.filter(([value]) => value !== 'SMS link' || settings.assessmentSms !== false || draft.channel === value)
+            {COLLECTION_METHOD_OPTIONS.filter(([value]) => draft.respondent !== 'Clinician' || value === 'Clinician entry')
+              .filter(([value]) => value !== 'SMS link' || settings.assessmentSms !== false || draft.channel === value)
               .map(([value, label]) => <option key={value} value={value} disabled={value === 'SMS link' && settings.assessmentSms === false}>{label}</option>)}
           </select></label>
           <h3 className="bundle-name-field bundle-collection-heading">Schedule</h3>
           <label><span>Trigger</span><select value={draft.timing} onChange={event => setDraft(current => ({ ...current, timing: event.target.value, repeat: event.target.value === 'days' ? current.repeat : false }))}><option value="days">Event</option><option value="date">Date</option></select></label>
           {draft.timing === 'days' ? <>
             <label><span>Time (days)</span><input type="number" min="1" max="728" step="1" required value={draft.days} onChange={event => change('days', Number(event.target.value))} /></label>
-            <label><span>After</span><select value={draft.after} onChange={event => change('after', event.target.value)}><option value="intake">Intake</option><option value="care-period">Care episode starts</option></select></label>
+            <label><span>After</span><select value={draft.after} onChange={event => change('after', event.target.value)}><option value="intake">Intake</option><option value="care-period">Care episode starts</option><option value="specific-measure">Specific measure</option></select></label>
+            <SpecificMeasureFields draft={draft} settings={settings} change={change} />
             <Checkbox className="bundle-repeat-choice" label="Repeat" checked={draft.repeat} onChange={event => change('repeat', event.target.checked)} />
           </> : <label><span>Due date</span><input type="date" required value={draft.dueDate || ''} onChange={event => change('dueDate', event.target.value)} /></label>}
           <p className="muted bundle-name-field">{draft.timing === 'date' ? 'Runs once on the selected date.' : draft.repeat
-            ? `Repeats every ${draft.days} days after ${draft.after === 'intake' ? 'intake' : 'the care episode starts'}.`
-            : `Runs once ${draft.days} days after ${draft.after === 'intake' ? 'intake' : 'the care episode starts'}.`}</p>
-          <h3 className="bundle-name-field bundle-collection-heading">Trigger</h3>
+            ? `Repeats every ${draft.days} days after ${draft.after === 'specific-measure' ? 'the selected measure status' : draft.after === 'intake' ? 'intake' : 'the care episode starts'}.`
+            : `Runs once ${draft.days} days after ${draft.after === 'specific-measure' ? 'the selected measure status' : draft.after === 'intake' ? 'intake' : 'the care episode starts'}.`}</p>
+          <h3 className="bundle-name-field bundle-collection-heading">Trigger conditions</h3>
           <div className="bundle-name-field bundle-parameter-row">
-            <label><span>Program stream</span><input value={bundle.programStream} readOnly /></label>
+            <label><span>Program stream</span><select required value={draft.programStream} onChange={event => {
+              const programStream = event.target.value;
+              setDraft(current => ({ ...current, programStream, name: current.name.endsWith(` · ${current.programStream}`)
+                ? `${current.name.slice(0, -current.programStream.length)}${programStream}` : current.name,
+                assessments: mvpBattery(programStream, current.respondent)
+                .map((itemVersion, index) => ({ id: `${programStream}-${index}`, version: itemVersion, requirement: 'Mandatory' })) }));
+              setError('');
+            }}>
+              {PROGRAM_STREAMS.map(stream => <option key={stream} value={stream}>{stream}</option>)}
+            </select></label>
           </div>
           {parameters.map(key => <div key={key} className="bundle-name-field bundle-parameter-row">
-            {key === 'careLevel' ? <label><span>Care level</span><select required value={draft.careLevel === 'All' ? '' : draft.careLevel} onChange={event => change(key, event.target.value)}><option value="" disabled>Choose a care level</option>{CARE_LEVELS.map(value => <option key={value} value={value}>{value}</option>)}</select></label>
+            {key === 'profileValue' ? <ProfileValueTriggerFields draft={draft} change={change} />
+              : key === 'careLevel' ? <label><span>Care level</span><select required value={draft.careLevel === 'All' ? '' : draft.careLevel} onChange={event => change(key, event.target.value)}><option value="" disabled>Choose a care level</option>{CARE_LEVELS.map(value => <option key={value} value={value}>{value}</option>)}</select></label>
               : <label><span>{key === 'minAge' ? 'Minimum age (years)' : 'Maximum age (years)'}</span><input required type="number" min="0" max="120" step="1" value={draft[key] ?? ''} onChange={event => change(key, event.target.value === '' ? null : Number(event.target.value))} /></label>}
-            <Button type="button" onClick={() => { setParameters(current => current.filter(value => value !== key)); change(key, key === 'careLevel' ? 'All' : null); }}>Remove</Button>
+            <Button type="button" onClick={() => { setParameters(current => current.filter(value => value !== key)); if (key === 'profileValue') setDraft(current => ({ ...current, triggerDataEnabled: false, triggerDataField: '', triggerDataValue: '' })); else change(key, key === 'careLevel' ? 'All' : null); }}>Remove</Button>
           </div>)}
-          {parameters.length < 3 && <div className="bundle-name-field new-bundle-extra-picker"><Field label="Parameter to add"><Select label="Parameter to add" value={parameterToAdd} onChange={event => setParameterToAdd(event.target.value)}><option value="">Choose a parameter</option>{[['careLevel','Care level'],['minAge','Minimum age (years)'],['maxAge','Maximum age (years)']].filter(([key]) => !parameters.includes(key)).map(([key,label]) => <option key={key} value={key}>{label}</option>)}</Select></Field>
-            <Button type="button" disabled={!parameterToAdd} onClick={() => { setParameters(current => [...current, parameterToAdd]); setParameterToAdd(''); }}>Add parameter</Button></div>}
+          {parameters.length < parameterOptions.length && <div className="bundle-name-field new-bundle-extra-picker"><Field label="Parameter to add"><Select label="Parameter to add" value={parameterToAdd} onChange={event => setParameterToAdd(event.target.value)}><option value="">Choose a parameter</option>{parameterOptions.filter(([key]) => !parameters.includes(key)).map(([key,label]) => <option key={key} value={key}>{label}</option>)}</Select></Field>
+            <Button type="button" disabled={!parameterToAdd} onClick={() => { if (parameterToAdd === 'profileValue') change('triggerDataEnabled', true); setParameters(current => [...current, parameterToAdd]); setParameterToAdd(''); }}>Add parameter</Button></div>}
         </div>
+        <StatusChangeFields value={draft.statusChange} onChange={value => change('statusChange', value)} />
         <section className="bundle-editor-assessments" aria-label="Instruments in this assessment">
-          <header className="bundle-editor-assessments-heading"><h3>Instruments in this assessment</h3><p className="muted">Choose the instruments for this program stream.</p></header>
+          <header className="bundle-editor-assessments-heading"><h3>Instruments in this assessment</h3></header>
           <div className="bundle-editor-assessment-list">{items.map(item => <BundleAssessmentRow key={item.id}
             name={INSTRUMENTS.find(instrument => instrument.version === item.version)?.name || item.version}
             onRemove={() => updateItems(items.filter(candidate => candidate.id !== item.id))} />)}</div>

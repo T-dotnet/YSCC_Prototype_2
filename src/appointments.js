@@ -60,18 +60,22 @@ const withinCarePeriod = (episode, date, today) =>
   date >= episode.start &&
   date <= (episode.end && episode.end < today ? episode.end : today);
 
-const validContact = (action, prior = {}) => {
+const validContact = (action, prior = {}, { requirePrimaryPractitioner = true } = {}) => {
   const value = (key) => key in action ? action[key] : prior[key];
-  const recipient = value("recipientType");
+  const recipients = Array.isArray(action.recipientTypes)
+    ? action.recipientTypes
+    : prior.recipientTypes?.length ? prior.recipientTypes : [value("recipientType")];
   const contactType = value("contactType");
   const primary = value("primaryPractitioner");
-  if (!CONTACT_RECIPIENTS.includes(recipient))
+  if (!Array.isArray(recipients) || recipients.length === 0 ||
+      new Set(recipients).size !== recipients.length ||
+      recipients.some((recipient) => !CONTACT_RECIPIENTS.includes(recipient)))
     return "Choose who received the direct contact.";
-  if (recipient === "Related person" && !value("relatedPersonName")?.trim())
+  if (recipients.includes("Related person") && !value("relatedPersonName")?.trim())
     return "Enter the related person's name.";
   if (!CONTACT_TYPES.includes(contactType))
     return "Choose a direct contact type.";
-  if (!primary?.trim())
+  if (requirePrimaryPractitioner && !primary?.trim())
     return "Enter the primary practitioner for the attended contact.";
   for (const [key, values, label] of [
     ["venue", CONTACT_VENUES, "venue"],
@@ -88,7 +92,7 @@ const validContact = (action, prior = {}) => {
   return null;
 };
 
-export function appointmentError(episode, action, today) {
+export function appointmentError(episode, action, today, { phase2Mvp = false } = {}) {
   if (!episode) return "The selected care episode is unavailable.";
   if (!validDate(action.plannedDate) || !validTime(action.plannedTime))
     return "Enter a valid contact date and time.";
@@ -96,7 +100,7 @@ export function appointmentError(episode, action, today) {
     return "The contact must be within this care episode.";
   if (!validDuration(action.plannedDurationMinutes))
     return "Enter a duration between 1 and 600 minutes.";
-  if (!action.practitionerService?.trim())
+  if (!phase2Mvp && !action.practitionerService?.trim())
     return "Enter the practitioner or service.";
   if (![...APPOINTMENT_DELIVERY_MODES, ...DRAFT_CONTACT_DELIVERY_MODES].includes(action.deliveryMode))
     return "Choose a delivery mode.";
@@ -106,7 +110,8 @@ export function appointmentError(episode, action, today) {
     (appointment) =>
       appointment.plannedDate === action.plannedDate &&
       appointment.plannedTime === action.plannedTime &&
-      appointment.practitionerService === action.practitionerService,
+      appointment.practitionerService === (action.practitionerService || "") &&
+      (!phase2Mvp || appointment.contactType === action.contactType),
   );
   if (duplicate)
     return "A contact with the same date, time and practitioner or service already exists. Check the existing record before adding another.";
@@ -119,7 +124,7 @@ export function appointmentError(episode, action, today) {
       return "A selected assessment is unavailable in this care episode.";
   }
   if (action.attendance !== "Attended") return null;
-  const contactError = validContact(action);
+  const contactError = validContact(action, {}, { requirePrimaryPractitioner: !phase2Mvp });
   if (contactError) return contactError;
   if (!validDate(action.actualDate) || !validTime(action.actualTime))
     return "Enter the actual contact date and time.";
@@ -157,10 +162,13 @@ const names = (value) =>
     .map((name) => name.trim()).filter(Boolean);
 
 export function contactAttributes(action) {
+  const recipientTypes = action.recipientTypes?.length ? action.recipientTypes : (action.recipientType ? [action.recipientType] : []);
   return {
-    recipientType: clean(action.recipientType),
-    relatedPersonName: action.recipientType === "Related person" ? clean(action.relatedPersonName) : null,
+    recipientType: clean(recipientTypes[0]),
+    recipientTypes,
+    relatedPersonName: recipientTypes.includes("Related person") ? clean(action.relatedPersonName) : null,
     contactType: clean(action.contactType),
+    contactName: clean(action.contactName) || clean(action.contactType),
     venue: clean(action.venue),
     participants: clean(action.participants),
     postcode: clean(action.postcode),
@@ -193,7 +201,7 @@ export function appointmentContent(action) {
     plannedDate: action.plannedDate,
     plannedTime: action.plannedTime,
     plannedDurationMinutes: Number(action.plannedDurationMinutes),
-    practitionerService: action.practitionerService.trim(),
+    practitionerService: action.practitionerService?.trim() || "",
     deliveryMode: action.deliveryMode,
     attendance: action.attendance,
     assessmentIntakeId: action.assessmentIntakeId || null,
@@ -247,14 +255,19 @@ export function appointmentTitle(appointment) {
 }
 
 export function appointmentSummary(appointment) {
-  const planned = `Planned ${appointment.plannedDate} at ${appointment.plannedTime} · ${appointment.plannedDurationMinutes} min · ${appointment.practitionerService} · ${appointment.deliveryMode}`;
+  const planned = [
+    `Planned ${appointment.plannedDate} at ${appointment.plannedTime}`,
+    `${appointment.plannedDurationMinutes} min`,
+    appointment.practitionerService,
+    appointment.deliveryMode,
+  ].filter(Boolean).join(" · ");
   const actual = appointment.actualDate
     ? ` · Actual ${appointment.actualDate} at ${appointment.actualTime} · ${appointment.actualDurationMinutes} min`
     : "";
   const notes = [appointment.notes, appointment.outcomeNotes]
     .filter(Boolean)
     .join(" · ");
-  const contact = [appointment.contactType, appointment.recipientType, appointment.relatedPersonName]
+  const contact = [appointment.contactName || appointment.contactType, (appointment.recipientTypes || [appointment.recipientType]).filter(Boolean).join(", "), appointment.relatedPersonName]
     .filter(Boolean).join(" · ");
   return `${planned} · ${appointment.attendance}${actual}${contact ? ` · ${contact}` : ""}${notes ? ` · ${notes}` : ""}`;
 }
@@ -286,7 +299,8 @@ export function appointmentDetails(appointment, episode) {
     ["Initial assessment", appointment.assessmentIntakeId ? "Associated" : null],
     ["Care level on contact date", levelAtContact?.careLevel],
     ["Direct contact type", appointment.contactType],
-    [LABELS.recipient, appointment.recipientType],
+    ["Contact name", appointment.contactName],
+    [LABELS.recipient, (appointment.recipientTypes || [appointment.recipientType]).filter(Boolean).join(", ")],
     ["Related person", appointment.relatedPersonName],
     ["Venue", appointment.venue],
     ["Participants", appointment.participants],
@@ -327,7 +341,8 @@ export function appointmentChanges(appointment) {
     ["attendance", "Attendance", appointment.attendance],
     ["assessmentIntakeId", "Initial assessment association", appointment.assessmentIntakeId],
     ["contactType", "Direct contact type", appointment.contactType],
-    ["recipientType", "Recipient", appointment.recipientType],
+    ["contactName", "Contact name", appointment.contactName],
+    ["recipientType", "Recipient", (appointment.recipientTypes || [appointment.recipientType]).filter(Boolean).join(", ")],
     ["relatedPersonName", "Related person", appointment.relatedPersonName],
     ["venue", "Venue", appointment.venue],
     ["participants", "Participants", appointment.participants],

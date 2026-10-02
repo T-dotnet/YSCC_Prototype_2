@@ -9,8 +9,12 @@ import React, {
   useRef,
 } from "react";
 import { createDefaultWorkspace, reducer, STORAGE_KEY, upgradeSampleData, TODAY } from "./model";
+import { ensureSampleMvpFlow } from "./sampleMvpFlow";
 import { uiColorSetup } from "./uiColorSetups";
-const Store = createContext(null);
+// Keep the context identity stable while Vite replaces this module in development.
+// Otherwise an old provider and a new useStore can briefly use different contexts.
+const Store = import.meta.hot?.data?.storeContext || createContext(null);
+if (import.meta.hot) import.meta.hot.data.storeContext = Store;
 export function StoreProvider({ children }) {
   const [storageError, setStorageError] = useState(false);
   const [state, dispatch] = useReducer(
@@ -26,7 +30,7 @@ export function StoreProvider({ children }) {
           s.people.length &&
           Array.isArray(s.issues) &&
           Array.isArray(s.audit)
-          ? upgradeSampleData(s)
+          ? ensureSampleMvpFlow(upgradeSampleData(s), TODAY)
           : createDefaultWorkspace();
       } catch {
         initialState = createDefaultWorkspace();

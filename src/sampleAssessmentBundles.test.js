@@ -40,7 +40,7 @@ test('turning bundles on adds usable templates and groups existing completed, dr
   }
   const groups = assessmentBundleGroups(episode(next), episode(next).collections, next.settings.assessmentScheduleRules);
   assert.deepEqual(new Set(groups.map(group => group.name)), new Set([
-    'Getting started with care', 'General care review', 'Youth and family check-in', 'Individual instruments',
+    'Getting started with care', 'General care review', 'Patient check-in', 'Individual instruments',
   ]));
   for (const group of groups.filter(group => group.key !== 'individual')) {
     assert.ok(new Set(group.records.map(record => record.version)).size >= 2);
@@ -97,5 +97,6 @@ test('sample bundle rows contain two or three unique instruments and at most two
       assert.equal(new Set(group.records.map(record => record.version)).size, group.records.length);
     }
   }
-  assert.deepEqual(upgradeSampleData(structuredClone(state)), state);
+  const upgraded = upgradeSampleData(structuredClone(state));
+  assert.deepEqual(upgradeSampleData(structuredClone(upgraded)), upgraded);
 });

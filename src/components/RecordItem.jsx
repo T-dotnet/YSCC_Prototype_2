@@ -1,13 +1,14 @@
 import { useLayoutEffect, useRef } from "react";
 import { ChevronDown } from "lucide-react";
 import { ActionGroup, Badge } from "./UI";
+import { displayTerminology } from "../terminology.js";
 
-export function RecordFacts({ facts, columns = 3 }) {
+export function RecordFacts({ facts, columns = 3, verbatimValues = false }) {
   return <dl className={`record-item-facts${columns === 2 ? ' record-facts-two-columns' : ''}`}>
     {facts.map(({ label, value, wide }) => (
       <div key={label} className={wide ? "record-item-fact-wide" : undefined}>
-        <dt>{label}</dt>
-        <dd>{value}</dd>
+        <dt>{displayTerminology(label)}</dt>
+        <dd>{verbatimValues ? value : displayTerminology(value)}</dd>
       </div>
     ))}
   </dl>;
@@ -20,6 +21,7 @@ export default function RecordItem({
   status,
   headingAction,
   summaryMeta,
+  verbatimText = false,
   tableRow = false,
   collapsible = false,
   initiallyExpanded = false,
@@ -40,10 +42,10 @@ export default function RecordItem({
   const Heading = `h${headingLevel}`;
   const heading = tableRow ? (
     <>
-      <span className="record-item-table-type">{eyebrow || "Record"}</span>
+      <span className="record-item-table-type">{displayTerminology(eyebrow || "Record")}</span>
       <span className="record-item-heading-text">
-        <Heading>{title}</Heading>
-        {subtitle && <small>{subtitle}</small>}
+        <Heading>{verbatimText ? title : displayTerminology(title)}</Heading>
+        {subtitle && <small>{verbatimText ? subtitle : displayTerminology(subtitle)}</small>}
       </span>
       {summaryMeta && <span className="record-item-table-meta">{summaryMeta}</span>}
       <span className="record-item-table-status">{status ? <Badge>{status}</Badge> : "—"}</span>
@@ -51,9 +53,9 @@ export default function RecordItem({
   ) : (
     <>
       <span className="record-item-heading-text">
-        {eyebrow && <span className="record-item-eyebrow">{eyebrow}</span>}
-        <Heading>{title}</Heading>
-        {subtitle && <small>{subtitle}</small>}
+        {eyebrow && <span className="record-item-eyebrow">{displayTerminology(eyebrow)}</span>}
+        <Heading>{verbatimText ? title : displayTerminology(title)}</Heading>
+        {subtitle && <small>{verbatimText ? subtitle : displayTerminology(subtitle)}</small>}
       </span>
       {status && <Badge>{status}</Badge>}
       {headingAction && <div className="record-item-heading-action">{headingAction}</div>}
@@ -63,15 +65,15 @@ export default function RecordItem({
   const content = (
     <div className="record-item-content">
       <div className="record-item-body">
-        {lead && <div className="record-item-lead">{lead}</div>}
+        {lead && <div className="record-item-lead">{displayTerminology(lead)}</div>}
         {facts.length > 0 && (
-          <RecordFacts facts={facts} />
+          <RecordFacts facts={facts} verbatimValues={verbatimText} />
         )}
         {secondary && <div className="record-item-secondary">{secondary}</div>}
       </div>
       {(note || actions) && (
         <footer className="record-item-footer">
-          {note && <span className="record-item-note">{note}</span>}
+          {note && <span className="record-item-note">{displayTerminology(note)}</span>}
           {actions && <ActionGroup className="record-item-actions">{actions}</ActionGroup>}
         </footer>
       )}

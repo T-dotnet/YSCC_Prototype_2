@@ -53,7 +53,7 @@ import AppointmentSlotPicker from "./AppointmentSlotPicker";
 import { addDays } from "../externalAppointmentSlots";
 import { contactsForAssessment } from "../assessmentContacts";
 import { assessmentSchedulingEnabled, assessmentDueDatesEnabled, assessmentContactLinkingEnabled, assessmentSmsEnabled, assessmentModalityEnabled, assessmentBundleGroupingEnabled } from "../assessmentFeatures";
-import { asBundle, bundleName, bundleAgeMatches } from "../assessmentBundles";
+import { asBundle, bundleName, bundleAgeMatches, instrumentSupportsRespondent } from "../assessmentBundles";
 import CareEventForm from "./CareEventForm";
 import AppointmentForm from "./AppointmentForm";
 import AppointmentOutcomeForm from "./AppointmentOutcomeForm";
@@ -113,7 +113,7 @@ export default function Forms({
     [assistance, setAssistance] = useState(
       modal.collectionDraft?.assistance ||
         c?.assistance ||
-        ((modal.channel || c?.channel) === "Clinician entry" ? "Transcribed" : "Independent"),
+        ((modal.channel || c?.channel) === "Clinician entry" && c?.respondent !== "Clinician" ? "Transcribed" : "Independent"),
     ),
     [name, setName] = useState(""),
     [episodeAction, setEpisodeAction] = useState("Paused"),
@@ -271,7 +271,7 @@ export default function Forms({
         episode={e}
         people={state.people}
         person={p}
-        recordTypes={NEW_RECORD_TYPES.map((value) => ({
+        recordTypes={(state.settings?.phase2CareActivity ? ["appointment"] : NEW_RECORD_TYPES).map((value) => ({
           value,
           label: simpleAssessments && value === "outcome"
             ? "Score collection"
@@ -288,6 +288,7 @@ export default function Forms({
         simpleAssessments={!linkAssessmentAppointments}
         scheduleAssessments={scheduleAssessments}
         assessmentSms={assessmentSms}
+        phase2Mvp={!!state.settings?.phase2CareActivity}
         onClose={onClose}
         onSave={(action) =>
           save(action, "Contact added to this care episode.")
@@ -442,10 +443,10 @@ export default function Forms({
         onAction={(type) => {
           if (type === "clinician-entry") {
             const instrument = getInstrument(c.version);
-            const respondent = instrument?.respondents.includes(c.respondent)
+            const respondent = instrumentSupportsRespondent(instrument, c.respondent, 'Clinician entry')
               ? c.respondent
               : "Person";
-            const assistance = ["Transcribed", "Joint completion"].includes(
+            const assistance = respondent === "Clinician" ? "Independent" : ["Transcribed", "Joint completion"].includes(
               c.assistance,
             )
               ? c.assistance
@@ -693,7 +694,7 @@ export default function Forms({
               label="Assessment"
               hint="Choose an assessment for this instrument, or keep it as an individual instrument."
             >
-              <select value={assessmentBundleId} onChange={event => {setAssessmentBundleId(event.target.value);const bundle = availableAssessmentBundles.find(item => item.id === event.target.value);if(bundle){setPlanChannel(bundle.channel);setPlanRespondent(bundle.recipient);setPlanAssistance(bundle.channel === 'Clinician entry' ? 'Transcribed' : 'Independent');}}}>
+              <select value={assessmentBundleId} onChange={event => {setAssessmentBundleId(event.target.value);const bundle = availableAssessmentBundles.find(item => item.id === event.target.value);if(bundle){setPlanChannel(bundle.channel);setPlanRespondent(bundle.recipient);setPlanAssistance(bundle.channel === 'Clinician entry' && bundle.recipient !== 'Clinician' ? 'Transcribed' : 'Independent');}}}>
                 <option value="">Individual instrument</option>
                 {availableAssessmentBundles.map(bundle =>
                   <option key={bundle.id} value={bundle.id}>{bundleName(bundle)}</option>)}
@@ -720,17 +721,10 @@ export default function Forms({
               <select
                 value={planRespondent}
                 disabled={!!assessmentBundleId}
-                onChange={(event) => setPlanRespondent(event.target.value)}
+                onChange={(event) => {setPlanRespondent(event.target.value);if(planChannel === 'Clinician entry')setPlanAssistance(event.target.value === 'Clinician' ? 'Independent' : 'Transcribed');}}
               >
                 <option value="Person">{displayPersonName(p)}</option>
-                {p?.family &&
-                  selectedInstrument?.respondents?.includes(
-                    "Family respondent",
-                  ) && (
-                    <option value="Family respondent">
-                      {displayFamilyName(p)}
-                    </option>
-                  )}
+                {(planChannel === "Clinician entry" || planRespondent === "Clinician") && <option value="Clinician">Clinician</option>}
               </select>
             </Field>
 
@@ -756,7 +750,7 @@ export default function Forms({
                       setCopyFeedback("");
                       setPlanAssistance(
                         label === "Clinician entry"
-                          ? "Transcribed"
+                          ? planRespondent === "Clinician" ? "Independent" : "Transcribed"
                           : "Independent",
                       );
                       scrollToPicker(label === "SMS link" ? planSmsRef : planPickerRef);
@@ -839,27 +833,26 @@ export default function Forms({
     const responseContacts = contactsForAssessment(e, c.id).filter((item) =>
       !["Cancelled", "Did not attend"].includes(item.attendance));
     const allowed =
-      p.consent === "Recorded" &&
-      p.contact === "Suitable" &&
+      (c.clientProfileMeasure || p.consent === "Recorded" && p.contact === "Suitable") &&
       canCollectInEpisode(e, c) &&
       c.response !== "Submitted" &&
       !!getInstrument(c.version) &&
-      getInstrument(c.version).respondents.includes(respondent) &&
+      instrumentSupportsRespondent(getInstrument(c.version), respondent, channel) &&
       (assessmentSms || channel !== "SMS link") &&
       (channel !== "Clinician entry" || staff?.role === "Clinician") &&
       !["Cancelled", "Paused"].includes(c.assignment);
     const blockers = [
-      p.consent !== "Recorded" &&
+      !c.clientProfileMeasure && p.consent !== "Recorded" &&
         `Instrument participation is ${p.consent.toLowerCase()}.`,
-      p.contact !== "Suitable" &&
+      !c.clientProfileMeasure && p.contact !== "Suitable" &&
         `Contact suitability is ${p.contact.toLowerCase()}.`,
       !canCollectInEpisode(e, c) &&
         `This care episode is ${e.status.toLowerCase()}.`,
       c.response === "Submitted" && "A response has already been submitted.",
       !getInstrument(c.version) && "This instrument version is unavailable.",
       getInstrument(c.version) &&
-        !getInstrument(c.version).respondents.includes(respondent) &&
-        "This instrument collects the person’s own perspective. They can receive support with their answers.",
+        !instrumentSupportsRespondent(getInstrument(c.version), respondent, channel) &&
+        "Choose a compatible respondent and collection method.",
       channel === "Clinician entry" &&
         staff?.role !== "Clinician" &&
         "Choose a Clinician profile to complete this instrument.",
@@ -944,7 +937,7 @@ export default function Forms({
                     <li key={blocker}>{blocker}</li>
                   ))}
                 </ul>
-                {(p.consent !== "Recorded" || p.contact !== "Suitable") && (
+                {!c.clientProfileMeasure && (p.consent !== "Recorded" || p.contact !== "Suitable") && (
                   <button
                     type="button"
                     className="inline-link"
@@ -967,17 +960,10 @@ export default function Forms({
               <select
                 value={respondent}
                 disabled={!!c.bundleId || !!c.scheduleRuleId || !!c.draftAnswers?.some(Boolean)}
-                onChange={(ev) => setRespondent(ev.target.value)}
+                onChange={(ev) => { setRespondent(ev.target.value); if (channel === "Clinician entry") setAssistance(ev.target.value === "Clinician" ? "Independent" : "Transcribed"); }}
               >
                 <option value="Person">{displayPersonName(p)}</option>
-                {p.family &&
-                  getInstrument(c.version)?.respondents.includes(
-                    "Family respondent",
-                  ) && (
-                    <option value="Family respondent">
-                      {displayFamilyName(p)}
-                    </option>
-                  )}
+                {(channel === "Clinician entry" || respondent === "Clinician") && <option value="Clinician">Clinician</option>}
               </select>
             </Field>
             <fieldset className="channel-options">
@@ -1001,7 +987,7 @@ export default function Forms({
                       setChannel(label);
                       setAssistance(
                         label === "Clinician entry"
-                          ? "Transcribed"
+                          ? respondent === "Clinician" ? "Independent" : "Transcribed"
                           : "Independent",
                       );
                       if (label !== "SMS link") scrollToPicker(collectionPickerRef);
@@ -1022,7 +1008,7 @@ export default function Forms({
                 onChange={(ev) => setAssistance(ev.target.value)}
               >
                 {(channel === "Clinician entry"
-                  ? ["Transcribed", "Joint completion"]
+                  ? respondent === "Clinician" ? ["Independent"] : ["Transcribed", "Joint completion"]
                   : ["Independent", "Supported"]
                 ).map((a) => (
                   <option key={a}>{a}</option>
@@ -1056,7 +1042,7 @@ export default function Forms({
                   <dd>
                     {respondent === "Family respondent"
                       ? displayFamilyName(p)
-                      : displayPersonName(p)}
+                      : respondent === "Clinician" ? `${staff?.name || "Clinician"} · Clinician` : displayPersonName(p)}
                     {respondent === "Family respondent"
                       ? " · own family contribution"
                       : " · own answers"}
@@ -1073,7 +1059,7 @@ export default function Forms({
                       ? "No phone number connected · sample link only"
                       : channel === "Clinic tablet"
                         ? "Shared clinic device · staff handover"
-                        : `${staff?.name} records the respondent’s answers`}
+                        : respondent === "Clinician" ? `${staff?.name} supplies their own answers` : `${staff?.name} records the respondent’s answers`}
                   </dd>
                 </div>
                 <div>

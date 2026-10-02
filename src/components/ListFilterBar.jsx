@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ChevronDown, SlidersHorizontal } from "lucide-react";
 import { FilterTabs, SearchInput } from "./UI";
+import { displayTerminology } from "../terminology.js";
 
 export default function ListFilterBar({
   id,
@@ -64,7 +65,7 @@ export default function ListFilterBar({
         {advanced}
       </div>}
       <p className="care-event-results-count" aria-live="polite">
-        <span>Showing {shown} of {total} {noun}</span>
+        <span>Showing {shown} of {total} {displayTerminology(noun)}</span>
         {shown !== total && onClear && (
           <button type="button" className="filter-count-clear" onClick={onClear}>Clear filters</button>
         )}

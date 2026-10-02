@@ -1,5 +1,6 @@
 import StandardTable from "../components/StandardTable";
 import AssessmentScheduleSettings from "../components/AssessmentScheduleSettings";
+import AdminInstrumentsTable from "../components/AdminInstrumentsTable";
 import ProductTerminology from "../components/ProductTerminology";
 import useQueueView from "../useQueueView";
 import { useMemo } from "react";
@@ -350,7 +351,7 @@ export function Administration({ openModal, navigate }) {
   const { state } = useStore();
   const staff = currentStaff(state);
   const view = useQueueView();
-  const adminTabs = ["workspace", "bundles"];
+  const adminTabs = ["workspace", "bundles", "instruments"];
   const adminTab = adminTabs.includes(view.params.get("tab")) ? view.params.get("tab") : "workspace";
   return (
     <>
@@ -358,13 +359,20 @@ export function Administration({ openModal, navigate }) {
         title="Administration"
         subtitle="The foundations of a consistent care experience."
       />
-      <Tabs id="administration" panelId="administration-panel" label="Administration sections"
-        items={[{value:"workspace",label:"Workspace"},{value:"bundles",label:"Assessments"}]}
-        value={adminTab} onChange={value=>view.set("tab",value,"workspace")} />
-      <div role="tabpanel" id="administration-panel" aria-labelledby={`administration-tab-${adminTabs.indexOf(adminTab)}`}>
+      <Tabs id="administration" panelId="administration-panel" label="Administration sections" className="administration-tabs"
+        items={[{ value: "workspace", label: "Workspace" }, { value: "bundles", label: "Assessments" }, { value: "instruments", label: "Instruments" }]}
+        value={adminTab} onChange={(value) => view.set("tab", value, "workspace")} />
+      <div role="tabpanel" id="administration-panel" className="administration-tab-content" aria-labelledby={`administration-tab-${adminTabs.indexOf(adminTab)}`}>
       {adminTab === "bundles" && <AssessmentScheduleSettings />}
+      {adminTab === "instruments" && <AdminInstrumentsTable settings={state.settings} />}
       {adminTab === "workspace" && <div className="stack">
-      <Panel title="Workspace configuration" className="admin-panel">
+      <div className="section-toolbar administration-section-heading">
+        <div>
+          <h2>Workspace configuration</h2>
+          <p>Shared setup for this workspace.</p>
+        </div>
+      </div>
+      <Panel className="admin-panel">
         {[
           [
             BookOpen,
@@ -377,7 +385,7 @@ export function Administration({ openModal, navigate }) {
             SlidersHorizontal,
             "Assessments",
             mvpAssessmentMode(state.settings)
-              ? "Fixed 90-day reviews with mandatory young-person and family bundles"
+              ? "Fixed 90-day reviews with patient and clinician bundles"
               : "Group instruments into assessments by program, care level, or a recorded event",
             "bundles",
             "Manage assessments",

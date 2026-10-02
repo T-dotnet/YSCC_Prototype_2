@@ -69,9 +69,9 @@ export default function InstrumentLibrary({ onClose }) {
                   <small>{instrument.responseFormat}</small>
                 )}
                 <small>
-                  {instrument.respondents.includes("Family respondent")
-                    ? "Person or family contribution"
-                    : "Person’s own perspective · assistance available"}
+                  {instrument.respondents.includes("Clinician")
+                    ? "Clinician entry"
+                    : "Patient response · clinician entry available"}
                 </small>
               </div>
               <Button

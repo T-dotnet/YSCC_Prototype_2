@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { X } from "lucide-react";
+import { displayTerminology } from "../terminology.js";
 
 export function useQueueSort(initialSort) {
   const [sort, setSort] = useState(initialSort);
@@ -25,7 +26,7 @@ export function SortableHeader({ label, sortKey, sort, onSort, className = "", .
       }
     >
       <button type="button" className="sort-header-button" onClick={() => onSort(sortKey)}>
-        {label}
+        {displayTerminology(label)}
         <span className={`sort-indicator ${active ? "active" : ""}`} aria-hidden="true">
           {active ? (sort.direction === "asc" ? "↑" : "↓") : "↕"}
         </span>
@@ -45,9 +46,9 @@ export function ActiveFilters({ items, onClear }) {
             type="button"
             className="filter-chip"
             onClick={onRemove}
-            aria-label={`Remove ${label} filter`}
+            aria-label={displayTerminology(`Remove ${label} filter`)}
           >
-            <span>{label}</span>
+            <span>{displayTerminology(label)}</span>
             <X size={14} aria-hidden="true" />
           </button>
         ))}

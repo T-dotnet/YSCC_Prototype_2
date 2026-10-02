@@ -1,11 +1,12 @@
 import { assessmentBundleGroups } from './assessmentBundles.js';
 import { getInstrument, questionnaireState } from './instruments.js';
+import { appTerm } from './terminology.js';
 
 export function bundleCollectionGroup(episode, collection, rules = []) {
   const key = episode.assessmentBundleInstances?.find(item => item.id === collection?.bundleInstanceId && item.customName)?.id || collection?.bundleId || collection?.scheduleRuleId;
   if (!key) return null;
   return assessmentBundleGroups(episode, episode.collections, rules)
-    .find(group => group.key === key) || { key, name: collection.bundleName || 'Assessment bundle',
+    .find(group => group.key === key) || { key, name: collection.bundleName || appTerm('measures', 'singular'),
       records: episode.collections.filter(record => (record.bundleId || record.scheduleRuleId) === key) };
 }
 

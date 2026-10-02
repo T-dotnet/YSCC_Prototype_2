@@ -2,6 +2,7 @@ import { episodeWithVisibleContacts } from "../assessmentFeatures.js";
 import { useEffect, useState } from "react";
 import { useStore } from "../store";
 import { assessmentContactLinkingEnabled } from "../assessmentFeatures";
+import { mvpAssessmentMode } from "../mvpAssessmentPathway";
 import { patientIdentifier } from "../patientIdentity";
 import { canAssess } from "../intake";
 import { collectionActor, currentStaff, formatDate } from "../model";
@@ -21,9 +22,11 @@ export default function ClinicianQuestionnaire({
   const { state, commit } = useStore();
   episode = episodeWithVisibleContacts(episode, state.settings);
   const simpleAssessments = !assessmentContactLinkingEnabled(state.settings);
+  const separateMeasuresContacts = mvpAssessmentMode(state.settings) && !!state.settings?.mvpSeparateMeasuresContacts;
   const [answers, setAnswers] = useState(() => [...(collection.draftAnswers || [])]);
   const [discard, setDiscard] = useState(false);
   const [finished, setFinished] = useState(false);
+  const [draftSaved, setDraftSaved] = useState(false);
   const [error, setError] = useState("");
   const [pendingAnswers, setPendingAnswers] = useState(null);
   const [returnToReview, setReturnToReview] = useState(false);
@@ -50,7 +53,7 @@ export default function ClinicianQuestionnaire({
     c.recorderId === staff.id &&
     c.attempts.at(-1)?.id === attemptId &&
     !!instrument;
-  const dirty = answers.some((answer, index) => answer !== (collection.draftAnswers || [])[index]) && !finished;
+  const dirty = answers.some((answer, index) => answer !== (collection.draftAnswers || [])[index]) && !finished && !draftSaved;
   const respondent = collectionActor(person, c, "respondent");
   const requestClose = () => saveContactOpen
     ? setSaveContactOpen(false)
@@ -69,7 +72,11 @@ export default function ClinicianQuestionnaire({
       assistance,
     });
     if (result.error) return setError(result.error);
-    onClose();
+    if (separateMeasuresContacts) {
+      setSaveContactOpen(false);
+      setDraftSaved(true);
+      setAnswers([]);
+    } else onClose();
   };
 
   useEffect(() => {
@@ -111,7 +118,7 @@ export default function ClinicianQuestionnaire({
   return (
     <Modal
       title={
-        finished
+        draftSaved ? "Draft saved" : finished
           ? "Instrument submitted"
           : saveContactOpen
             ? simpleAssessments ? "Save draft" : "Save draft and link contact"
@@ -134,7 +141,9 @@ export default function ClinicianQuestionnaire({
           onSave={saveProgress}
         />
       ) : <div className="form-body">
-        {finished ? (
+        {draftSaved ? <Success title="Draft saved" action={<Button variant="primary" onClick={onClose}>Back to record</Button>}>
+          Your answers are saved as a draft on the instrument. You can continue it later.
+        </Success> : finished ? (
           <Success
             title="Response saved"
             action={
@@ -221,7 +230,7 @@ export default function ClinicianQuestionnaire({
                 )}
                 {!pendingAnswers && (
                   <div className="questionnaire-save-progress">
-                    <Button type="button" onClick={() => { setError(""); if (!dirty && answers.some(Boolean)) onClose(); else if (answers.some(Boolean)) setSaveContactOpen(true); else saveProgress({ kind: "none" }); }}>Save as draft</Button>
+                    <Button type="button" onClick={() => { setError(""); if (separateMeasuresContacts) saveProgress({ kind: "none" }); else if (!dirty && answers.some(Boolean)) onClose(); else if (answers.some(Boolean)) setSaveContactOpen(true); else saveProgress({ kind: "none" }); }}>Save as draft</Button>
                   </div>
                 )}
               </div>

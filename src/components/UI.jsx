@@ -1,4 +1,4 @@
-import { cloneElement, isValidElement, useEffect, useRef, useId, useState } from "react";
+import { Children, cloneElement, isValidElement, useEffect, useRef, useId, useState } from "react";
 import {
   X,
   Search,
@@ -14,6 +14,17 @@ import {
 } from "lucide-react";
 import { DEMO_STAFF, initials } from "../model";
 import { badgeTone } from "../badgeTone";
+import { displayTerminology } from "../terminology.js";
+const displayChildren = children => Array.isArray(children)
+  ? Children.map(children, displayChildren)
+  : isValidElement(children)
+    ? children.props.verbatim ? children : cloneElement(children, {
+        ...(children.props.children !== undefined ? { children: displayChildren(children.props.children) } : {}),
+        ...(children.props["aria-label"] ? { "aria-label": displayTerminology(children.props["aria-label"]) } : {}),
+        ...(children.props.title ? { title: displayTerminology(children.props.title) } : {}),
+        ...(children.props.placeholder ? { placeholder: displayTerminology(children.props.placeholder) } : {}),
+      })
+  : displayTerminology(children);
 export function Logo() {
   return (
     <span className="brand">
@@ -108,8 +119,8 @@ export function Logo() {
 }
 export function Button({ children, variant = "", className = "", ...props }) {
   return (
-    <button className={`button ${variant} ${className}`} {...props}>
-      {children}
+    <button className={`button ${variant} ${className}`} {...props} aria-label={displayTerminology(props["aria-label"])} title={displayTerminology(props.title)}>
+      {displayChildren(children)}
     </button>
   );
 }
@@ -139,14 +150,14 @@ export function SplitButton({ label, onClick, disabled = false, items, menuLabel
     };
   }, [open]);
   return (
-    <div ref={root} className="split-button" role="group" aria-label={typeof label === "string" ? `${label} actions` : menuLabel}>
+    <div ref={root} className="split-button" role="group" aria-label={displayTerminology(typeof label === "string" ? `${label} actions` : menuLabel)}>
       <div className="split-button-controls">
         <Button type="button" variant={variant} disabled={disabled} onClick={onClick}>{label}</Button>
         <button
           ref={trigger}
           type="button"
           className={`button ${variant} split-button-trigger`}
-          aria-label={menuLabel}
+          aria-label={displayTerminology(menuLabel)}
           aria-haspopup="menu"
           aria-expanded={open}
           aria-controls={open ? menuId : undefined}
@@ -177,7 +188,7 @@ export function SplitButton({ label, onClick, disabled = false, items, menuLabel
             setOpen(false);
             trigger.current?.focus();
             item.onClick();
-          }}>{item.label}</button>)}
+          }}>{displayTerminology(item.label)}</button>)}
       </div>}
     </div>
   );
@@ -200,13 +211,13 @@ export function PersonIdentity({ name, descriptor, className = "" }) {
     </span>
   );
 }
-export function Badge({ children, tone, className = "" }) {
+export function Badge({ children, tone, className = "", verbatim = false }) {
   return (
     <span
       className={`badge ${tone || badgeTone(children)} ${className}`.trim()}
     >
       <span />
-      {children}
+      {verbatim ? children : displayChildren(children)}
     </span>
   );
 }
@@ -224,8 +235,8 @@ export function SearchInput({
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        aria-label={placeholder}
+        placeholder={displayTerminology(placeholder)}
+        aria-label={displayTerminology(placeholder)}
       />
       {value && (
         <button aria-label="Clear search" onClick={() => onChange("")}>
@@ -238,8 +249,8 @@ export function SearchInput({
 export function Select({ label, children, className = "", ...props }) {
   return (
     <div className={`select-wrap ${className}`}>
-      <select aria-label={label} {...props}>
-        {children}
+      <select aria-label={displayTerminology(label)} {...props}>
+        {displayChildren(children)}
       </select>
       <ChevronDown size={16} />
     </div>
@@ -248,12 +259,12 @@ export function Select({ label, children, className = "", ...props }) {
 export function Checkbox({ label, className = "", ...props }) {
   return <label className={`check-field checkbox-control ${className}`.trim()}>
     <input {...props} type="checkbox" />
-    <span>{label}</span>
+    <span>{displayTerminology(label)}</span>
   </label>;
 }
 export function Switch({ label, onLabel = "On", offLabel = "Off", className = "", checked, ...props }) {
   return <label className={`admin-setting-toggle ${className}`.trim()}>
-    <input {...props} type="checkbox" role="switch" aria-label={label} checked={checked} />
+    <input {...props} type="checkbox" role="switch" aria-label={displayTerminology(label)} checked={checked} />
     <span>{checked ? onLabel : offLabel}</span>
   </label>;
 }
@@ -278,10 +289,10 @@ export function Field({ label, hint, error, children }) {
     : children;
   return (
     <label className={`field ${error ? "has-error" : ""}`}>
-      <span>{label}</span>
+      <span>{displayTerminology(label)}</span>
       {control}
-      {hint && <small id={hintId}>{hint}</small>}
-      {error && <small id={errorId} className="field-inline-error">{error}</small>}
+      {hint && <small id={hintId}>{displayTerminology(hint)}</small>}
+      {error && <small id={errorId} className="field-inline-error">{displayTerminology(error)}</small>}
       <small id={requiredId} className="field-required-hint" aria-live="polite">
         This field is required.
       </small>
@@ -407,7 +418,7 @@ export function Notice({ children, tone = "" }) {
   return (
     <div className={`notice ${tone}`}>
       <Info size={18} />
-      <div>{children}</div>
+      <div>{displayChildren(children)}</div>
     </div>
   );
 }
@@ -421,8 +432,8 @@ export function Empty({ title = "No matching work", children, action, visual = "
           <img src="/src/assets/images/empty_state_botanical_1790002756211.jpg" alt="" referrerPolicy="no-referrer" />
         )}
       </div>
-      <h3>{title}</h3>
-      <p>{children || "Try a different search or adjust your filters."}</p>
+      <h3>{displayTerminology(title)}</h3>
+      <p>{displayChildren(children) || "Try a different search or adjust your filters."}</p>
       {action && action}
     </div>
   );
@@ -457,16 +468,16 @@ export function Pagination({ page, pageCount, onPageChange, label }) {
     </nav>
   );
 }
-export function Panel({ title, action, children, className = "" }) {
+export function Panel({ title, action, children, className = "", verbatim = false }) {
   return (
     <section className={`panel ${className}`}>
       {title && (
         <div className="panel-heading">
-          <h2>{title}</h2>
+          <h2>{verbatim ? title : displayChildren(title)}</h2>
           {action}
         </div>
       )}
-      {children}
+      {verbatim ? children : displayChildren(children)}
     </section>
   );
 }
@@ -489,8 +500,8 @@ export function PageHeading({ title, subtitle, meta, children }) {
   return (
     <div className="page-heading">
       <div>
-        <h1>{title}</h1>
-        {subtitle && <p>{subtitle}</p>}
+        <h1>{displayTerminology(title)}</h1>
+        {subtitle && <p>{displayTerminology(subtitle)}</p>}
         {meta && <div className="page-meta">{meta}</div>}
       </div>
       {children && <ActionGroup className="actions">{children}</ActionGroup>}
@@ -534,8 +545,8 @@ export function Modal({
     >
       <div className="modal-heading">
         <div>
-          <h2 id={id}>{title}</h2>
-          {subtitle && <p>{subtitle}</p>}
+          <h2 id={id}>{displayChildren(title)}</h2>
+          {subtitle && <p>{displayTerminology(subtitle)}</p>}
         </div>
         <button
           className="icon-button"
@@ -545,7 +556,7 @@ export function Modal({
           <X size={21} />
         </button>
       </div>
-      {children}
+      {displayChildren(children)}
     </dialog>
   );
 }
@@ -556,20 +567,23 @@ export function Success({ title, children, action, heading = "h2" }) {
       <span className="success-icon">
         <Check size={26} />
       </span>
-      <Heading tabIndex={-1}>{title}</Heading>
-      <p>{children}</p>
+      <Heading tabIndex={-1}>{displayTerminology(title)}</Heading>
+      <p>{displayChildren(children)}</p>
       {action}
     </div>
   );
+}
+export function ProductCopy({ children }) {
+  return displayChildren(children);
 }
 export { Tabs, RecordTabs, FilterTabs } from "./Tabs";
 
 // Tertiary actions retain a visible label. Icon-only utilities use icon-button.
 export function TertiaryAction({ children, icon: Icon, iconPosition = "start", className = "", type = "button", ...props }) {
   const icon = Icon && <Icon size={16} aria-hidden="true" />;
-  return <button type={type} className={`tertiary-action ${className}`.trim()} {...props}>
+  return <button type={type} className={`tertiary-action ${className}`.trim()} {...props} aria-label={displayTerminology(props["aria-label"])} title={displayTerminology(props.title)}>
     {iconPosition === "start" && icon}
-    {children}
+    {displayChildren(children)}
     {iconPosition === "end" && icon}
   </button>;
 }
@@ -591,5 +605,5 @@ export function DeleteAction(props) {
   return <TertiaryAction icon={Trash2} {...props} />;
 }
 export function IconButton({ icon: Icon, label, className = "", type = "button", ...props }) {
-  return <button type={type} className={`icon-button ${className}`.trim()} aria-label={label} title={label} {...props}><Icon size={18} aria-hidden="true" /></button>;
+  return <button type={type} className={`icon-button ${className}`.trim()} aria-label={displayTerminology(label)} title={displayTerminology(label)} {...props}><Icon size={18} aria-hidden="true" /></button>;
 }

@@ -1,6 +1,7 @@
 import { careChanges, recordFieldChanges } from "./activity.js";
 import { PROGRAM_STREAMS } from "./carePeriods.js";
 import { validExternalSlot } from "./externalAppointmentSlots.js";
+import { PROFILE_FIELDS } from "./batch1Registration.js";
 
 // Prototype workflow only: clinical criteria and external agreements remain D-26/D-27.
 export const INTAKE_STATES = [
@@ -19,10 +20,8 @@ export const INTAKE_CHECKS = [
   ["triageChecked", "Required intake and triage checks resolved"],
 ];
 export const INTAKE_DETAIL_FIELDS = [
-  "legalName", "sourceIdentifiers", "receivedAt", "source", "sourceReference", "reason",
-  "contactMethod", "contactValue", "contactHolder", "safeContact", "permissionReference",
-  "language", "supportNeeds", "supporter", "authority", "nextAction", "reviewDate",
-  "waitingReason", "waitingOn", "communication",
+  "source", "referralDate", "commencementDate", "commencementDateUhr", "commencementDateFep",
+  ...PROFILE_FIELDS,
 ];
 export function intakeCheckFieldsError(values) {
   const unchecked = INTAKE_CHECKS.find(([key]) => values?.[key] !== true);
@@ -65,22 +64,14 @@ export const intakeFor = (person, episode) =>
     ? person?.intakes?.find((i) => i.episodeId === episode.id) ||
       person?.intakes?.find((i) => i.id === episode.intakeId)
     : person?.intakes?.[0];
-export const intakeReady = (i) =>
-  !!i &&
-  i.status === "Completed" &&
-  i.outcome === "Proceed" &&
-  i.consentRecorded === true &&
-  INTAKE_CHECKS.every(([key]) => i[key] === true) &&
-  text(i.decisionBy) &&
-  validTime(i.decisionAt) &&
-  text(i.assessmentOwner);
+export const intakeReady = (i) => !!i && i.status !== "Received";
 export const intakeStage = (i) => {
   if (!i || i.status === "Received") return "Registration";
   if (intakeReady(i)) return "Assessment";
-  return "Intake & triage";
+  return "Registration";
 };
 export const canAssess = (person, episode) =>
-  !!episode && intakeReady(intakeFor(person, episode));
+  !!episode && (person?.mvpProfile === true || intakeReady(intakeFor(person, episode)));
 export const referralOpen = (r) =>
   ![
     "Resolved handover",
@@ -130,7 +121,20 @@ export function newIntake({
     createdAt: timestamp,
     createdBy: actor,
     source: "Unknown",
+    referralDate: "",
     sourceReference: "",
+    commencementDate: "",
+    programStream: "",
+    commencementDateUhr: "",
+    commencementDateFep: "",
+    clientPostcode: "",
+    clientGender: "",
+    clientSexuality: "",
+    clientAtsiStatus: "",
+    clientCountryOfBirth: "",
+    clientLanguageHome: "",
+    clientEthnicity: "",
+    clientEducationLevel: "",
     reason: "",
     contactMethod: "Not yet discussed",
     contactValue: "",
@@ -156,7 +160,7 @@ export function newIntake({
     reviewer: owner,
     summary: "",
     assessmentOwner: "",
-    nextAction: "Complete intake and resolve required checks",
+    nextAction: "Complete Batch 1 registration",
     reviewDate: today,
     waitingReason: "",
     waitingOn: "",
@@ -168,7 +172,7 @@ export function newIntake({
         actor,
         title: "Intake received",
         detail:
-          "Registration recorded; assessment requires completed intake and a proceed decision.",
+          "Profile created; complete Batch 1 registration before planning assessment.",
       },
     ],
   };
@@ -186,10 +190,9 @@ export function intakeActionError(state, action, staff) {
       !validDate(action.reviewDate)
     )
       return "Record an intake owner, next action and review date.";
-    if (!text(action.name) && action.nameUnknown !== true)
-      return "Enter the supplied name or mark it as unknown.";
-    if (action.dob && (!validDate(action.dob) || action.dob > "2026-09-15"))
-      return "Check the supplied date of birth.";
+    if (!text(action.name)) return "Enter the young person’s name.";
+    if (!validDate(action.dob) || action.dob > new Date().toISOString().slice(0, 10))
+      return "Enter a valid date of birth.";
     if (state.people.some((p) => p.registrationRequestId === action.requestId))
       return "This registration is already saved. Open the existing record.";
     if (
@@ -213,12 +216,15 @@ export function intakeActionError(state, action, staff) {
     if (state.people.some((other) => other.id !== p.id &&
         !other.nameUnknown && other.name.trim().toLowerCase() === values.name.trim().toLowerCase()))
       return "A matching name exists. Review that record before saving.";
-    if (values.dob && (!validDate(values.dob) || values.dob > "2026-09-15"))
+    if (values.dob && (!validDate(values.dob) || values.dob > new Date().toISOString().slice(0, 10)))
       return "Check the supplied date of birth.";
-    if (values.receivedAt && !validTime(values.receivedAt))
-      return "Check the received date and time.";
-    if (!validDate(values.reviewDate)) return "Enter a valid next review date.";
-    if (!text(values.nextAction)) return "Enter the next action.";
+    for (const key of ["referralDate", "commencementDate", "commencementDateUhr", "commencementDateFep"]) {
+      if (values[key] && !validDate(values[key])) return `Check the ${key.replace(/([A-Z])/g, " $1").toLowerCase()}.`;
+    }
+    if (values.clientPostcode && !/^\d{4}$/.test(values.clientPostcode))
+      return "Enter a four-digit young person postcode or leave it blank.";
+    if (values.commencementDate && [values.commencementDateUhr, values.commencementDateFep].some((date) => date && date < values.commencementDate))
+      return "Stream commencement dates must be on or after the episode commencement date.";
     return "";
   }
   if (
@@ -239,8 +245,7 @@ export function intakeActionError(state, action, staff) {
     if (action.type === "START_ASSESSMENT") {
       if (!PROGRAM_STREAMS.includes(action.programStream))
         return "Choose the program stream for this episode.";
-      if (!intakeReady(i))
-        return "Complete intake with a proceed decision and assessment owner first.";
+      if (!i || i.status === "Received") return "Save Batch 1 registration fields before planning assessment.";
       if (p.episodes.some((episode) => episode.id !== i.episodeId) ||
           (i.episodeId && p.episodes.find((episode) => episode.id === i.episodeId)?.collections?.[0]?.due))
         return "An existing care record needs review; another episode cannot be created here.";
@@ -254,63 +259,12 @@ export function intakeActionError(state, action, staff) {
       return "";
     }
     const f = action.values || {};
-    if (f.dob && (!validDate(f.dob) || f.dob > "2026-09-15"))
-      return "Check the supplied date of birth.";
-    if (
-      text(f.displayName) &&
-      state.people.some(
-        (other) =>
-          other.id !== p.id &&
-          !other.nameUnknown &&
-          other.name.trim().toLowerCase() ===
-            f.displayName.trim().toLowerCase(),
-      )
-    )
-      return "A matching name exists. Resolve the identity match before saving.";
-    if (["Completed", "Closed incomplete"].includes(i.status))
-      return "This intake is finalised. Its decision and history are retained.";
-    if (action.validatedChecks === true) {
-      const problem = intakeCheckFieldsError(f);
-      if (problem) return problem;
+    for (const key of ["referralDate", "commencementDate", "commencementDateUhr", "commencementDateFep"]) {
+      if (f[key] && !validDate(f[key])) return `Check the ${key.replace(/([A-Z])/g, " $1").toLowerCase()}.`;
     }
-    if (!INTAKE_STATES.includes(f.status)) return "Choose an intake state.";
-    if (
-      !text(f.owner) ||
-      !text(f.nextAction) ||
-      !validDate(f.reviewDate) ||
-      !text(f.changeReason)
-    )
-      return "Record an owner, next action, review date and reason for this update.";
-    if (f.receivedAt && !validTime(f.receivedAt))
-      return "Check the received date and time, or leave it unknown.";
-    if (
-      ["Awaiting information", "Awaiting triage", "Waiting"].includes(
-        f.status,
-      ) &&
-      (!text(f.waitingReason) || !text(f.waitingOn))
-    )
-      return "Record why intake is waiting and who owns the outstanding step.";
-    if (f.status === "Completed") {
-      if (staff.role !== "Clinician")
-        return "The demo Clinician profile records intake decisions.";
-      if (f.consentRecorded !== true || !text(f.consentReference))
-        return "Record consent and its source in the intake form before completing intake.";
-      if (
-        !["Person", "Family respondent"].includes(f.respondentPreference) ||
-        (f.respondentPreference === "Family respondent" &&
-          !text(f.respondentName))
-      )
-        return "Record the initial assessment respondent in the intake form before completing intake.";
-      if (!INTAKE_CHECKS.every(([key]) => f[key] === true))
-        return "Resolve the required intake checks before recording an outcome.";
-      if (
-        !["Proceed", "Do not proceed"].includes(f.outcome) ||
-        !validTime(f.decisionAt)
-      )
-        return "The intake outcome needs a valid recorded decision time. Retry the action.";
-      if (f.outcome === "Proceed" && !text(f.assessmentOwner))
-        return "Assign an intake owner before proceeding to assessment.";
-    }
+    if (f.clientPostcode && !/^\d{4}$/.test(f.clientPostcode)) return "Enter a four-digit young person postcode or leave it blank.";
+    if (f.commencementDate && [f.commencementDateUhr, f.commencementDateFep].some((date) => date && date < f.commencementDate)) return "Stream commencement dates must be on or after the episode commencement date.";
+    if (!text(f.changeReason)) return "Record why the registration fields changed.";
     return "";
   }
   if (action.type === "ADD_REFERRAL") {
@@ -387,7 +341,7 @@ export function intakeActionError(state, action, staff) {
 export function applyIntakeAction(
   state,
   action,
-  { staff, uid, today, version },
+  { staff, uid, today, version, mvpProfile = false },
 ) {
   if (intakeActionError(state, action, staff)) return state;
   const next = JSON.parse(JSON.stringify(state)),
@@ -405,21 +359,23 @@ export function applyIntakeAction(
   });
   if (action.type === "ADD_PERSON") {
     const id = `YS-${Math.max(1023, ...next.people.map((p) => Number(p.id.slice(3))).filter(Number.isFinite)) + 1}`;
-    const intake = newIntake({
+    const intake = !mvpProfile && newIntake({
       id: uid(),
       owner: action.owner.trim(),
       today,
       actor: staff.name,
       timestamp,
     });
-    intake.nextAction = action.nextAction.trim();
-    intake.reviewDate = action.reviewDate;
-    intake.history[0].snapshot = {
-      displayName: action.name?.trim() || "Unknown",
-      dob: action.dob || "Unknown",
-    };
-    intake.history[0].actorId = staff.id;
-    intake.history[0].role = staff.role;
+    if (intake) {
+      intake.nextAction = action.nextAction.trim();
+      intake.reviewDate = action.reviewDate;
+      intake.history[0].snapshot = {
+        displayName: action.name?.trim() || "Unknown",
+        dob: action.dob || "Unknown",
+      };
+      intake.history[0].actorId = staff.id;
+      intake.history[0].role = staff.role;
+    }
     next.people.push({
       id,
       registrationRequestId: action.requestId,
@@ -427,28 +383,34 @@ export function applyIntakeAction(
       nameUnknown: !text(action.name),
       dob: action.dob || null,
       pronouns: action.pronouns || "Not recorded",
-      owner: intake.owner,
+      owner: action.owner.trim(),
       consent: "Not recorded",
       contact: "Not confirmed",
       family: null,
-      episodes: [],
-      intakes: [intake],
+      ...(mvpProfile ? { mvpProfile: true, clientProfileRequired:
+        state.settings?.clientProfileBundle !== null && state.settings?.clientProfileBundle?.enabled !== false } : {}),
+      episodes: mvpProfile ? [{
+        id: uid(), number: "01", status: "Active", start: today,
+        programStream: "General", disposition: "Undecided", owner: action.owner.trim(),
+        collections: [], events: [], appointments: [],
+      }] : [],
+      intakes: intake ? [intake] : [],
       referrals: [],
     });
   } else if (action.type === "UPDATE_INTAKE_DETAILS") {
     const f = action.values;
     const previous = JSON.parse(JSON.stringify(i));
-    const priorPerson = { name: p.name, dob: p.dob, pronouns: p.pronouns };
+    const priorPerson = { name: p.name, dob: p.dob };
     p.name = f.name.trim();
     p.nameUnknown = false;
     p.dob = f.dob || null;
-    p.pronouns = f.pronouns || "Not recorded";
     for (const key of INTAKE_DETAIL_FIELDS) {
       if (f[key] !== undefined)
         i[key] = typeof f[key] === "string" ? f[key].trim() : f[key];
     }
+    for (const key of PROFILE_FIELDS) if (f[key] !== undefined) p[key] = f[key].trim();
     const changes = [
-      ...recordFieldChanges(priorPerson, p, [["name", "Name"], ["dob", "Date of birth"], ["pronouns", "Pronouns"]]),
+      ...recordFieldChanges(priorPerson, p, [["name", "Name"], ["dob", "Date of birth"]]),
       ...recordFieldChanges(previous, i, INTAKE_DETAIL_FIELDS.map((key) => [key, key.replace(/([A-Z])/g, " $1")])),
     ];
     if (!changes.length) return state;
@@ -456,7 +418,7 @@ export function applyIntakeAction(
     i.history.unshift({
       ...history("Intake information updated", action.reason.trim()),
       changes,
-      snapshot: Object.fromEntries(["name", "dob", "pronouns", ...INTAKE_DETAIL_FIELDS].map((key) => [key, key in f ? f[key] : i[key]])),
+      snapshot: Object.fromEntries(["name", "dob", ...INTAKE_DETAIL_FIELDS].map((key) => [key, key in f ? f[key] : i[key]])),
     });
   } else if (action.type === "REOPEN_INTAKE") {
     const previous = JSON.parse(JSON.stringify(i));
@@ -484,107 +446,24 @@ export function applyIntakeAction(
   } else if (action.type === "SAVE_INTAKE") {
     const f = action.values;
     const previous = JSON.parse(JSON.stringify(i));
-    const priorIdentity = { name: p.name, dob: p.dob || "Unknown" };
     // Whitelist editable form fields: IDs, actor and history cannot be overwritten.
     const fields = [
-      "status",
-      "owner",
-      "receivedAt",
-      "source",
-      "sourceReference",
-      "reason",
-      "contactMethod",
-      "contactValue",
-      "contactHolder",
-      "safeContact",
-      "permissionReference",
-      "language",
-      "supportNeeds",
-      "supporter",
-      "authority",
-      "consentRecorded",
-      "consentReference",
-      "respondentPreference",
-      "respondentName",
-      "legalName",
-      "sourceIdentifiers",
-      "checkEvidence",
-      "reviewer",
-      "summary",
-      "assessmentOwner",
-      "nextAction",
-      "reviewDate",
-      "waitingReason",
-      "waitingOn",
-      "communication",
-      ...INTAKE_CHECKS.map(([k]) => k),
+      "source", "referralDate", "commencementDate",
+      "commencementDateUhr", "commencementDateFep", ...PROFILE_FIELDS,
     ];
     for (const key of fields)
       if (f[key] !== undefined)
         i[key] = typeof f[key] === "string" ? f[key].trim() : f[key];
-    if (action.validatedChecks === true) {
-      i.checksValidatedAt = timestamp;
-    } else if (
-      INTAKE_CHECKS.some(([key]) => i[key] !== previous[key]) ||
-      i.reviewer !== previous.reviewer
-    ) {
-      i.checksValidatedAt = "";
-    }
-    if (f.displayName !== undefined) {
-      p.name = f.displayName.trim() || "Name not yet known";
-      p.nameUnknown = !text(f.displayName);
-    }
-    if (f.dob !== undefined) p.dob = f.dob || null;
-    if (f.consentRecorded !== undefined)
-      p.consent = f.consentRecorded ? "Recorded" : "Not recorded";
-    if (
-      f.respondentPreference === "Family respondent" &&
-      text(f.respondentName)
-    )
-      p.family = f.respondentName.trim();
+    if (i.status === "Received") i.status = "In progress";
+    for (const key of PROFILE_FIELDS) if (f[key] !== undefined) p[key] = f[key].trim();
     i.revision += 1;
-    if (i.status === "Completed") {
-      i.outcome = f.outcome;
-      i.decisionAt = f.decisionAt;
-      i.decisionBy = staff.name;
-      if (i.outcome === "Proceed" && !i.episodeId && !p.episodes.length) {
-        const episodeId = uid();
-        i.episodeId = episodeId;
-        p.owner = i.assessmentOwner;
-        p.episodes.push({
-          id: episodeId,
-          intakeId: i.id,
-          number: "01",
-          status: "Active",
-          start: i.decisionAt.slice(0, 10),
-          programStream: "",
-          disposition: "Undecided",
-          owner: i.assessmentOwner,
-          events: [{
-            id: uid(),
-            date: i.decisionAt.slice(0, 10),
-            timestamp,
-            actor: "System",
-            actorId: "system",
-            role: "System",
-            title: "Initial assessment added after intake",
-            detail: "Instrument added automatically after the proceed decision; due date and program stream need planning.",
-          }],
-          collections: [{ ...initialAssessmentCollection(i, p, version, uid), createdAt: timestamp }],
-        });
-      }
-    }
     i.history.unshift({
-      ...history(`Intake ${i.status.toLowerCase()}`, f.changeReason.trim()),
-      priorIdentity,
+      ...history("Batch 1 registration updated", f.changeReason.trim()),
       changes: [
-        ...recordFieldChanges(previous, i, [...fields, "outcome", "decisionAt"].map((key) => [key, key.replace(/([A-Z])/g, " $1")])),
-        ...recordFieldChanges(priorIdentity, { name: p.name, dob: p.dob || "Unknown" }, [["name", "Name"], ["dob", "Date of birth"]]),
+        ...recordFieldChanges(previous, i, fields.map((key) => [key, key.replace(/([A-Z])/g, " $1")])),
       ],
       snapshot: Object.fromEntries(
-        [...fields, "displayName", "dob", "outcome", "decisionAt"]
-          .filter((key) => f[key] !== undefined)
-          .map((key) => [key, f[key]]),
+        fields.filter((key) => f[key] !== undefined).map((key) => [key, f[key]]),
       ),
     });
   } else if (action.type === "START_ASSESSMENT") {
@@ -597,7 +476,7 @@ export function applyIntakeAction(
       episode.events.unshift({
         id: uid(), date: today, timestamp, actor: staff.name, actorId: staff.id,
         role: staff.role, actionType: action.type, title: "Assessment planned after intake",
-        detail: `${i.assessmentOwner} owns the assessment · due ${action.due} · ${action.programStream} stream`,
+        detail: `${i.assessmentOwner || i.owner} owns the assessment · due ${action.due} · ${action.programStream} stream`,
       });
       i.history.unshift(history("Assessment handoff recorded", `Initial assessment due ${action.due} · ${i.assessmentOwner}`));
       return next;
@@ -613,7 +492,7 @@ export function applyIntakeAction(
       start: today,
       programStream: action.programStream,
       disposition: "Undecided",
-      owner: i.assessmentOwner,
+      owner: i.assessmentOwner || i.owner,
       events: [
         {
           id: uid(),
@@ -624,7 +503,7 @@ export function applyIntakeAction(
           role: staff.role,
           actionType: action.type,
           title: "Assessment planned after intake",
-          detail: `${i.decisionBy} recorded proceed · ${i.assessmentOwner} owns the assessment · admission undecided`,
+          detail: `${i.owner} owns the assessment · admission undecided`,
         },
       ],
       collections: [
@@ -641,7 +520,7 @@ export function applyIntakeAction(
     i.history.unshift(
       history(
         "Assessment handoff recorded",
-        `Initial assessment due ${action.due} · ${i.assessmentOwner}`,
+        `Initial assessment due ${action.due} · ${i.assessmentOwner || i.owner}`,
       ),
     );
   } else if (action.type === "ADD_REFERRAL") {
@@ -730,7 +609,7 @@ export function applyIntakeAction(
 
 export function intakeTasks(state, today) {
   return (state?.people || []).filter((p) => !p.archivedAt).flatMap((p) => [
-    ...(p.intakes || [])
+    ...(p.mvpProfile ? [] : p.intakes || [])
       .filter(
         (i) =>
           !["Completed", "Closed incomplete"].includes(i.status) ||

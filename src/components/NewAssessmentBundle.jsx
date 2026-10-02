@@ -14,9 +14,10 @@ import { ActionGroup, Badge, Checkbox, IconButton, Modal, Button, Field, Select,
 import AssessmentScheduleSettings from "./AssessmentScheduleSettings";
 import BundleAssessmentRow from './BundleAssessmentRow';
 import AssessmentModalActions from './AssessmentModalActions';
+import StatusChangeFields from './StatusChangeFields';
 
-function DeliveryFields({item, person, sms, onChange, youngPersonLabel = false}) {
-  const instrument = item.version ? INSTRUMENTS.find(instrument => instrument.version === item.version) : {respondents:['Person','Family respondent']};
+function DeliveryFields({item, person, sms, onChange, youngPersonLabel = false, allowClinician = false}) {
+  const instrument = item.version ? INSTRUMENTS.find(instrument => instrument.version === item.version) : {respondents:['Person']};
   return <div className="form-grid">
     <Field label={LABELS.collectionMethod}>
       <Select label={LABELS.collectionMethod} value={item.channel} onChange={event => onChange('channel',event.target.value)}>
@@ -26,8 +27,8 @@ function DeliveryFields({item, person, sms, onChange, youngPersonLabel = false})
     </Field>
     <Field label={LABELS.respondent}>
       <Select label={LABELS.respondent} value={item.recipient} onChange={event => onChange('recipient',event.target.value)}>
-        {instrument?.respondents.map(recipient => <option key={recipient} value={recipient} disabled={recipient === 'Family respondent' && !person.family}>
-          {recipient === 'Person' ? youngPersonLabel ? 'Young person' : 'Patient' : `Family respondent${!person.family ? ' (not recorded)' : ''}`}
+        {[...new Set([...(instrument?.respondents || []), ...(!youngPersonLabel && allowClinician ? ['Clinician'] : [])])].filter(recipient => recipient === 'Person' || recipient === 'Clinician').map(recipient => <option key={recipient} value={recipient} disabled={recipient === 'Clinician' && item.channel !== 'Clinician entry'}>
+          {recipient === 'Person' ? youngPersonLabel ? 'Young person' : 'Patient' : 'Clinician'}
         </option>)}
       </Select>
     </Field>
@@ -44,6 +45,8 @@ export default function NewAssessmentBundle({ person, episode, onClose, onCreate
     return saved ? bundleSelectionForEpisode(asBundle(saved),group?.instanceId ? {...episode,collections:group.records,assessmentBundleSelections:{}} : episode) : {optionalIds:[],assessmentOverrides:[],extraAssessments:[]};
   });
   const [instanceName, setInstanceName] = useState(group?.instanceId ? group.name : '');
+  const [statusChange, setStatusChange] = useState(() => group?.records?.find(record =>
+    record.bundleContext?.statusChange !== undefined)?.bundleContext.statusChange ?? null);
   const [bundleId, setBundleId] = useState(editBundleId || (mvpAssessments ? 'blank' : ''));
   const [optionalIds, setOptionalIds] = useState(initialSelection.optionalIds);
   const [assessmentOverrides, setAssessmentOverrides] = useState(initialSelection.assessmentOverrides);
@@ -62,10 +65,12 @@ export default function NewAssessmentBundle({ person, episode, onClose, onCreate
   const bundle = blankMvp
     ? mvpBlankAssessmentTemplate(episode,TODAY,blankVersions,blankRespondent,blankChannel)
     : bundles.find(item => item.id === bundleId);
+  const completionStatus = statusChange ?? bundle?.statusChange ?? '';
   const validationBundle = editingBundle && bundle ? {...bundle,enabled:true} : bundle;
   const scheduling = !mvpAssessments && assessmentSchedulingEnabled(state.settings);
   const sms = assessmentSmsEnabled(state.settings);
-  const available = (mvpAssessments ? INSTRUMENTS : STANDARD_INSTRUMENTS).filter(instrument => (!blankMvp || instrument.respondents.includes(blankRespondent)) &&
+  const available = (mvpAssessments ? INSTRUMENTS : STANDARD_INSTRUMENTS).filter(instrument =>
+    (blankMvp ? instrument.respondents.includes(blankRespondent) : !bundle || instrument.respondents.includes(bundleDelivery(bundle,assessmentOverrides).recipient)) &&
     !bundle?.assessments.some(item => item.version === instrument.version) &&
     !extras.some(item => item.version === instrument.version));
   const assessmentRows = bundle ? [
@@ -90,7 +95,7 @@ export default function NewAssessmentBundle({ person, episode, onClose, onCreate
       setError('');
       return;
     }
-    const next = {...delivery,[key]:value};
+    const next = {...delivery,[key]:value,...(key === 'channel' && value !== 'Clinician entry' && delivery.recipient === 'Clinician' ? {recipient:'Person'} : {})};
     setAssessmentOverrides(bundle.assessments.map(item => ({id:item.id,...next})));
     setExtras(items => items.map(item => ({...item,...next})));
     setError('');
@@ -104,7 +109,7 @@ export default function NewAssessmentBundle({ person, episode, onClose, onCreate
       setError(!name ? 'Enter an assessment name.' : 'An assessment with this name already exists. Choose a unique name.'); return;
     }
     const result = commit({name, bundleInstanceId:group?.instanceId, type:editingBundle ? 'UPDATE_ASSESSMENT_BUNDLE' : 'CREATE_ASSESSMENT_BUNDLE',personId:person.id,episodeId:episode.id,
-      id:instanceId,bundleId,optionalIds,assessmentOverrides,extraAssessments:extras,due:scheduling ? due : '',
+      id:instanceId,bundleId,optionalIds,assessmentOverrides,extraAssessments:extras,due:scheduling ? due : '',statusChange:completionStatus,
       ...(blankMvp ? {blankVersions,blankRespondent,blankChannel} : {})});
     if (result.error) { setError(result.error); return; }
     onCreated(bundle.id,editingBundle ? `${bundleName(bundle)} updated. Drafts and completed instruments have been kept.`
@@ -141,7 +146,7 @@ export default function NewAssessmentBundle({ person, episode, onClose, onCreate
       <div className="form-body new-assessment-bundle-body">
         {!editingBundle && !mvpAssessments && <Field label="Assessment" hint="Choose an assessment, then review the instruments to include.">
           <Select label="Assessment" required value={bundleId} onChange={event => {
-            setBundleId(event.target.value); setInstanceName(uniqueBundleInstanceName(episode, bundles.find(item => item.id === event.target.value) ? bundleName(bundles.find(item => item.id === event.target.value)) : 'Assessment')); setOptionalIds([]); setAssessmentOverrides([]); setExtras([]); setExtraVersion(''); setError('');
+            setBundleId(event.target.value); setInstanceName(uniqueBundleInstanceName(episode, bundles.find(item => item.id === event.target.value) ? bundleName(bundles.find(item => item.id === event.target.value)) : 'Assessment')); setStatusChange(null); setOptionalIds([]); setAssessmentOverrides([]); setExtras([]); setExtraVersion(''); setError('');
           }}>
             <option value="">Choose an assessment</option>
             <option value="blank">Blank</option>
@@ -153,7 +158,9 @@ export default function NewAssessmentBundle({ person, episode, onClose, onCreate
             <input aria-label="Assessment name" required maxLength={120} value={instanceName} onChange={event => { setInstanceName(event.target.value); setError(''); }} />
           </Field>}
           {scheduling && <Field label={editingBundle ? 'Due date for added instruments' : 'Due date'} hint={editingBundle ? 'Existing instrument dates stay as recorded.' : 'Applies to all instruments created in this assessment.'}><input required type="date" min={TODAY} value={due} onChange={event => setDue(event.target.value)} /></Field>}
-          {!embedded && <DeliveryFields item={delivery} person={person} sms={sms} onChange={updateDelivery} youngPersonLabel={mvpAssessments} />}
+          {!embedded && <DeliveryFields item={delivery} person={person} sms={sms} onChange={updateDelivery} youngPersonLabel={mvpAssessments}
+            allowClinician={!!bundle?.assessments.length && bundle.assessments.every(item => INSTRUMENTS.find(instrument => instrument.version === item.version)?.respondents.includes('Clinician'))} />}
+          <StatusChangeFields value={completionStatus} onChange={value => {setStatusChange(value);setError('');}} />
           {embedded ? <div className="bundle-edit-table"><RelatedRecordsTable label={`Instruments in ${bundleName(bundle)}`} compact>
             <thead><tr><th scope="col">Instrument</th><SortableHeader label="Status" sortKey="status" sort={sort} onSort={toggleSort} /><SortableHeader label="Requirement" sortKey="requirement" sort={sort} onSort={toggleSort} /></tr></thead>
             <tbody>{[...assessmentRows].sort((a,b) => {

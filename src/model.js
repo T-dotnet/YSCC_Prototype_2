@@ -1,8 +1,13 @@
-import { LABELS } from "./terminology.js";
-import { asBundle, bundleCollection, bundleContext, bundleIntervalDays, bundleTimingMode, bundleRepeats, bundleAgeMatches, bundleAssessmentsForCreation, bundleAdditionalAssessments, bundleSelectionForEpisode, collectionBelongsToBundle, bundleCollectionEditable, newBundleError } from "./assessmentBundles.js";
+import { LABELS, appTerm } from "./terminology.js";
+import { asBundle, bundleCollection, bundleContext, bundleIntervalDays, bundleTimingMode, bundleRepeats, bundleAgeMatches, bundleAssessmentsForCreation, bundleAdditionalAssessments, bundleSelectionForEpisode, collectionBelongsToBundle, bundleCollectionEditable, newBundleError, instrumentSupportsRespondent } from "./assessmentBundles.js";
 import { ensureSampleAssessmentBundles, SAMPLE_ASSESSMENT_BUNDLES } from "./sampleAssessmentBundles.js";
 import { reconcileAssessmentSchedules, scheduleRuleError } from "./assessmentSchedules.js";
 import { mvpAssessmentMode, mvpPathwayEnabled, mvpBlankAssessmentTemplate, mvpClinicianCreationEnabled, mvpBundleEditingEnabled, mvpReviewBundles, MVP_REVIEW_BUNDLES, mvpReviewBundleError, MVP_INITIAL_BUNDLES, mvpInitialBundles, mvpInitialBundleError } from './mvpAssessmentPathway.js';
+import { PROFILE_FIELDS, PROFILE_EPISODE_FIELDS } from './batch1Registration.js';
+import { clientProfileInstrument, clientProfileBundle, clientProfileBundleError } from './clientProfileMeasure.js';
+import { validMeasureStatusChange } from './measureStatusChange.js';
+import { ensureSampleMvpFlow } from './sampleMvpFlow.js';
+import { PHASE_2_MVP_PRESET, phase2MvpPresetActive } from './featurePresets.js';
 import {
   createQualitativeSampleAnswers,
   createLikertSampleAnswers,
@@ -18,6 +23,7 @@ import {
   intakeFor,
   intakeTasks,
   newIntake,
+  validDate,
 } from "./intake.js";
 import {
   DEMO_INSTRUMENT,
@@ -222,7 +228,7 @@ export const collectionActorIdentity = (person, collection, actor) => {
     actor === "respondent"
       ? collection.respondent === "Family respondent"
         ? "Family carer"
-        : "Patient"
+        : collection.respondent === "Clinician" ? "Clinician" : "Patient"
       : collection.channel === "Clinician entry"
         ? "Clinician"
         : collection.recorder === "Family respondent"
@@ -593,8 +599,42 @@ function refreshOpenSampleDates(state) {
   return changed ? next : state;
 }
 
+const MVP_MOCK_CONTACT_TYPES = {
+  "APT-7-baseline": "Assessment",
+  "APT-7-four-weeks": "Care review",
+  "APT-7-eight-weeks": "Care review",
+  "APT-7-twelve-weeks": "Care review",
+  "APT-7-overdue-plan": "Care review",
+  "APT-7-upcoming-plan": "Care review",
+  "APT-7-attended": "Care review",
+  "APT-7-cancelled": "Other direct contact",
+  "APT-7-dna": "Group",
+};
+
+function ensureMvpMockContacts(state) {
+  const appointments = state.people.find((person) => person.id === "YS-1034" &&
+    person.fixtureLabel === "Fictional full-report example")?.episodes
+    .find((episode) => episode.id === "EP-1034-01")?.appointments;
+  if (!appointments?.some((appointment) => MVP_MOCK_CONTACT_TYPES[appointment.id] &&
+    appointment.actor === "Sample fixture" &&
+    (!appointment.contactType || !appointment.contactName || !appointment.primaryPractitioner ||
+      !appointment.recipientTypes?.length))) return state;
+  const next = structuredClone(state);
+  const updated = next.people.find((person) => person.id === "YS-1034")
+    .episodes.find((episode) => episode.id === "EP-1034-01").appointments;
+  for (const appointment of updated) {
+    if (!MVP_MOCK_CONTACT_TYPES[appointment.id] || appointment.actor !== "Sample fixture") continue;
+    appointment.contactType ||= MVP_MOCK_CONTACT_TYPES[appointment.id];
+    appointment.contactName ||= appointment.appointmentType || appointment.contactType;
+    appointment.primaryPractitioner ||= "Jess Taylor";
+    appointment.recipientTypes ||= ["Young person"];
+    appointment.recipientType ||= appointment.recipientTypes[0];
+  }
+  return next;
+}
+
 const withSampleFixtures = (state) =>
-  ensureSampleAssessmentBundles(ensureJordanDueExamples(ensureSampleAssessmentCreatedDates(refreshOpenSampleDates(ensureCoherentMockData(ensureJordanPartialSmsExample(
+  ensureMvpMockContacts(ensureSampleAssessmentBundles(ensureJordanDueExamples(ensureSampleAssessmentCreatedDates(refreshOpenSampleDates(ensureCoherentMockData(ensureJordanPartialSmsExample(
     ensureJordanDeliveryAttemptExamples(
       ensureJordanAssessmentContactExamples(
         ensureJordanFutureAssessment(
@@ -602,7 +642,7 @@ const withSampleFixtures = (state) =>
         ),
       ),
     ),
-  ))))), isSampleAssessmentPerson);
+  ))))), isSampleAssessmentPerson));
 
 export function sampleAppointmentsForSeed(seedIndex) {
   switch (seedIndex) {
@@ -3978,8 +4018,9 @@ export function createDefaultWorkspace() {
   const assessmentScheduleRules = SAMPLE_ASSESSMENT_BUNDLES.map(template => ({
     ...structuredClone(template), activationEventIds: template.trigger === 'event' ? [...eventIds] : [],
   }));
-  return {...seed,settings:{...seed.settings,assessmentScheduleRules,showGeneralReport:true,advancedAssessmentOptions:false,
-    mvpClinicianCreation:false,mvpBundleEditing:false,mvpAssessmentPathway:true,mvpReviewHighlight:false}};
+  return ensureSampleMvpFlow({...seed,settings:{...seed.settings,assessmentScheduleRules,showGeneralReport:true,advancedAssessmentOptions:false,
+    mvpClinicianCreation:false,mvpBundleEditing:false,mvpAssessmentPathway:true,mvpReviewHighlight:false,
+    mvpNewProfileCollectWorkspace:true,mvpProfileTab:true}}, TODAY);
 }
 
 export function collectionStatus(c) {
@@ -4057,7 +4098,8 @@ export function getTasks(state) {
       (p.episodes || [])
         .filter((e) => ["Active", "Closed"].includes(e.status) && canAssess(p, e))
         .flatMap((e) =>
-          (e.collections || [])
+          (p.mvpProfile ? (e.collections || []).filter(c =>
+            c.clientProfileMeasure || c.mvpInitialAssessment || c.mvpTimepointId) : (e.collections || []))
             .filter(
               (c) =>
                 canCollectInEpisode(e, c) &&
@@ -4084,6 +4126,10 @@ export function reducer(state, action) {
   return next === state ? state : reconcileAssessmentSchedules(next, TODAY);
 }
 function reduceState(state, action) {
+  if (action.type === 'APPLY_PHASE_2_MVP_PRESET') {
+    if (phase2MvpPresetActive(state.settings)) return state;
+    return { ...state, settings: { ...state.settings, ...PHASE_2_MVP_PRESET } };
+  }
   if (action.type === 'SET_ADVANCED_ASSESSMENT_OPTIONS') {
     if (typeof action.enabled !== 'boolean' || (state.settings?.advancedAssessmentOptions !== false) === action.enabled) return state;
     return { ...state, settings: { ...state.settings, advancedAssessmentOptions: action.enabled } };
@@ -4092,6 +4138,16 @@ function reduceState(state, action) {
     if (!mvpAssessmentMode(state.settings) || typeof action.enabled !== 'boolean' ||
         (state.settings?.mvpReviewHighlight !== false) === action.enabled) return state;
     return { ...state, settings: { ...state.settings, mvpReviewHighlight: action.enabled } };
+  }
+  if (action.type === 'SET_MVP_NEW_PROFILE_COLLECT_WORKSPACE') {
+    if (!mvpAssessmentMode(state.settings) || typeof action.enabled !== 'boolean' ||
+        (state.settings?.mvpNewProfileCollectWorkspace !== false) === action.enabled) return state;
+    return { ...state, settings: { ...state.settings, mvpNewProfileCollectWorkspace: action.enabled } };
+  }
+  if (action.type === 'SET_MVP_PROFILE_TAB') {
+    if (!mvpAssessmentMode(state.settings) || typeof action.enabled !== 'boolean' ||
+        (state.settings?.mvpProfileTab !== false) === action.enabled) return state;
+    return { ...state, settings: { ...state.settings, mvpProfileTab: action.enabled } };
   }
   if (action.type === 'SAVE_MVP_INITIAL_BUNDLE') {
     const bundle = action.bundle;
@@ -4102,6 +4158,20 @@ function reduceState(state, action) {
       ...current.filter(item => item.id !== bundle.id), { ...original, ...bundle, name: bundle.name.trim() },
     ] } };
   }
+  if (action.type === 'SAVE_CLIENT_PROFILE_BUNDLE') {
+    const bundle = action.bundle;
+    if (!mvpAssessmentMode(state.settings) || clientProfileBundleError(bundle, state.settings) ||
+      [...mvpInitialBundles(state.settings), ...mvpReviewBundles(state.settings),
+        ...(state.settings.assessmentScheduleRules || [])].some(item =>
+        item.name.toLowerCase() === bundle.name.trim().toLowerCase())) return state;
+    const saved = { ...bundle, name: bundle.name.trim() };
+    if (JSON.stringify(clientProfileBundle(state.settings)) === JSON.stringify(saved)) return state;
+    return { ...state, settings: { ...state.settings, clientProfileBundle: saved } };
+  }
+  if (action.type === 'DELETE_CLIENT_PROFILE_BUNDLE') {
+    if (!mvpAssessmentMode(state.settings) || !clientProfileBundle(state.settings)) return state;
+    return { ...state, settings: { ...state.settings, clientProfileBundle: null } };
+  }
   if (action.type === 'DELETE_MVP_INITIAL_BUNDLE') {
     if (!mvpAssessmentMode(state.settings) || !mvpInitialBundles(state.settings).some(item => item.id === action.id)) return state;
     return { ...state, settings: { ...state.settings, mvpInitialBundles:
@@ -4111,12 +4181,9 @@ function reduceState(state, action) {
     if (!mvpAssessmentMode(state.settings)) return state;
     const bundle = action.bundle;
     const original = MVP_REVIEW_BUNDLES.find(item => item.id === bundle?.id);
-    if (!original || bundle.programStream !== original.programStream || mvpReviewBundleError(bundle, state.settings) ||
+    if (!original || mvpReviewBundleError(bundle, state.settings) ||
         mvpReviewBundles(state.settings).some(item => item.id !== bundle.id &&
           item.name.toLowerCase() === bundle.name.trim().toLowerCase()) ||
-        mvpReviewBundles(state.settings).some(item => item.id !== bundle.id && item.enabled && bundle.enabled &&
-          item.programStream === bundle.programStream &&
-          MVP_REVIEW_BUNDLES.find(defaultBundle => defaultBundle.id === item.id)?.respondent === original.respondent) ||
         (state.settings?.assessmentScheduleRules || []).some(item =>
           item.name?.toLowerCase() === bundle.name.trim().toLowerCase())) return state;
     const saved = { ...bundle, id: original.id, name: bundle.name.trim() };
@@ -4210,6 +4277,14 @@ function reduceState(state, action) {
     if (typeof action.enabled !== "boolean" || state.settings?.simpleAssessments === action.enabled) return state;
     return { ...state, settings: { ...state.settings, simpleAssessments: action.enabled } };
   }
+  if (action.type === "SET_PHASE2_CARE_ACTIVITY") {
+    if (typeof action.enabled !== "boolean" || state.settings?.phase2CareActivity === action.enabled) return state;
+    return { ...state, settings: { ...state.settings, phase2CareActivity: action.enabled } };
+  }
+  if (action.type === "SET_MVP_SEPARATE_MEASURES_CONTACTS") {
+    if (typeof action.enabled !== "boolean" || state.settings?.mvpSeparateMeasuresContacts === action.enabled) return state;
+    return { ...state, settings: { ...state.settings, mvpSeparateMeasuresContacts: action.enabled } };
+  }
   if (action.type === "SET_ASSESSMENT_FEATURE") {
     if (mvpAssessmentMode(state.settings) && action.feature !== "assessmentSms") return state;
     if (!["scheduleAssessments", "showAssessmentDueDates", "linkAssessmentAppointments", "assessmentSms", "assessmentModality", "groupAssessmentsByBundle", "bundleAccordions"].includes(action.feature) ||
@@ -4252,6 +4327,38 @@ function reduceState(state, action) {
   }
   if (action.type === "UPGRADE_QUESTIONNAIRE_SAMPLES")
     return upgradeSampleData(state);
+  if (action.type === "UPDATE_PROFILE") {
+    if (!mvpAssessmentMode(state.settings)) return state;
+    const person = state.people.find(item => item.id === action.personId);
+    const episode = person?.episodes.find(item => item.id === action.episodeId);
+    const values = action.values || {};
+    const name = values.name?.trim();
+    if (!person || !episode || person.archivedAt || person.readOnly || !name ||
+        !validDate(values.dob) || values.dob > TODAY ||
+        state.people.some(item => item.id !== person.id && !item.nameUnknown && item.name.toLowerCase() === name.toLowerCase()) ||
+        values.clientPostcode && !/^\d{4}$/.test(values.clientPostcode) ||
+        values.registeredCentrePostcode && !/^\d{4}$/.test(values.registeredCentrePostcode) ||
+        ["referralDate", "commencementDate", "commencementDateUhr", "commencementDateFep"].some(key => values[key] && !validDate(values[key])) ||
+        values.commencementDate && [values.commencementDateUhr, values.commencementDateFep].some(date => date && date < values.commencementDate)) return state;
+    const profileDetails = Object.fromEntries(PROFILE_EPISODE_FIELDS
+      .map(key => [key, typeof values[key] === "string" ? values[key].trim() : ""]));
+    const profile = Object.fromEntries(PROFILE_FIELDS.map(key => [key, typeof values[key] === "string" ? values[key].trim() : ""]));
+    const updated = { ...person, name, nameUnknown: false, dob: values.dob,
+      ...profile, episodes: person.episodes.map(item => {
+        if (item.id !== episode.id) return item;
+        const currentProfile = { ...person, ...profile, name, dob: values.dob, ...profileDetails };
+        return { ...item, profileDetails, collections: item.collections.map(record => {
+          const instrument = record.clientProfileMeasure && clientProfileInstrument(record.version);
+          if (!instrument || record.response !== 'Not started' || record.attempts?.length) return record;
+          return { ...record, draftAnswers: instrument.questions.map(question => {
+            const value = currentProfile[question.id];
+            return value && value !== 'Not recorded' && value !== 'Not confirmed' ? value : '';
+          }) };
+        }) };
+      }) };
+    if (JSON.stringify(updated) === JSON.stringify(person)) return state;
+    return { ...state, people: state.people.map(item => item.id === person.id ? updated : item) };
+  }
   if (
     [
       "ADD_PERSON",
@@ -4268,6 +4375,7 @@ function reduceState(state, action) {
       uid,
       today: TODAY,
       version: INITIAL_ASSESSMENT_INSTRUMENT.version,
+      mvpProfile: action.mvpProfile === true && mvpAssessmentMode(state.settings),
     });
   const next = JSON.parse(JSON.stringify(state));
   const p = next.people.find((p) => p.id === action.personId);
@@ -4355,6 +4463,7 @@ function reduceState(state, action) {
           (action.channel === 'SMS link' && !assessmentSms) || !action.bundleId) return state;
       const records = e.collections.filter(record => record.bundleId === action.bundleId && record.mvpTimepointId);
       if (!records.length || records.every(record => record.channel === action.channel) ||
+          (records[0].respondent === 'Clinician' && action.channel !== 'Clinician entry') ||
           records.some(record => record.response !== 'Not started' ||
             record.draftAnswers?.some(Boolean) || record.answers?.some(Boolean))) return state;
       for (const record of records) {
@@ -4366,7 +4475,7 @@ function reduceState(state, action) {
           record.link = 'Not sent';
         }
         record.channel = action.channel;
-        record.assistance = action.channel === 'Clinician entry' ? 'Transcribed' : 'Independent';
+        record.assistance = action.channel === 'Clinician entry' && record.respondent !== 'Clinician' ? 'Transcribed' : 'Independent';
       }
       event('Review collection method set', `${records[0].bundleName} · ${action.channel}`, { collectionId: null, bundleId: action.bundleId });
       break;
@@ -4632,7 +4741,7 @@ function reduceState(state, action) {
         intake.id === action.assessmentIntakeId &&
         intake.episodeId === e?.id && intake.outcome === "Proceed"))
         return state;
-      if (e?.status !== "Active" || appointmentError(e, action, TODAY))
+      if (e?.status !== "Active" || appointmentError(e, action, TODAY, { phase2Mvp: !!state.settings?.phase2CareActivity }))
         return state;
       const newAssessmentVersions = action.newAssessmentVersions ?? [];
       if (!Array.isArray(newAssessmentVersions) ||
@@ -5034,6 +5143,7 @@ function reduceState(state, action) {
       break;
     }
     case "UPDATE_ASSESSMENT_BUNDLE": {
+      if (!validMeasureStatusChange(action.statusChange)) return state;
       const saved = state.settings?.assessmentScheduleRules?.find(bundle => bundle.id === action.bundleId);
       const bundle = saved && asBundle(saved);
       const targetInstance = action.bundleInstanceId && e?.assessmentBundleInstances?.find(item => item.id === action.bundleInstanceId);
@@ -5080,15 +5190,16 @@ function reduceState(state, action) {
         const records = e.collections.filter(collection => matchesBundle(collection) && collection.bundleAssessmentId === item.id);
         for (const collection of records.filter(canEditCollection)) {
           Object.assign(collection,{channel:item.channel,respondent:item.recipient,recorder:item.recipient,
-            assistance:item.channel === "Clinician entry" ? "Transcribed" : "Independent"});
+            assistance:item.channel === "Clinician entry" && item.recipient !== "Clinician" ? "Transcribed" : "Independent",
+            bundleContext:{...collection.bundleContext,statusChange:action.statusChange ?? bundle.statusChange ?? ''}});
         }
         if (wasSelected || records.some(collection => collection.response !== "Submitted" && !["Paused","Cancelled"].includes(collection.assignment))) continue;
         const restore = e.removedBundleAssessments.find(collection => matchesBundle(collection) &&
           (collection.bundleAssessmentId === item.id || additional && collection.bundleRequirement === "Additional" && collection.version === item.version));
         const collection = restore ? {...restore, bundleAssessmentId:item.id, channel:item.channel,respondent:item.recipient,recorder:item.recipient,
-          assistance:item.channel === "Clinician entry" ? "Transcribed" : "Independent"} : {
+          assistance:item.channel === "Clinician entry" && item.recipient !== "Clinician" ? "Transcribed" : "Independent"} : {
           ...bundleCollection({id:`${action.id}-${index}`,bundleId:bundle.id,bundleName:bundle.name,
-            bundleContext:bundleContext(bundle),assessment:item,due:scheduleAssessments ? action.due : ""},TODAY),
+            bundleContext:bundleContext({...bundle,statusChange:action.statusChange ?? bundle.statusChange ?? ''}),assessment:item,due:scheduleAssessments ? action.due : ""},TODAY),
           label:INSTRUMENTS.find(instrument => instrument.version === item.version).name,
           createdAt:recordedAt,scheduleFree:!scheduleAssessments,bundleSource:"Manual",
           ...(targetInstance ? {bundleInstanceId:targetInstance.id,bundleName:action.name.trim()} : {}),
@@ -5105,24 +5216,26 @@ function reduceState(state, action) {
       for (const instance of e.assessmentBundleInstances || []) {
         if (instance.bundleId !== bundle.id || targetInstance && instance.id !== targetInstance.id) continue;
         if (targetInstance) { instance.name = action.name.trim(); for (const record of e.collections.filter(matchesBundle)) record.bundleName = instance.name; }
+        instance.context = {...instance.context,statusChange:action.statusChange ?? bundle.statusChange ?? ''};
         instance.collectionIds = e.collections.filter(collection => collection.bundleInstanceId === instance.id).map(collection => collection.id);
         instance.excludedOptionalIds = bundle.assessments.filter(item => item.requirement === "Optional" && !optionalIds.includes(item.id)).map(item => item.id);
       }
-      event("Assessment bundle updated", `${bundle.name} · ${addedIds.length} added · ${removed.length} removed · drafts and completed assessments kept`,
+      event(`${appTerm("measures", "singular")} updated`, `${bundle.name} · ${addedIds.length} added · ${removed.length} removed · drafts and completed ${appTerm("measures").toLowerCase()} kept`,
         {bundleId:bundle.id,addedCollectionIds:addedIds,removedCollectionIds:[...removedIds]});
       break;
     }
     case "CREATE_ASSESSMENT_BUNDLE": {
+      if (!validMeasureStatusChange(action.statusChange)) return state;
       if (mvpAssessmentMode(state.settings) && !mvpClinicianCreationEnabled(state.settings)) return state;
       const bundleScheduling = !mvpAssessmentMode(state.settings) && scheduleAssessments;
       const blankMvp = mvpAssessmentMode(state.settings) && action.bundleId === 'blank';
       if (blankMvp && (!Array.isArray(action.blankVersions) || !action.blankVersions.length ||
           new Set(action.blankVersions).size !== action.blankVersions.length ||
-          !['Person','Family respondent'].includes(action.blankRespondent) ||
-          (action.blankRespondent === 'Family respondent' && !p?.family) ||
+          !['Person','Clinician'].includes(action.blankRespondent) ||
+          (action.blankRespondent === 'Clinician' && action.blankChannel !== 'Clinician entry') ||
           !['Clinician entry','Clinic tablet','SMS link'].includes(action.blankChannel) ||
           (action.blankChannel === 'SMS link' && !assessmentSms) ||
-          action.blankVersions.some(version => !getInstrument(version)?.respondents.includes(action.blankRespondent)))) return state;
+          action.blankVersions.some(version => !instrumentSupportsRespondent(getInstrument(version), action.blankRespondent, action.blankChannel)))) return state;
       const saved = mvpAssessmentMode(state.settings)
         ? blankMvp
           ? mvpBlankAssessmentTemplate(e,TODAY,action.blankVersions,action.blankRespondent,action.blankChannel)
@@ -5146,7 +5259,7 @@ function reduceState(state, action) {
           e.assessmentBundleInstances?.some(instance => instance.name?.trim().toLowerCase() === instanceName.toLowerCase()))) return state;
       const selected = [...bundleAssessmentsForCreation(bundle,overrides).filter(item => item.requirement === "Mandatory" || optionalIds.includes(item.id)), ...bundleAdditionalAssessments(bundle,extras,overrides)];
       const collections = selected.map((item,index) => ({...bundleCollection({id:`${action.id}-${index}`, bundleId:bundle.id,
-        bundleName:instanceName, bundleContext:bundleContext(bundle), assessment:item, due:bundleScheduling ? action.due : mvpAssessmentMode(state.settings) ? TODAY : ""}, TODAY),
+        bundleName:instanceName, bundleContext:bundleContext({...bundle,statusChange:action.statusChange ?? bundle.statusChange ?? ''}), assessment:item, due:bundleScheduling ? action.due : mvpAssessmentMode(state.settings) ? TODAY : ""}, TODAY),
         label:INSTRUMENTS.find(instrument => instrument.version === item.version).name,
         createdAt:recordedAt, scheduleFree:!bundleScheduling, bundleInstanceId:action.id, bundleSource:"Manual",
         bundleRequirement:extras.some(extra=>extra.id===item.id) ? "Additional" : item.requirement,
@@ -5154,9 +5267,9 @@ function reduceState(state, action) {
       if (collections.some(collection => e.collections.some(existing => existing.id === collection.id))) return state;
       e.collections.push(...collections);
       e.assessmentBundleInstances = [...(e.assessmentBundleInstances || []), {id:action.id, bundleId:bundle.id,
-        name:instanceName, customName:action.name !== undefined, context:bundleContext(bundle), createdAt:recordedAt, collectionIds:collections.map(collection => collection.id),
+        name:instanceName, customName:action.name !== undefined, context:bundleContext({...bundle,statusChange:action.statusChange ?? bundle.statusChange ?? ''}), createdAt:recordedAt, collectionIds:collections.map(collection => collection.id),
         excludedOptionalIds:bundle.assessments.filter(item => item.requirement === "Optional" && !optionalIds.includes(item.id)).map(item => item.id)}];
-      event("Assessment bundle created", `${instanceName} · ${collections.length} assessments · same care episode`,
+      event(`${appTerm("measures", "singular")} created`, `${instanceName} · ${collections.length} ${appTerm("measures").toLowerCase()} · same care episode`,
         {bundleId:bundle.id, bundleInstanceId:action.id});
       break;
     }
@@ -5226,16 +5339,18 @@ function reduceState(state, action) {
     case "SAVE_COLLECTION_SETUP":
       if (
         !canAssess(p, e) || !c || (!c.due && !c.scheduleFree) || !canCollectInEpisode(e, c) ||
-        p.consent !== "Recorded" || p.contact !== "Suitable" ||
+        (!c.clientProfileMeasure && (p.consent !== "Recorded" || p.contact !== "Suitable")) ||
         !getInstrument(c.version) || c.response === "Submitted" ||
         ["Paused", "Cancelled"].includes(c.assignment) ||
         !["SMS link", "Clinic tablet", "Clinician entry"].includes(action.channel) ||
         (!assessmentSms && action.channel === "SMS link") ||
-        !getInstrument(c.version).respondents.includes(action.respondent) ||
+        (!instrumentSupportsRespondent(getInstrument(c.version), action.respondent, action.channel) &&
+          !(c.respondent === "Family respondent" && action.respondent === c.respondent &&
+            getInstrument(c.version).respondents.includes(c.respondent))) ||
         !(action.channel === "Clinician entry"
-          ? ["Transcribed", "Joint completion"]
+          ? action.respondent === "Clinician" ? ["Independent"] : ["Transcribed", "Joint completion"]
           : ["Independent", "Supported"]).includes(action.assistance) ||
-        (action.respondent === "Family respondent" && !p.family) ||
+        (!["Person", "Clinician"].includes(action.respondent) && action.respondent !== c.respondent) ||
         (action.channel === "Clinician entry" && currentStaff(state)?.role !== "Clinician") ||
         (action.externalAppointment &&
           (!validExternalSlot(action.externalAppointment) ||
@@ -5247,7 +5362,7 @@ function reduceState(state, action) {
           (action.respondent !== c.mvpRespondent || action.channel !== c.channel)) return state;
       c.channel = action.channel;
       c.respondent = action.respondent;
-      c.respondentName = action.respondent === "Person" ? p.name : p.family;
+      c.respondentName = action.respondent === "Person" ? p.name : action.respondent === "Clinician" ? currentStaff(state)?.name : p.family;
       c.assistance = action.assistance;
       c.externalAppointment = !linkAssessmentAppointments || action.channel === "SMS link"
         ? null : action.externalAppointment || null;
@@ -5260,8 +5375,7 @@ function reduceState(state, action) {
         !c ||
         (!c.due && !c.scheduleFree) ||
         !canCollectInEpisode(e, c) ||
-        p.consent !== "Recorded" ||
-        p.contact !== "Suitable" ||
+        (!c.clientProfileMeasure && (p.consent !== "Recorded" || p.contact !== "Suitable")) ||
         !getInstrument(c.version) ||
         c.response === "Submitted" ||
         ["Paused", "Cancelled"].includes(c.assignment)
@@ -5271,18 +5385,20 @@ function reduceState(state, action) {
         !["SMS link", "Clinic tablet", "Clinician entry"].includes(
           action.channel,
         ) || (!assessmentSms && action.channel === "SMS link") ||
-        !getInstrument(c.version).respondents.includes(action.respondent)
+        (!instrumentSupportsRespondent(getInstrument(c.version), action.respondent, action.channel) &&
+          !(c.respondent === "Family respondent" && action.respondent === c.respondent &&
+            getInstrument(c.version).respondents.includes(c.respondent)))
       )
         return state;
       if (
         !(
           action.channel === "Clinician entry"
-            ? ["Transcribed", "Joint completion"]
+            ? action.respondent === "Clinician" ? ["Independent"] : ["Transcribed", "Joint completion"]
             : ["Independent", "Supported"]
         ).includes(action.assistance)
       )
         return state;
-      if (action.respondent === "Family respondent" && !p.family) return state;
+      if (!["Person", "Clinician"].includes(action.respondent) && action.respondent !== c.respondent) return state;
       if (mvpAssessmentMode(state.settings) && c.mvpTimepointId &&
           (action.respondent !== c.mvpRespondent || action.channel !== c.channel)) return state;
       if (c.draftAnswers?.some(Boolean) && action.respondent !== c.respondent)
@@ -5305,7 +5421,7 @@ function reduceState(state, action) {
       c.assignment = "Active";
       c.link = "Active";
       c.respondent = action.respondent;
-      c.respondentName = action.respondent === "Person" ? p.name : p.family;
+      c.respondentName = action.respondent === "Person" ? p.name : action.respondent === "Clinician" ? currentStaff(state)?.name : p.family;
       c.channel = action.channel;
       if (hasExternalSelection || !linkAssessmentAppointments)
         c.externalAppointment = !linkAssessmentAppointments || action.channel === "SMS link"
@@ -5497,6 +5613,21 @@ function reduceState(state, action) {
         !questionnaireState(getInstrument(c.version), action.answers).complete
       )
         return state;
+      const profileInstrument = c.clientProfileMeasure ? clientProfileInstrument(c.version) : null;
+      const profileAnswers = profileInstrument ? Object.fromEntries(profileInstrument.questions.map((question, index) =>
+        [question.id, action.answers[index] === 'Not recorded' ? '' : action.answers[index]?.trim() || ''])) : null;
+      if (profileAnswers && (
+        profileAnswers.name !== undefined && (!profileAnswers.name || state.people.some(person =>
+          person.id !== p.id && !person.nameUnknown && person.name.toLowerCase() === profileAnswers.name.toLowerCase())) ||
+        profileAnswers.dob !== undefined && (!validDate(profileAnswers.dob) || profileAnswers.dob > TODAY) ||
+        ['clientPostcode', 'registeredCentrePostcode'].some(key => profileAnswers[key] && !/^\d{4}$/.test(profileAnswers[key])) ||
+        ['referralDate', 'commencementDate', 'commencementDateUhr', 'commencementDateFep'].some(key =>
+          profileAnswers[key] && !validDate(profileAnswers[key])) ||
+        (profileAnswers.commencementDate || e.profileDetails?.commencementDate) &&
+          ['commencementDateUhr', 'commencementDateFep'].some(key =>
+            (profileAnswers[key] || e.profileDetails?.[key]) &&
+            (profileAnswers[key] || e.profileDetails?.[key]) < (profileAnswers.commencementDate || e.profileDetails?.commencementDate))
+      )) return state;
       const contactLink = action.contactLink;
       if (!linkAssessmentAppointments && contactLink && contactLink.kind !== "none") return state;
       let selectedContact = null;
@@ -5583,6 +5714,13 @@ function reduceState(state, action) {
       c.submittedAt = TODAY;
       c.submittedTimestamp = recordedAt;
       c.submittedAttemptId = c.attempts.at(-1)?.id;
+      if (profileAnswers) {
+        if (profileAnswers.name !== undefined) { p.name = profileAnswers.name; p.nameUnknown = false; }
+        if (profileAnswers.dob !== undefined) p.dob = profileAnswers.dob;
+        for (const key of PROFILE_FIELDS) if (profileAnswers[key] !== undefined) p[key] = profileAnswers[key];
+        e.profileDetails ??= {};
+        for (const key of PROFILE_EPISODE_FIELDS) if (profileAnswers[key] !== undefined) e.profileDetails[key] = profileAnswers[key];
+      }
       c.submittedAppointmentId = linkAssessmentAppointments
         ? c.attempts.at(-1)?.appointmentId || c.appointmentId || null : null;
       if (c.attempts.at(-1)) {

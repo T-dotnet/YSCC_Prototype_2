@@ -79,6 +79,12 @@ export default function QuestionnaireFlow({
     );
     onChange(next);
   };
+  const toggleMultiple = (option) => {
+    const selected = current.answer ? current.answer.split('||') : [];
+    choose(selected.includes(option)
+      ? selected.filter(value => value !== option).join('||')
+      : [...selected, option].join('||'));
+  };
   const go = (entry) => {
     setCurrentId(entry.question.id);
     setReview(false);
@@ -206,7 +212,7 @@ export default function QuestionnaireFlow({
                           <small>
                             {questionTitle(entry.question, respondent)}
                           </small>
-                          <strong>{entry.answer || "Not answered"}</strong>
+                          <strong>{entry.answer?.replaceAll('||', ', ') || "Not answered"}</strong>
                         </span>
                         <button
                           type="button"
@@ -319,7 +325,34 @@ export default function QuestionnaireFlow({
             <legend className="sr-only">
               {questionTitle(current.question, respondent)}
             </legend>
-            {(scale ? scaleOptions : current.question.options).map((option) => (
+            {current.question.responseType === 'number' && <label>
+              Number
+              <input type="number" step="1" min={current.question.min ?? 0}
+                max={current.question.max ?? undefined} value={current.answer || ''}
+                onChange={event => choose(event.target.value)} />
+            </label>}
+            {current.question.responseType === 'date' && <label>
+              Date
+              <input type="date" value={current.answer || ''}
+                onChange={event => choose(event.target.value)} />
+            </label>}
+            {current.question.responseType === 'text' && <label>
+              Response
+              <input type="text" value={current.answer || ''}
+                onChange={event => choose(event.target.value)} />
+            </label>}
+            {current.question.multiple && current.question.options.map(option => <label key={option}>
+              <input type="checkbox" checked={!!current.answer?.split('||').includes(option)}
+                onChange={() => toggleMultiple(option)} /> {option}
+            </label>)}
+            {!current.question.multiple && current.question.options.length > 12 && <label>
+              Choose a response
+              <select value={current.answer || ''} onChange={event => choose(event.target.value)}>
+                <option value="">Select one</option>
+                {current.question.options.map(option => <option key={option} value={option}>{option}</option>)}
+              </select>
+            </label>}
+            {!current.question.multiple && current.question.options.length <= 12 && (scale ? scaleOptions : current.question.options).map((option) => (
               <AnswerOption
                 key={option}
                 option={option}
@@ -329,6 +362,12 @@ export default function QuestionnaireFlow({
                 likert={!!scale}
               />
             ))}
+            {current.question.nonResponseOptions?.length > 0 && <div className="likert-nonresponse">
+              <p>If no value is available</p>
+              {current.question.nonResponseOptions.map(option => <AnswerOption
+                key={option} option={option} name={`${id}-${current.question.id}`}
+                selected={current.answer === option} onChoose={choose} />)}
+            </div>}
             {scale && nonResponseOptions.length > 0 && (
               <div className="likert-nonresponse">
                 <p>If the scale does not fit</p>

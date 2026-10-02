@@ -20,12 +20,19 @@ export default class ErrorBoundary extends React.Component {
         <div style={{ padding: "var(--space-10)", textAlign: "center", color: "var(--validation-text)" }}>
           <h1>Something went wrong.</h1>
           <p>{this.state.error?.toString()}</p>
+          <button
+            onClick={() => window.location.reload()}
+            style={{ marginTop: "var(--space-5)", padding: "var(--space-3) var(--space-5)", cursor: "pointer" }}
+          >
+            Reload page
+          </button>
           <button 
             onClick={() => {
+              if (!window.confirm("Clear locally saved workspace data and reset the prototype? This cannot be undone.")) return;
               localStorage.clear();
               window.location.reload();
             }}
-            style={{ marginTop: "var(--space-5)", padding: "var(--space-3) var(--space-5)", cursor: "pointer" }}
+            style={{ marginTop: "var(--space-5)", marginLeft: "var(--space-3)", padding: "var(--space-3) var(--space-5)", cursor: "pointer" }}
           >
             Clear data and reset
           </button>

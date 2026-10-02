@@ -3,6 +3,7 @@ import useQueueView from "../useQueueView";
 import { Plus, ChevronRight, CircleAlert, CheckCircle2 } from "lucide-react";
 import { useStore } from "../store";
 import { assessmentSchedulingEnabled, assessmentBundleGroupingEnabled } from "../assessmentFeatures";
+import { appTerm } from "../terminology.js";
 import { formatDate, TODAY } from "../model";
 import { getQualityIssues, recordCompleteness } from "../dataQuality";
 import { comparePeople, peopleForList, peopleBundleSummary } from "../people";
@@ -28,7 +29,7 @@ export default function People({ navigate, openModal }) {
   const { state } = useStore();
   const scheduleAssessments = assessmentSchedulingEnabled(state.settings);
   const groupedBundles = assessmentBundleGroupingEnabled(state.settings);
-  const summaryLabel = groupedBundles ? 'Next / latest assessment' : 'Next / latest instrument';
+  const summaryLabel = groupedBundles ? `Next / latest ${appTerm("measures", "singular").toLowerCase()}` : 'Next / latest instrument';
   const view = useQueueView();
   const query = view.params.get("q") || "";
   const { sort: sortConfig, toggleSort } = useQueueSort({ key: "priority", direction: "asc" });
@@ -329,7 +330,7 @@ export default function People({ navigate, openModal }) {
           <span>
             Showing {showingFrom}–{showingTo} of {people.length} people
           </span>
-          <span>{groupedBundles ? 'Next / latest assessment shown first' : 'Highest-priority instrument shown first'}</span>
+          <span>{groupedBundles ? `Next / latest ${appTerm("measures", "singular").toLowerCase()} shown first` : 'Highest-priority instrument shown first'}</span>
           <Pagination
             label="People"
             page={page}

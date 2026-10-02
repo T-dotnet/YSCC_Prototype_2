@@ -52,6 +52,7 @@ const matchesFilters = (appointment, filters) => {
     appointment.practitionerService,
     appointment.contactType,
     appointment.recipientType,
+    ...(appointment.recipientTypes || []),
     appointment.relatedPersonName,
     appointment.primaryPractitioner,
     ...(appointment.additionalPractitioners || []),
@@ -103,7 +104,7 @@ function AppointmentCard({ appointment, episode, openModal, showAssessmentLinks 
   const overdue = appointmentIsOverdue(appointment, TODAY);
   const when = appointmentWhen(appointment);
   const status = overdue ? "Overdue" : appointment.attendance;
-  const appointmentType = appointment.contactType || appointment.appointmentType || "Service contact";
+  const appointmentType = appointment.contactName || appointment.contactType || appointment.appointmentType || "Service contact";
   const recordOutcome = () =>
     openModal({
       type: "appointment-outcome",
@@ -133,7 +134,7 @@ function AppointmentCard({ appointment, episode, openModal, showAssessmentLinks 
       facts={[
         { label: "Delivery", value: displayDeliveryMode(appointment.deliveryMode) },
         { label: "Clinician or service", value: appointment.practitionerService },
-        ...(appointment.recipientType ? [{ label: "Recipient", value: appointment.relatedPersonName || appointment.recipientType }] : []),
+        ...(appointment.recipientType ? [{ label: "Recipient", value: [(appointment.recipientTypes || [appointment.recipientType]).join(", "), appointment.relatedPersonName].filter(Boolean).join(" · ") }] : []),
         ...(appointment.primaryPractitioner ? [{ label: "Primary practitioner", value: appointment.primaryPractitioner }] : []),
         ...(appointment.venue ? [{ label: "Venue", value: <><MapPin size={14} aria-hidden="true" /> {appointment.venue}</> }] : []),
         ...(appointment.location

@@ -1,22 +1,27 @@
 import { peopleBundleSummary } from "../people";
 import { personWithVisibleContacts } from "../assessmentFeatures.js";
-import { COLLECTION_METHOD_OPTIONS, LABELS } from "../terminology.js";
+import { COLLECTION_METHOD_OPTIONS, LABELS, appTerm, displayTerminology } from "../terminology.js";
 import StandardTable from "../components/StandardTable";
 import AssessmentBundleDetails from "../components/AssessmentBundleDetails";
+import BundleQuestionnaire from "../components/BundleQuestionnaire";
 import { QueueRow, QueueCell } from "../components/QueueRow";
 import { SortableHeader, useQueueSort } from "../components/QueueControls";
 import { sortQueueRows } from "../queueSort";
 import NewAssessmentBundle from "../components/NewAssessmentBundle";
 import MvpAssessmentSummary from '../components/MvpAssessmentSummary';
 import SectionActionHeader from "../components/SectionActionHeader";
-import { assessmentBundleGroups } from "../assessmentBundles";
+import { assessmentBundleGroups, instrumentSupportsRespondent } from "../assessmentBundles";
 import IntakeWorkspace, { IntakePanel, IntakeAssessmentPanel } from "./Intake";
+import Profile, { initialValues as profileValues } from "./Profile";
+import { derivedEpisodeStatus } from "../batch1Registration.js";
+import ProfileDetailsModal from "../components/ProfileDetailsModal";
 import Referrals from "./Referrals";
 import { intakeFor, canAssess } from "../intake";
 import { overviewNextStep } from "../overview";
 import { latestCareEventsByType } from "../careEvents";
 import {
   currentCollection,
+  currentMvpStageCollection,
   compareCollections,
   safeReturnTo,
 } from "../workflow";
@@ -58,8 +63,8 @@ import { responseDate } from "../progress";
 import { daysAgoLabel } from "../relativeDate";
 import { contactsForAssessment } from "../assessmentContacts";
 import { assessmentSchedulingEnabled, assessmentDueDatesEnabled, assessmentContactLinkingEnabled, assessmentSmsEnabled, assessmentBundleGroupingEnabled, assessmentBundleAccordionsEnabled } from "../assessmentFeatures";
-import { mvpAssessmentMode, mvpPathwayEnabled, mvpClinicianCreationEnabled, mvpBundleEditingEnabled } from '../mvpAssessmentPathway';
-import { episodeReviewSchedule, reviewTiming } from "../episodeReviews";
+import { mvpAssessmentMode, mvpPathwayEnabled, mvpClinicianCreationEnabled, mvpBundleEditingEnabled, mvpReviewNumbers, mvpInitialCompletionDate } from '../mvpAssessmentPathway';
+import { addDays, episodeReviewSchedule, reviewTiming } from "../episodeReviews";
 import { careJourneyForEpisode } from "../ysccModel";
 import {
   formatDate,
@@ -117,6 +122,8 @@ function PersonRecordNavigation({ tabs, value, onChange }) {
 export default function Person({ id, navigate, openModal }) {
   const { state, commit } = useStore();
   const mvpAssessments = mvpAssessmentMode(state.settings);
+  const showMvpProfileTab = mvpAssessments && state.settings?.mvpProfileTab !== false;
+  const mvpProfileCollectWorkspace = mvpPathwayEnabled(state.settings) && state.settings?.mvpNewProfileCollectWorkspace !== false;
   const highlightMvpReview = mvpPathwayEnabled(state.settings) && state.settings?.mvpReviewHighlight !== false;
   const mvpLedgerShowsReviews = !highlightMvpReview || !mvpClinicianCreationEnabled(state.settings);
   const simpleAssessments = !!state.settings?.simpleAssessments;
@@ -129,6 +136,7 @@ export default function Person({ id, navigate, openModal }) {
   const p = personWithVisibleContacts(state.people.find((p) => p.id === id), state.settings);
   const searchParams = useSearchParams();
   const [intakeDetailsOpen, setIntakeDetailsOpen] = useState(false);
+  const [profileDetailsOpen, setProfileDetailsOpen] = useState(false);
   const [tagEditorOpen, setTagEditorOpen] = useState(false);
   const [selectedTag, setSelectedTag] = useState("");
   const [tagError, setTagError] = useState("");
@@ -159,10 +167,11 @@ export default function Person({ id, navigate, openModal }) {
   const [consentChannel, setConsentChannel] = useState("all");
   const allTabs = [
     "Overview",
-    "Assessment",
-    { value: "Events", label: "Care events" },
-    "Report",
-    { value: "Consent & respondents", label: "Consent" },
+    ...(showMvpProfileTab ? ["Profile"] : []),
+    { value: "Assessment", label: appTerm("measures") },
+    { value: "Events", label: appTerm("contacts") },
+    { value: "Report", label: mvpAssessments ? "Reports" : "Report" },
+    ...(!mvpAssessments ? [{ value: "Consent & respondents", label: "Consent" }] : []),
     "History",
     "Change log",
   ];
@@ -190,26 +199,33 @@ export default function Person({ id, navigate, openModal }) {
     );
   const selectedEpisode =
     p.episodes.find((e) => e.id === episodeId) || p.episodes[0];
-  if (!selectedEpisode?.collections.length)
+  if (!selectedEpisode?.collections?.length)
     return (
       <IntakeWorkspace person={p} navigate={navigate} openModal={openModal} />
     );
   const e = selectedEpisode,
     c =
       e.collections.find((col) => col.id === searchParams.get("collection")) ||
+      (p.mvpProfile ? e.collections.find(col => col.clientProfileMeasure && col.response !== 'Submitted') ||
+        e.collections.find(col => col.mvpInitialAssessment && col.mvpRespondent === 'Person' && col.response !== 'Submitted') : null) ||
       (mvpAssessments ? e.collections.find(col => col.mvpTimepointId && col.response !== 'Submitted') || e.collections.find(col => col.mvpTimepointId) : null) ||
-      currentCollection(e),
+      (p.mvpProfile ? currentMvpStageCollection(e) : currentCollection(e)),
     nextStep = overviewNextStep(p, e, c, currentStaff(state));
   const overviewStep = !scheduleAssessments ? {
     badge: c.response === "Submitted" ? "Completed" : c.response === "Draft" ? "Draft" : "Not started",
     title: c.response === "Submitted" ? "Instrument completed" : c.response === "Draft" ? "Continue draft" : "Start instrument",
-    description: c.response === "Submitted" ? "The completed response is recorded in Assessment."
+    description: c.response === "Submitted" ? `The completed response is recorded in ${appTerm("measures")}.`
       : c.response === "Draft" ? "Saved answers are ready to continue." : "This assessment is ready to start.",
     primary: { label: "Open instrument", tab: "Assessment" },
   } : nextStep;
   const reviewSchedule = episodeReviewSchedule(e, TODAY);
+  const profileInitialCompletedAt = p.mvpProfile ? mvpInitialCompletionDate(e) : null;
+  const profileReviewDue = profileInitialCompletedAt
+    ? addDays(profileInitialCompletedAt, 90) : null;
+  const nextReviewDue = p.mvpProfile ? profileReviewDue : reviewSchedule.outcome.due;
   const careJourney = careJourneyForEpisode(p, e.id);
   const episodeIntake = intakeFor(p, e);
+  const currentStatus = derivedEpisodeStatus(profileValues(p, e, episodeIntake), e);
   const initialIntake = p.intakes?.find((intake) =>
     intake.episodeId === e.id && intake.outcome === "Proceed");
   const initialAssessmentContacts = initialIntake
@@ -253,7 +269,7 @@ export default function Person({ id, navigate, openModal }) {
         ? "Data quality"
         : "people";
   const pathwayCollections = mvpAssessments
-    ? e.collections.filter(record => record.mvpInitialAssessment || record.mvpTimepointId ||
+    ? e.collections.filter(record => record.clientProfileMeasure || record.mvpInitialAssessment || record.mvpTimepointId ||
         (mvpClinicianCreationEnabled(state.settings) && record.mvpCreatedAssessment))
     : e.collections;
   const dueByType = assessmentDueByType(pathwayCollections, TODAY);
@@ -293,7 +309,7 @@ export default function Person({ id, navigate, openModal }) {
     const respondent = collection.respondent || "Person";
     const assistance = collection.assistance ||
       (channel === "Clinician entry" ? "Transcribed" : "Independent");
-    if (!getInstrument(collection.version).respondents.includes(respondent) ||
+    if (!instrumentSupportsRespondent(getInstrument(collection.version), respondent, channel) ||
         (channel === "Clinician entry" && currentStaff(state)?.role !== "Clinician")) {
       openSetup();
       return;
@@ -341,9 +357,11 @@ export default function Person({ id, navigate, openModal }) {
   const assessmentState = (col) => col.notRequiredReason ? "Not required" : !scheduleAssessments
     ? col.response === "Submitted" ? "Completed" : col.response === "Draft" ? "Draft" : "Not started"
     : collectionStatus(col);
+  const reviewNumbers = mvpAssessments ? mvpReviewNumbers(e) : new Map();
   const currentMvpTimepointId = orderedCollections.filter(col => col.mvpTimepointId)
     .sort((a, b) => a.due.localeCompare(b.due)).at(-1)?.mvpTimepointId;
-  const inMvpActiveTable = col => (mvpClinicianCreationEnabled(state.settings) && col.mvpCreatedAssessment) ||
+  const inMvpActiveTable = col => (p.mvpProfile && (col.clientProfileMeasure || col.mvpInitialAssessment)) ||
+    (mvpClinicianCreationEnabled(state.settings) && col.mvpCreatedAssessment) ||
     (mvpLedgerShowsReviews && !!col.mvpTimepointId && col.mvpTimepointId === currentMvpTimepointId);
   const ledgerCollections = groupAssessmentsByBundle ? orderedCollections.filter(col => mvpAssessments
     ? inMvpActiveTable(col) && assessmentState(col) !== 'Completed'
@@ -400,7 +418,7 @@ export default function Person({ id, navigate, openModal }) {
     const template = state.settings?.assessmentScheduleRules?.find(item => item.id === (group.bundleId || group.key));
     const override = e.assessmentBundleSelections?.[group.bundleId || group.key]?.assessmentOverrides?.[0];
     const record = group.records.find(col => col.response !== 'Submitted') || group.records[0];
-    const respondentLabel = value => value === 'Family respondent' ? 'Family respondent' : mvpAssessments ? 'Young person' : 'Patient';
+    const respondentLabel = value => value === 'Family respondent' || value === 'Clinician' ? value : mvpAssessments ? 'Young person' : 'Patient';
     return {
       channel: group.key === 'individual' ? [...new Set(group.records.map(col => col.channel || 'Not set up'))].join(', ')
         : override?.channel || template?.channel || template?.assessments?.[0]?.channel || record?.channel || 'Not set up',
@@ -553,14 +571,12 @@ export default function Person({ id, navigate, openModal }) {
             </div>
           </div>
           <p className="person-heading-details">
-            <small className="person-heading-role">Patient</small>
-            {patientSecondaryDetail(p) && <><span>·</span>{patientSecondaryDetail(p)}</>}
-            <span>·</span>
-            {p.pronouns}
+            <span className="sr-only">Current status: </span><Badge verbatim>{currentStatus}</Badge>
+            {patientSecondaryDetail(p) && <><span className="person-heading-separator">·</span>{patientSecondaryDetail(p)}</>}
             {p.archivedAt && <Badge>Archived</Badge>}
-            <TextLink icon={Info} iconPosition="start" aria-haspopup="dialog" onClick={() => setIntakeDetailsOpen(true)}>
+            {!showMvpProfileTab && <TextLink icon={Info} iconPosition="start" aria-haspopup="dialog" onClick={() => mvpAssessments ? setProfileDetailsOpen(true) : setIntakeDetailsOpen(true)}>
               More info
-            </TextLink>
+            </TextLink>}
           </p>
         </div>
         <ActionGroup className="actions">
@@ -620,6 +636,10 @@ export default function Person({ id, navigate, openModal }) {
           intake={episodeIntake}
           onClose={() => setIntakeDetailsOpen(false)}
         />
+      )}
+      {profileDetailsOpen && mvpAssessments && (
+        <ProfileDetailsModal person={p} episode={e} intake={episodeIntake}
+          openModal={openModal} onClose={() => setProfileDetailsOpen(false)} />
       )}
       {tagEditorOpen && (
         <Modal title="Person tags" subtitle="Add short labels to help identify this record." onClose={() => setTagEditorOpen(false)}>
@@ -700,7 +720,7 @@ export default function Person({ id, navigate, openModal }) {
         )}
         {tab === "Overview" && (
           <>
-            {!assessmentAvailable && intakeFor(p, e) && (
+            {!mvpAssessments && !assessmentAvailable && intakeFor(p, e) && (
               <IntakePanel
                 key={`${intakeFor(p, e).id}:${intakeFor(p, e).revision}:${p.intakeResetToken || "original"}`}
                 person={p}
@@ -719,7 +739,7 @@ export default function Person({ id, navigate, openModal }) {
                   </p>
                 </div>
                 <div className="overview-assessment-title">
-                  <h2>{overviewBundle?.name || c.label}</h2>
+                  <h2>{displayTerminology(overviewBundle?.name || c.label)}</h2>
                 </div>
                 {!overviewBundle && scheduleAssessments && !simpleAssessments && <p className="overview-assessment-context">
                   {nextStep.overdueText ? (
@@ -759,12 +779,11 @@ export default function Person({ id, navigate, openModal }) {
                   </section>
                   <section
                     className="overview-assessment-details"
-                    aria-label="Assessment details"
+                    aria-label={`${appTerm("measures", "singular")} details`}
                   >
                     {overviewBundle ? <dl className="metadata">
                       <div><dt>Status</dt><dd><Badge>{overviewBundleSummary.status}</Badge></dd></div>
                       <div><dt>Completion</dt><dd>{overviewBundleSummary.detail.split(' · ')[0]}</dd></div>
-                      <div><dt>Instrument</dt><dd className="overview-bundle-instruments">{overviewBundle.records.map(record => <span key={record.id}>{getInstrument(record.version)?.name || record.label}</span>)}</dd></div>
                       {showDueDates && overviewBundleSummary.due && <div><dt>Due</dt><dd>{formatDate(overviewBundleSummary.due)}</dd></div>}
                     </dl> : <dl className="metadata">
                       {!simpleAssessments && <div>
@@ -892,10 +911,10 @@ export default function Person({ id, navigate, openModal }) {
                         </div>
                       </div>
                       <div className="episode-fact episode-next-review">
-                        <small>{reviewSchedule.confirmed ? "Next review" : "Proposed next review"}</small>
+                        <small>{p.mvpProfile ? "90-day review" : reviewSchedule.confirmed ? "Next review" : "Proposed next review"}</small>
                         <div className="episode-next-review-value">
-                          <span>{reviewSchedule.outcome.due ? formatDate(reviewSchedule.outcome.due) : "Not scheduled"}</span>
-                          {reviewSchedule.outcome.due && <small className={reviewSchedule.outcome.due < TODAY ? "status-overdue-text" : undefined}>{reviewTiming(reviewSchedule.outcome.due, TODAY)}</small>}
+                          <span>{nextReviewDue ? formatDate(nextReviewDue) : p.mvpProfile ? "90 days after initial assessment completion" : "Not scheduled"}</span>
+                          {nextReviewDue && <small className={nextReviewDue < TODAY ? "status-overdue-text" : undefined}>{reviewTiming(nextReviewDue, TODAY)}</small>}
                         </div>
                       </div>
                       <div className="episode-fact episode-completeness">
@@ -940,19 +959,19 @@ export default function Person({ id, navigate, openModal }) {
                 title="Care timeline"
                 className="overview-timeline"
                 action={
-                  <TextLink onClick={() => setTab("History")}>
-                    View history
+                  <TextLink onClick={() => setTab("Events")}>
+                    View all {appTerm("contacts").toLowerCase()}
                   </TextLink>
                 }
               >
                 <Timeline episode={e} person={p} audit={state.audit} />
               </Panel>
-              <Panel
-                title="Care events"
+              {!state.settings?.phase2CareActivity && <Panel
+                title={appTerm("contacts")}
                 className="overview-care-events"
                 action={
                   <TextLink onClick={() => setTab("Events")}>
-                    View all care events
+                    View all {appTerm("contacts").toLowerCase()}
                   </TextLink>
                 }
               >
@@ -984,7 +1003,7 @@ export default function Person({ id, navigate, openModal }) {
                     </li>
                   ))}
                 </ul>
-              </Panel>
+              </Panel>}
               <Panel title="People involved" className="overview-people-involved">
                 <div className="panel-body">
                   <div className="involved">
@@ -1023,8 +1042,19 @@ export default function Person({ id, navigate, openModal }) {
             )}
           </>
         )}
+        {tab === "Profile" && showMvpProfileTab && (
+          <Profile key={`${p.id}:${e.id}`} person={p} episode={e} intake={episodeIntake} openModal={openModal} />
+        )}
         {tab === "Assessment" && (
           <div className="stack">
+            {mvpProfileCollectWorkspace && p.mvpProfile ? <>
+              <SectionActionHeader mvp title={c?.clientProfileMeasure ? 'Client profile' : c?.mvpTimepointId ? '90-day review' : 'Initial assessment'}
+                description={c?.mvpTimepointId ? 'Complete the scheduled review one instrument at a time.'
+                  : c?.clientProfileMeasure ? 'Complete each profile heading to prepare the initial assessment.'
+                  : 'The 90-day review is added 90 days after the initial assessment is complete.'} />
+              <BundleQuestionnaire key={`${e.id}:${c.id}`} inline person={p} episode={e} collection={c}
+                onClose={() => setTab('Overview')} />
+            </> : <>
             {scheduleAssessments && initialIntake && !e.collections?.[0]?.due && (
               <IntakeAssessmentPanel
                 person={p}
@@ -1038,18 +1068,20 @@ export default function Person({ id, navigate, openModal }) {
             )}
             <SectionActionHeader
               mvp={mvpAssessments}
-              title="Assessment ledger"
+              title={`${appTerm("measures")} ledger`}
               description={mvpAssessments
-                ? mvpClinicianCreationEnabled(state.settings) ? 'Initial, 90-day and clinician-created assessments.' : 'Initial and 90-day assessments.'
+                ? p.mvpProfile && e.collections.some(record => record.clientProfileMeasure) && !e.collections.some(record => record.mvpTimepointId)
+                  ? `Complete Client profile first. The initial assessment follows its configured trigger, then the 90-day review follows initial assessment completion.`
+                  : mvpClinicianCreationEnabled(state.settings) ? `Initial, 90-day and clinician-created ${appTerm("measures").toLowerCase()}.` : `Initial and 90-day ${appTerm("measures").toLowerCase()}.`
                 : simpleAssessments
                 ? `${orderedCollections.length} instruments in care episode ${e.number}. ${showDueDates ? "Records show due dates, drafts and completion." : "Records show creation, drafts and completion."}`
                 : `${orderedCollections.length} instruments in care episode ${e.number}. Each is a separate collection point. Closure instruments and feedback stay linked after this episode closes.`}
               action={mvpAssessments ? mvpClinicianCreationEnabled(state.settings) && <Button variant="primary"
                 disabled={e.status !== 'Active' || !canAssess(p,e) || !!p.archivedAt || !!p.readOnly || !!e.readOnly}
-                onClick={() => setNewBundleOpen(true)}>New assessment</Button> : <ActionGroup className="button-row assessment-ledger-actions">
+                onClick={() => setNewBundleOpen(true)}>New {appTerm("measures", "singular").toLowerCase()}</Button> : <ActionGroup className="button-row assessment-ledger-actions">
                 {groupAssessmentsByBundle ? <SplitButton
-                  label="New assessment"
-                  menuLabel="More assessment actions"
+                  label={`New ${appTerm("measures", "singular").toLowerCase()}`}
+                  menuLabel={`More ${appTerm("measures", "singular").toLowerCase()} actions`}
                   disabled={e.status !== 'Active' || !canAssess(p,e) || !!p.archivedAt || !!p.readOnly || !!e.readOnly}
                   onClick={() => setNewBundleOpen(true)}
                   items={[{
@@ -1068,11 +1100,11 @@ export default function Person({ id, navigate, openModal }) {
             />
             {highlightMvpReview && <MvpAssessmentSummary person={p} episode={e} settings={state.settings} commit={commit}
               onCollect={collectAssessmentResponse} onShowResponse={setResponseGroup} />}
-            {bundleMessage && <p role="status">{bundleMessage}</p>}
+            {bundleMessage && <p role="status">{displayTerminology(bundleMessage)}</p>}
             {(newBundleOpen || editBundleId) && <NewAssessmentBundle key={editBundleId || 'new'} editBundleId={editBundleId} person={p} episode={e} onClose={() => {setNewBundleOpen(false);setEditBundleId(null);}} onCreated={(bundleId,message) => {
               setCreatedBundleId(bundleId);setBundleMessage(message);setAssessmentFilter('all');setAssessmentQuery('');setAssessmentMethod('all');
             }} />}
-            {highlightMvpReview && mvpClinicianCreationEnabled(state.settings) && <h2 className="mvp-user-assessments-heading">User-created assessments</h2>}
+            {highlightMvpReview && mvpClinicianCreationEnabled(state.settings) && <h2 className="mvp-user-assessments-heading">User-created {appTerm("measures").toLowerCase()}</h2>}
             <ListFilterBar
               id="assessment-status"
               className={`assessment-filter-bar${simpleAssessments ? " assessment-filter-bar-simple" : ""}`}
@@ -1083,11 +1115,11 @@ export default function Person({ id, navigate, openModal }) {
               query={assessmentQuery}
               onQueryChange={setAssessmentQuery}
               hideSearchRow={mvpAssessments}
-              placeholder={groupAssessmentsByBundle ? "Search assessments or instruments" : "Search instruments"}
+              placeholder={groupAssessmentsByBundle ? `Search ${appTerm("measures").toLowerCase()} or instruments` : "Search instruments"}
               shown={mvpAssessments ? countMvpAssessments(visibleActiveCollections)
                 : groupAssessmentsByBundle ? visibleActiveCollections.filter(col=>assessmentState(col) !== "Completed").length : visibleCollections.length}
               total={mvpAssessments ? countMvpAssessments(ledgerCollections) : ledgerCollections.length}
-              noun={mvpAssessments ? 'assessments' : 'instruments'}
+              noun={mvpAssessments ? appTerm("measures").toLowerCase() : 'instruments'}
               activeAdvancedCount={Number(assessmentMethod !== "all")}
               onClear={() => { setAssessmentFilter("all"); setAssessmentQuery(""); setAssessmentMethod("all"); }}
               resultAction={groupAssessmentsByBundle ? null :
@@ -1124,8 +1156,9 @@ export default function Person({ id, navigate, openModal }) {
               })}</div>
               <ActionGroup className="modal-footer"><Button onClick={()=>setResponseGroup(null)}>Close</Button></ActionGroup>
             </Modal>}
-            {selectedBundleGroup && <AssessmentBundleDetails group={selectedBundleGroup} episode={e} scheduleAssessments={scheduleAssessments} delivery={deliveryForBundle(selectedBundleGroup)}
+            {selectedBundleGroup && <AssessmentBundleDetails group={selectedBundleGroup} episode={e} scheduleAssessments={scheduleAssessments} showContacts={linkAssessmentAppointments} delivery={deliveryForBundle(selectedBundleGroup)}
               statusFor={assessmentState} showDueDates={showDueDates} hideRequirement={mvpAssessments && !mvpClinicianCreationEnabled(state.settings)}
+              onCollect={collectAssessmentResponse} canCollect={record=>canAssess(p,e) && !(mvpAssessments && record.respondent === 'Family respondent' && !p.family)}
               onAddInstrument={mvpAssessments && mvpBundleEditingEnabled(state.settings) && selectedBundleGroup.records.some(record=>record.mvpTimepointId || record.mvpInitialAssessment) && !p.archivedAt && !p.readOnly && !e.readOnly && e.status === 'Active' && canAssess(p,e)
                 ? version=>commit({type:'CUSTOMIZE_MVP_BUNDLE',operation:'add',personId:p.id,episodeId:e.id,bundleId:selectedBundleGroup.bundleId,version})
                 : !mvpAssessments && !p.archivedAt && !p.readOnly && !e.readOnly && e.status === 'Active' && canAssess(p,e) ? version=>commit({type:'ADD_GROUP_INSTRUMENT',personId:p.id,episodeId:e.id,collectionIds:selectedBundleGroup.records.map(record=>record.id),version}) : null}
@@ -1158,21 +1191,21 @@ export default function Person({ id, navigate, openModal }) {
                   : sectionRows;
                 const columnCount = completedSection ? 5 : mvpAssessments ? 6 : 7;
                 if (!mvpAssessments && ((!completedSection && !sectionRows.length) || (completedSection && !completeRows.length))) return null;
-                return <section key={String(completedSection)} className="assessment-ledger-section" aria-label={completedSection ? "Completed assessments" : mvpAssessments ? mvpLedgerShowsReviews ? "Assessments" : "User-created assessments" : "Active assessments"}>
-                  {completedSection && <><h2>Completed assessments</h2>
-                    <ListFilterBar id="completed-assessments" label="Completed assessment source"
+                return <section key={String(completedSection)} className="assessment-ledger-section" aria-label={completedSection ? `Completed ${appTerm("measures").toLowerCase()}` : mvpAssessments ? mvpLedgerShowsReviews ? appTerm("measures") : `User-created ${appTerm("measures").toLowerCase()}` : `Active ${appTerm("measures").toLowerCase()}`}>
+                  {completedSection && <><h2>Completed {appTerm("measures").toLowerCase()}</h2>
+                    <ListFilterBar id="completed-assessments" label={`Completed ${appTerm("measures", "singular").toLowerCase()} source`}
                       items={[{value:'all',label:'All',count:completeRows.length},{value:'system',label:'System generated',count:completeRows.filter(isSystem).length},...(mvpClinicianCreationEnabled(state.settings) || !mvpAssessments ? [{value:'user',label:'User created',count:completeRows.filter(row=>!isSystem(row)).length}] : [])]}
                       value={completedSource} onChange={setCompletedSource} query={completedQuery} onQueryChange={setCompletedQuery}
                       hideSearchRow={mvpAssessments} hideTabs={mvpAssessments && !mvpClinicianCreationEnabled(state.settings)}
-                      placeholder="Search completed assessments or instruments" shown={sectionRows.length} total={completeRows.length} noun="assessments"
+                      placeholder={`Search completed ${appTerm("measures").toLowerCase()} or instruments`} shown={sectionRows.length} total={completeRows.length} noun={appTerm("measures").toLowerCase()}
                       activeAdvancedCount={Number(completedRespondent !== 'all') + Number(!!completedFrom) + Number(!!completedTo)}
                       onClear={()=>{setCompletedSource('all');setCompletedQuery('');setCompletedRespondent('all');setCompletedFrom('');setCompletedTo('');}}
-                      advanced={<><Select label="Completed assessment respondent" value={completedRespondent} onChange={event=>setCompletedRespondent(event.target.value)}><option value="all">All respondents</option>{[...new Set(completeRows.map(row=>row.bundleRecipient))].map(value=><option key={value} value={value}>{value}</option>)}</Select>
+                      advanced={<><Select label={`Completed ${appTerm("measures", "singular").toLowerCase()} respondent`} value={completedRespondent} onChange={event=>setCompletedRespondent(event.target.value)}><option value="all">All respondents</option>{[...new Set(completeRows.map(row=>row.bundleRecipient))].map(value=><option key={value} value={value}>{value}</option>)}</Select>
                         <label className="field"><span>Completed from</span><input type="date" value={completedFrom} onChange={event=>setCompletedFrom(event.target.value)}/></label>
                         <label className="field"><span>Completed to</span><input type="date" value={completedTo} onChange={event=>setCompletedTo(event.target.value)}/></label></>}/>
                   </>}
-                  <StandardTable className={`assessment-bundle-table${mvpAssessments ? ' assessment-bundle-table-mvp' : ''}`} label={completedSection ? "Completed assessments" : mvpAssessments ? mvpLedgerShowsReviews ? "Assessments" : "User-created assessments" : "Active assessments in this care episode"} columnOrderKey={completedSection ? "yscc-completed-assessment-column-order" : "yscc-assessment-ledger-column-order"}
-                compactControls={<Select label="Sort assessments" value={bundleSort.key ? `${bundleSort.key}:${bundleSort.direction}` : 'default'}
+                  <StandardTable className={`assessment-bundle-table${mvpAssessments ? ' assessment-bundle-table-mvp' : ''}`} label={completedSection ? `Completed ${appTerm("measures").toLowerCase()}` : mvpAssessments ? mvpLedgerShowsReviews ? appTerm("measures") : `User-created ${appTerm("measures").toLowerCase()}` : `Active ${appTerm("measures").toLowerCase()} in this care episode`} columnOrderKey={completedSection ? "yscc-completed-assessment-column-order" : "yscc-assessment-ledger-column-order"}
+                compactControls={<Select label={`Sort ${appTerm("measures").toLowerCase()}`} value={bundleSort.key ? `${bundleSort.key}:${bundleSort.direction}` : 'default'}
                   onChange={event => { const [key, direction] = event.target.value.split(':'); setBundleSort({ key: key === 'default' ? null : key, direction: direction || 'asc' }); }}>
                   <option value="default">Default order</option>
                   <option value="due:asc">{completedSection ? "Completion date" : "Due date"} · earliest first</option><option value="due:desc">{completedSection ? "Completion date" : "Due date"} · latest first</option>
@@ -1181,7 +1214,7 @@ export default function Person({ id, navigate, openModal }) {
                   <option value="completion:asc">Completion · lowest first</option><option value="completion:desc">Completion · highest first</option>
                 </Select>}>
                   <thead><tr>
-                    <th scope="col">Assessment name</th><SortableHeader label={completedSection ? "Completion date" : "Due date"} sortKey="due" sort={bundleSort} onSort={toggleBundleSort} />
+                    <th scope="col">{appTerm("measures", "singular")} name</th><SortableHeader label={completedSection ? "Completion date" : "Due date"} sortKey="due" sort={bundleSort} onSort={toggleBundleSort} />
                     {!completedSection && !mvpAssessments && <SortableHeader label="Collection method" sortKey="method" sort={bundleSort} onSort={toggleBundleSort} />}
                     <SortableHeader label="Respondent" sortKey="respondent" sort={bundleSort} onSort={toggleBundleSort} />
                     {!completedSection && <th scope="col">Status</th>}
@@ -1189,8 +1222,8 @@ export default function Person({ id, navigate, openModal }) {
                   </tr></thead>
                   <tbody>
                       {!sectionRows.length && <tr><td colSpan={columnCount} className="muted">
-                        {completedSection ? completeRows.length ? 'No completed assessments match these filters.' : 'No completed assessments yet.'
-                          : ledgerCollections.length ? `No ${mvpAssessments && !mvpLedgerShowsReviews ? 'user-created ' : ''}assessments match these filters.` : `No ${mvpAssessments && !mvpLedgerShowsReviews ? 'user-created ' : ''}assessments yet.`}
+                        {completedSection ? completeRows.length ? `No completed ${appTerm("measures").toLowerCase()} match these filters.` : `No completed ${appTerm("measures").toLowerCase()} yet.`
+                          : ledgerCollections.length ? `No ${mvpAssessments && !mvpLedgerShowsReviews ? 'user-created ' : ''}${appTerm("measures").toLowerCase()} match these filters.` : `No ${mvpAssessments && !mvpLedgerShowsReviews ? 'user-created ' : ''}${appTerm("measures").toLowerCase()} yet.`}
                       </td></tr>}
                       {displayRows.flatMap(({ group, allRecords, completedCount, nextDue, sharedDue, completedDate, bundleChannel, bundleRecipient }) => {
                         const expanded = bundleAccordions && expandedBundleRows.includes(group.key);
@@ -1203,6 +1236,7 @@ export default function Person({ id, navigate, openModal }) {
                         const dueDaysLabel = daysUntilDue === null ? '' : daysUntilDue === 0 ? 'Today'
                           : `${Math.abs(daysUntilDue)} ${Math.abs(daysUntilDue) === 1 ? 'day' : 'days'}${daysUntilDue < 0 ? completedSection ? ' ago' : ' overdue' : ' away'}`;
                         const dueAlert = !completedSection && rowComplete ? null : nextDue && assessmentDueLabel(nextDue, TODAY);
+                        const reviewNumber = reviewNumbers.get(allRecords.find(record => record.mvpTimepointId)?.mvpTimepointId);
                         const hasDraft = allRecords.some(record => record.response === 'Draft' || record.response === 'In progress');
                         const systemCreated = allRecords.some(record => record.bundleSource === 'Scheduled' || record.bundleSource === 'System' || record.id?.startsWith('AUTO-') || (record.scheduleAnchor && record.bundleSource !== 'Manual'));
                         const bundleStatus = allRecords.every(record=>record.notRequiredReason) ? 'not-required' : allRecords.length > 0 && completedCount === allRecords.length ? 'completed'
@@ -1212,12 +1246,13 @@ export default function Person({ id, navigate, openModal }) {
                           : systemCreated ? 'new' : 'not-started';
                         const bundleStatusLabel = {'not-required':'Not required',completed:'Completed',overdue:'Overdue','due-soon':'Due soon','in-progress':'In progress',new:'New · created by system','not-started':'Not started'}[bundleStatus];
                         return [<QueueRow key={group.key} className={expanded ? 'assessment-bundle-row-expanded' : ''} onClick={event => {if (!event.target.closest('button, a')) openBundleDetails(group.key);}}>
-                            <QueueCell label="Assessment name" slot="subject"><div className="assessment-bundle-name-status">
+                            <QueueCell label={`${appTerm("measures", "singular")} name`} slot="subject"><div className="assessment-bundle-name-status">
                               <button type="button" className="name-link assessment-bundle-table-name"
-                              aria-label={bundleAccordions ? `${expanded ? 'Collapse' : 'Expand'} details for ${group.name}` : `View details for ${group.name}`}
+                              aria-label={displayTerminology(bundleAccordions ? `${expanded ? 'Collapse' : 'Expand'} details for ${group.name}` : `View details for ${group.name}`)}
                               aria-expanded={bundleAccordions ? expanded : undefined} aria-controls={bundleAccordions ? detailsId : undefined}
                               aria-haspopup={bundleAccordions ? undefined : 'dialog'}
-                              onClick={event => {event.stopPropagation();openBundleDetails(group.key);}}>{bundleAccordions && <ChevronRight size={16} aria-hidden="true" />}{group.name}</button></div>
+                              onClick={event => {event.stopPropagation();openBundleDetails(group.key);}}>{bundleAccordions && <ChevronRight size={16} aria-hidden="true" />}{displayTerminology(group.name)}</button></div>
+                              {reviewNumber && <small>Review {reviewNumber}</small>}
                               {(!mvpAssessments || mvpClinicianCreationEnabled(state.settings)) &&
                                 <small>{systemCreated ? 'System generated' : 'User created'}</small>}
                             </QueueCell>
@@ -1228,7 +1263,7 @@ export default function Person({ id, navigate, openModal }) {
                             {!completedSection && <QueueCell label="Status" slot="status"><Badge tone={{completed:'green',overdue:'coral','due-soon':'amber','in-progress':'blue',new:'purple','not-started':'neutral'}[bundleStatus]}>{bundleStatus === 'new' ? 'New' : bundleStatusLabel}</Badge></QueueCell>}
                             <QueueCell label="Completion" slot="metric"><div className="people-completeness-summary"><strong>{completedCount} / {allRecords.length}</strong>
                               <span className={`people-completeness-bar${completedCount === allRecords.length ? " complete-100" : ""}`} role="progressbar" aria-valuemin={0} aria-valuemax={allRecords.length || 1} aria-valuenow={completedCount}
-                                aria-label={`${group.name}: ${completedCount} of ${allRecords.length} instruments completed`}>
+                                aria-label={displayTerminology(`${group.name}: ${completedCount} of ${allRecords.length} instruments completed`)}>
                                 <span style={{width:`${allRecords.length ? completedCount / allRecords.length * 100 : 0}%`}} />
                               </span>
                             </div></QueueCell>
@@ -1238,8 +1273,8 @@ export default function Person({ id, navigate, openModal }) {
                                 onClick={() => collectAssessmentResponse(pendingRecord)}>Collect response</Button>}
                             </ActionGroup></QueueCell>
                           </QueueRow>, ...(expanded ? [<tr key={`${group.key}-details`} className="assessment-bundle-details-row"><td colSpan={columnCount}>
-                            <div id={detailsId} role="region" aria-label={`Details for ${group.name}`}>
-                              <AssessmentBundleDetails embedded group={detailGroup} episode={e} scheduleAssessments={scheduleAssessments}
+                            <div id={detailsId} role="region" aria-label={displayTerminology(`Details for ${group.name}`)}>
+                              <AssessmentBundleDetails embedded group={detailGroup} episode={e} scheduleAssessments={scheduleAssessments} showContacts={linkAssessmentAppointments}
                                 delivery={deliveryForBundle(detailGroup)} statusFor={assessmentState} showDueDates={showDueDates}
                                 hideRequirement={mvpAssessments && !mvpClinicianCreationEnabled(state.settings)}
                                 onClose={() => toggleBundleRow(group.key)}
@@ -1259,7 +1294,7 @@ export default function Person({ id, navigate, openModal }) {
               }) : simpleAssessments && groupAssessmentsByType
                 ? <div className="stack">
                   {simpleGroupedAssessments.length > 0 && <div className="assessment-simple-columns" aria-hidden="true">
-                    <span /><span>Assessment type</span>
+                    <span /><span>{appTerm("measures", "singular")} type</span>
                     <span className="assessment-simple-columns-meta"><span>Records &amp; status</span><span>Latest score</span></span>
                   </div>}
                   {simpleGroupedAssessments.map((group) => {
@@ -1275,7 +1310,7 @@ export default function Person({ id, navigate, openModal }) {
                       <summary className="assessment-simple-group-header">
                         <ChevronDown size={18} aria-hidden="true" />
                         <div className="assessment-simple-group-title">
-                          <h3>{group.collections.length === 1 ? group.collections[0].label : group.name}</h3>
+                          <h3>{displayTerminology(group.collections.length === 1 ? group.collections[0].label : group.name)}</h3>
                           {assessmentDueDates && nextDue && <span className="assessment-simple-group-due">
                             <span>Next due <time dateTime={nextDue.due}>{formatDate(nextDue.due)}</time></span>
                             {nextDue.due <= TODAY && <AlertLabel tone={nextDue.due < TODAY ? "danger" : "attention"}>{assessmentDueLabel(nextDue, TODAY)}</AlertLabel>}
@@ -1298,7 +1333,7 @@ export default function Person({ id, navigate, openModal }) {
                 ? <>
                   {groupedAssessments.length > 0 && (
                     <div className="assessment-ledger-columns" aria-hidden="true">
-                      <span /><span>Assessment type</span><span>Status</span><span>Latest submitted</span><span>Latest score</span>{showDueDates && <span>Next due</span>}
+                      <span /><span>{appTerm("measures", "singular")} type</span><span>Status</span><span>Latest submitted</span><span>Latest score</span>{showDueDates && <span>Next due</span>}
                     </div>
                   )}
                   {groupedAssessments.map((group, index) => {
@@ -1331,7 +1366,7 @@ export default function Person({ id, navigate, openModal }) {
                         <header className="assessment-ledger-type">
                           <span className="assessment-ledger-icon" aria-hidden="true">{group.measureKey ? <FileCheck2 size={19} /> : <CalendarClock size={19} />}</span>
                           <span>
-                            <h3>{group.name}</h3>
+                            <h3>{displayTerminology(group.name)}</h3>
                             <small>{group.collections.length} instrument{group.collections.length === 1 ? "" : "s"} in this episode</small>
                           </span>
                         </header>
@@ -1445,6 +1480,7 @@ export default function Person({ id, navigate, openModal }) {
                 )}
             </div>
             {!visibleCollections.length && <Empty title="No instruments match these filters">Try another search or filter.</Empty>}
+            </>}
           </div>
         )}
         {tab === "Contact" && (
@@ -1556,7 +1592,7 @@ export default function Person({ id, navigate, openModal }) {
                   <dd>{p.consentReference || "No source recorded"}</dd>
                 </div>
                 <div>
-                  <dt>Assessment respondent</dt>
+                  <dt>{appTerm("measures", "singular")} respondent</dt>
                   <dd>{p.respondentPreference || "Not recorded"}</dd>
                 </div>
                 <div>
@@ -1585,7 +1621,7 @@ export default function Person({ id, navigate, openModal }) {
               <div>
                 <h2>History</h2>
                 <p>
-                  Assessment responses and reviews, contacts, contextual events and
+                  {appTerm("measures", "singular")} responses and reviews, contacts, contextual events and
                   structured care records in this care episode.
                 </p>
               </div>

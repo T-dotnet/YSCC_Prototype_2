@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { clinicalHistoryEntries } from "./activity.js";
-import { associatedCareItems, contactCareEventFacts, historyCategory, historyItem } from "./historyItem.js";
+import { associatedCareItems, contactCareEventFacts, mvpContactFacts, historyCategory, historyItem } from "./historyItem.js";
 import { measureInstrument } from "./measureQuestionnaires.js";
 
 test("Care events list all explicitly linked assessments and appointments", () => {
@@ -127,7 +127,7 @@ test("History uses the contact date once and keeps appointment provenance availa
   assert.ok(item.more.some(({ label }) => label === "Recorded at"));
 });
 
-test("Care events contact summary keeps the outcome and plan differences without repeating the timeline date", () => {
+test("Contacts history shows saved form fields and preserves differences from the plan", () => {
   const appointment = {
     id: "visit-1",
     appointmentType: "Care review",
@@ -140,17 +140,47 @@ test("Care events contact summary keeps the outcome and plan differences without
     attendance: "Attended",
     practitionerService: "Jess Taylor",
     deliveryMode: "In person",
+    contactType: "Care review",
+    contactName: "Follow-up contact",
+    recipientType: "Young person",
+    primaryPractitioner: "Jess Taylor",
+    additionalPractitioners: ["Morgan Lee"],
+    purpose: "Review progress",
+    impact: "Continue current plan",
     notes: "Review planned with Jordan.",
     outcomeNotes: "Next review agreed.",
     timestamp: "2026-09-02T09:00:00Z",
     actor: "Jess Taylor",
   };
   const episode = { appointments: [appointment], collections: [] };
-  const item = historyItem({ ...appointment, id: "appointment-visit-1", type: "appointment" }, episode);
-  const summary = contactCareEventFacts(item, appointment);
-  assert.deepEqual(summary.primary.map(({ label }) => label), ["Contact method", "Duration", "Outcome notes", "Notes"]);
+  const summary = contactCareEventFacts(appointment, episode);
+  assert.deepEqual(summary.primary.map(({ label }) => label), ["Contact method", "Duration"]);
   assert.equal(summary.primary.find(({ label }) => label === "Duration").value, "55 min");
-  assert.deepEqual(summary.more.map(({ label }) => label), ["Planned time", "Planned duration"]);
+  const shown = [...summary.primary, ...summary.more];
+  for (const label of ["Date", "Time", "Contact status", "Direct contact type", "Contact name", "Recipient", "Primary practitioner", "Other practitioners", "Purpose or care context", "Impact on care or coordination", "Notes", "Outcome notes"]) {
+    assert.ok(shown.some((detail) => detail.label === label), `${label} is visible`);
+  }
+  assert.equal(summary.more.find(({ label }) => label === "Time").value, "10:05");
+  assert.ok(summary.more.some(({ label, value }) => label === "Planned time" && value === "10:00"));
+  assert.ok(summary.more.some(({ label, value }) => label === "Planned duration" && value === "60 min"));
+});
+
+test("MVP contact history uses only fields from Record contact", () => {
+  const details = mvpContactFacts({
+    contactType: "Care review", contactName: "Follow-up contact", attendance: "Attended",
+    deliveryMode: "Phone", plannedDate: "2026-09-12", plannedTime: "14:00",
+    plannedDurationMinutes: 60, actualDate: "2026-09-12", actualTime: "14:08",
+    actualDurationMinutes: 48, primaryPractitioner: "Jess Taylor",
+    recipientTypes: ["Young person", "Related person"], relatedPersonName: "Alex Ellis",
+    additionalPractitioners: ["Morgan Lee"], practitionerService: "Northside Centre",
+    notes: "Legacy note", outcomeNotes: "Legacy outcome",
+  });
+  assert.deepEqual(details.map(({ label }) => label), [
+    "Contact method", "Date", "Time", "Primary practitioner", "Duration", "Recipient",
+    "Related person name", "Other practitioners",
+  ]);
+  assert.equal(details.find(({ label }) => label === "Time").value, "14:08");
+  assert.equal(details.find(({ label }) => label === "Duration").value, "48 min");
 });
 
 test("History keeps event and record provenance while displaying the event date", () => {

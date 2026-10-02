@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { SplitButton } from "../components/UI";
+import { Button, SplitButton } from "../components/UI";
 import SectionActionHeader from "../components/SectionActionHeader";
 import { NEW_RECORD_TYPES, recordCategoryLabel } from "../components/CareTimelineEntryForm";
 import { ClinicalHistory } from "../components/ActivityTimeline";
@@ -8,9 +8,11 @@ import { assessmentSchedulingEnabled } from "../assessmentFeatures";
 import { canAssess } from "../intake";
 import { useStore } from "../store";
 import { TODAY } from "../model";
+import { appTerm } from "../terminology.js";
 
 export default function CareEvents({ episode, person, audit = [], openModal, eventId, attentionIds = [], attentionOnly = false, onClearAttention }) {
   const { state } = useStore();
+  const phase2Mvp = !!state.settings?.phase2CareActivity;
   useEffect(() => {
     if (attentionOnly && attentionIds.length > 0)
       document.getElementById("care-event-results")?.scrollIntoView({ behavior: "auto", block: "start" });
@@ -19,9 +21,11 @@ export default function CareEvents({ episode, person, audit = [], openModal, eve
   return (
     <div className="stack care-events">
       <SectionActionHeader
-        title="Care events"
-        description="Contacts, assessments, contextual events and structured care records from this care period."
-        action={<SplitButton
+        title={appTerm("contacts")}
+        description={phase2Mvp
+          ? `${appTerm("measures", "singular")} activity and ${appTerm("contacts").toLowerCase()} from this care period.`
+          : `${appTerm("contacts")}, ${appTerm("measures").toLowerCase()}, contextual events and structured care records from this care period.`}
+        action={phase2Mvp ? <Button type="button" variant="primary" onClick={() => openModal({ type: "appointment", episodeId: episode.id })}>Add contact</Button> : <SplitButton
           label="Add event"
           menuLabel="Event categories"
           onClick={() => openModal({ type: "care-timeline-entry", episodeId: episode.id })}
@@ -41,7 +45,7 @@ export default function CareEvents({ episode, person, audit = [], openModal, eve
         episode={episode}
         person={person}
         audit={audit}
-        entries={careEventEntries(person, episode, audit, { simpleAssessments: !!state.settings?.simpleAssessments, scheduleAssessments: assessmentSchedulingEnabled(state.settings), today: TODAY })}
+        entries={careEventEntries(person, episode, audit, { simpleAssessments: !!state.settings?.simpleAssessments, scheduleAssessments: assessmentSchedulingEnabled(state.settings), phase2Mvp, today: TODAY })}
         selectedEventId={eventId}
         attentionIds={attentionIds}
         attentionOnly={attentionOnly}

@@ -9,6 +9,7 @@ import { TODAY, formatDate } from "../model";
 import { getNotifications } from "../notifications";
 import { mvpPathwayEnabled } from "../mvpAssessmentPathway";
 import { FilterTabs } from "./UI";
+import { displayTerminology } from "../terminology.js";
 
 const CATEGORY_MAP = {
   data_quality: {
@@ -198,14 +199,14 @@ export default function NotificationBell({ navigate }) {
                     <div className="notification-item-content">
                       <div className="notification-item-header">
                         <span className={`badge ${categoryInfo.badgeClass} notification-category-badge`}>
-                          {categoryInfo.label}
+                          {displayTerminology(categoryInfo.label)}
                         </span>
                         {displayDate && (
                           <span className="notification-item-date">{displayDate}</span>
                         )}
                       </div>
-                      <h4 className="notification-item-title">{item.title}</h4>
-                      <div className="notification-item-detail">{item.detail}</div>
+                      <h4 className="notification-item-title">{displayTerminology(item.title)}</h4>
+                      <div className="notification-item-detail">{displayTerminology(item.detail)}</div>
                     </div>
                     <ChevronRight
                       size={18}

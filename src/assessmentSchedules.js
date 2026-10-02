@@ -35,7 +35,7 @@ export function matchingScheduleRules(rules, episode, today) {
 }
 
 export function reconcileAssessmentSchedules(state, today) {
-  if (mvpAssessmentMode(state.settings)) return reconcileMvpAssessmentPathway(state, today);
+  if (mvpAssessmentMode(state.settings)) return reconcileAssessmentBundles(reconcileMvpAssessmentPathway(state, today), today);
   if (!state.settings?.automaticAssessmentDueDates) return state;
   const rules = state.settings.assessmentScheduleRules || [];
   let changed = false;

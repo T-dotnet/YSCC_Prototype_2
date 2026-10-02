@@ -1,4 +1,4 @@
-import { LABELS } from "./terminology.js";
+import { LABELS, appTerm } from "./terminology.js";
 import { appointmentDetails, appointmentTitle } from "./appointments.js";
 import { assessmentsForContact, contactsForAssessment } from "./assessmentContacts.js";
 import { assessmentScoreLabel, linkedAssessmentScore } from "./assessmentGroups.js";
@@ -35,7 +35,7 @@ export const HISTORY_CATEGORIES = {
   appointment: "Contact",
   "clinical-record": "Structured care records",
   "contextual-event": "Contextual events",
-  assessment: "Assessment activity",
+  assessment: `${appTerm("measures", "singular")} activity`,
   intake: "Intake",
   referral: "Referrals",
   report: "Reports",
@@ -46,30 +46,47 @@ export const HISTORY_CATEGORIES = {
 const fact = (label, value) => ({ label, value });
 const populated = ([, value]) => value !== null && value !== undefined && value !== "";
 
-export function contactCareEventFacts(item, appointment) {
-  const find = (label) => [...item.primary, ...item.more].find((detail) => detail.label === label);
-  const duration = find(appointment.actualDate ? "Actual duration" : "Planned duration");
+export function contactCareEventFacts(appointment, episode) {
+  const details = appointmentDetails(appointment, episode).map(([label, value]) => fact(label, value));
+  const find = (label) => details.find((detail) => detail.label === label);
+  const actual = Boolean(appointment.actualDate);
+  const dateLabel = actual ? "Actual date" : "Planned date";
+  const timeLabel = actual ? "Actual time" : "Planned time";
+  const durationLabel = actual ? "Actual duration" : "Planned duration";
   const primary = [
     find(LABELS.contactMethod),
-    duration && fact("Duration", duration.value),
-    find("Purpose or care context"),
-    find("Impact on care or coordination"),
-    find("Outcome notes"),
-    find("Notes"),
+    find(durationLabel) && fact("Duration", find(durationLabel).value),
   ].filter(Boolean);
-  const displayed = new Set(primary.map(({ label }) => label));
-  return {
-    primary,
-    more: item.more.filter(({ label, value }) => {
-      if (displayed.has(label) || label.startsWith("Associated assignment") ||
-          ["Recorded by", "Recorded at", "Direct contact type"].includes(label)) return false;
-      if (["Planned date", "Planned time"].includes(label))
-        return appointment.actualDate && value !== appointment[label === "Planned date" ? "actualDate" : "actualTime"];
-      if (label === "Planned duration")
-        return appointment.actualDate && value !== find("Actual duration")?.value;
+  const more = [
+    find(dateLabel) && fact("Date", find(dateLabel).value),
+    find(timeLabel) && fact("Time", find(timeLabel).value),
+    find("Attendance") && fact("Contact status", find("Attendance").value),
+    ...details.filter(({ label, value }) => {
+      if ([LABELS.contactMethod, "Attendance", dateLabel, timeLabel, durationLabel].includes(label)) return false;
+      if (actual && label === "Planned date") return value !== appointment.actualDate;
+      if (actual && label === "Planned time") return value !== appointment.actualTime;
+      if (actual && label === "Planned duration") return value !== `${appointment.actualDurationMinutes} min`;
       return true;
     }),
-  };
+  ].filter(Boolean);
+  return { primary, more };
+}
+
+export function mvpContactFacts(appointment) {
+  const date = appointment.actualDate || appointment.plannedDate;
+  const time = appointment.actualTime || appointment.plannedTime;
+  const duration = appointment.actualDurationMinutes || appointment.plannedDurationMinutes;
+  const recipients = appointment.recipientTypes || [appointment.recipientType];
+  return [
+    fact(LABELS.contactMethod, appointment.deliveryMode),
+    fact("Date", date),
+    fact("Time", time),
+    fact("Primary practitioner", appointment.primaryPractitioner),
+    fact("Duration", duration ? `${duration} min` : null),
+    fact(LABELS.recipient, recipients.filter(Boolean).join(", ")),
+    fact("Related person name", recipients.includes("Related person") ? appointment.relatedPersonName : null),
+    fact("Other practitioners", appointment.additionalPractitioners?.join(", ")),
+  ].filter(({ value }) => value !== null && value !== undefined && value !== "");
 }
 
 export function associatedCareItems(entry, episode) {
@@ -95,7 +112,7 @@ export function associatedCareItems(entry, episode) {
         id: appointment.id,
         type: "Contact",
         title: appointmentTitle(appointment),
-        subtitle: appointment.contactType || appointment.appointmentType || appointment.practitionerService,
+        subtitle: appointment.contactName || appointment.contactType || appointment.appointmentType || appointment.practitionerService,
         date: appointment.actualDate || appointment.plannedDate,
         dateLabel: appointment.actualDate ? "Actual" : "Planned",
       }));
@@ -129,7 +146,7 @@ export function historyItem(entry, episode, formatDetail = (value) => value, sim
       .filter(([label]) => label !== shownDateLabel && label !== shownTimeLabel && label !== "Attendance")
       .map(([label, value]) => fact(label, value));
     return {
-      subtitle: appointment.contactType || appointment.appointmentType || "Service contact",
+      subtitle: appointment.contactName || appointment.contactType || appointment.appointmentType || "Service contact",
       date: historyDate(entry),
       dateLabel: appointment.actualDate ? "Actual contact"
         : appointment.attendance === "Cancelled" ? "Cancelled contact"
@@ -158,7 +175,7 @@ export function historyItem(entry, episode, formatDetail = (value) => value, sim
   if (entry.type === "assessment") {
     const collection = episode.collections.find((item) => item.id === entry.collectionId);
     if (collection && simpleAssessments) {
-      const submitted = responseDate(collection);
+      const submitted = entry.bundleCollectionIds ? entry.date?.slice(0, 10) : responseDate(collection);
       const created = collection.createdAt?.slice(0, 10) || null;
       const draft = collection.response === "Draft" ? collection.attempts?.at(-1)?.savedAt?.slice(0, 10) || null : null;
       return {
@@ -261,14 +278,14 @@ export function historyItem(entry, episode, formatDetail = (value) => value, sim
   const detailLabel = entry.title === "Questionnaire response received" &&
     usefulDetail === assessment?.version ? "Questionnaire version" : "Summary";
   const primary = [
-    ...(assessment ? [fact("Assessment", assessment.label)] : []),
+    ...(assessment ? [fact(appTerm("measures", "singular"), assessment.label)] : []),
     ...(entry.attemptRespondent ? [fact("Respondent", entry.attemptRespondent)] : []),
     ...(entry.attemptChannel ? [fact(LABELS.collectionMethod, entry.attemptChannel)] : []),
     ...(entry.attemptStatus ? [fact("Status", entry.attemptStatus)] : []),
     ...(usefulDetail && !entry.attemptRespondent ? [fact(detailLabel, usefulDetail)] : []),
   ];
   return {
-    subtitle: entry.scope?.startsWith("Referral") ? "Referral" : entry.scope === "Intake" ? "Intake" : assessment ? "Assessment activity" : entry.actionType === "SAVE_PROGRESS_REPORT" ? "Report" : entry.title?.startsWith("Care episode") ? "Care episode" : entry.scope || "Care history",
+    subtitle: entry.scope?.startsWith("Referral") ? "Referral" : entry.scope === "Intake" ? "Intake" : assessment ? HISTORY_CATEGORIES.assessment : entry.actionType === "SAVE_PROGRESS_REPORT" ? "Report" : entry.title?.startsWith("Care episode") ? "Care episode" : entry.scope || "Care history",
     date: historyDate(entry),
     dateLabel: null,
     primary: primary.slice(0, 3),

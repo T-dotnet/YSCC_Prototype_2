@@ -14,8 +14,17 @@ test('bundle validates names, multiple targets, recipient support and event timi
  assert.equal(bundleError(bundle()),null);
  assert.ok(bundleError(bundle({name:''})));
  assert.ok(bundleError(bundle({assessments:[item(),item({id:'two'})]})));
- assert.equal(bundleError(bundle({assessments:[item(),item({id:'two',version:'Initial assessment v1.0',channel:'Clinic tablet',recipient:'Family respondent'})]})),null);
+ assert.equal(bundleError(bundle({assessments:[item(),item({id:'two',version:'Initial assessment v1.0',channel:'Clinic tablet',recipient:'Person'})]})),null);
  assert.ok(bundleError(bundle({trigger:'event',eventType:'harm',delayDays:-1})));
+});
+test('clinician respondent requires clinician entry and is retained on scheduled instruments',()=>{
+ const rule=bundle({channel:'Clinician entry',recipient:'Clinician',assessments:[item({version:'Clinician care review v1.0'})]});
+ assert.equal(bundleError(asBundle(rule)),null);
+ assert.match(bundleError(asBundle({...rule,channel:'Clinic tablet'})),/does not support/);
+ assert.match(bundleError(asBundle({...rule,assessments:[item()]})),/does not support/);
+ const scheduled=reconcileAssessmentBundles(make(rule),today);
+ assert.equal(ep(scheduled).collections[0].respondent,'Clinician');
+ assert.equal(ep(scheduled).collections[0].channel,'Clinician entry');
 });
 test('mandatory assessments share bundle delivery settings; optional waits for staff',()=>{
  const original=make(bundle({assessments:[item(),item({id:'two',version:'Initial assessment v1.0',channel:'Clinic tablet',recipient:'Family respondent'}),item({id:'opt',channel:'Clinic tablet',requirement:'Optional'})]}));
@@ -87,12 +96,11 @@ test('skipping a future optional assessment waits until that cycle is due',()=>{
  assert.equal(ep(due).assessmentBundleOffers.length,2);
  assert.equal(ep(due).assessmentBundleOffers[1].due,'2026-10-27');
 });
-test('family-only optional assessments cannot be included without a family recipient',()=>{
- let state=createSeed();const person=state.people.find(p=>p.id==='YS-1034');person.family='';
- state=reducer(state,{type:'SAVE_ASSESSMENT_SCHEDULE_RULE',rule:bundle({programStream:'All',careLevel:'All',assessments:[item({recipient:'Family respondent',requirement:'Optional'})]})});
- state=reducer(state,{type:'SET_AUTOMATIC_ASSESSMENT_DUE_DATES',enabled:true});
- const offer=state.people.find(p=>p.id==='YS-1034').episodes.find(e=>e.id==='EP-1034-01').assessmentBundleOffers[0];
- assert.equal(reducer(state,{type:'SELECT_BUNDLE_ASSESSMENTS',personId:'YS-1034',episodeId:'EP-1034-01',offerIds:[offer.id],decision:'Include'}),state);
+test('family is not a valid recipient for a new measure',()=>{
+ const rule=bundle({recipient:'Family respondent',assessments:[item({recipient:'Family respondent',requirement:'Optional'})]});
+ assert.match(bundleError(asBundle(rule)),/does not support/);
+ const state=createSeed();
+ assert.equal(reducer(state,{type:'SAVE_ASSESSMENT_SCHEDULE_RULE',rule}),state);
 });
 test('editing an optional row to mandatory creates it without losing existing assessments',()=>{
  let state=createSeed();const rule=bundle({programStream:'All',careLevel:'All',assessments:[item({requirement:'Optional'})]});

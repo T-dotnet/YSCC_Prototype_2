@@ -6,7 +6,7 @@ import { ActionGroup, IconButton, Checkbox } from './UI';
 export default function BundleAssessmentRow({ name, checkboxLabel, checkboxAriaLabel, checked, disabled = false, onCheckedChange, onRemove, status, secondary }) {
   return <RecordItem headingLevel={4}
     className={`new-bundle-record bundle-editor-assessment-row${secondary ? ' is-editing' : ''}`}
-    title={name} status={status} secondary={secondary}
+    title={name} verbatimText status={status} secondary={secondary}
     headingAction={<ActionGroup className="bundle-editor-assessment-actions">
       {checkboxLabel && <Checkbox label={checkboxLabel} aria-label={checkboxAriaLabel || `${checkboxLabel}: ${name}`} checked={checked} disabled={disabled}
         onChange={event=>onCheckedChange?.(event.target.checked)}/>}

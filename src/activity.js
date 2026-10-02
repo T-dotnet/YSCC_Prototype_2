@@ -359,7 +359,7 @@ export function clinicalHistoryEntries(person, episode, audit = []) {
   );
 }
 
-export function careEventEntries(person, episode, audit = [], { simpleAssessments = false, scheduleAssessments = true, today = null } = {}) {
+export function careEventEntries(person, episode, audit = [], { simpleAssessments = false, scheduleAssessments = true, phase2Mvp = false, today = null } = {}) {
   const linkedAppointmentIds = new Set(assessmentContactLinks(episode).map((link) => link.appointmentId));
   const records = clinicalHistoryEntries(person, episode, audit).filter(
     (entry) =>
@@ -367,9 +367,23 @@ export function careEventEntries(person, episode, audit = [], { simpleAssessment
       entry.type === "clinical-record" ||
       (entry.eventDate &&
         ["ADD_CARE_EVENT", "CORRECT_CARE_EVENT"].includes(entry.actionType)),
-  );
-  const assessments = (episode.collections ?? [])
-    .filter((collection) => collection.response === "Submitted")
+  ).filter((entry) => !phase2Mvp || entry.type === "appointment");
+  const completedAssessments = (episode.collections ?? [])
+    .filter((collection) => collection.response === "Submitted");
+  const generatedBundles = new Map();
+  if (phase2Mvp) for (const collection of episode.collections ?? []) {
+    if (!collection.mvpInitialAssessment && !collection.mvpTimepointId) continue;
+    const key = collection.bundleId || collection.id;
+    generatedBundles.set(key, [...(generatedBundles.get(key) || []), collection]);
+  }
+  const assessments = (phase2Mvp
+    ? [...generatedBundles.values()].filter((records) => records.every((record) => record.response === "Submitted"))
+      .map((records) => ({
+        ...records[0],
+        bundleCollectionIds: records.map((record) => record.id),
+        submittedAt: records.map((record) => record.submittedAt).filter(Boolean).sort().at(-1),
+      }))
+    : completedAssessments)
     .map((collection) => ({
     ...collection,
     id: `assessment-${collection.id}`,
@@ -413,7 +427,7 @@ export function careEventEntries(person, episode, audit = [], { simpleAssessment
       actor: milestone.recordedBy || "Sample fixture",
     })),
   ].filter((entry) => entry.id && entry.eventDate);
-  const entries = [...records, ...assessments, ...reportSources];
+  const entries = [...records, ...assessments, ...(phase2Mvp ? [] : reportSources)];
   return (simpleAssessments || !scheduleAssessments
     ? entries.filter((entry) => {
       const linkedPlannedContact = scheduleAssessments && entry.type === "appointment" && entry.attendance === "Planned" &&

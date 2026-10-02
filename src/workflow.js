@@ -28,6 +28,20 @@ export function currentCollection(episode) {
   );
 }
 
+export function currentMvpStageCollection(episode) {
+  const records = episode?.collections || [];
+  const profile = records.filter(record => record.clientProfileMeasure);
+  const initial = records.filter(record => record.mvpInitialAssessment);
+  const review = records.filter(record => record.mvpTimepointId);
+  const stage = profile.some(record => record.response !== "Submitted") ? profile
+    : initial.some(record => record.response !== "Submitted") ? initial
+      : review.length ? review : initial.length ? initial : profile;
+  const outstanding = stage.filter(isOutstanding);
+  const youngPerson = outstanding.filter(record => record.mvpRespondent === "Person");
+  const selected = youngPerson.length ? youngPerson : outstanding.length ? outstanding : stage;
+  return selected.length ? currentCollection({ ...episode, collections: selected }) : currentCollection(episode);
+}
+
 export function matchesWorkOwner(owner, state, ownership) {
   const assignedOwner = owner && owner !== "Unassigned" ? owner : null;
   return ownership === "team" ||

@@ -10,7 +10,7 @@ import People from "../features/People";
 
 const bundles = [
   { id:"general", name:"General care review", due:"21 Sep 2026", dueKey:"2026-09-21", note:"7 days overdue", method:"Clinic tablet", respondent:"Patient", completed:7, total:13, overdue:true },
-  { id:"youth", name:"Youth and family check-in", due:"5 Oct 2026", dueKey:"2026-10-05", note:"7 days away", method:"Clinic tablet", respondent:"Patient", completed:6, total:9 },
+  { id:"youth", name:"Patient check-in", due:"5 Oct 2026", dueKey:"2026-10-05", note:"7 days away", method:"Clinic tablet", respondent:"Patient", completed:6, total:9 },
   { id:"start", name:"Getting started with care", due:"16 Jun 2026", dueKey:"2026-06-16", note:"Completed bundle", method:"Clinician entry", respondent:"Patient", completed:4, total:4 },
 ];
 

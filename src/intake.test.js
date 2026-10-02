@@ -88,6 +88,19 @@ test("consent can be saved before checks, while the outcome waits for validated 
   const changed = save(validated, { triageChecked: false });
   assert.equal(intakeStepComplete(person(changed).intakes[0]), false);
 });
+test("intake can complete with recorded consent and no source reference", () => {
+  const completed = save(registered(), {
+    status: "Completed",
+    outcome: "Proceed",
+    consentRecorded: true,
+    consentReference: "",
+    respondentPreference: "Person",
+    assessmentOwner: "Jess Taylor",
+    ...Object.fromEntries(INTAKE_CHECKS.map(([key]) => [key, true])),
+    decisionAt: "2026-09-15T10:00:00.000Z",
+  });
+  assert.equal(person(completed).intakes[0].status, "Completed");
+});
 const complete = (s, outcome = "Proceed") =>
   save(s, {
     status: "Completed",

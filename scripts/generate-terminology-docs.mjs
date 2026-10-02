@@ -1,5 +1,5 @@
 import { readFile, writeFile } from 'node:fs/promises';
-import { TERMINOLOGY, COLLECTION_METHOD_SETTING_LABEL } from '../src/terminology.js';
+import { TERMINOLOGY, COLLECTION_METHOD_SETTING_LABEL, displayTerminology } from '../src/terminology.js';
 
 const target = new URL('../docs/terminology.md', import.meta.url);
 const cell = value => value.replaceAll('|', '\\|').replaceAll('\n', ' ');
@@ -25,7 +25,7 @@ Use **${COLLECTION_METHOD_SETTING_LABEL}** for the setting that enables assessme
 
 | Preferred term | Meaning | Replace these aliases in this context | Existing data fields |
 | --- | --- | --- | --- |
-${Object.values(TERMINOLOGY).map(term => `| **${cell(term.label)}** | ${cell(term.definition)} | ${cell(term.aliases.join('; ') || '—')} | ${term.fields.map(field => '\u0060' + cell(field) + '\u0060').join(', ')} |`).join('\n')}
+${Object.values(TERMINOLOGY).map(term => `| **${cell(term.label)}** | ${cell(displayTerminology(term.definition))} | ${cell(term.aliases.join('; ') || '—')} | ${term.fields.map(field => '\u0060' + cell(field) + '\u0060').join(', ')} |`).join('\n')}
 
 ## Usage and compatibility
 

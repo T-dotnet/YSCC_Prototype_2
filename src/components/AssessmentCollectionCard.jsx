@@ -45,13 +45,13 @@ export default function AssessmentCollectionCard({
   const submittedDate = responseDate(col);
   const scoreValue = assessmentScoreLabel(score);
   const simpleStatus = col.response === "Submitted" ? "Completed" : col.response === "Draft" ? "Draft" : "Not started";
-  const respondentLabel = col.respondent === "Family respondent" ? "Family respondent" : "Patient";
+  const respondentLabel = col.respondent === "Person" ? "Patient" : col.respondent;
   const dueLabel = showDueLabels ? assessmentDueLabel(col, TODAY) : null;
   const bundleFacts = showBundleDetails && col.bundleRequirement ? [
     { label: "Requirement", value: col.bundleRequirement },
     { label: "Suggested method", value: COLLECTION_METHOD_OPTIONS.find(([value]) => value === col.channel)?.[1] || "Not set" },
     { label: LABELS.respondent, value: simpleAssessments || compactGrouped
-      ? col.respondent === "Family respondent" ? "Family respondent" : "Patient"
+      ? respondentLabel
       : <PersonIdentity name={respondent.name} descriptor={respondent.role} /> },
   ] : [];
   const displayedDue = bundleDueDate === undefined ? col.due : bundleDueDate;

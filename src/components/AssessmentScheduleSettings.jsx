@@ -1,50 +1,53 @@
 import StandardTable from "./StandardTable";
-import { COLLECTION_METHOD_OPTIONS, LABELS } from "../terminology.js";
+import { COLLECTION_METHOD_OPTIONS, LABELS, appTerm, displayTerminology } from "../terminology.js";
 import { Fragment, useRef, useState } from 'react';
 import { ChevronDown, Trash2 } from 'lucide-react';
 import { useStore } from '../store';
 import { INSTRUMENTS, STANDARD_INSTRUMENTS } from '../instruments';
 import { PROGRAM_STREAMS, CARE_LEVELS } from '../carePeriods';
-import { bundleError, asBundle, bundleName, BUNDLE_EVENT_TYPES, bundleAgeLabel, bundleTiming } from '../assessmentBundles';
+import { bundleError, asBundle, bundleName, BUNDLE_EVENT_TYPES, bundleAgeLabel, bundleTiming, instrumentSupportsRespondent } from '../assessmentBundles';
 import { assessmentSmsEnabled } from '../assessmentFeatures';
 import { ActionGroup, EditAction, DeleteAction, Panel, Button, Badge, Modal, Field, Select, Checkbox, Switch, IconButton } from './UI';
 import { QueueRow, QueueCell } from './QueueRow';
 import BundleAssessmentRow from './BundleAssessmentRow';
 import { mvpAssessmentMode, mvpReviewBundles, mvpReviewItems, MVP_REVIEW_BUNDLES, mvpInitialBundles, mvpInitialVersions, MVP_INITIAL_BUNDLES } from '../mvpAssessmentPathway';
+import { administrationMeasureBundles, instrumentVersionsForAdministrationMeasure, mvpDisplayBattery, mvpDisplayBundles } from '../administrationMeasures';
 import MvpReviewBundleEditor from './MvpReviewBundleEditor';
 import MvpInitialBundleEditor from './MvpInitialBundleEditor';
+import SpecificMeasureFields from './SpecificMeasureFields';
+import { measureSourceOptions, specificMeasureError } from '../measureTriggers';
+import ProfileValueTriggerFields from './ProfileValueTriggerFields';
+import { PROFILE_TRIGGER_FIELDS, profileValueTriggerError } from '../profileValueTriggers';
+import { CLIENT_PROFILE_INSTRUMENTS, clientProfileBundle, DEFAULT_CLIENT_PROFILE_BUNDLE } from '../clientProfileMeasure';
+import ClientProfileBundleEditor from './ClientProfileBundleEditor';
 import ListFilterBar from './ListFilterBar';
+import StatusChangeFields, { StatusChangeValue } from './StatusChangeFields';
 import { ActiveFilters } from './QueueControls';
 
-const mvpMockBundles = [
-  {id:'MVP-DISCHARGE-PERSON', name:'Discharge · Young person', respondent:'Person', channel:'Clinic tablet', enabled:true, example:true, schedule:'At discharge', coreVersion:'Life and care check-in v1.0'},
-  {id:'MVP-DISCHARGE-FAMILY', name:'Discharge · Family', respondent:'Family respondent', channel:'Clinic tablet', enabled:true, example:true, schedule:'At discharge', coreVersion:'Your preferences and next steps v2.0'},
-];
-const mvpDisplayBundles = settings => {
-  const reviews = mvpReviewBundles(settings);
-  return [...mvpInitialBundles(settings), ...['Person', 'Family respondent'].flatMap(respondent =>
-    ['General', ...PROGRAM_STREAMS.filter(stream => stream !== 'General')].flatMap(stream =>
-      reviews.filter(bundle => MVP_REVIEW_BUNDLES.find(item => item.id === bundle.id)?.respondent === respondent && bundle.programStream === stream))), ...mvpMockBundles];
-};
-const mvpDisplayBattery = (bundle, stream) => bundle.coreVersion
-  ? mvpInitialVersions(bundle, stream)
-  : mvpReviewItems(bundle).map(item => item.version);
+const profileConfig = ({ id, name, channel, respondent, enabled, instrumentVersions,
+  timing, after, delayDays, dueDate, triggerMeasureId, triggerMeasureStatus,
+  triggerDataEnabled, triggerDataField, triggerDataValue, programStream, careLevel, minAge, maxAge, statusChange }) =>
+  ({ id, name, channel, respondent, enabled, instrumentVersions,
+    timing, after, delayDays, dueDate, triggerMeasureId, triggerMeasureStatus,
+    triggerDataEnabled, triggerDataField, triggerDataValue, programStream, careLevel, minAge, maxAge, statusChange });
 const mvpInstrumentSummary = bundle => {
+  if (bundle.profileMeasure) return `${bundle.instrumentVersions.length} total`;
   if (MVP_INITIAL_BUNDLES.some(item => item.id === bundle.id)) return `${mvpInitialVersions(bundle, bundle.programStream).length} total`;
   if (!bundle.coreVersion) return `${mvpReviewItems(bundle).length} total`;
   const streams = bundle.programStream && bundle.programStream !== 'All' ? [bundle.programStream] : PROGRAM_STREAMS;
   const distinctVersions = new Set(streams.flatMap(stream => mvpDisplayBattery(bundle, stream)));
-  return `${distinctVersions.size} instrument types across ${streams.length} program stream${streams.length === 1 ? '' : 's'}`;
+  return `${distinctVersions.size} instrument type${distinctVersions.size === 1 ? '' : 's'} across ${streams.length} program stream${streams.length === 1 ? '' : 's'}`;
 };
 
 const blankAssessment = () => ({id:crypto.randomUUID(), version:'', requirement:'Mandatory'});
-const blankBundle = () => ({id:crypto.randomUUID(), name:'', channel:'Clinician entry', recipient:'Person', trigger:'current', eventType:'', programStream:'All', careLevel:'All', minAge:null, maxAge:null, timing:'days', after:'intake', dueDate:'', repeat:true, days:28, delayDays:0, enabled:true, assessments:[]});
+const blankBundle = () => ({id:crypto.randomUUID(), name:'', channel:'Clinician entry', recipient:'Person', trigger:'current', eventType:'', programStream:'All', careLevel:'All', minAge:null, maxAge:null, timing:'days', after:'intake', dueDate:'', repeat:true, days:28, delayDays:0, enabled:true, statusChange:'', assessments:[]});
 const parameterOptions = [
   ['programStream', 'Program stream'], ['careLevel', 'Care level'],
   ['minAge', 'Minimum age (years)'], ['maxAge', 'Maximum age (years)'],
+  ['profileValue', 'Profile data field'],
 ];
 const configuredParameters = bundle => parameterOptions.map(([key])=>key).filter(key =>
-  key === 'programStream' || key === 'careLevel' ? bundle[key] !== 'All' : bundle[key] != null);
+  key === 'profileValue' ? !!bundle.triggerDataEnabled : key === 'programStream' || key === 'careLevel' ? bundle[key] !== 'All' : bundle[key] != null);
 export default function AssessmentScheduleSettings({ editorOnly = false, onClose, onSaved, bundleField } = {}) {
   const {state, commit} = useStore();
   const bundles = state.settings?.assessmentScheduleRules || [];
@@ -54,18 +57,26 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
   const [assessmentVersion, setAssessmentVersion] = useState('');
   const [parameterToAdd, setParameterToAdd] = useState('');
   const [parameters, setParameters] = useState([]);
-  const availableAssessments = STANDARD_INSTRUMENTS.filter(instrument => !draft?.assessments.some(item => item.version === instrument.version));
+  const availableParameterOptions = draft?.trigger === 'event'
+    ? parameterOptions.filter(([key]) => key === 'profileValue') : parameterOptions;
+  const availableAssessments = STANDARD_INSTRUMENTS.filter(instrument =>
+    instrumentSupportsRespondent(instrument, draft?.recipient || 'Person', draft?.channel || 'Clinician entry') &&
+    !draft?.assessments.some(item => item.version === instrument.version));
   const nameInput = useRef(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [mvpDraft, setMvpDraft] = useState(null);
   const [initialDraft, setInitialDraft] = useState(null);
+  const [profileDraft, setProfileDraft] = useState(null);
+  const [pendingDelete, setPendingDelete] = useState(null);
   const [listStatus, setListStatus] = useState('All');
   const [listQuery, setListQuery] = useState('');
   const [listRespondent, setListRespondent] = useState('All');
   const [listStream, setListStream] = useState('Any');
   const [listMethod, setListMethod] = useState('All');
-  const displayBundles = mvp ? mvpDisplayBundles(state.settings) : bundles.map(asBundle);
+  const adminBundles = mvp ? bundles.filter(bundle => bundle.createdInMvp) : bundles;
+  const systemBundles = mvp ? mvpDisplayBundles(state.settings) : [];
+  const displayBundles = administrationMeasureBundles(state.settings);
   const search = listQuery.trim().toLocaleLowerCase();
   const visibleBundles = displayBundles.filter(bundle => {
     const status = bundle.example ? 'Mock' : bundle.enabled ? 'Enabled' : 'Disabled';
@@ -74,9 +85,7 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
     if (listStream !== 'Any' && (bundle.programStream || 'All') !== listStream) return false;
     if (listMethod !== 'All' && bundle.channel !== listMethod) return false;
     if (!search) return true;
-    const versions = mvp ? (bundle.coreVersion
-      ? (bundle.programStream && bundle.programStream !== 'All' ? [bundle.programStream] : PROGRAM_STREAMS).flatMap(stream => mvpDisplayBattery(bundle, stream))
-      : mvpReviewItems(bundle).map(item => item.version)) : bundle.assessments.map(item => item.version);
+    const versions = instrumentVersionsForAdministrationMeasure(bundle);
     return [bundle.name, bundle.programStream, bundle.schedule, ...versions.map(version =>
       INSTRUMENTS.find(instrument => instrument.version === version)?.name || version)]
       .some(value => String(value || '').toLocaleLowerCase().includes(search));
@@ -85,7 +94,8 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
   const closeEditor = () => {setDraft(null); setAssessmentVersion(''); setParameterToAdd(''); setParameters([]); setError(''); onClose?.();};
   const removeParameter = key => {
     setParameters(current=>current.filter(item=>item!==key));
-    change(key, key === 'programStream' || key === 'careLevel' ? 'All' : null);
+    if (key === 'profileValue') setDraft(current => ({...current, triggerDataEnabled:false, triggerDataField:'', triggerDataValue:''}));
+    else change(key, key === 'programStream' || key === 'careLevel' ? 'All' : null);
   };
   const change = (key, value) => {setDraft(current=>({...current, [key]:value, ...(['channel','recipient'].includes(key) ? {assessments:current.assessments.map(item=>({...item,[key]:value}))} : {})})); setError('');};
   const changeAssessment = (id, key, value) => setDraft(current=>({...current, assessments:current.assessments.map(item=> {
@@ -95,7 +105,7 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
   const save = event => {
     event.preventDefault();
     const normalized = asBundle(draft);
-    const validation = bundleError(normalized, bundles);
+    const validation = bundleError(normalized, bundles) || specificMeasureError(normalized, state.settings) || profileValueTriggerError(normalized);
     if (validation) {setError(validation); return;}
     const result = commit({type:'SAVE_ASSESSMENT_SCHEDULE_RULE', rule:normalized});
     if (result.error) {setError(result.error); return;}
@@ -112,11 +122,18 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
       <p>Schedule assessments from an event or for a specific date. Event-based schedules can repeat when configured with a time interval.</p>
       <p>Assignments are prepared in this browser. Live SMS and tablet delivery are not connected. SMS instruments wait while Assessment SMS flow is off. Existing instruments and answers are retained.</p>
     </Panel>}
-    <section className="assessment-schedule-settings stack" aria-label="Assessments">
+    <section className="assessment-schedule-settings stack" aria-label={appTerm("measures")}>
       {!editorOnly && <>
-      <div className="section-toolbar">
-        <h2>Assessment bundles</h2>
-        {!mvp && <Button onClick={()=>{setDraft(blankBundle());setAssessmentVersion('');setParameterToAdd('');setParameters([]);setError('');setMessage('');}}>New assessment</Button>}
+      <div className="section-toolbar administration-section-heading">
+        <div>
+          <h2>{appTerm("measures")}</h2>
+          {!editorOnly && <p>Configure the measures used in care reviews and collections.</p>}
+        </div>
+        <ActionGroup className="button-row">
+          {mvp && !clientProfileBundle(state.settings) && <Button onClick={()=>setProfileDraft({ ...DEFAULT_CLIENT_PROFILE_BUNDLE,
+            instrumentVersions: CLIENT_PROFILE_INSTRUMENTS.map(item => item.version) })}>Add Client profile</Button>}
+          <Button variant="primary" onClick={()=>{setDraft({...blankBundle(), createdInMvp:mvp});setAssessmentVersion('');setParameterToAdd('');setParameters([]);setError('');setMessage('');}}>Add {appTerm('measures', 'singular').toLowerCase()}</Button>
+        </ActionGroup>
       </div>
       <ListFilterBar id="assessment-bundle-filters" label="Assessment status"
         items={['All', 'Enabled', 'Disabled', ...(mvp ? ['Mock'] : [])].map(value => ({
@@ -129,7 +146,7 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
         activeAdvancedCount={Number(listRespondent !== 'All') + Number(listStream !== 'Any') + Number(listMethod !== 'All')}
         advanced={<>
           <Select label="Respondent" value={listRespondent} onChange={event=>setListRespondent(event.target.value)}>
-            <option value="All">All respondents</option><option value="Person">Patient</option><option value="Family respondent">Family respondent</option>
+            <option value="All">All respondents</option><option value="Person">Patient</option><option value="Clinician">Clinician</option>
           </Select>
           <Select label="Program stream" value={listStream} onChange={event=>setListStream(event.target.value)}>
             <option value="Any">Any program stream</option><option value="All">All program streams</option>
@@ -143,29 +160,40 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
       <ActiveFilters items={[
         ...(listQuery ? [{id:'search', label:`Search: ${listQuery}`, onRemove:()=>setListQuery('')}] : []),
         ...(listStatus !== 'All' ? [{id:'status', label:`Status: ${listStatus}`, onRemove:()=>setListStatus('All')}] : []),
-        ...(listRespondent !== 'All' ? [{id:'respondent', label:`Respondent: ${listRespondent === 'Person' ? 'Patient' : 'Family respondent'}`, onRemove:()=>setListRespondent('All')}] : []),
+        ...(listRespondent !== 'All' ? [{id:'respondent', label:`Respondent: ${listRespondent === 'Person' ? 'Patient' : listRespondent}`, onRemove:()=>setListRespondent('All')}] : []),
         ...(listStream !== 'Any' ? [{id:'stream', label:`Program stream: ${listStream === 'All' ? 'All program streams' : listStream}`, onRemove:()=>setListStream('Any')}] : []),
         ...(listMethod !== 'All' ? [{id:'method', label:`Collection method: ${COLLECTION_METHOD_OPTIONS.find(([value])=>value===listMethod)?.[1] || listMethod}`, onRemove:()=>setListMethod('All')}] : []),
       ]} onClear={clearListFilters}/>
-      {mvp && <div className="assessment-schedule-rule-list stack" aria-label="MVP assessment bundles">
-        {!visibleBundles.length && <p className="muted">No assessments match these filters.</p>}
-        {visibleBundles.map(bundle => {
+      {mvp && <div className="assessment-schedule-rule-list stack" aria-label={`${appTerm("measures")} configuration`}>
+        {!visibleBundles.length && <p className="muted">No {appTerm("measures").toLowerCase()} match these filters.</p>}
+        {visibleBundles.filter(bundle => systemBundles.some(item => item.id === bundle.id)).map(bundle => {
           return <Fragment key={bundle.id}>
           <Panel className="assessment-bundle-summary"
-          title={<span className="bundle-summary-title">{bundle.name}<Badge tone={bundle.example ? 'neutral' : bundle.enabled ? 'green' : 'neutral'}>{bundle.example ? 'Mock' : bundle.enabled ? 'Enabled' : 'Disabled'}</Badge></span>}
-          action={(!bundle.coreVersion || MVP_INITIAL_BUNDLES.some(item => item.id === bundle.id)) && <ActionGroup className="button-row bundle-summary-actions">
+          title={<span className="bundle-summary-heading"><span className="bundle-summary-title">{bundle.name}{bundle.example && <Badge tone="neutral">Mock</Badge>}</span><small className="bundle-summary-id">ID: {bundle.id}</small></span>}
+          action={bundle.profileMeasure ? <ActionGroup className="button-row bundle-summary-actions">
+            <Switch label={`Enable ${bundle.name}`} checked={bundle.enabled} onChange={event => {
+              const result = commit({type:'SAVE_CLIENT_PROFILE_BUNDLE', bundle:profileConfig({...bundle, enabled:event.target.checked})});
+              setMessage(result.error || `${bundle.name} ${event.target.checked ? 'enabled' : 'disabled'}.`);
+            }}/>
+            <EditAction onClick={()=>setProfileDraft({...bundle})} aria-label={`Edit ${bundle.name}`}>Edit</EditAction>
+            <DeleteAction onClick={()=>setPendingDelete({id:bundle.id,name:bundle.name,type:'DELETE_CLIENT_PROFILE_BUNDLE'})} aria-label={`Delete ${bundle.name}`}>Delete</DeleteAction>
+          </ActionGroup> : (!bundle.coreVersion || MVP_INITIAL_BUNDLES.some(item => item.id === bundle.id)) && <ActionGroup className="button-row bundle-summary-actions">
             <Switch label={`Enable ${bundle.name}`} checked={bundle.enabled} onChange={event => {
               const result = commit({type:bundle.coreVersion ? 'SAVE_MVP_INITIAL_BUNDLE' : 'SAVE_MVP_REVIEW_BUNDLE',bundle:{...bundle,enabled:event.target.checked}});
               setMessage(result.error || `${bundle.name} ${event.target.checked ? 'enabled' : 'disabled'}.`);
             }}/>
             <EditAction onClick={()=>{MVP_INITIAL_BUNDLES.some(item => item.id === bundle.id) ? setInitialDraft({...bundle}) : setMvpDraft({...bundle});setError('');setMessage('');}} aria-label={`Edit ${bundle.name}`}>Edit</EditAction>
-            <DeleteAction onClick={()=>{const result=commit({type:bundle.coreVersion ? 'DELETE_MVP_INITIAL_BUNDLE' : 'DELETE_MVP_REVIEW_BUNDLE',id:bundle.id});setMessage(result.error || `${bundle.name} removed. Existing assessments retained.`);}} aria-label={`Delete ${bundle.name}`}>Delete</DeleteAction>
+            <DeleteAction onClick={()=>setPendingDelete({id:bundle.id,name:bundle.name,type:bundle.coreVersion ? 'DELETE_MVP_INITIAL_BUNDLE' : 'DELETE_MVP_REVIEW_BUNDLE'})} aria-label={`Delete ${bundle.name}`}>Delete</DeleteAction>
           </ActionGroup>}>
           <div className="panel-body">
             <dl className="metadata bundle-summary-conditions">
-              <div><dt>Schedule</dt><dd>{MVP_INITIAL_BUNDLES.some(item => item.id === bundle.id) ? bundle.delayDays ? `${bundle.delayDays} days after care episode start` : 'At care episode start' : bundle.schedule || (bundle.timing === 'date' ? `Due ${bundle.dueDate}` : `${bundle.repeat ? 'Every' : 'Once after'} ${bundle.days} days`)}</dd></div>
-              <div><dt>{LABELS.respondent}</dt><dd>{bundle.respondent === 'Person' ? 'Patient' : 'Family respondent'}</dd></div>
+              <div><dt>Schedule</dt><dd>{bundle.profileMeasure ? bundle.timing === 'date' ? `Due ${bundle.dueDate}` :
+                `After ${bundle.after === 'specific-measure' ? `${bundle.triggerMeasureStatus} · ${measureSourceOptions(state.settings).find(item => item.id === bundle.triggerMeasureId)?.name || bundle.triggerMeasureId}` : bundle.after === 'intake' ? 'intake' : bundle.after === 'care-period' ? 'care episode starts' : 'new profile'}${bundle.delayDays ? ` + ${bundle.delayDays} days` : ''}`
+                : MVP_INITIAL_BUNDLES.some(item => item.id === bundle.id) ? bundle.timing === 'date' ? `Due ${bundle.dueDate}` : `${bundle.after === 'specific-measure' ? `After ${bundle.triggerMeasureStatus} · ${bundle.triggerMeasureId === 'MVP-CLIENT-PROFILE' ? 'Client profile' : bundle.triggerMeasureId}` : bundle.after === 'intake' ? 'After intake' : 'After care episode starts'}${bundle.delayDays ? ` + ${bundle.delayDays} days` : ''}` : bundle.schedule || bundleTiming(bundle)}</dd></div>
+              {bundle.triggerDataEnabled && <div><dt>Data field</dt><dd>{PROFILE_TRIGGER_FIELDS.find(field => field.id === bundle.triggerDataField)?.label}: {bundle.triggerDataValue}</dd></div>}
+              <div><dt>{LABELS.respondent}</dt><dd>{bundle.respondent === 'Person' ? 'Patient' : 'Clinician'}</dd></div>
               <div><dt>{LABELS.collectionMethod}</dt><dd>{COLLECTION_METHOD_OPTIONS.find(([value])=>value===bundle.channel)?.[1]}</dd></div>
+              <div><dt>Status change</dt><dd><StatusChangeValue verbatim value={bundle.statusChange} /></dd></div>
               {!bundle.example && <><div><dt>{LABELS.programStream}</dt><dd>{bundle.programStream === 'All' ? 'All program streams' : bundle.programStream}</dd></div><div><dt>Care level</dt><dd>{bundle.careLevel === 'All' ? 'All care levels' : bundle.careLevel}</dd></div><div><dt>Age</dt><dd>{bundleAgeLabel(bundle)}</dd></div></>}
             </dl>
             <details className="bundle-summary-assessments">
@@ -173,9 +201,11 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
               <div className="collection-details-accordion-body">
                 <StandardTable className="bundle-assessments-table" density="compact" label={`Instruments in ${bundle.name}`}>
                   <thead><tr><th scope="col">{bundle.coreVersion && !MVP_INITIAL_BUNDLES.some(item => item.id === bundle.id) ? 'Program stream' : 'Instrument'}</th>{bundle.coreVersion && !MVP_INITIAL_BUNDLES.some(item => item.id === bundle.id) && <th scope="col">Instruments</th>}</tr></thead>
-                  <tbody>{MVP_INITIAL_BUNDLES.some(item => item.id === bundle.id)
+                  <tbody>{bundle.profileMeasure ? CLIENT_PROFILE_INSTRUMENTS.map(instrument => <QueueRow key={instrument.version}>
+                    <QueueCell label="Instrument" slot="subject" verbatim><strong>{instrument.name}</strong></QueueCell>
+                  </QueueRow>) : MVP_INITIAL_BUNDLES.some(item => item.id === bundle.id)
                     ? mvpInitialVersions(bundle, bundle.programStream).map(version => <QueueRow key={version}>
-                      <QueueCell label="Instrument" slot="subject"><strong>{INSTRUMENTS.find(item => item.version === version)?.name || version}</strong></QueueCell>
+                      <QueueCell label="Instrument" slot="subject" verbatim><strong>{INSTRUMENTS.find(item => item.version === version)?.name || version}</strong></QueueCell>
                     </QueueRow>)
                     : bundle.coreVersion
                     ? (bundle.programStream && bundle.programStream !== 'All' ? [bundle.programStream] : PROGRAM_STREAMS).map(stream => <QueueRow key={stream}>
@@ -183,7 +213,7 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
                       <QueueCell label="Instruments" slot="state">{mvpDisplayBattery(bundle,stream).map(version => INSTRUMENTS.find(item => item.version === version)?.name || version).join(' · ')}</QueueCell>
                     </QueueRow>)
                     : mvpReviewItems(bundle).map(item => <QueueRow key={item.id}>
-                      <QueueCell label="Instrument" slot="subject"><strong>{INSTRUMENTS.find(instrument => instrument.version === item.version)?.name || item.version}</strong></QueueCell>
+                      <QueueCell label="Instrument" slot="subject" verbatim><strong>{INSTRUMENTS.find(instrument => instrument.version === item.version)?.name || item.version}</strong></QueueCell>
                     </QueueRow>)}</tbody>
                 </StandardTable>
               </div>
@@ -195,17 +225,19 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
         {MVP_REVIEW_BUNDLES.filter(defaultBundle => !mvpReviewBundles(state.settings).some(bundle => bundle.id === defaultBundle.id)).map(bundle =>
           <Button key={bundle.id} onClick={()=>{const result=commit({type:'SAVE_MVP_REVIEW_BUNDLE',bundle});setMessage(result.error || `${bundle.name} restored.`);}}>Restore {bundle.name}</Button>)}
       </div>}
-      {!mvp && (bundles.length ? <div className="assessment-schedule-rule-list stack">
-        {!visibleBundles.length && <p className="muted">No assessments match these filters.</p>}
-        {visibleBundles.map(bundle=> {
+      {adminBundles.length ? <div className="assessment-schedule-rule-list stack">
+        {mvp && <h3>User-created {appTerm('measures').toLowerCase()}</h3>}
+        {mvp && !visibleBundles.some(bundle => adminBundles.some(item => item.id === bundle.id)) && <p className="muted">No {appTerm('measures').toLowerCase()} match these filters.</p>}
+        {visibleBundles.filter(bundle => adminBundles.some(item => item.id === bundle.id)).map(bundle=> {
         const saved = bundles.find(item=>item.id===bundle.id);
         const mandatory=bundle.assessments.filter(item=>item.requirement==='Mandatory').length;
         const conditions=bundle.trigger==='event'
           ? [['Trigger', BUNDLE_EVENT_TYPES.find(e=>e.value===bundle.eventType)?.label], ['Due', bundleTiming(bundle)]]
           : [[LABELS.programStream, bundle.programStream==='All' ? 'All program streams' : bundle.programStream], ['Care level', bundle.careLevel==='All' ? 'All care levels' : bundle.careLevel], ['Age', bundleAgeLabel(bundle)], ['Schedule', bundleTiming(bundle)]];
-        conditions.push([LABELS.collectionMethod, COLLECTION_METHOD_OPTIONS.find(([value])=>value===bundle.channel)?.[1]], [LABELS.respondent, bundle.recipient==='Person' ? 'Patient' : 'Family respondent']);
+        conditions.push([LABELS.collectionMethod, COLLECTION_METHOD_OPTIONS.find(([value])=>value===bundle.channel)?.[1]], [LABELS.respondent, bundle.recipient==='Person' ? 'Patient' : bundle.recipient]);
+        conditions.push(['Status change', <StatusChangeValue verbatim value={bundle.statusChange} />]);
         return <Panel key={bundle.id} className="assessment-bundle-summary"
-          title={<span className="bundle-summary-title">{bundle.name}<Badge tone={bundle.enabled ? 'green':'neutral'}>{bundle.enabled ? 'Enabled':'Disabled'}</Badge></span>}
+          title={<span className="bundle-summary-heading"><span className="bundle-summary-title">{bundle.name}</span><small className="bundle-summary-id">ID: {bundle.id}</small></span>}
           action={<ActionGroup className="button-row bundle-summary-actions">
             <Switch label={`Enable ${bundle.name}`} checked={bundle.enabled}
               onChange={event=> {
@@ -214,7 +246,7 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
                   if (!result.error && draft?.id===bundle.id) setDraft(current=>({...current,enabled:event.target.checked}));
                 }}/>
             <EditAction onClick={()=>{setDraft(structuredClone(bundle));setAssessmentVersion('');setParameterToAdd('');setParameters(configuredParameters(bundle));setError('');setMessage('');}} aria-label={`Edit ${bundleName(saved)}`}>Edit</EditAction>
-            <DeleteAction onClick={()=>{const result=commit({type:'DELETE_ASSESSMENT_SCHEDULE_RULE',id:bundle.id});if(result.error){setMessage(result.error);return;}setMessage('Assessment removed. Existing instruments retained.');if(draft?.id===bundle.id)setDraft(null);}} aria-label={`Delete ${bundleName(saved)}`}>Delete</DeleteAction>
+            <DeleteAction onClick={()=>setPendingDelete({id:bundle.id,name:bundleName(saved),type:'DELETE_ASSESSMENT_SCHEDULE_RULE'})} aria-label={`Delete ${bundleName(saved)}`}>Delete</DeleteAction>
           </ActionGroup>}>
           <div className="panel-body">
             <dl className="metadata bundle-summary-conditions">{conditions.map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
@@ -232,18 +264,24 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
             </details>
           </div>
         </Panel>;
-      })}</div> : <p className="muted">{mvp ? 'No assessments yet.' : 'No assessments yet. Add an assessment to group the instruments for a care condition or event.'}</p>)}
+      })}</div> : !mvp && <p className="muted">{displayTerminology('No assessments yet. Add an assessment to group the instruments for a care condition or event.')}</p>}
       </>}
       {initialDraft && <MvpInitialBundleEditor key={initialDraft.id} bundle={initialDraft} settings={state.settings}
         onClose={()=>setInitialDraft(null)} onSave={bundle=>{
           const result=commit({type:'SAVE_MVP_INITIAL_BUNDLE',bundle});
-          if(!result.error)setMessage('Assessment bundle saved.');
+          if(!result.error)setMessage(`${appTerm('measures', 'singular')} saved.`);
+          return result;
+        }}/>}
+      {profileDraft && <ClientProfileBundleEditor key={profileDraft.id} bundle={profileDraft} settings={state.settings}
+        onClose={()=>setProfileDraft(null)} onSave={bundle=>{
+          const result=commit({type:'SAVE_CLIENT_PROFILE_BUNDLE', bundle:profileConfig(bundle)});
+          if(!result.error)setMessage('Client profile saved.');
           return result;
         }}/>}
       {mvpDraft && <MvpReviewBundleEditor key={mvpDraft.id} bundle={mvpDraft} settings={state.settings}
         onClose={()=>setMvpDraft(null)} onSave={bundle=>{
           const result=commit({type:'SAVE_MVP_REVIEW_BUNDLE',bundle});
-          if(!result.error)setMessage('Assessment bundle saved.');
+          if(!result.error)setMessage(`${appTerm('measures', 'singular')} saved.`);
           return result;
         }}/>}
       {draft && <Modal title={bundles.some(b=>b.id===draft.id) ? 'Edit assessment':'New assessment'}
@@ -256,8 +294,8 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
           <label className="bundle-name-field"><span>Assessment name</span><input ref={nameInput} required maxLength={80} value={draft.name} onChange={e=>change('name',e.target.value)}/></label>
           <Checkbox className="bundle-name-field assessment-schedule-enabled" label="Enable this assessment" checked={draft.enabled} onChange={e=>change('enabled',e.target.checked)}/>
           <h3 className="bundle-name-field bundle-collection-heading">Collection settings</h3>
-          <label><span>{LABELS.respondent}</span><select value={draft.recipient} onChange={e=>change('recipient',e.target.value)}><option value="Person">Patient</option><option value="Family respondent">Family respondent</option></select></label>
-          <label><span>{LABELS.collectionMethod}</span><select value={draft.channel} onChange={e=>change('channel',e.target.value)}>{COLLECTION_METHOD_OPTIONS.filter(([value])=>value!=='SMS link' || sms || draft.channel===value).map(([value,label])=><option key={value} value={value} disabled={value==='SMS link' && !sms}>{label}{value==='SMS link' && !sms ? ' (SMS disabled)':''}</option>)}</select></label>
+          <label><span>{LABELS.respondent}</span><select value={draft.recipient} onChange={e=>{setDraft(current=>({...current,recipient:e.target.value,...(e.target.value==='Clinician'?{channel:'Clinician entry'}:{})}));setError('');}}><option value="Person">Patient</option><option value="Clinician">Clinician</option></select></label>
+          <label><span>{LABELS.collectionMethod}</span><select value={draft.channel} onChange={e=>change('channel',e.target.value)}>{COLLECTION_METHOD_OPTIONS.filter(([value])=>value!=='SMS link' || sms || draft.channel===value).map(([value,label])=><option key={value} value={value} disabled={value==='SMS link' && !sms || draft.recipient==='Clinician' && value!=='Clinician entry'}>{label}{value==='SMS link' && !sms ? ' (SMS disabled)':''}</option>)}</select></label>
             <div className="bundle-name-field bundle-timing-fields">
               <h3 className="bundle-name-field bundle-timing-heading">Schedule</h3>
               <label><span>Trigger</span><select required value={draft.trigger === 'event' ? 'days' : ['days','date'].includes(draft.timing) ? draft.timing : ''} onChange={event=> {
@@ -275,9 +313,11 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
                 <label><span>After</span><select value={draft.after || 'care-period'} onChange={e=>setDraft(current=>({...current,after:e.target.value,...(e.target.value === 'referral' ? {repeat:false,referralStatus:current.referralStatus || 'Accepted'} : {})}))}>
                   {!mvp && !draft.after && <option value="care-period">Care period starts</option>}
                   <option value="intake">Intake</option>
+                  <option value="specific-measure">Specific measure</option>
                   {mvp ? <><option value="referral">Referral</option><option value="discharge">Discharge</option></> : <><option value="discharge">Discharge</option><option value="referral">Referral</option></>}
                   {(mvp ? BUNDLE_EVENT_TYPES.filter(event=>event.value==='level-change') : BUNDLE_EVENT_TYPES).map(event=><option key={event.value} value={event.value}>{event.label}</option>)}
                 </select></label>
+                <SpecificMeasureFields draft={draft} settings={state.settings} change={change} />
                 {draft.after === 'referral' ? <label><span>Referral status</span><select required value={draft.referralStatus || 'Accepted'} onChange={e=>change('referralStatus',e.target.value)}>{['Accepted','Denied','Reworked','Modified'].map(status=><option key={status} value={status}>{status}</option>)}</select></label> : <Checkbox className="bundle-repeat-choice" label="Repeat" checked={draft.repeat} aria-describedby={`bundle-repeat-hint-${draft.id}`} onChange={event=>change('repeat',event.target.checked)}/>}
               </>}
               <p id={`bundle-repeat-hint-${draft.id}`} className={`muted ${draft.timing === 'days' ? 'bundle-repeat-hint' : 'bundle-name-field'}`}>{draft.trigger === 'event' ? 'Runs once for each matching event.' : draft.timing === 'intake' ? 'Runs once when intake is completed for this care episode.'
@@ -285,33 +325,36 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
                   : draft.timing === 'date' ? 'Runs once on the selected date.'
                   : draft.repeat ? `Repeats every ${draft.days} days after ${draft.after === 'intake' ? 'intake' : draft.after === 'discharge' ? 'discharge' : (draft.after === 'referral' ? `referral ${draft.referralStatus || 'Accepted'}` : BUNDLE_EVENT_TYPES.find(event=>event.value===draft.after)?.label) || 'the care period starts'}.` : `Runs once ${draft.days} days after ${draft.after === 'intake' ? 'intake' : draft.after === 'discharge' ? 'discharge' : (draft.after === 'referral' ? `referral ${draft.referralStatus || 'Accepted'}` : BUNDLE_EVENT_TYPES.find(event=>event.value===draft.after)?.label) || 'the care period starts'}.`}</p>
             </div>
-          {draft.trigger==='current' ? <>
-            <h3 className="bundle-name-field bundle-collection-heading">Trigger</h3>
+          <>
+            <h3 className="bundle-name-field bundle-collection-heading">Trigger conditions</h3>
             {!!parameters.length && <div className="bundle-name-field bundle-parameter-list">
-              {parameters.map(key => <div key={key} className="bundle-parameter-row">
-                {key === 'programStream' ? <label><span>Program stream</span><select required value={draft.programStream === 'All' ? '' : draft.programStream} onChange={e=>change(key,e.target.value)}><option value="" disabled>Choose a program stream</option>{PROGRAM_STREAMS.map(value=><option key={value} value={value}>{value}</option>)}</select></label>
+              {parameters.filter(key => availableParameterOptions.some(([value]) => value === key)).map(key => <div key={key} className="bundle-parameter-row">
+                {key === 'profileValue' ? <ProfileValueTriggerFields draft={draft} change={change} />
+                  : key === 'programStream' ? <label><span>Program stream</span><select required value={draft.programStream === 'All' ? '' : draft.programStream} onChange={e=>change(key,e.target.value)}><option value="" disabled>Choose a program stream</option>{PROGRAM_STREAMS.map(value=><option key={value} value={value}>{value}</option>)}</select></label>
                   : key === 'careLevel' ? <label><span>Care level</span><select required value={draft.careLevel === 'All' ? '' : draft.careLevel} onChange={e=>change(key,e.target.value)}><option value="" disabled>Choose a care level</option>{CARE_LEVELS.map(value=><option key={value} value={value}>{value}</option>)}</select></label>
                     : <label><span>{key === 'minAge' ? 'Minimum age (years)' : 'Maximum age (years)'}</span><input required type="number" min="0" max="120" step="1" placeholder="Enter age" value={draft[key] ?? ''} onChange={e=>change(key,e.target.value==='' ? null:Number(e.target.value))}/></label>}
                 <IconButton icon={Trash2} label={`Remove ${parameterOptions.find(([value])=>value===key)?.[1]} parameter`} className="bundle-editor-delete" onClick={()=>removeParameter(key)} />
               </div>)}
             </div>}
-            {parameters.length < parameterOptions.length && <div className="bundle-name-field new-bundle-extra-picker">
+            {availableParameterOptions.some(([key]) => !parameters.includes(key)) && <div className="bundle-name-field new-bundle-extra-picker">
               <Field label="Parameter to add">
                 <Select label="Parameter to add" value={parameterToAdd} onChange={event=>setParameterToAdd(event.target.value)}>
                   <option value="">Choose a parameter</option>
-                  {parameterOptions.filter(([key])=>!parameters.includes(key)).map(([key,label])=><option key={key} value={key}>{label}</option>)}
+                  {availableParameterOptions.filter(([key])=>!parameters.includes(key)).map(([key,label])=><option key={key} value={key}>{label}</option>)}
                 </Select>
               </Field>
               <Button type="button" disabled={!parameterToAdd} onClick={()=>{
+                if (parameterToAdd === 'profileValue') change('triggerDataEnabled', true);
                 setParameters(current=>[...current,parameterToAdd]);
                 setParameterToAdd('');
               }}>Add parameter</Button>
             </div>}
-            {(parameters.includes('minAge') || parameters.includes('maxAge')) && <p className="muted bundle-name-field">Age limits include both endpoints and use the recorded date of birth. A missing birth date will not match an age-limited assessment.</p>}
+            {draft.trigger === 'current' && (parameters.includes('minAge') || parameters.includes('maxAge')) && <p className="muted bundle-name-field">Age limits include both endpoints and use the recorded date of birth. A missing birth date will not match an age-limited assessment.</p>}
 
-          </> : null}
+          </>
 
         </div>
+        <StatusChangeFields value={draft.statusChange} onChange={value=>change('statusChange',value)} />
         <section className="bundle-editor-assessments" aria-label="Instruments in this assessment">
         <header className="bundle-editor-assessments-heading">
           <h3>Instruments in this assessment</h3>
@@ -339,14 +382,27 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
           }}>Add instrument</Button>
         </div> : <p className="muted">All available instrument types are included.</p>}
         </section>
-        {error && <p role="alert" className="field-error">{error}</p>}
+        {error && <p role="alert" className="field-error">{displayTerminology(error)}</p>}
         </div>
         <ActionGroup className="modal-footer">
           <Button type="button" onClick={closeEditor}>Cancel</Button><Button type="submit" variant="primary" disabled={!draft.assessments.length}>Save assessment</Button>
         </ActionGroup>
       </form>
       </Modal>}
-      {message && <p role="status">{message}</p>}
+      {pendingDelete && <Modal title="Delete measure?" subtitle={pendingDelete.name} onClose={()=>setPendingDelete(null)}>
+        <div className="form-body"><p>This measure will be removed from Administration. Existing person measures and responses will be retained.</p></div>
+        <ActionGroup className="modal-footer">
+          <Button type="button" onClick={()=>setPendingDelete(null)}>Cancel</Button>
+          <Button type="button" variant="primary" onClick={()=>{
+            const result=commit({type:pendingDelete.type,id:pendingDelete.id});
+            if(result.error){setMessage(result.error);setPendingDelete(null);return;}
+            setMessage(`${pendingDelete.name} deleted. Existing person measures and responses retained.`);
+            if(draft?.id===pendingDelete.id)setDraft(null);
+            setPendingDelete(null);
+          }}>Delete measure</Button>
+        </ActionGroup>
+      </Modal>}
+      {message && <p role="status">{displayTerminology(message)}</p>}
     </section>
   </div>;
 }

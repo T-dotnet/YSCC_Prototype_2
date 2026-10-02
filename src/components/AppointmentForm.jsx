@@ -5,9 +5,11 @@ import { ActionGroup, Field, Modal, Notice, Button, ValidatedForm, Checkbox } fr
 import {
   APPOINTMENT_ATTENDANCE,
   APPOINTMENT_DELIVERY_MODES,
+  CONTACT_RECIPIENTS,
+  CONTACT_TYPES,
   appointmentMatchesCollectionDate,
 } from "../appointments";
-import { formatDate, practitionerServiceOptions, TODAY } from "../model";
+import { DEMO_STAFF, formatDate, practitionerServiceOptions, TODAY } from "../model";
 import { STANDARD_INSTRUMENTS } from "../instruments";
 import { contactsForAssessment } from "../assessmentContacts";
 import ContactFields from "./ContactFields";
@@ -26,10 +28,17 @@ export default function AppointmentForm({
   simpleAssessments = false,
   scheduleAssessments = true,
   assessmentSms = true,
+  phase2Mvp = false,
   onClose,
   onSave,
 }) {
   const [attendance, setAttendance] = useState(scheduleAssessments ? "Planned" : "Attended");
+  const [contactMethod, setContactMethod] = useState("In person");
+  const [contactType, setContactType] = useState("");
+  const [contactName, setContactName] = useState("");
+  const [contactNameEdited, setContactNameEdited] = useState(false);
+  const [recipientTypes, setRecipientTypes] = useState(["Young person"]);
+  const [recipientError, setRecipientError] = useState(false);
   const [contactDate, setContactDate] = useState("");
   const [collectionIds, setCollectionIds] = useState([]);
   const [newAssessmentVersions, setNewAssessmentVersions] = useState([]);
@@ -50,6 +59,13 @@ export default function AppointmentForm({
   const actualLatestDate =
     episode.end && episode.end < TODAY ? episode.end : TODAY;
   const practitionerServices = practitionerServiceOptions(people);
+  const primaryPractitioners = [...new Set([
+    ...DEMO_STAFF.filter((staff) => staff.role === "Clinician").map((staff) => staff.name),
+    ...(person?.episodes || []).flatMap((careEpisode) => (careEpisode.appointments || []).flatMap((item) => [
+      item.primaryPractitioner,
+      item.practitionerService?.includes(" · ") ? item.practitionerService.split(" · ")[0] : null,
+    ])),
+  ].filter(Boolean))];
   const assessments = [...(episode.collections || [])].sort((a, b) =>
     (b.due || "").localeCompare(a.due || ""));
   const contactDates = {
@@ -71,6 +87,9 @@ export default function AppointmentForm({
   const visibleInstruments = STANDARD_INSTRUMENTS.filter((instrument) =>
     `${instrument.name} ${instrument.version}`.toLocaleLowerCase().includes(searchTerm));
   const selectedCount = collectionIds.length + newAssessmentVersions.length;
+  const suggestedContactName = contactType
+    ? [contactType, attendance, contactMethod, recipientTypes.join(" + ")].filter(Boolean).join(" · ")
+    : "";
 
   return (
     <Modal
@@ -81,10 +100,15 @@ export default function AppointmentForm({
       <ValidatedForm
         onSubmit={(event) => {
           event.preventDefault();
+          if (phase2Mvp && recipientTypes.length === 0) {
+            setRecipientError(true);
+            return;
+          }
           const values = formValues(event);
           onSave({
             type: "ADD_APPOINTMENT",
             ...values,
+            ...(phase2Mvp ? { recipientTypes, recipientType: recipientTypes[0] } : {}),
             ...(attendance === "Attended" ? {
               actualDate: values.plannedDate,
               actualTime: values.plannedTime,
@@ -96,18 +120,30 @@ export default function AppointmentForm({
         }}
       >
         <div className="form-body appointment-form">
-          <Notice>
+          {!phase2Mvp && <Notice>
             {scheduleAssessments
               ? "Prototype operational record only. This does not book an external contact or submit an approved PMHC-MDS record."
               : "Record a contact that has already happened. This does not submit an approved PMHC-MDS record."}
-          </Notice>
-          <Field label="Record category">
+          </Notice>}
+          {!phase2Mvp && <Field label="Record category">
             <select value="appointment" onChange={(event) => onChangeEventType(event.target.value)}>
               {recordTypes.map((type) => (
                 <option key={type.value} value={type.value}>{type.label}</option>
               ))}
             </select>
-          </Field>
+          </Field>}
+          {phase2Mvp && <Field label="Direct contact type">
+            <select name="contactType" required value={contactType} onChange={(event) => setContactType(event.target.value)}>
+              <option value="" disabled>Choose contact type</option>
+              {CONTACT_TYPES.map((value) => <option key={value}>{value}</option>)}
+            </select>
+          </Field>}
+          {phase2Mvp && <Field label="Contact name">
+            <input name="contactName" value={contactNameEdited ? contactName : suggestedContactName} onChange={(event) => {
+              setContactName(event.target.value);
+              setContactNameEdited(true);
+            }} placeholder="Choose a contact type first" required />
+          </Field>}
           <div className="form-grid">
             <Field label="Contact status">
               <select
@@ -121,7 +157,7 @@ export default function AppointmentForm({
               </select>
             </Field>
             <Field label={LABELS.contactMethod}>
-              <select name="deliveryMode" required defaultValue="In person">
+              <select name="deliveryMode" required value={contactMethod} onChange={(event) => setContactMethod(event.target.value)}>
                 {APPOINTMENT_DELIVERY_MODES.filter((value) => assessmentSms || value !== "SMS").map((value) => (
                   <option key={value}>{value}</option>
                 ))}
@@ -133,6 +169,12 @@ export default function AppointmentForm({
             <Field label="Time">
               <input name="plannedTime" type="time" required />
             </Field>
+            {phase2Mvp && <Field label="Primary practitioner">
+              <select name="primaryPractitioner" defaultValue="">
+                <option value="">Choose practitioner</option>
+                {primaryPractitioners.map((name) => <option key={name} value={name}>{name}</option>)}
+              </select>
+            </Field>}
             <Field label="Duration">
               <input
                 name="plannedDurationMinutes"
@@ -143,7 +185,24 @@ export default function AppointmentForm({
                 required
               />
             </Field>
-            <Field label="Practitioner or service">
+            {phase2Mvp && <fieldset className="appointment-recipient-field">
+              <legend>Recipient</legend>
+              <div className="appointment-recipient-options">
+                {CONTACT_RECIPIENTS.map((value) => <Checkbox key={value} label={value}
+                  checked={recipientTypes.includes(value)}
+                  onChange={(event) => {
+                    setRecipientError(false);
+                    setRecipientTypes((current) => event.target.checked
+                      ? [...current, value]
+                      : current.filter((item) => item !== value));
+                  }} />)}
+              </div>
+              {recipientError && <small className="field-error">Choose at least one recipient.</small>}
+            </fieldset>}
+            {phase2Mvp && recipientTypes.includes("Related person") && <Field label="Related person name">
+              <input name="relatedPersonName" defaultValue={person?.family || ""} required={attendance === "Attended"} />
+            </Field>}
+            {!phase2Mvp && <Field label="Practitioner or service">
               <select
                 name="practitionerService"
                 required
@@ -158,10 +217,10 @@ export default function AppointmentForm({
                   </option>
                 ))}
               </select>
-            </Field>
+            </Field>}
           </div>
-          <ContactFields attended={attendance === "Attended"} person={person} />
-          {!simpleAssessments && <div className="appointment-assessment-picker" ref={assessmentPickerRef}
+          <ContactFields attended={attendance === "Attended"} person={person} phase2Mvp={phase2Mvp} />
+          {!phase2Mvp && !simpleAssessments && <div className="appointment-assessment-picker" ref={assessmentPickerRef}
             onKeyDown={(event) => {
               if (event.key === "Escape" && assessmentMenuOpen) {
                 event.stopPropagation();

@@ -1,4 +1,5 @@
 import { Children, cloneElement, isValidElement, useState } from 'react';
+import { displayTerminology } from '../terminology.js';
 
 /** People is the visual reference. Use QueueRow/QueueCell for labelled cells. */
 export default function StandardTable({ children, label, responsive = true, variant = "default", density = "comfortable", className = "", scrollClassName = "", columnOrderKey, compactControls }) {
@@ -59,8 +60,8 @@ export default function StandardTable({ children, label, responsive = true, vari
   return <div className="standard-table-container">
     {compactControls && <div className="standard-table-compact-controls">{compactControls}</div>}
     {columnOrderKey && <span className="sr-only" role="status">{announcement}</span>}
-    <div className={`table-scroll standard-table-scroll ${scrollClassName}`.trim()} role="region" aria-label={label} tabIndex={0}>
-      <table className={`standard-table standard-table-${variant} standard-table-${density} ${responsive ? 'responsive-queue-table' : ''} ${className}`.trim()} aria-label={label}>
+    <div className={`table-scroll standard-table-scroll ${scrollClassName}`.trim()} role="region" aria-label={displayTerminology(label)} tabIndex={0}>
+      <table className={`standard-table standard-table-${variant} standard-table-${density} ${responsive ? 'responsive-queue-table' : ''} ${className}`.trim()} aria-label={displayTerminology(label)}>
         {reordered}
       </table>
     </div>

@@ -10,7 +10,8 @@ export const assessmentDueDatesEnabled = (settings) =>
   mvpAssessmentMode(settings) || (settings?.showAssessmentDueDates ?? true);
 
 export const assessmentContactLinkingEnabled = (settings) =>
-  settings?.linkAssessmentAppointments ?? !settings?.simpleAssessments;
+  !(mvpAssessmentMode(settings) && settings?.mvpSeparateMeasuresContacts) &&
+  (settings?.linkAssessmentAppointments ?? !settings?.simpleAssessments);
 
 export const assessmentModalityEnabled = (settings) =>
   settings?.assessmentModality ?? true;

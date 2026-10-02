@@ -23,7 +23,7 @@ export const SAMPLE_ASSESSMENT_BUNDLES = [
       assessment('review-who5', who5, 'Optional')],
   },
   {
-    id: 'sample-bundle-youth', name: 'Youth and family check-in', enabled: true,
+    id: 'sample-bundle-youth', name: 'Patient check-in', enabled: true,
     trigger: 'current', programStream: 'General', careLevel: 'All', days: 56, minAge: 12, maxAge: 17,
     assessments: [assessment('youth-preferences', preferences), assessment('youth-sdq', sdq, 'Optional'),
       assessment('youth-who5', who5, 'Optional')],
@@ -114,7 +114,7 @@ function normalizeSampleEpisode(episode, rules) {
 
 export function ensureSampleAssessmentBundles(state, isSamplePerson) {
   if (!state.settings?.groupAssessmentsByBundle) return state;
-  const needsTemplates = state.sampleAssessmentBundlesRevision !== 4;
+  const needsTemplates = state.sampleAssessmentBundlesRevision !== 5;
   const existingRules = state.settings.assessmentScheduleRules || [];
   const needsAssociation = state.people.some(person => isSamplePerson(person) &&
     person.episodes.some(episode => episode.collections.some(collection =>
@@ -129,6 +129,8 @@ export function ensureSampleAssessmentBundles(state, isSamplePerson) {
   if (!needsTemplates && !needsAssociation && !needsNormalization) return state;
   const next = structuredClone(state);
   const rules = next.settings.assessmentScheduleRules ??= [];
+  const renamedRule = rules.find(rule => rule.id === 'sample-bundle-youth' && rule.name === 'Youth and family check-in');
+  if (renamedRule) renamedRule.name = 'Patient check-in';
   const eventIds = next.people.flatMap(person => person.episodes.flatMap(episode =>
     (episode.events || []).map(event => event.id)));
   for (const template of needsTemplates ? SAMPLE_ASSESSMENT_BUNDLES : []) {
@@ -149,6 +151,8 @@ export function ensureSampleAssessmentBundles(state, isSamplePerson) {
     if (!isSamplePerson(person)) continue;
     for (const episode of person.episodes) {
       for (const collection of episode.collections) {
+        if (renamedRule && collection.bundleId === renamedRule.id && collection.bundleName === 'Youth and family check-in')
+          collection.bundleName = renamedRule.name;
         // Preserve staff-created bundle associations and all response/delivery evidence.
         const association = sampleBundleAssociation(person, collection, rules);
         if (!association) continue;
@@ -164,6 +168,6 @@ export function ensureSampleAssessmentBundles(state, isSamplePerson) {
       normalizeSampleEpisode(episode, rules);
     }
   }
-  next.sampleAssessmentBundlesRevision = 4;
+  next.sampleAssessmentBundlesRevision = 5;
   return next;
 }

@@ -83,6 +83,28 @@ test("an attended appointment retains planned and actual contact details", () =>
     .some((item) => item.id === appointment.id), true);
 });
 
+test("a contact keeps both recipients and saves an edited contact name", () => {
+  const state = createSeed();
+  state.settings.phase2CareActivity = true;
+  const next = reducer(state, {
+    ...attendedContact,
+    practitionerService: "",
+    primaryPractitioner: "",
+    recipientTypes: ["Young person", "Related person"],
+    recipientType: "Young person",
+    contactName: "  Family follow-up  ",
+  });
+  const appointment = next.people[0].episodes[0].appointments[0];
+  assert.deepEqual(appointment.recipientTypes, ["Young person", "Related person"]);
+  assert.equal(appointment.relatedPersonName, "Deb Thompson");
+  assert.equal(appointment.contactName, "Family follow-up");
+  assert.ok(appointmentDetails(appointment, next.people[0].episodes[0])
+    .some(([label, value]) => label === "Recipient" && value === "Young person, Related person"));
+  assert.equal(reducer(state, { ...attendedContact, recipientTypes: [] }), state);
+  const generated = reducer(createSeed(), attendedContact).people[0].episodes[0].appointments[0];
+  assert.equal(generated.contactName, "Family work");
+});
+
 test("an SMS contact is saved and appears in the contact timeline", () => {
   const next = reducer(createSeed(), {
     ...attendedContact,

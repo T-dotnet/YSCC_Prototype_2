@@ -16,12 +16,12 @@ function Options({ name, values, defaultValue, required, placeholder = "Choose i
   );
 }
 
-export default function ContactFields({ appointment = {}, attended = false, person }) {
+export default function ContactFields({ appointment = {}, attended = false, person, phase2Mvp = false }) {
   const [recipient, setRecipient] = useState(appointment.recipientType || "Young person");
   const directContactRef = useRef(null);
   useEffect(() => {
-    if (attended && directContactRef.current) directContactRef.current.open = true;
-  }, [attended]);
+    if (attended && !phase2Mvp && directContactRef.current) directContactRef.current.open = true;
+  }, [attended, phase2Mvp]);
   const primaryPractitioners = [...new Set([
     ...DEMO_STAFF.filter((staff) => staff.role === "Clinician").map((staff) => staff.name),
     ...(person?.episodes || []).flatMap((episode) => (episode.appointments || []).flatMap((item) => [
@@ -39,25 +39,25 @@ export default function ContactFields({ appointment = {}, attended = false, pers
         <div className="appointment-actual-fields">
           <p>Record who received the contact and the practitioner who delivered it. Draft categories are not approved reporting codes.</p>
           <div className="form-grid">
-            <Field label={LABELS.recipient}>
+            {!phase2Mvp && <Field label={LABELS.recipient}>
               <select name="recipientType" value={recipient} onChange={(event) => setRecipient(event.target.value)} required={attended}>
                 {CONTACT_RECIPIENTS.map((value) => <option key={value}>{value}</option>)}
               </select>
-            </Field>
-            {recipient === "Related person" && (
+            </Field>}
+            {!phase2Mvp && recipient === "Related person" && (
               <Field label="Related person name">
                 <input name="relatedPersonName" defaultValue={appointment.relatedPersonName || person?.family || ""} required={attended} />
               </Field>
             )}
-            <Field label="Direct contact type">
+            {!phase2Mvp && <Field label="Direct contact type">
               <Options name="contactType" values={CONTACT_TYPES} defaultValue={appointment.contactType} required={attended} placeholder="Choose contact type" />
-            </Field>
-            <Field label="Primary practitioner">
-              <select name="primaryPractitioner" defaultValue={appointment.primaryPractitioner || ""} required={attended}>
+            </Field>}
+            {!phase2Mvp && <Field label="Primary practitioner">
+              <select name="primaryPractitioner" defaultValue={appointment.primaryPractitioner || ""} required={attended && !phase2Mvp}>
                 <option value="">Choose practitioner</option>
                 {primaryPractitioners.map((name) => <option key={name} value={name}>{name}</option>)}
               </select>
-            </Field>
+            </Field>}
             <Field label="Other practitioners" hint="Separate names with commas.">
               <input name="additionalPractitioners" defaultValue={appointment.additionalPractitioners?.join(", ") || ""} />
             </Field>

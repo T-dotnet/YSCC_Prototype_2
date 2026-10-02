@@ -16,13 +16,13 @@ import {
   Users,
 } from "lucide-react";
 import {
-  activityEntries,
   activityChangeDetails,
+  careEventEntries,
   changeLogEntries,
   clinicalHistoryEntries,
 } from "../activity";
 import { collectionStatus, formatDate, formatTimestamp, personEventText, TODAY } from "../model";
-import { associatedCareItems, contactCareEventFacts, historyCategory, HISTORY_CATEGORIES, historyDate, historyItem } from "../historyItem";
+import { associatedCareItems, contactCareEventFacts, mvpContactFacts, historyCategory, HISTORY_CATEGORIES, historyDate, historyItem } from "../historyItem";
 import { SearchInput, Select, Button, Empty } from "./UI";
 import RecordItem from "./RecordItem";
 import RelatedRecordsAccordion from "./RelatedRecordsAccordion";
@@ -31,6 +31,9 @@ import ListFilterBar from "./ListFilterBar";
 import TimelineExpandAll from "./TimelineExpandAll";
 import { useStore } from "../store";
 import { assessmentSchedulingEnabled, assessmentContactLinkingEnabled, assessmentHistoryEntryVisible } from "../assessmentFeatures";
+import { mvpReviewNumbers } from "../mvpAssessmentPathway";
+import { appTerm, displayTerminology } from "../terminology.js";
+import { getInstrument } from "../instruments.js";
 
 const displayValue = (value) =>
   value === true
@@ -51,7 +54,7 @@ const CARE_EVENT_QUICK_TYPES = [
 
 const EVENT_CATEGORY_DISPLAY = {
   appointment: { label: "Contact", icon: CalendarDays },
-  assessment: { label: "Instrument", icon: ClipboardCheck },
+  assessment: { label: "Measure activity", icon: ClipboardCheck },
   "contextual-event": { label: "Contextual event", icon: Flag },
   "clinical-record": { label: "Care record", icon: FileText },
 };
@@ -106,6 +109,19 @@ const displayDate = (value) =>
 
 const actorLabel = (entry) =>
   `${entry.actor || "Editor not recorded"}${entry.role ? ` · ${entry.role}` : ""}`;
+
+function measureActivityLabels(collection, episode, reviewNumbers, title, subtitle) {
+  if (!collection) return { title, subtitle };
+  const bundleName = episode.assessmentBundleInstances?.find(
+    instance => instance.id === collection.bundleInstanceId)?.name || collection.bundleName;
+  const reviewNumber = reviewNumbers.get(collection.mvpTimepointId);
+  return {
+    title: bundleName || title,
+    subtitle: reviewNumber ? `Review ${reviewNumber}`
+      : collection.mvpInitialAssessment ? 'Initial measure'
+        : collection.mvpCreatedAssessment ? 'One-off measure' : subtitle,
+  };
+}
 
 function TimelineDate({ timestamp, date, time, dateLabel, emphasized = false, hideContextLabel = false }) {
   const parts = !time && !dateLabel && timestamp && timestamp === date
@@ -178,28 +194,40 @@ function TimelineDayHeading({ date, count, singular = "record", plural = "record
 
 export default function ActivityTimeline({ episode, person, audit = [] }) {
   const { state } = useStore();
-  const entries = activityEntries(person, episode, audit)
+  const reviewNumbers = mvpReviewNumbers(episode);
+  const entries = careEventEntries(person, episode, audit, {
+    simpleAssessments: !!state.settings?.simpleAssessments,
+    scheduleAssessments: assessmentSchedulingEnabled(state.settings),
+    phase2Mvp: !!state.settings?.phase2CareActivity,
+    today: TODAY,
+  })
     .filter((entry) => assessmentHistoryEntryVisible(entry, state.settings,
       state.people.flatMap(person => person.episodes.flatMap(episode => episode.appointments || []))));
+  if (!entries.length) return <p className="history-empty">No {appTerm("contacts").toLowerCase()} or completed measures recorded.</p>;
   return (
     <ol className="timeline" aria-label="Recent care activity">
       {entries.slice(0, 4).map((entry) => {
-        const changes = activityChangeDetails(entry);
+        const item = historyItem(entry, episode, (value) => personEventText(person, value), !!state.settings?.simpleAssessments || !assessmentSchedulingEnabled(state.settings));
+        const date = item.date?.slice(0, 10);
+        const title = entry.type === "appointment"
+          ? entry.contactType || entry.appointmentType || "Contact"
+          : entry.title;
+        const subtitle = entry.type === "appointment" ? entry.practitionerService : item.subtitle;
+        const measureLabels = entry.type === "assessment"
+          ? measureActivityLabels(episode.collections.find(collection => collection.id === entry.collectionId), episode, reviewNumbers, title, subtitle)
+          : { title, subtitle };
         return (
           <li key={entry.id}>
             <span className="timeline-dot" />
-            <time dateTime={recordedDate(entry) || undefined}>
-              <strong>{displayDate(recordedDate(entry))}</strong>
+            <time dateTime={date ? item.time ? `${date}T${item.time}` : date : undefined}>
+              <strong>{displayDate(date)}</strong>
+              {item.time && <small>{item.time}</small>}
             </time>
             <div>
-              <strong>{entry.title}</strong>
-              {entry.effectiveDate && (
-                <p>Effective {formatDate(entry.effectiveDate)}</p>
-              )}
-              {changes.length === 0 ? (
-                <p>{personEventText(person, entry.detail)}</p>
-              ) : null}
-              {entry.actor && (
+              <strong>{displayTerminology(measureLabels.title)}</strong>
+              {measureLabels.subtitle && <p>{displayTerminology(measureLabels.subtitle)}</p>}
+              {entry.type === "appointment" && <small>{entry.attendance}</small>}
+              {entry.actor && entry.type !== "appointment" && (
                 <small>
                   {entry.actor}
                   {entry.role ? ` · ${entry.role}` : ""}
@@ -214,10 +242,11 @@ export default function ActivityTimeline({ episode, person, audit = [] }) {
   );
 }
 
-function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordAppointmentOutcome, onCollectAssessmentResponse, canCollectAssessment, selectedEventId, careEventsOnly, showCategories = false, simpleAssessments = false, scheduleAssessments = true, linkAssessmentAppointments = true }) {
+function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordAppointmentOutcome, onCollectAssessmentResponse, canCollectAssessment, selectedEventId, careEventsOnly, showCategories = false, simpleAssessments = false, scheduleAssessments = true, linkAssessmentAppointments = true, phase2Mvp = false }) {
   if (!entries.length)
-    return <p className="history-empty">{careEventsOnly ? "No care events or structured records have been recorded." : "No clinical activity has been recorded."}</p>;
+    return <p className="history-empty">{careEventsOnly ? `No ${appTerm("contacts").toLowerCase()} or structured records have been recorded.` : "No clinical activity has been recorded."}</p>;
   const groupByDate = simpleAssessments && showCategories;
+  const reviewNumbers = showCategories ? mvpReviewNumbers(episode) : new Map();
   const categoryOrder = { appointment: 0, assessment: 1, "contextual-event": 2, "clinical-record": 3 };
   const datedEntries = groupByDate ? entries.map((entry) => ({
     entry,
@@ -236,7 +265,7 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordA
     {groupByDate && <div className="record-log-columns care-event-log-columns" aria-hidden="true">
       <span>Type</span><span>Event</span><span>Status</span><span>Details</span>
     </div>}
-    <ol className={`record-timeline clinical-continuous-timeline${groupByDate ? " care-event-day-list" : ""}`} aria-label={careEventsOnly ? "Care events and structured records" : "Continuous clinical history"}>
+    <ol className={`record-timeline clinical-continuous-timeline${groupByDate ? " care-event-day-list" : ""}`} aria-label={careEventsOnly ? `${appTerm("contacts")} and structured records` : "Continuous clinical history"}>
       {timelineEntries.map((entry, index) => {
         const item = historyItem(entry, episode, (value) => personEventText(person, value), simpleAssessments || !scheduleAssessments);
         const category = historyCategory(entry);
@@ -259,18 +288,36 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordA
         const collection = entry.type === "assessment"
           ? episode.collections.find((candidate) => candidate.id === entry.collectionId)
           : null;
+        const bundleCollections = phase2Mvp && entry.bundleCollectionIds
+          ? entry.bundleCollectionIds.map((id) => episode.collections.find((candidate) => candidate.id === id)).filter(Boolean)
+          : null;
+        const completedCollection = entry.title === "Questionnaire response received"
+          ? episode.collections.find((candidate) => candidate.id === entry.collectionId)
+          : null;
+        const measureLabels = showCategories && collection
+          ? measureActivityLabels(collection, episode, reviewNumbers,
+            completedCollection ? `${completedCollection.label} instrument completed` : entry.title || "Recorded event", item.subtitle)
+          : null;
         const contactSummary = showCategories && appointment
-          ? contactCareEventFacts(item, appointment) : null;
-        const primaryFacts = showCategories && collection
-          ? item.primary.filter(({ label }) => label !== "Associated appointment")
+          ? phase2Mvp ? { primary: mvpContactFacts(appointment), more: [] }
+            : contactCareEventFacts(appointment, episode) : null;
+        const primaryFacts = showCategories && bundleCollections
+          ? [
+            { label: "Created", value: bundleCollections.map((record) => record.createdAt?.slice(0, 10)).filter(Boolean).sort()[0] },
+            { label: "Completed", value: entry.date?.slice(0, 10) },
+            { label: "Respondent", value: collection.respondent === "Clinician" ? "Clinician" : collection.respondent === "Family respondent" ? "Family respondent" : "Patient" },
+            { label: "Instruments", value: bundleCollections.map((record) => getInstrument(record.version)?.name || record.version).join(", ") },
+          ].filter(({ value }) => value)
+          : showCategories && collection
+            ? item.primary.filter(({ label }) => label !== "Associated appointment")
           : contactSummary
-            ? contactSummary.primary.filter(({ label }) => !["Notes", "Outcome notes"].includes(label))
+            ? [...contactSummary.primary, ...contactSummary.more]
           : item.primary;
-        const visiblePrimaryFacts = !linkAssessmentAppointments && appointment
-          ? primaryFacts.filter(({ label }) => label !== "Initial assessment" && !label.startsWith("Associated assignment"))
-          : primaryFacts;
+        const hideLinkFact = ({ label }) => !["Initial assessment", "Associated appointment", "Associated contact", "Linked instrument"].includes(label) &&
+          !label.startsWith("Associated assignment");
+        const visiblePrimaryFacts = linkAssessmentAppointments ? primaryFacts : primaryFacts.filter(hideLinkFact);
         const moreFacts = (contactSummary ? [] : showCategories && collection ? [] : item.more)
-          .filter(({ label }) => linkAssessmentAppointments || label !== "Initial assessment" && !label.startsWith("Associated assignment"));
+          .filter(detail => linkAssessmentAppointments || hideLinkFact(detail));
         const datedAction = showCategories && episode.status === "Active"
           ? appointment?.attendance === "Planned" && onRecordAppointmentOutcome
             ? <Button variant="secondary" aria-haspopup="dialog" onClick={() => onRecordAppointmentOutcome(appointment.id)}>Record outcome</Button>
@@ -280,15 +327,12 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordA
               ? <Button variant="secondary" aria-haspopup="dialog" onClick={() => onCollectAssessmentResponse(collection.id)}>Collect response</Button>
               : null
           : null;
-        const completedCollection = entry.title === "Questionnaire response received"
-          ? episode.collections.find((collection) => collection.id === entry.collectionId)
-          : null;
         const toFact = ({ label, value }) => ({
           label,
           value: label === "Recorded at" ? formatTimestamp(value)
             : ((label.toLowerCase().includes("date") || ["Submitted", "Created", "Draft saved", "Completed"].includes(label)) && /^\d{4}-\d{2}-\d{2}$/.test(value || ""))
               ? formatDate(value) : value,
-          wide: ["Summary", "Notes", "Outcome notes"].includes(label) ||
+          wide: ["Summary", "Notes", "Outcome notes", "Instruments"].includes(label) ||
             label.startsWith("Associated assignment"),
         });
         return (
@@ -317,15 +361,16 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordA
               id={isCareEvent ? `contextual-event-${entry.id}` : isSelectedSource ? `source-record-${selectedSourceId}` : undefined}
               collapsible
               tableRow={groupByDate}
+              verbatimText={phase2Mvp && !!contactSummary}
               headingLevel={groupByDate ? 4 : 3}
               initiallyExpanded={!showCategories || item.date >= TODAY ||
                 appointment?.attendance === "Planned" ||
                 (collection && collection.response !== "Submitted") ||
                 isSelectedSource}
               eyebrow={groupByDate ? categoryDisplay?.label : undefined}
-              title={contactSummary ? appointment.contactType || appointment.appointmentType || "Contact"
-                : completedCollection ? `${completedCollection.label} instrument completed` : entry.title || "Recorded event"}
-              subtitle={contactSummary ? appointment.practitionerService : item.subtitle}
+              title={contactSummary ? (phase2Mvp ? appointment.contactName || appointment.contactType : appointment.contactType || appointment.appointmentType) || "Contact"
+                : measureLabels?.title || (completedCollection ? `${completedCollection.label} instrument completed` : entry.title || "Recorded event")}
+              subtitle={contactSummary ? phase2Mvp ? appointment.contactType : appointment.practitionerService : measureLabels?.subtitle || item.subtitle}
               status={collection ? !scheduleAssessments
                   ? collection.response === "Submitted" ? "Completed" : collection.response === "Draft" ? "Draft" : "Not started"
                   : collectionStatus(collection)
@@ -337,7 +382,9 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordA
               className={`record-item-compact${isSelectedSource ? " care-event-selected" : ""}`}
               facts={visiblePrimaryFacts.map(toFact)}
               secondary={<>
-                {linkAssessmentAppointments && collection && <RelatedRecordsAccordion kind="contacts" records={contactsForAssessment(episode,collection.id)} collection={collection} />}
+                {linkAssessmentAppointments && collection && <RelatedRecordsAccordion kind="contacts" records={bundleCollections
+                  ? [...new Map(bundleCollections.flatMap((record) => contactsForAssessment(episode, record.id)).map((record) => [record.id, record])).values()]
+                  : contactsForAssessment(episode,collection.id)} collection={collection} />}
                 {linkAssessmentAppointments && appointment && <RelatedRecordsAccordion kind="assessments" records={assessmentsForContact(episode,appointment.id)} contactId={appointment.id} />}
                 {!(simpleAssessments && showCategories) && moreFacts.length > 0 && (
                 <details className="appointment-more-detail history-more-details">
@@ -388,6 +435,7 @@ export function ClinicalHistory({
   const { state } = useStore();
   const simpleAssessments = !!state.settings?.simpleAssessments;
   const scheduleAssessments = assessmentSchedulingEnabled(state.settings);
+  const showPeriodFilters = scheduleAssessments && !state.settings?.phase2CareActivity;
   const linkAssessmentAppointments = assessmentContactLinkingEnabled(state.settings);
   const entries = (providedEntries ?? clinicalHistoryEntries(person, episode, audit))
     .filter((entry) => assessmentHistoryEntryVisible(entry, state.settings,
@@ -405,6 +453,9 @@ export function ClinicalHistory({
   useEffect(() => {
     if (attentionOnly) setFilters({ type: "all", period: "all", startDate: "", endDate: "", query: "" });
   }, [attentionOnly]);
+  useEffect(() => {
+    if (!showPeriodFilters) setFilters(current => current.period === "all" ? current : { ...current, period: "all" });
+  }, [showPeriodFilters]);
   const attentionActive = quickFilters && attentionOnly && attentionIds.length > 0;
   const attentionIdSet = new Set(attentionIds);
 
@@ -423,14 +474,14 @@ export function ClinicalHistory({
           entry.scope,
           item.subtitle,
           ...[...item.primary, ...item.more].flatMap(({ label, value }) => [label, value]),
-          ...(quickFilters && !simpleAssessments ? associatedCareItems(entry, episode).flatMap(({ type, title, subtitle }) => [type, title, subtitle]) : []),
+          ...(quickFilters && !simpleAssessments && linkAssessmentAppointments ? associatedCareItems(entry, episode).flatMap(({ type, title, subtitle }) => [type, title, subtitle]) : []),
         ].filter(Boolean).join(" ").toLowerCase();
         if (!text.includes(q)) return false;
       }
       const entryDate = (simpleAssessments || !scheduleAssessments) && entry.type === "assessment"
         ? historyItem(entry, episode, undefined, true).date : historyDate(entry);
-      if (filters.period === "upcoming" && (!entryDate || entryDate.slice(0, 10) <= TODAY)) return false;
-      if (filters.period === "past" && (!entryDate || entryDate.slice(0, 10) > TODAY)) return false;
+      if (showPeriodFilters && filters.period === "upcoming" && (!entryDate || entryDate.slice(0, 10) <= TODAY)) return false;
+      if (showPeriodFilters && filters.period === "past" && (!entryDate || entryDate.slice(0, 10) > TODAY)) return false;
       if (filters.startDate && (!entryDate || entryDate.slice(0, 10) < filters.startDate)) return false;
       if (filters.endDate && (!entryDate || entryDate.slice(0, 10) > filters.endDate)) return false;
       if (filters.type !== "all" && historyCategory(entry) !== filters.type) {
@@ -438,10 +489,10 @@ export function ClinicalHistory({
       }
       return true;
     });
-  }, [entries, filters, episode, person, attentionActive, attentionIdSet, quickFilters, simpleAssessments, scheduleAssessments]);
+  }, [entries, filters, episode, person, attentionActive, attentionIdSet, quickFilters, simpleAssessments, scheduleAssessments, showPeriodFilters, linkAssessmentAppointments]);
 
   const hasFilters = attentionActive || Object.entries(filters).some(
-    ([key, value]) => value !== "all" && value !== "",
+    ([key, value]) => (key !== "period" || showPeriodFilters) && value !== "all" && value !== "",
   );
 
   const setFilter = (key, value) => {
@@ -467,7 +518,7 @@ export function ClinicalHistory({
       count: value === "all" ? entries.length : entries.filter((entry) => historyCategory(entry) === value).length,
     }))
     .filter(({ value, count }) => value === "all" || value === filters.type || count > 0);
-  const advancedFilterCount = Number(filters.period !== "all") +
+  const advancedFilterCount = Number(showPeriodFilters && filters.period !== "all") +
     Number(Boolean(filters.startDate)) +
     Number(Boolean(filters.endDate)) +
     Number(filters.type !== "all" && !CARE_EVENT_QUICK_TYPES.includes(filters.type));
@@ -483,7 +534,7 @@ export function ClinicalHistory({
       </div>
     </Empty>
   ) : (
-    <ContinuousHistory entries={visibleEntries} episode={episode} person={person} onCorrectEvent={onCorrectEvent} onRecordAppointmentOutcome={onRecordAppointmentOutcome} onCollectAssessmentResponse={onCollectAssessmentResponse} canCollectAssessment={canCollectAssessment} selectedEventId={selectedEventId} careEventsOnly={careEventsOnly} showCategories={quickFilters} simpleAssessments={simpleAssessments} scheduleAssessments={scheduleAssessments} linkAssessmentAppointments={linkAssessmentAppointments} />
+    <ContinuousHistory entries={visibleEntries} episode={episode} person={person} onCorrectEvent={onCorrectEvent} onRecordAppointmentOutcome={onRecordAppointmentOutcome} onCollectAssessmentResponse={onCollectAssessmentResponse} canCollectAssessment={canCollectAssessment} selectedEventId={selectedEventId} careEventsOnly={careEventsOnly} showCategories={quickFilters} simpleAssessments={simpleAssessments} scheduleAssessments={scheduleAssessments} linkAssessmentAppointments={linkAssessmentAppointments} phase2Mvp={!!state.settings?.phase2CareActivity} />
   );
 
   return (
@@ -491,14 +542,14 @@ export function ClinicalHistory({
       {quickFilters ? (
         <ListFilterBar
           id="care-event-filter"
-          label="Care event type"
+          label={`${appTerm("contacts", "singular")} type`}
           panelId="care-event-results"
           items={quickItems}
           value={filters.type}
           onChange={(value) => setFilter("type", value)}
           query={filters.query}
           onQueryChange={(value) => setFilter("query", value)}
-          placeholder="Search care events"
+          placeholder={`Search ${appTerm("contacts").toLowerCase()}`}
           shown={visibleEntries.length}
           total={entries.length}
           noun="records"
@@ -508,7 +559,7 @@ export function ClinicalHistory({
           onOpenChange={setFiltersOpen}
           resultAction={<TimelineExpandAll containerRef={timelineRef} containerId="clinical-history-timeline" itemCount={visibleEntries.length} />}
           advanced={<>
-            <div className="care-event-period-filters" role="group" aria-label="Care event date">
+            {showPeriodFilters && <div className="care-event-period-filters" role="group" aria-label={`${appTerm("contacts", "singular")} date`}>
               {[
                 { value: "all", label: "All dates" },
                 { value: "upcoming", label: "Upcoming" },
@@ -517,7 +568,7 @@ export function ClinicalHistory({
                 <button key={value} type="button" aria-pressed={filters.period === value}
                   onClick={() => setFilter("period", value)}>{label}</button>
               ))}
-            </div>
+            </div>}
             <label className="care-timeline-date">
               <span>From</span>
               <input type="date" value={filters.startDate} onChange={(event) => setFilter("startDate", event.target.value)} />
@@ -528,7 +579,7 @@ export function ClinicalHistory({
             </label>
             <div className="care-timeline-type">
               <span>Category</span>
-              <Select label="Care event category" value={filters.type} onChange={(event) => setFilter("type", event.target.value)}>
+              <Select label={`${appTerm("contacts", "singular")} category`} value={filters.type} onChange={(event) => setFilter("type", event.target.value)}>
                 <option value="all">All types</option>
                 {types.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
               </Select>

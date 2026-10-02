@@ -90,7 +90,7 @@ export function getNotifications(state, today = TODAY) {
           id: `review-${person.id}-${bundleId}`,
           category: 'scheduled_review', categoryLabel: 'Scheduled review',
           title: `${records[0].bundleName} ${timing}`,
-          detail: `${person.name} · Due ${formatDate(due)}${records[0].respondent === 'Family respondent' && !person.family ? ' · Family respondent needed' : ''}`,
+          detail: `${person.name} · Due ${formatDate(due)}`,
           personName: person.name, personId: person.id,
           href: `/people/${person.id}?tab=assessment&episode=${episode.id}`,
           due,

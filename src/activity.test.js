@@ -325,6 +325,26 @@ test("simple Care events omit saved drafts", () => {
   assert.equal(entries.length, 0);
 });
 
+test("Phase 2 care activity shows one entry per completed system-generated measure", () => {
+  const person = { id: "phase2-person" };
+  const episode = {
+    events: [{ id: "context", actionType: "ADD_CARE_EVENT", eventDate: "2026-09-20", title: "Context" }],
+    appointments: [{ id: "contact", attendance: "Attended", actualDate: "2026-09-21" }],
+    clinicalRecords: [{ id: "risk", recordType: "risk", recordDate: "2026-09-22" }],
+    collections: [
+      { id: "measure-a", bundleId: "review", mvpTimepointId: "review-1", label: "Review", response: "Submitted", submittedAt: "2026-09-23", attempts: [] },
+      { id: "measure-b", bundleId: "review", mvpTimepointId: "review-1", label: "Review", response: "Submitted", submittedAt: "2026-09-24", attempts: [] },
+      { id: "legacy", label: "Legacy measure", response: "Submitted", submittedAt: "2026-09-23", attempts: [] },
+    ],
+  };
+  const entries = careEventEntries(person, episode, [], { phase2Mvp: true, today: "2026-09-27" });
+  assert.deepEqual(entries.map((entry) => entry.id).sort(), ["appointment-contact", "assessment-measure-a"]);
+  assert.deepEqual(entries.find((entry) => entry.type === "assessment").bundleCollectionIds, ["measure-a", "measure-b"]);
+  assert.equal(entries.find((entry) => entry.type === "assessment").date, "2026-09-24");
+  episode.collections[1].response = "Draft";
+  assert.equal(careEventEntries(person, episode, [], { phase2Mvp: true }).filter((entry) => entry.type === "assessment").length, 0);
+});
+
 test("simple Care events retain a future planned contact linked to an assessment", () => {
   const person = { id: "linked-person" };
   const episode = {

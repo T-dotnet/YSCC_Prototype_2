@@ -239,7 +239,7 @@ export default function ReviewResponses({
                   ? `${submissionSession?.channel || c.channel}${submissionSession?.assistance || c.assistance ? ` · ${submissionSession?.assistance || c.assistance}` : ""}`
                   : reviewNotRequired ? "Response recorded" : c.reviewNote || "No review note recorded."}
               </p>
-              {sameDayRecordedAppointments.length > 0 && (
+              {linkAssessmentAppointments && sameDayRecordedAppointments.length > 0 && (
                 <p
                   className="review-associated-meta"
                   style={{
@@ -507,7 +507,7 @@ export default function ReviewResponses({
               </div>
             )}
 
-            {sameDayRecordedAppointments.length > 0 && (
+            {linkAssessmentAppointments && sameDayRecordedAppointments.length > 0 && (
               <div
                 className="review-associated-copy"
                 style={{

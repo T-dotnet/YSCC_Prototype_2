@@ -253,6 +253,10 @@ html:has(.shell-modern), body:has(.shell-modern) { overflow: hidden; }
   --report-sticky-top: calc(48px - var(--shell-content-top));
 }
 
+.shell.shell-modern .general-report-dashboard {
+  --report-sticky-top: calc(-1 * var(--shell-content-top));
+}
+
 .shell.shell-modern .main .person-record-navigation {
   position: sticky;
   top: calc(-1 * var(--shell-content-top));
@@ -263,6 +267,14 @@ html:has(.shell-modern), body:has(.shell-modern) { overflow: hidden; }
 
 .shell.shell-modern .main .person-record-navigation .person-tabs {
   height: 48px;
+}
+
+.shell.shell-modern .main > .administration-tabs {
+  position: sticky;
+  top: calc(-1 * var(--shell-content-top));
+  z-index: 9;
+  height: 48px;
+  background: var(--surface);
 }
 
 .shell.shell-modern .report-dashboard-section {

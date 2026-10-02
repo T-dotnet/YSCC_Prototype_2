@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { LockKeyhole } from "lucide-react";
+import { appTerm, displayTerminology } from "../terminology.js";
 import "./tabs.css";
 
 export function Tabs({
@@ -24,7 +25,7 @@ export function Tabs({
       ref={tablistRef}
       className={`tabs ${className}`.trim()}
       role="tablist"
-      aria-label={label}
+      aria-label={displayTerminology(label)}
     >
       {items.map((item, index) => {
         const key = typeof item === "string" ? item : item.value;
@@ -39,7 +40,7 @@ export function Tabs({
             aria-controls={panelId}
             aria-disabled={disabled}
             disabled={disabled}
-            title={typeof item === "object" ? item.title : undefined}
+            title={typeof item === "object" ? displayTerminology(item.title) : undefined}
             tabIndex={key === value ? 0 : -1}
             className={`tab${key === value ? " selected" : ""}`}
             onClick={() => onChange(key)}
@@ -68,7 +69,11 @@ export function Tabs({
             }}
           >
             {disabled && <LockKeyhole size={13} aria-hidden="true" />}
-            {typeof item === "string" ? item : item.label || item.value}
+            {(() => {
+              const label = typeof item === "string" ? item : item.label || item.value;
+              return label === "Assessment" ? appTerm("measures")
+                : displayTerminology(label);
+            })()}
             {item.count !== undefined && (
               <span className="tab-count">{item.count}</span>
             )}

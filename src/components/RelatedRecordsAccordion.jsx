@@ -10,7 +10,7 @@ import { useState } from "react";
 import RelatedRecordsTable from "./RelatedRecordsTable";
 
 const contactName = (contact) =>
-  contact.contactType || contact.appointmentType || contact.practitionerService || "Service contact";
+  contact.contactName || contact.contactType || contact.appointmentType || contact.practitionerService || "Service contact";
 
 const contributionCell = (contribution) => (
   <span className="related-records-contribution">
