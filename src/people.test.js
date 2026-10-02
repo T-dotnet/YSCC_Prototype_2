@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createSeed, getTasks, TODAY } from "./model.js";
 import { newIntake } from "./intake.js";
-import { comparePeople, peopleForList, peopleInEpisodes, personStatus } from "./people.js";
+import { comparePeople, episodeDisplayStatus, peopleForList, peopleInEpisodes, personStatus } from "./people.js";
 
 test("every person with work is discoverable in People", () => {
   const state = createSeed();
@@ -92,6 +92,16 @@ test("episode filtering keeps the status and opened collection in the same care 
   assert.equal(historical.status, "Closed");
   assert.equal(historical.collection, undefined);
   assert.equal(peopleInEpisodes([person], "Paused").length, 0);
+});
+
+test("People episode value follows the person header status", () => {
+  const episode = { status: "Active", collections: [
+    { mvpInitialAssessment: true, mvpRespondent: "Person", response: "Submitted" },
+  ] };
+  assert.equal(episodeDisplayStatus(episode), "Ongoing review");
+  episode.status = "Closed";
+  assert.equal(episodeDisplayStatus(episode), "Closed");
+  assert.equal(episodeDisplayStatus(), "Intake");
 });
 
 test("intake-only and empty collection states stay explicit", () => {

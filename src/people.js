@@ -3,6 +3,10 @@ import { canAssess, intakeReady, intakeStage, intakeTasks } from "./intake.js";
 import { assessmentBundleGroups } from "./assessmentBundles.js";
 import { mvpAssessmentMode } from './mvpAssessmentPathway.js';
 import { currentCollection, currentMvpStageCollection } from "./workflow.js";
+import { derivedEpisodeStatus } from "./batch1Registration.js";
+
+export const episodeDisplayStatus = (episode) =>
+  episode ? derivedEpisodeStatus({}, episode) : "Intake";
 
 const openIntake = (intake) =>
   !["Completed", "Closed incomplete"].includes(intake.status) ||

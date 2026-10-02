@@ -16393,6 +16393,12 @@ h6 {
   font-size: var(--type-title);
   font-weight: var(--type-weight-semibold);
 }
+.person-open-surface .care-events .record-item-heading-text :is(h3, h4) {
+  font-family: var(--font-sans);
+  font-size: var(--type-supporting);
+  line-height: 1.2;
+  letter-spacing: 0;
+}
 .care-event-day-list .record-item-eyebrow {
   display: block;
   margin-bottom: var(--space-half);
@@ -17904,6 +17910,14 @@ thead th,
   font-size: var(--type-body);
   font-weight: var(--type-weight-semibold);
   line-height: 1.35;
+}
+
+#change-log-timeline .record-item-heading-text :is(h3, h4) {
+  font-family: var(--font-sans);
+  font-size: var(--type-supporting);
+  font-weight: var(--type-weight-semibold);
+  line-height: 1.2;
+  letter-spacing: 0;
 }
 
 .record-item-table-meta,

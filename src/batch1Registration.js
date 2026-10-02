@@ -2,6 +2,23 @@
 // Historical response codes and extract-only missing codes are intentionally omitted
 // from new-entry controls. Existing values remain visible in the intake form.
 import { completedMeasureStatusChange } from './measureStatusChange.js';
+import { EP_BATCH_2_INSTRUMENTS } from './epCodebookInstruments.js';
+
+const assessmentOutcomeInstrument = EP_BATCH_2_INSTRUMENTS.find(
+  instrument => instrument.codebookDataItem === 'Assessment Outcome');
+const assessmentOutcomeIndex = assessmentOutcomeInstrument?.questions.findIndex(
+  question => question.id === 'assessment_outcome');
+
+function notProceedAssessmentOutcome(episode) {
+  if (assessmentOutcomeIndex < 0) return false;
+  const latest = (episode?.collections || []).filter(record =>
+    record.version === assessmentOutcomeInstrument?.version &&
+    record.response === 'Submitted').sort((a, b) =>
+    (b.submittedTimestamp || b.submittedAt || '').localeCompare(
+      a.submittedTimestamp || a.submittedAt || ''))[0];
+  const code = Number(/^\d+/.exec(latest?.answers?.[assessmentOutcomeIndex] || '')?.[0]);
+  return code >= 3 && code <= 13;
+}
 export const REFERRAL_SOURCES = [
   "Self-referred",
   "Family / Friend",
@@ -88,6 +105,7 @@ export function derivedEpisodeStatus(intake, episode) {
   if (episode?.status === "Discharged" ||
       (episode?.status === "Closed" && episode?.disposition === "Discharged")) return "Discharged";
   if (episode?.status && episode.status !== "Active") return episode.status;
+  if (notProceedAssessmentOutcome(episode)) return "Not proceed";
   const completedStatus = completedMeasureStatusChange(episode);
   if (completedStatus) return completedStatus;
   const profile = (episode?.collections || []).filter(record => record.clientProfileMeasure);

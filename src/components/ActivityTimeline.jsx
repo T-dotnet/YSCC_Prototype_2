@@ -33,7 +33,6 @@ import { useStore } from "../store";
 import { assessmentSchedulingEnabled, assessmentContactLinkingEnabled, assessmentHistoryEntryVisible } from "../assessmentFeatures";
 import { mvpReviewNumbers } from "../mvpAssessmentPathway";
 import { appTerm, displayTerminology } from "../terminology.js";
-import { getInstrument } from "../instruments.js";
 
 const displayValue = (value) =>
   value === true
@@ -306,7 +305,6 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordA
             { label: "Created", value: bundleCollections.map((record) => record.createdAt?.slice(0, 10)).filter(Boolean).sort()[0] },
             { label: "Completed", value: entry.date?.slice(0, 10) },
             { label: "Respondent", value: collection.respondent === "Clinician" ? "Clinician" : collection.respondent === "Family respondent" ? "Family respondent" : "Patient" },
-            { label: "Instruments", value: bundleCollections.map((record) => getInstrument(record.version)?.name || record.version).join(", ") },
           ].filter(({ value }) => value)
           : showCategories && collection
             ? item.primary.filter(({ label }) => label !== "Associated appointment")
@@ -332,7 +330,7 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordA
           value: label === "Recorded at" ? formatTimestamp(value)
             : ((label.toLowerCase().includes("date") || ["Submitted", "Created", "Draft saved", "Completed"].includes(label)) && /^\d{4}-\d{2}-\d{2}$/.test(value || ""))
               ? formatDate(value) : value,
-          wide: ["Summary", "Notes", "Outcome notes", "Instruments"].includes(label) ||
+          wide: ["Summary", "Notes", "Outcome notes"].includes(label) ||
             label.startsWith("Associated assignment"),
         });
         return (

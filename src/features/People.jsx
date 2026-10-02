@@ -6,7 +6,7 @@ import { assessmentSchedulingEnabled, assessmentBundleGroupingEnabled } from "..
 import { appTerm } from "../terminology.js";
 import { formatDate, TODAY } from "../model";
 import { getQualityIssues, recordCompleteness } from "../dataQuality";
-import { comparePeople, peopleForList, peopleBundleSummary } from "../people";
+import { comparePeople, episodeDisplayStatus, peopleForList, peopleBundleSummary } from "../people";
 import { sortQueueRows } from "../queueSort";
 import { patientIdentifier, patientSecondaryDetail } from "../patientIdentity";
 import { ActiveFilters, SortableHeader, useQueueSort } from "../components/QueueControls";
@@ -82,7 +82,7 @@ export default function People({ navigate, openModal }) {
       status: (row) => row.status,
       completeness: (row) => recordCompleteness(row.person, TODAY).requiredPercentage,
       owner: (row) => row.episode?.owner || row.person.owner || "Unassigned",
-      episodeStatus: (row) => row.episode?.status || "Intake",
+      episodeStatus: (row) => episodeDisplayStatus(row.episode),
     }, sortConfig.key === "priority" ? comparePeople : undefined);
   }, [state.people, state.settings, groupedBundles, scheduleAssessments, status, query, sortConfig]);
 
@@ -299,8 +299,8 @@ export default function People({ navigate, openModal }) {
                     <QueueCell label="Care owner" slot="owner" className="people-owner">
                       {episode?.owner || p.owner || "Unassigned"}
                     </QueueCell>
-                    <QueueCell label="Episode" slot="date" className="people-episode">
-                      <span>{episode?.status || "Intake"}</span>
+                    <QueueCell label="Episode" slot="date" className="people-episode" verbatim>
+                      <span>{episodeDisplayStatus(episode)}</span>
                       <small>
                         {episode
                           ? `Started ${formatDate(episode.start)}`

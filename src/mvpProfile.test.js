@@ -2,13 +2,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createDefaultWorkspace, reducer, TODAY } from "./model.js";
 import { canAssess, intakeTasks } from "./intake.js";
-import { peopleForList } from "./people.js";
+import { episodeDisplayStatus, peopleForList } from "./people.js";
 import { ageAtCommencement, derivedEpisodeStatus, derivedEpisodeStream } from "./batch1Registration.js";
 import { mvpInitialBundles, reconcileMvpAssessmentPathway } from "./mvpAssessmentPathway.js";
 import { addDays } from "./episodeReviews.js";
 import { CLIENT_PROFILE_INSTRUMENTS } from "./clientProfileMeasure.js";
 import { personStatus, peopleBundleSummary } from "./people.js";
 import { getInstrument, questionnaireState } from "./instruments.js";
+import { EP_BATCH_2_INSTRUMENTS } from "./epCodebookInstruments.js";
 import { ensureSampleMvpFlow } from "./sampleMvpFlow.js";
 
 test("fictional measure flow keeps each status beside its current measure", () => {
@@ -312,6 +313,25 @@ test("current status reflects ongoing review after initial assessment", () => {
     !record.mvpTimepointId) }), "Ongoing review");
   assert.equal(derivedEpisodeStatus({}, { ...episode, status: "Closed" }), "Closed");
   assert.equal(derivedEpisodeStatus({}, { ...episode, status: "Closed", disposition: "Discharged" }), "Discharged");
+});
+
+test("Batch 2 Assessment Outcome sets Not proceed after submission", () => {
+  const instrument = EP_BATCH_2_INSTRUMENTS.find(item => item.codebookDataItem === "Assessment Outcome");
+  const outcome = { version: instrument.version, response: "Not started", answers: [instrument.questions[0].options[3]] };
+  const episode = { status: "Active", collections: [outcome] };
+  assert.equal(derivedEpisodeStatus({}, episode), "Assessment");
+  outcome.response = "Submitted";
+  assert.equal(derivedEpisodeStatus({}, episode), "Not proceed");
+  assert.equal(episodeDisplayStatus(episode), "Not proceed");
+  outcome.answers = [instrument.questions[0].options[0]];
+  assert.equal(derivedEpisodeStatus({}, episode), "Assessment");
+  outcome.answers = [instrument.questions[0].options[3]];
+  outcome.submittedAt = "2026-09-10";
+  episode.collections.push({ ...outcome, submittedAt: "2026-09-11",
+    answers: [instrument.questions[0].options[1]] });
+  assert.equal(derivedEpisodeStatus({}, episode), "Assessment");
+  episode.status = "Closed";
+  assert.equal(derivedEpisodeStatus({}, episode), "Closed");
 });
 
 test("mock care episodes report status from their assessment and episode records", () => {

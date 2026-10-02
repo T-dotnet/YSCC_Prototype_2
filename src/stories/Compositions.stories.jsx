@@ -7,7 +7,7 @@ import { QueueCell, QueueRow } from "../components/QueueRow";
 import { linkedAssessmentScore } from "../assessmentGroups";
 import { recordCompleteness } from "../dataQuality";
 import { age, createSeed, formatDate, TODAY } from "../model";
-import { peopleForList } from "../people";
+import { episodeDisplayStatus, peopleForList } from "../people";
 import {
   Button,
   Badge,
@@ -86,7 +86,7 @@ export const PageHeadingAndPanel = {
                 <QueueCell label="Status" slot="state" className="people-status"><Badge>{row.status}</Badge></QueueCell>
                 <QueueCell label="Required data" slot="metric" className="people-completeness"><div className="people-completeness-summary"><strong>{completeness}%</strong><span className="people-completeness-bar" role="progressbar" aria-label={`${completeness}% of required data complete`} aria-valuemin="0" aria-valuemax="100" aria-valuenow={completeness}><span style={{ width: `${completeness}%` }} /></span></div></QueueCell>
                 <QueueCell label="Care owner" slot="owner" className="people-owner">{row.episode?.owner || p.owner || "Unassigned"}</QueueCell>
-                <QueueCell label="Episode" slot="date" className="people-episode"><span>{row.episode?.status || "Intake"}</span><small>{row.episode ? `Started ${formatDate(row.episode.start)}` : "Not started"}</small></QueueCell>
+                <QueueCell label="Episode" slot="date" className="people-episode" verbatim><span>{episodeDisplayStatus(row.episode)}</span><small>{row.episode ? `Started ${formatDate(row.episode.start)}` : "Not started"}</small></QueueCell>
                 <QueueCell label="Open" slot="action" className="people-open"><ChevronRight size={18} aria-hidden="true" /></QueueCell>
               </QueueRow>;
             })}</tbody>
