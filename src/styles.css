@@ -1838,31 +1838,8 @@ small {
   max-width: none;
   margin: -16px -12px;
   mix-blend-mode: multiply;
-  transform-origin: center;
-  animation: brand-arrive 700ms cubic-bezier(.2, .8, .2, 1) both;
 }
 .brand-symbol { display: none; }
-.brand:hover .brand-wordmark,
-.brand:hover .brand-symbol {
-  transform: translateY(-2px) scale(1.025);
-}
-.brand-wordmark,
-.brand-symbol {
-  transition: transform 220ms ease;
-}
-@keyframes brand-arrive {
-  from { opacity: 0; transform: translateY(8px) scale(.96); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .brand-wordmark,
-  .brand-symbol {
-    animation: none;
-    transition: none;
-  }
-  .brand:hover .brand-wordmark,
-  .brand:hover .brand-symbol { transform: none; }
-}
 .avatar {
   width: 38px;
   height: 38px;
@@ -3782,6 +3759,84 @@ td:last-child {
 .care-level-form > p {
   color: var(--muted);
   font-size: var(--type-metadata);
+  line-height: 1.5;
+}
+.care-level-panel {
+  margin-bottom: 18px;
+}
+.care-level-panel .panel-heading {
+  flex-wrap: wrap;
+  padding: 14px 20px;
+}
+.care-level-panel .panel-heading h2 {
+  font-size: var(--text-title);
+}
+.care-level-panel .panel-body {
+  padding: 16px 20px;
+}
+.care-level-current {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.care-level-current > div {
+  display: grid;
+  gap: 3px;
+}
+.care-level-current small,
+.care-level-current span,
+.care-level-history small,
+.care-level-prototype-note {
+  color: var(--muted);
+  font-size: 12px;
+}
+.care-level-current strong {
+  font-size: 17px;
+}
+.care-level-count {
+  white-space: nowrap;
+}
+.care-level-history {
+  margin-top: 16px;
+  border-top: 1px solid var(--line-soft);
+  padding-top: 12px;
+}
+.care-level-history > summary {
+  color: var(--teal);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+}
+.care-level-history ol {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+}
+.care-level-history li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 5px 12px;
+  border-left: 3px solid var(--teal);
+  padding: 5px 0 5px 12px;
+  font-size: 12px;
+}
+.care-level-history li strong {
+  font-size: 14px;
+}
+.care-level-history li small {
+  flex-basis: 100%;
+}
+.care-level-prototype-note {
+  margin: 14px 0 0;
+}
+.care-level-form > p {
+  color: var(--muted);
+  font-size: 13px;
   line-height: 1.5;
 }
 .overview-assessment-heading {
