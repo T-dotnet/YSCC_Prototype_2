@@ -10,7 +10,7 @@ import { useStore } from "../store";
 import { TODAY } from "../model";
 import { appTerm } from "../terminology.js";
 
-export default function CareEvents({ episode, person, audit = [], openModal, eventId, attentionIds = [], attentionOnly = false, onClearAttention }) {
+export default function CareEvents({ episode, person, audit = [], openModal, onCollectAssessmentResponse, eventId, attentionIds = [], attentionOnly = false, onClearAttention }) {
   const { state } = useStore();
   const phase2Mvp = !!state.settings?.phase2CareActivity;
   useEffect(() => {
@@ -61,14 +61,7 @@ export default function CareEvents({ episode, person, audit = [], openModal, eve
           episodeId: episode.id,
           appointmentId,
         })}
-        onCollectAssessmentResponse={(collectionId) => openModal({
-          type: "collection",
-          personId: person.id,
-          episodeId: episode.id,
-          collectionId,
-          channel: "Clinic tablet",
-          collectResponse: true,
-        })}
+        onCollectAssessmentResponse={(collectionId) => onCollectAssessmentResponse?.(episode.collections.find(collection => collection.id === collectionId))}
         canCollectAssessment={canAssess(person, episode)}
       />
     </div>

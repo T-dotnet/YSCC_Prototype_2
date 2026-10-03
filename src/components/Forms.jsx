@@ -1,3 +1,4 @@
+import { displayMeasureVersion } from '../terminology.js';
 import { episodeWithVisibleContacts } from "../assessmentFeatures.js";
 import { LABELS, COLLECTION_METHOD_OPTIONS, collectionMethodLabel } from "../terminology.js";
 import { RegisterPerson } from "../features/Intake";
@@ -368,7 +369,7 @@ export default function Forms({
     return (
       <Modal
         title="Measure preview"
-        subtitle={`${c.version} · ${displayPersonName(p)} · ${c.label}`}
+        subtitle={`${displayMeasureVersion(c.version)} · ${displayPersonName(p)} · ${c.label}`}
         onClose={onClose}
         closeLabel="Close preview"
         className="questionnaire-preview-modal"
@@ -534,7 +535,7 @@ export default function Forms({
         title={previewOpen ? "Measure preview" : scheduleAssessments ? "Schedule measure" : "Start measure"}
         subtitle={
           previewOpen
-            ? `${selectedInstrument.version} · ${displayPersonName(p)}`
+            ? `${displayMeasureVersion(selectedInstrument.version)} · ${displayPersonName(p)}`
             : `${displayPersonName(p)} · Care episode ${e.number}`
         }
         onClose={previewOpen ? () => setPreviewOpen(false) : onClose}
@@ -656,7 +657,7 @@ export default function Forms({
                     <optgroup key={group.label} label={group.label}>
                       {group.instruments.map((instrument) => (
                         <option key={instrument.version} value={instrument.version}>
-                          {instrument.version}
+                          {displayMeasureVersion(instrument.version)}
                         </option>
                       ))}
                     </optgroup>
@@ -923,7 +924,7 @@ export default function Forms({
         >
           <div className="form-body">
             <div className="context-line">
-              <span>{c.version}</span>
+              <span>{displayMeasureVersion(c.version)}</span>
               <Badge>
                 {c.link === "Expired" ? "Previous link expired" : c.response}
               </Badge>
@@ -1169,7 +1170,7 @@ export default function Forms({
               <select name="consentId" defaultValue={sendableConsents[0]?.id}>
                 {sendableConsents.map((item) => (
                   <option key={item.id} value={item.id}>
-                    {item.title} · {item.version}
+                    {item.title} · {displayMeasureVersion(item.version)}
                   </option>
                 ))}
               </select>
@@ -1198,7 +1199,7 @@ export default function Forms({
     return (
       <Modal
         title={request.title}
-        subtitle={`${request.status} · ${request.version}`}
+        subtitle={`${request.status} · ${displayMeasureVersion(request.version)}`}
         onClose={onClose}
       >
         <div className="form-body">

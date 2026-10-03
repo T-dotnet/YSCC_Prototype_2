@@ -1,6 +1,6 @@
 import { ArrowRight, FileCheck2, RotateCcw } from 'lucide-react';
 import { useStore } from '../store';
-import { UI_COLOR_SETUPS, uiColorSetup } from '../uiColorSetups';
+import { DEFAULT_UI_COLOR_SETUP, VISIBLE_UI_COLOR_SETUPS, uiColorSetup } from '../uiColorSetups';
 import { ActionGroup, Panel, Button, RadioInput } from './UI';
 
 export default function AppearanceSampleSettings({navigate,openModal}) {
@@ -12,7 +12,7 @@ export default function AppearanceSampleSettings({navigate,openModal}) {
         <p className="appearance-intro">Choose a UI color setup. Your choice applies immediately and is saved in this browser.</p>
         <fieldset className="appearance-options">
           <legend className="sr-only">UI color setup</legend>
-          {UI_COLOR_SETUPS.map((setup) => (
+          {VISIBLE_UI_COLOR_SETUPS.map((setup) => (
             <label className="appearance-option" key={setup.id}>
               <span className="appearance-option-heading">
                 <RadioInput
@@ -22,7 +22,9 @@ export default function AppearanceSampleSettings({navigate,openModal}) {
                   onChange={() => commit({ type: "SET_UI_COLOR_SETUP", setup: setup.id })}
                 />
                 <strong>{setup.name}</strong>
-                {selectedUiSetup === setup.id && <small>Selected</small>}
+                {selectedUiSetup === setup.id
+                  ? <small>{setup.id === DEFAULT_UI_COLOR_SETUP ? 'Selected · default' : 'Selected'}</small>
+                  : setup.id === DEFAULT_UI_COLOR_SETUP && <small>Default</small>}
               </span>
               <span className="appearance-option-swatches" aria-hidden="true">
                 {setup.swatches.map((token) => (

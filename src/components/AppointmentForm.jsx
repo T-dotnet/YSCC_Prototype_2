@@ -1,3 +1,4 @@
+import { displayMeasureVersion } from '../terminology.js';
 import { LABELS } from "../terminology.js";
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Search } from "lucide-react";
@@ -267,7 +268,7 @@ export default function AppointmentForm({
                   <p>Selected measures will be created and linked when you save this contact.</p>
                   {visibleInstruments.map((instrument) => (
                     <Checkbox className="appointment-assessment-option" key={instrument.version}
-                      label={<><strong>{instrument.name}</strong><small>{instrument.version}</small></>}
+                      label={<><strong>{instrument.name}</strong><small>{displayMeasureVersion(instrument.version)}</small></>}
                       checked={newAssessmentVersions.includes(instrument.version)} disabled={!canCreateAssessment}
                       onChange={(event) => setNewAssessmentVersions((current) => event.target.checked
                           ? [...current, instrument.version]

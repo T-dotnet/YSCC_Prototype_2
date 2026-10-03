@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from "react";
 import useQueueView from "../useQueueView";
-import { Plus, ChevronRight, CircleAlert, CheckCircle2 } from "lucide-react";
+import { Plus, Upload, ChevronRight, CircleAlert, CheckCircle2 } from "lucide-react";
 import { useStore } from "../store";
 import { assessmentSchedulingEnabled, assessmentBundleGroupingEnabled } from "../assessmentFeatures";
 import { mvpAssessmentMode } from "../mvpAssessmentPathway";
@@ -155,8 +155,10 @@ export default function People({ navigate, openModal }) {
         </Button>
         <Button
           variant="secondary"
+          className="people-import-button"
           onClick={() => openModal({ type: "import-people" })}
         >
+          <Upload size={18} aria-hidden="true" />
           Import
         </Button>
       </PageHeading>

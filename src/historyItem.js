@@ -4,7 +4,7 @@ import { assessmentsForContact, contactsForAssessment } from "./assessmentContac
 import { assessmentScoreLabel, linkedAssessmentScore } from "./assessmentGroups.js";
 import { careEventDetails, careEventType } from "./careEvents.js";
 import { clinicalRecordDetails, clinicalRecordType } from "./clinicalRecords.js";
-import { responseDate } from "./progress.js";
+import { responseDate } from "./responseDate.js";
 
 const CARE_LEVEL_ACTIONS = ["SET_INITIAL_CARE_LEVEL", "CHANGE_CARE_LEVEL", "END_CARE_EPISODE_FOR_LEVEL_CHANGE"];
 

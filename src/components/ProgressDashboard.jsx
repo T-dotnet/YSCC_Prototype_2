@@ -1,3 +1,4 @@
+import { displayMeasureVersion } from '../terminology.js';
 import {
   CalendarDays,
   ChartNoAxesCombined,
@@ -108,7 +109,7 @@ export default function ProgressDashboard({
                 <option key={option.version} value={option.version}>
                   {option.name === option.version
                     ? option.name
-                    : `${option.name} · ${option.version}`}
+                    : `${option.name} · ${displayMeasureVersion(option.version)}`}
                 </option>
               ))}
             </Select>
@@ -198,7 +199,7 @@ export default function ProgressDashboard({
               <section className="questionnaire-dashboard-group" key={group.id}>
                 <header className="questionnaire-series-header">
                   <div>
-                    <h4>{group.version || group.instrumentName}</h4>
+                    <h4>{displayMeasureVersion(group.version) || group.instrumentName}</h4>
                     <p>
                       {group.respondent} · {formatDate(firstDate)} to{" "}
                       {formatDate(lastDate)}

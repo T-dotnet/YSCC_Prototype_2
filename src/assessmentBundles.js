@@ -3,7 +3,7 @@ import { INSTRUMENTS } from './instruments.js';
 import { PROGRAM_STREAMS, CARE_LEVELS, carePeriodAt } from './carePeriods.js';
 import { CARE_EVENT_TYPES, SYSTEM_EVENT_TYPES, REPORT_EVENT_TYPES } from './careEvents.js';
 import { assessmentSmsEnabled } from './assessmentFeatures.js';
-import { responseDate } from './progress.js';
+import { responseDate } from './responseDate.js';
 import { measureStatusSources, specificMeasureError } from './measureTriggers.js';
 import { profileValueMatches, profileValueTriggerError } from './profileValueTriggers.js';
 import { validMeasureStatusChange } from './measureStatusChange.js';
@@ -227,7 +227,9 @@ export function reconcileAssessmentBundles(state, today) {
   const automatic = !!state.settings?.automaticAssessmentDueDates;
   const mvp = state.settings?.advancedAssessmentOptions === false;
   if (!automatic && !mvp) return state;
-  const bundles = (state.settings.assessmentScheduleRules || []).map(asBundle)
+  // Single-measure legacy rules are reconciled by assessmentSchedules.js.
+  const bundles = (state.settings.assessmentScheduleRules || [])
+    .filter(rule => Array.isArray(rule.assessments)).map(asBundle)
     .filter(b => b.assessments && b.enabled && (automatic || b.createdInMvp) && !bundleError(b));
   if (!bundles.length) return state;
   let changed = false;

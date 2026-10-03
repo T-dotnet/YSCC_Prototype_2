@@ -33,6 +33,11 @@ export const Administration = {
     await userEvent.click(checkbox);
     await expect(checkbox).not.toBeChecked();
     await userEvent.click(canvas.getByRole('button',{name:'Remove WHO-5 Well-Being Index'}));
+    await expect(canvas.getByRole('heading',{name:'Remove WHO-5 Well-Being Index?'})).toBeVisible();
+    await userEvent.click(within(canvas.getByRole('dialog',{name:'Remove WHO-5 Well-Being Index?'})).getByRole('button',{name:'Cancel'}));
+    await expect(canvas.getByRole('button',{name:'Remove WHO-5 Well-Being Index'})).toBeVisible();
+    await userEvent.click(canvas.getByRole('button',{name:'Remove WHO-5 Well-Being Index'}));
+    await userEvent.click(canvas.getByRole('button',{name:'Remove measure'}));
     await expect(canvas.getByRole('status')).toHaveTextContent('Assessment removed.');
   },
 };

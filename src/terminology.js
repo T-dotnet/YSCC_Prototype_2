@@ -148,6 +148,12 @@ export function displayTerminology(value) {
   return value;
 }
 
+export function displayMeasureVersion(value) {
+  return typeof value === 'string'
+    ? value.replace(/^EP Batch 2 · /, 'EP Assessment · ').replace(/^EP Batch 3 · /, 'EP 90-day review · ')
+    : value;
+}
+
 // Normalize only display labels. Historical audit records and stored keys stay intact.
 export function terminologyLabel(label, concept) {
   const term = TERMINOLOGY[concept];

@@ -1,3 +1,4 @@
+import { displayMeasureVersion } from '../terminology.js';
 import { episodeWithVisibleContacts } from "../assessmentFeatures.js";
 import { PLANNED_COLLECTION_METHOD_LABEL } from "../terminology.js";
 import {
@@ -120,7 +121,7 @@ export default function CollectionDetails({
             <dl className="metadata">
               <div>
                 <dt>Measure</dt>
-                <dd>{c.version}</dd>
+                <dd>{displayMeasureVersion(c.version)}</dd>
               </div>
               {c.bundleId && <>
                 <div><dt>Collection Occasion</dt><dd>{c.bundleName}</dd></div>

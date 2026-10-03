@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { ChevronRight, Plus } from "lucide-react";
+import { expect, userEvent, within } from "storybook/test";
+import { ChevronRight, Plus, Upload } from "lucide-react";
 import AssessmentCollectionCard from "../components/AssessmentCollectionCard";
+import DiscardChanges from "../components/DiscardChanges";
 import ListFilterBar from "../components/ListFilterBar";
 import StandardTable from "../components/StandardTable";
 import { QueueCell, QueueRow } from "../components/QueueRow";
@@ -53,7 +55,7 @@ export const PageHeadingAndPanel = {
     return <div className="ds-story">
       <PageHeading title="People" subtitle="See who needs attention and where they are in their care." meta={`Today · ${formatDate(TODAY)} · Fictional sample data`}>
         <Button variant="primary"><Plus size={18} aria-hidden="true" /> New person</Button>
-        <Button variant="secondary">Import</Button>
+        <Button variant="secondary" className="people-import-button"><Upload size={18} aria-hidden="true" /> Import</Button>
       </PageHeading>
       <Panel className="people-panel queue-list-panel" title="People at Northside Centre" action={<span className="muted">{visible.length} people</span>}>
         <ListFilterBar
@@ -149,6 +151,32 @@ export const DialogAndForm = {
         )}
       </div>
     );
+  },
+};
+
+export const DiscardConfirmation = {
+  parameters: { docs: { description: { story: "The production unsaved-changes prompt uses the shared primary button and modal footer. Keep editing receives focus when the prompt opens." } } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const keep = canvas.getByRole("button", { name: "Keep editing" });
+    await expect(keep).toHaveFocus();
+    await userEvent.click(keep);
+    await expect(canvas.getByRole("status")).toHaveTextContent("Editing continues");
+    await userEvent.click(canvas.getByRole("button", { name: "Edit record" }));
+    await userEvent.click(canvas.getByRole("button", { name: "Discard changes" }));
+    await expect(canvas.getByRole("status")).toHaveTextContent("Changes discarded");
+    await userEvent.click(canvas.getByRole("button", { name: "Edit record" }));
+    await expect(canvas.getByRole("button", { name: "Keep editing" })).toHaveFocus();
+  },
+  render: () => {
+    const [open, setOpen] = useState(true);
+    const [decision, setDecision] = useState("");
+    return <div className="ds-story ds-stack">
+      <Button type="button" onClick={() => { setDecision(""); setOpen(true); }}>Edit record</Button>
+      {open && <DiscardChanges onKeepEditing={() => { setOpen(false); setDecision("Editing continues"); }}
+        onDiscard={() => { setOpen(false); setDecision("Changes discarded"); }} />}
+      <p role="status">{decision}</p>
+    </div>;
   },
 };
 

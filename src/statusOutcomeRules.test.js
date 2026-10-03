@@ -1,8 +1,32 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createDefaultWorkspace, reducer } from './model.js';
+import { createDefaultWorkspace, reducer, TODAY } from './model.js';
 import { ASSESSMENT_OUTCOME_OPTIONS, visibleAssessmentOutcomeOptions } from './assessmentOutcome.js';
-import { completedStatusTransitions } from './measureStatusChange.js';
+import { availableStatusTransitionForGroup, completedStatusTransitions, statusChangeGroupForRecord } from './measureStatusChange.js';
+
+test('a Client profile outcome can be recorded before its measures are complete', () => {
+  const original = createDefaultWorkspace();
+  const created = reducer(original, { type: 'ADD_PERSON', name: 'Fictional Early Outcome',
+    dob: '', owner: 'Jess Taylor', nextAction: 'Complete Client profile',
+    reviewDate: TODAY, requestId: 'early-outcome-profile', mvpProfile: true,
+    programStream: 'Psychosis' });
+  const person = created.people.find(item => item.registrationRequestId === 'early-outcome-profile');
+  const episode = person.episodes[0];
+  const records = episode.collections.filter(record => record.clientProfileMeasure);
+  assert.ok(records.length > 0);
+  assert.equal(completedStatusTransitions(episode, created.settings).some(item =>
+    item.from === 'Profiling' && item.to === 'Assessment'), false);
+  const transition = availableStatusTransitionForGroup(episode,
+    statusChangeGroupForRecord(episode, records[0].id), created.settings);
+  assert.equal(transition.from, 'Profiling');
+  assert.equal(transition.to, 'Assessment');
+  const recorded = reducer(created, { type: 'RECORD_STATUS_TRANSITION_OUTCOME',
+    personId: person.id, episodeId: episode.id, recordId: transition.recordId,
+    from: transition.from, to: transition.to, outcome: ASSESSMENT_OUTCOME_OPTIONS[0] });
+  const updated = recorded.people.find(item => item.id === person.id).episodes[0];
+  assert.equal(updated.statusOutcomes[0].value, ASSESSMENT_OUTCOME_OPTIONS[0]);
+  assert.equal(updated.collections.filter(record => record.response === 'Submitted').length, 0);
+});
 import { sharedStatusOutcomeOptions, statusOutcomeRuleFor, statusOutcomeRules } from './statusOutcomeRules.js';
 
 test('Profiling to Assessment defaults on with every outcome shown', () => {

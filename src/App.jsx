@@ -1,24 +1,27 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { CheckCircle2, X } from "lucide-react";
 import { useStore } from "./store";
 import Shell from "./components/Shell";
-import Forms from "./components/Forms";
-import Worklist from "./features/Worklist";
-import People from "./features/People";
-import Person from "./features/Person";
-import SampleClientPreview from "./features/SampleClientPreview";
-import AssessmentReviewRecord from "./features/AssessmentReviewRecord";
-import { Quality, Administration, Help } from "./features/Operations";
-import AssessmentFeatures from "./features/AssessmentFeatures";
-import GeneralReport from "./features/GeneralReport";
-import GlobalChangeLog from "./features/GlobalChangeLog";
-import Questionnaire from "./features/Questionnaire";
-import BundleQuestionnaire from "./components/BundleQuestionnaire";
-import ConsentRequest from "./features/ConsentRequest";
 import { getQualityIssues } from "./dataQuality";
 import { TODAY } from "./model";
 import { Empty, Button } from "./components/UI";
+const Forms = lazy(() => import("./components/Forms"));
+const Worklist = lazy(() => import("./features/Worklist"));
+const People = lazy(() => import("./features/People"));
+const Person = lazy(() => import("./features/Person"));
+const SampleClientPreview = lazy(() => import("./features/SampleClientPreview"));
+const AssessmentReviewRecord = lazy(() => import("./features/AssessmentReviewRecord"));
+const Quality = lazy(() => import("./features/Operations").then(module => ({ default: module.Quality })));
+const Administration = lazy(() => import("./features/Operations").then(module => ({ default: module.Administration })));
+const Help = lazy(() => import("./features/Operations").then(module => ({ default: module.Help })));
+const AssessmentFeatures = lazy(() => import("./features/AssessmentFeatures"));
+const GeneralReport = lazy(() => import("./features/GeneralReport"));
+const GlobalChangeLog = lazy(() => import("./features/GlobalChangeLog"));
+const Questionnaire = lazy(() => import("./features/Questionnaire"));
+const BundleQuestionnaire = lazy(() => import("./components/BundleQuestionnaire"));
+const ConsentRequest = lazy(() => import("./features/ConsentRequest"));
+const routeFallback = <div className="boot" role="status">Opening view…</div>;
 export default function App() {
   const path = usePathname(),
     router = useRouter(),
@@ -84,32 +87,36 @@ export default function App() {
   } : null;
   if (path === "/consent")
     return (
-      <ConsentRequest
-        session={session?.kind === "consent" ? session : null}
-        navigate={navigate}
-        onEnd={finishSession}
-      />
+      <Suspense fallback={routeFallback}>
+        <ConsentRequest
+          session={session?.kind === "consent" ? session : null}
+          navigate={navigate}
+          onEnd={finishSession}
+        />
+      </Suspense>
     );
   const activeQuestionnaireSession = linkedCollectionId ? linkedQuestionnaireSession : session;
   const bundlePerson = state.people.find(person => person.id === activeQuestionnaireSession?.personId);
   const bundleEpisode = bundlePerson?.episodes.find(episode => episode.id === activeQuestionnaireSession?.episodeId);
   const bundleCollection = bundleEpisode?.collections.find(collection => collection.id === activeQuestionnaireSession?.collectionId);
   if (path === "/questionnaire" && (bundleCollection?.bundleId || bundleCollection?.scheduleRuleId || (bundleCollection && new URLSearchParams(window.location.search).get("overview") === "1")))
-    return <BundleQuestionnaire key={bundleCollection.id} person={bundlePerson} episode={bundleEpisode}
+    return <Suspense fallback={routeFallback}><BundleQuestionnaire key={bundleCollection.id} person={bundlePerson} episode={bundleEpisode}
       collection={bundleCollection} participant initialAttemptId={activeQuestionnaireSession?.attemptId} onClose={() => {
         finishSession();
         navigate(`/people/${encodeURIComponent(bundlePerson.id)}?${new URLSearchParams({tab:'assessment',episode:bundleEpisode.id})}`);
-      }} />;
+      }} /></Suspense>;
   if (path === "/preview" || path === "/questionnaire")
     return (
-      <Questionnaire
-        key={path}
-        session={path === "/preview" ? null : linkedCollectionId
-          ? linkedQuestionnaireSession || { unavailable: true }
-          : session || { unavailable: true }}
-        navigate={navigate}
-        onEnd={finishSession}
-      />
+      <Suspense fallback={routeFallback}>
+        <Questionnaire
+          key={path}
+          session={path === "/preview" ? null : linkedCollectionId
+            ? linkedQuestionnaireSession || { unavailable: true }
+            : session || { unavailable: true }}
+          navigate={navigate}
+          onEnd={finishSession}
+        />
+      </Suspense>
     );
   const shared = { navigate, openModal: setModal };
   const qualityCount = getQualityIssues(state, TODAY).filter(
@@ -160,9 +167,9 @@ export default function App() {
         qualityCount={qualityCount}
         storageError={storageError}
       >
-        {page}
+        <Suspense fallback={routeFallback}>{page}</Suspense>
       </Shell>
-      {modal && (
+      {modal && <Suspense fallback={routeFallback}>
         <Forms
           key={JSON.stringify(modal)}
           modal={modal}
@@ -193,7 +200,7 @@ export default function App() {
           startConsentRequest={startConsentRequest}
           notify={setToast}
         />
-      )}
+      </Suspense>}
       <div className="toast-region" role="status" aria-live="polite">
         {toast && (
           <div className="toast">

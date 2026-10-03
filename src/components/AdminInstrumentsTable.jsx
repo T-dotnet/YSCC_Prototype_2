@@ -1,3 +1,4 @@
+import { displayMeasureVersion } from '../terminology.js';
 import { useState } from "react";
 import { Eye } from "lucide-react";
 import StandardTable from "./StandardTable";
@@ -54,7 +55,7 @@ export default function AdminInstrumentsTable({ settings }) {
               <QueueRow key={instrument.version}>
                 <QueueCell label="Measure" slot="subject">
                   <strong>{instrument.name}</strong>
-                  <small>ID: {instrument.version}</small>
+                  <small>ID: {displayMeasureVersion(instrument.version)}</small>
                 </QueueCell>
                 <QueueCell label="No. of questions" slot="metric">{instrument.questions.length}</QueueCell>
                 <QueueCell label="Create date" slot="owner">{recordedDate(instrument.createdAt)}</QueueCell>
@@ -85,7 +86,7 @@ export default function AdminInstrumentsTable({ settings }) {
       </StandardTable>
     </Panel>
     </div>
-    {preview && <Modal title="Measure preview" subtitle={preview.version} className="questionnaire-preview-modal" closeLabel="Close preview" onClose={() => setPreview(null)}>
+    {preview && <Modal title="Measure preview" subtitle={displayMeasureVersion(preview.version)} className="questionnaire-preview-modal" closeLabel="Close preview" onClose={() => setPreview(null)}>
       <InstrumentPreview key={preview.version} instrument={preview} respondent={preview.respondents[0]} onBack={() => setPreview(null)} />
     </Modal>}
     </>

@@ -256,10 +256,19 @@ test("submitting all Client profile headings updates the profile and prepares th
   let state = reducer(createDefaultWorkspace(), {
     type: "ADD_PERSON", mvpProfile: true, requestId: "profile-submission",
     name: "Profile Submission Example", dob: "2008-04-12", owner: "Jess Taylor",
-    nextAction: "Complete Client profile", reviewDate: TODAY,
+    nextAction: "Complete Client profile", reviewDate: TODAY, programStream: "Psychosis",
   });
   const personId = state.people.find(item => item.registrationRequestId === "profile-submission").id;
   const episodeId = state.people.find(item => item.id === personId).episodes[0].id;
+  const profileAnswers = {
+    clientPostcode: "3000", clientGender: "Non-binary",
+    clientAtsiStatus: "Aboriginal", clientLanguageHome: "English",
+    clientSexuality: "Bisexual", clientCountryOfBirth: "Australia",
+    clientEthnicity: "Italian", clientEducationLevel: "Year 12",
+    referralDate: TODAY, source: "Self-referred", commencementDate: TODAY,
+    commencementDateUhr: TODAY, registeredCentreName: "Northside Centre",
+    registeredCentreState: "Victoria", registeredCentrePostcode: "3000",
+  };
   for (const instrument of CLIENT_PROFILE_INSTRUMENTS) {
     const record = state.people.find(item => item.id === personId).episodes[0].collections
       .find(item => item.version === instrument.version);
@@ -272,9 +281,7 @@ test("submitting all Client profile headings updates the profile and prepares th
     const answers = instrument.questions.map(question =>
       question.id === "name" ? "Profile Submission Example" :
         question.id === "dob" ? "2008-04-12" :
-          question.id === "clientPostcode" ? "3000" :
-            question.id === "clientGender" ? "Non-binary" :
-              question.id === "reviewed" ? "Reviewed" : "Not recorded");
+          profileAnswers[question.id] || "Not recorded");
     state = reducer(state, { ...context, type: "SUBMIT", answers,
       channel: delivered.channel, attemptId: delivered.attempts.at(-1).id });
     assert.equal(state.people.find(item => item.id === personId).episodes[0].collections
@@ -283,6 +290,12 @@ test("submitting all Client profile headings updates the profile and prepares th
   const person = state.people.find(item => item.id === personId);
   assert.equal(person.clientPostcode, "3000");
   assert.equal(person.clientGender, "Non-binary");
+  for (const key of ["clientAtsiStatus", "clientLanguageHome", "clientSexuality",
+    "clientCountryOfBirth", "clientEthnicity", "clientEducationLevel"])
+    assert.equal(person[key], profileAnswers[key], key);
+  for (const key of ["referralDate", "source", "commencementDate", "commencementDateUhr",
+    "registeredCentreName", "registeredCentreState", "registeredCentrePostcode"])
+    assert.equal(person.episodes[0].profileDetails[key], profileAnswers[key], key);
   assert.ok(person.episodes[0].collections.some(item => item.mvpInitialAssessment));
 });
 

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PROGRAM_STREAMS } from './carePeriods.js';
+import { PROGRAM_STREAMS, UNIDENTIFIED_EPISODE_STREAM } from './carePeriods.js';
 import { createDefaultWorkspace, reducer, TODAY } from './model.js';
 import { mvpInitialBundles, mvpInitialBundleError, mvpReviewBundles,
   mvpReviewBundleError, reconcileMvpAssessmentPathway } from './mvpAssessmentPathway.js';
@@ -43,12 +43,27 @@ test('a new profile stores the selected episode stream', () => {
   }
 });
 
-test('a new profile can leave birth date and episode stream unassigned', () => {
+test('a new profile requires an episode stream but can leave birth date unassigned', () => {
   const workspace = createDefaultWorkspace();
-  const result = reducer(workspace, { type: 'ADD_PERSON', name: 'Fictional Unassigned',
+  const action = { type: 'ADD_PERSON', name: 'Fictional Unassigned',
     dob: '', owner: 'Jess Taylor', nextAction: 'Complete Client profile',
-    reviewDate: TODAY, requestId: 'unassigned-profile', mvpProfile: true, programStream: '' });
+    reviewDate: TODAY, requestId: 'unassigned-profile', mvpProfile: true, programStream: '' };
+  assert.equal(reducer(workspace, action), workspace);
+  const result = reducer(workspace, { ...action, programStream: 'Mood' });
   const person = result.people.find(item => item.registrationRequestId === 'unassigned-profile');
   assert.equal(person?.dob, null);
-  assert.equal(person?.episodes[0]?.programStream, '');
+  assert.equal(person?.episodes[0]?.programStream, 'Mood');
+});
+
+test('a new profile can defer identifying its episode stream', () => {
+  const workspace = createDefaultWorkspace();
+  const result = reducer(workspace, { type: 'ADD_PERSON', name: 'Fictional Pending Stream',
+    dob: '', owner: 'Jess Taylor', nextAction: 'Complete Client profile',
+    reviewDate: TODAY, requestId: 'pending-stream-profile', mvpProfile: true,
+    programStream: UNIDENTIFIED_EPISODE_STREAM });
+  const person = result.people.find(item => item.registrationRequestId === 'pending-stream-profile');
+  assert.equal(person?.episodes[0]?.programStream, UNIDENTIFIED_EPISODE_STREAM);
+  const prepared = reconcileMvpAssessmentPathway(result, TODAY).people
+    .find(item => item.registrationRequestId === 'pending-stream-profile');
+  assert.equal(prepared.episodes[0].collections.some(record => record.mvpInitialAssessment), false);
 });

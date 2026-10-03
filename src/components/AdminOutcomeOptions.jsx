@@ -96,7 +96,7 @@ export default function AdminOutcomeOptions() {
       <form onSubmit={save}>
         <div className="form-body administration-outcome-editor">
           <p className="muted">{editing.builtIn
-            ? 'Batch 2 assessment outcomes are coded values. Recording one determines whether the episode proceeds to Ongoing review.'
+            ? 'Assessment outcomes are coded values. Recording one determines whether the episode proceeds to Ongoing review.'
             : 'Record an outcome on the completed measure that changes this status.'}</p>
           <div className="administration-outcome-editor-enabled">
             <div><strong>Record outcome</strong><p className="muted">Show the Record outcome action for this status change.</p></div>
@@ -107,7 +107,7 @@ export default function AdminOutcomeOptions() {
           </div>
           <fieldset className="administration-outcome-fieldset">
             <legend>Show in the Record outcome dropdown</legend>
-            <p className="muted">The same Batch 2 coded options are available for every status change. Tick the ones to show here. Previously recorded outcomes remain on existing records.</p>
+            <p className="muted">The same coded options are available for every status change. Tick the ones to show here. Previously recorded outcomes remain on existing records.</p>
             <div className="administration-outcome-option-list">
               {editing.options.map(option => <div className="administration-outcome-option" key={option.value}>
                 <Checkbox label={option.value} verbatim checked={option.visible}

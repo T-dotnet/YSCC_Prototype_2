@@ -85,8 +85,8 @@ export const AssessmentBundles = {
     const nameButton=canvas.getByRole("button",{name:"View details for General care review"});
     await userEvent.click(nameButton.closest('tr').querySelector('[data-slot="summary"]'));
     let dialog=within(canvas.getByRole("dialog"));
-    await expect(dialog.getByText("7 / 13 assessments completed")).toBeVisible();
-    await expect(dialog.getByRole('tab',{name:'Assessments',exact:true})).toHaveAttribute('aria-selected','true');
+    await expect(dialog.getByRole('table',{name:'Measures in General care review'})).toBeVisible();
+    await expect(dialog.getByRole('tab',{name:'Measures',exact:true})).toHaveAttribute('aria-selected','true');
     await userEvent.click(dialog.getByRole('tab',{name:'Contacts',exact:true}));
     const contacts=within(dialog.getByRole('table',{name:'Contacts associated with General care review'}));
     await expect(contacts.getByText('Care review',{exact:true})).toBeInTheDocument();
@@ -97,7 +97,7 @@ export const AssessmentBundles = {
     nameButton.focus();
     await userEvent.keyboard('{Enter}');
     dialog=within(canvas.getByRole("dialog"));
-    await expect(dialog.getByText("7 / 13 assessments completed")).toBeVisible();
+    await expect(dialog.getByRole('table',{name:'Measures in General care review'})).toBeVisible();
     await userEvent.click(dialog.getByRole("button",{name:"Close",exact:true}));
     await userEvent.click(canvas.getByRole("button",{name:"Collect response for General care review"}));
     await expect(canvas.getByRole("status")).toHaveTextContent("Collect response selected for General care review.");
@@ -116,7 +116,7 @@ export const WithoutAssociatedContacts = {
     await userEvent.click(canvas.getByRole('button',{name:'View details for Getting started with care'}));
     const dialog=within(canvas.getByRole('dialog'));
     await userEvent.click(dialog.getByRole('tab',{name:'Contacts',exact:true}));
-    await expect(dialog.getByText('No contacts associated with these assessments.')).toBeInTheDocument();
+    await expect(dialog.getByText('No contacts associated with these measures.')).toBeInTheDocument();
     await userEvent.click(dialog.getByRole('button',{name:'Close',exact:true}));
   },
 };

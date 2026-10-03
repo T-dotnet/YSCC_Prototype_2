@@ -3,6 +3,20 @@ import { playwright } from "@vitest/browser-playwright";
 import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import { fileURLToPath } from "node:url";
 
+// Storybook's generated browser guard leaves the curly apostrophe in this
+// checkout path URL-encoded. Decode its URL path before matching the test file.
+const decodeStorybookTestPath = {
+  name: "decode-storybook-test-path",
+  enforce: "post",
+  transform(code, id) {
+    if (!id.includes(".stories.")) return;
+    const guard = "convertToFilePath(import.meta.url).includes(";
+    if (code.includes(guard)) {
+      return code.replace(guard, "decodeURI(convertToFilePath(import.meta.url)).includes(");
+    }
+  },
+};
+
 export default defineConfig({
   resolve: {
     alias: {
@@ -24,7 +38,7 @@ export default defineConfig({
         configDir: fileURLToPath(new URL("./.storybook", import.meta.url)),
         storybookScript: "npm run storybook -- --no-open",
         tags: { include: ["autodocs"] },
-      })],
+      }), decodeStorybookTestPath],
       test: {
         name: "storybook",
         browser: {
@@ -33,7 +47,6 @@ export default defineConfig({
           provider: playwright({ launchOptions: { channel: "chromium" } }),
           instances: [{ browser: "chromium" }],
         },
-        setupFiles: ["./.storybook/vitest.setup.js"],
         testTimeout: 20000,
       },
     }],

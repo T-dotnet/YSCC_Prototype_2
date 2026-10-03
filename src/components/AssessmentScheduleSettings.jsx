@@ -1,15 +1,16 @@
 import StandardTable from "./StandardTable";
 import { COLLECTION_METHOD_OPTIONS, LABELS, displayTerminology } from "../terminology.js";
 import { Fragment, useRef, useState } from 'react';
-import { ChevronDown, Trash2 } from 'lucide-react';
+import { ChevronDown, LockKeyhole, Trash2 } from 'lucide-react';
 import { useStore } from '../store';
 import { INSTRUMENTS, STANDARD_INSTRUMENTS } from '../instruments';
 import { PROGRAM_STREAMS, CARE_LEVELS } from '../carePeriods';
 import { bundleError, asBundle, bundleName, BUNDLE_EVENT_TYPES, bundleAgeLabel, bundleTiming, instrumentSupportsRespondent } from '../assessmentBundles';
 import { assessmentSmsEnabled } from '../assessmentFeatures';
-import { ActionGroup, EditAction, DeleteAction, Panel, Button, Badge, Modal, Field, FieldInput, FieldSelect, Select, Checkbox, Switch, IconButton } from './UI';
+import { ActionGroup, EditAction, DeleteAction, Panel, Button, Badge, Modal, ModalFooter, Field, FieldInput, FieldSelect, Select, Checkbox, Switch, IconButton } from './UI';
 import { QueueRow, QueueCell } from './QueueRow';
 import BundleAssessmentRow from './BundleAssessmentRow';
+import ConfirmRemoval from './ConfirmRemoval';
 import { mvpAssessmentMode, mvpReviewBundles, mvpReviewItems, MVP_REVIEW_BUNDLES, mvpInitialBundles, mvpInitialVersions, MVP_INITIAL_BUNDLES } from '../mvpAssessmentPathway';
 import { administrationMeasureBundles, instrumentVersionsForAdministrationMeasure, mvpDisplayBattery, mvpDisplayBundles } from '../administrationMeasures';
 import MvpReviewBundleEditor from './MvpReviewBundleEditor';
@@ -71,7 +72,9 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
   const [mvpDraft, setMvpDraft] = useState(null);
   const [initialDraft, setInitialDraft] = useState(null);
   const [profileDraft, setProfileDraft] = useState(null);
+  const [profileInfoOpen, setProfileInfoOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState(null);
+  const [pendingParameterRemoval, setPendingParameterRemoval] = useState(null);
   const [listStatus, setListStatus] = useState('All');
   const [listQuery, setListQuery] = useState('');
   const [listRespondent, setListRespondent] = useState('All');
@@ -178,14 +181,15 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
         {visibleBundles.filter(bundle => systemBundles.some(item => item.id === bundle.id)).map(bundle => {
           return <Fragment key={bundle.id}>
           <Panel className="assessment-bundle-summary"
-          title={<span className="bundle-summary-heading"><span className="bundle-summary-title">{bundle.name}</span><small className="bundle-summary-id">ID: {bundle.id}</small></span>}
-          action={bundle.profileMeasure ? <ActionGroup className="button-row bundle-summary-actions">
+          title={<span className="bundle-summary-heading"><span className="bundle-summary-title"><span>{bundle.name}</span>{bundle.profileMeasure &&
+            <IconButton icon={LockKeyhole} label="Why Client profile is required" className="bundle-summary-lock"
+              aria-haspopup="dialog" onClick={()=>setProfileInfoOpen(true)} />}</span><small className="bundle-summary-id">ID: {bundle.id}</small></span>}
+          action={bundle.profileMeasure ? <ActionGroup className="button-row bundle-summary-actions bundle-summary-profile-actions">
             <Switch label={`Enable ${bundle.name}`} checked={bundle.enabled} onChange={event => {
               const result = commit({type:'SAVE_CLIENT_PROFILE_BUNDLE', bundle:profileConfig({...bundle, enabled:event.target.checked})});
               setMessage(result.error || `${bundle.name} ${event.target.checked ? 'enabled' : 'disabled'}.`);
             }}/>
             <EditAction onClick={()=>setProfileDraft({...bundle})} aria-label={`Edit ${bundle.name}`}>Edit</EditAction>
-            <DeleteAction onClick={()=>setPendingDelete({id:bundle.id,name:bundle.name,type:'DELETE_CLIENT_PROFILE_BUNDLE'})} aria-label={`Delete ${bundle.name}`}>Delete</DeleteAction>
           </ActionGroup> : (!bundle.coreVersion || MVP_INITIAL_BUNDLES.some(item => item.id === bundle.id)) && <ActionGroup className="button-row bundle-summary-actions">
             <Switch label={`Enable ${bundle.name}`} checked={bundle.enabled} onChange={event => {
               const result = commit({type:bundle.coreVersion ? 'SAVE_MVP_INITIAL_BUNDLE' : 'SAVE_MVP_REVIEW_BUNDLE',bundle:{...bundle,enabled:event.target.checked}});
@@ -275,6 +279,13 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
         </Panel>;
       })}</div> : !mvp && <p className="muted">No Assessment Packs yet. Add a Pack to group measures for a care condition or event.</p>}
       </>}
+      {profileInfoOpen && <Modal title="About Client profile" subtitle="Required for new profiles" onClose={()=>setProfileInfoOpen(false)}>
+        <div className="form-body stack">
+          <p>Client profile is the mandatory first Assessment Pack for new people while it is enabled. Its included measures must be completed as part of the new-profile workflow.</p>
+          <p>Submitted Client profile answers update the same person and care episode details shown in Profile information. The initial assessment follows Client profile completion according to its configured schedule.</p>
+        </div>
+        <ModalFooter><Button type="button" onClick={()=>setProfileInfoOpen(false)}>Close</Button></ModalFooter>
+      </Modal>}
       {initialDraft && <MvpInitialBundleEditor key={initialDraft.id} bundle={initialDraft} settings={state.settings}
         onClose={()=>setInitialDraft(null)} onSave={bundle=>{
           const result=commit({type:'SAVE_MVP_INITIAL_BUNDLE',bundle});
@@ -369,7 +380,7 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
                   : key === 'programStream' ? <FieldSelect label="Program stream" required value={draft.programStream === 'All' ? '' : draft.programStream} onChange={e=>change(key,e.target.value)}><option value="" disabled>Choose a program stream</option>{PROGRAM_STREAMS.map(value=><option key={value} value={value}>{value}</option>)}</FieldSelect>
                   : key === 'careLevel' ? <FieldSelect label="Care level" required value={draft.careLevel === 'All' ? '' : draft.careLevel} onChange={e=>change(key,e.target.value)}><option value="" disabled>Choose a care level</option>{CARE_LEVELS.map(value=><option key={value} value={value}>{value}</option>)}</FieldSelect>
                     : <FieldInput label={key === 'minAge' ? 'Minimum age (years)' : 'Maximum age (years)'} required type="number" min="0" max="120" step="1" placeholder="Enter age" value={draft[key] ?? ''} onChange={e=>change(key,e.target.value==='' ? null:Number(e.target.value))}/>}
-                <IconButton icon={Trash2} label={`Remove ${parameterOptions.find(([value])=>value===key)?.[1]} parameter`} className="bundle-editor-delete" onClick={()=>removeParameter(key)} />
+                <IconButton icon={Trash2} label={`Remove ${parameterOptions.find(([value])=>value===key)?.[1]} parameter`} className="bundle-editor-delete" onClick={()=>setPendingParameterRemoval(key)} />
               </div>)}
             </div>}
             {availableParameterOptions.some(([key]) => !parameters.includes(key)) && <div className="bundle-name-field new-bundle-extra-picker">
@@ -438,6 +449,11 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
           }}>Delete measure</Button>
         </ActionGroup>
       </Modal>}
+      <ConfirmRemoval item={pendingParameterRemoval ? { name: `${parameterOptions.find(([value]) => value === pendingParameterRemoval)?.[1]} parameter`, type: 'parameter' } : null}
+        onCancel={() => setPendingParameterRemoval(null)} onConfirm={() => {
+          removeParameter(pendingParameterRemoval);
+          setPendingParameterRemoval(null);
+        }} />
       {message && <p role="status">{displayTerminology(message)}</p>}
     </section>
   </div>;

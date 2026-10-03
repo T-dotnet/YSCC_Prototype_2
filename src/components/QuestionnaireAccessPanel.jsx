@@ -37,7 +37,7 @@ export default function QuestionnaireAccessPanel({ person, episodeId, collection
       <div className="questionnaire-tablet-access">
         {qr ? <div className="questionnaire-qr-preview"><svg className="questionnaire-qr-code" role="img" aria-label="QR code for the assessment link"
           viewBox={`0 0 ${qr.size} ${qr.size}`} shapeRendering="crispEdges">
-          <rect width={qr.size} height={qr.size} fill="white" />
+          <rect width={qr.size} height={qr.size} fill="var(--surface-raised)" />
           <path d={qr.path} fill="var(--ink)" />
         </svg><Button type="button" variant="ghost" onClick={() => setQrExpanded(true)}>
           <Maximize2 size={14} aria-hidden="true" /> Enlarge QR
@@ -79,7 +79,7 @@ export default function QuestionnaireAccessPanel({ person, episodeId, collection
       <div className="questionnaire-qr-modal-body">
       <svg className="questionnaire-qr-expanded" role="img" aria-label="Enlarged QR code for the assessment link"
         viewBox={`0 0 ${qr.size} ${qr.size}`} shapeRendering="crispEdges">
-        <rect width={qr.size} height={qr.size} fill="white" />
+        <rect width={qr.size} height={qr.size} fill="var(--surface-raised)" />
         <path d={qr.path} fill="var(--ink)" />
       </svg>
       <p>Scan with the tablet camera to open the measure.</p>

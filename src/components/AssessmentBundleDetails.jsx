@@ -1,3 +1,4 @@
+import { displayMeasureVersion } from '../terminology.js';
 import { SortableHeader, useQueueSort } from "./QueueControls";
 import { cloneElement, useEffect, useId, useRef, useState } from 'react';
 import { episodeWithVisibleContacts } from "../assessmentFeatures.js";
@@ -11,12 +12,14 @@ import { LABELS, displayTerminology } from '../terminology';
 import RelatedRecordsTable from './RelatedRecordsTable';
 import { RecordFacts } from './RecordItem';
 import { ActionGroup, Badge, Button, EditAction, Field, Modal, ModalFooter, Select, Tabs, TextLink } from './UI';
+import ConfirmRemoval from './ConfirmRemoval';
 
 export default function AssessmentBundleDetails({ group, episode, delivery, statusFor, showDueDates, hideRequirement = false, showContacts = true,
   canEdit, onEdit, onClose, onCollect, canCollect, scheduleAssessments = true, assessmentEditor, onAddInstrument, onRemoveInstrument, onArchive, onNotRequired, embedded = false }) {
   const { sort, toggleSort } = useQueueSort({ key: null, direction: 'asc' });
   const [reasonMode, setReasonMode] = useState(false);
   const [archiveConfirmation, setArchiveConfirmation] = useState(false);
+  const [removeConfirmation, setRemoveConfirmation] = useState(null);
   const [reason, setReason] = useState('');
   const [postponedDate, setPostponedDate] = useState('');
   const [addVersion, setAddVersion] = useState('');
@@ -48,6 +51,11 @@ export default function AssessmentBundleDetails({ group, episode, delivery, stat
     <div className="form-body"><p>{archiveRecord ? 'This measure will move to the archive. Its saved response will be retained.' : 'This Collection Occasion and its measures will move to the archive. Saved responses will be retained.'}</p></div>
     <ModalFooter><Button type="button" onClick={()=>setArchiveConfirmation(false)}>Cancel</Button><Button type="button" variant="primary" onClick={()=>{onArchive(archiveRecord);setArchiveConfirmation(false);}}>{archiveRecord ? 'Archive measure' : 'Archive Collection Occasion'}</Button></ModalFooter>
   </Modal>;
+  if (removeConfirmation) return <ConfirmRemoval
+    item={{ name: getInstrument(removeConfirmation.version)?.name || removeConfirmation.label, type: 'measure',
+      description: 'This untouched measure will be removed from this person’s Assessment Pack.' }}
+    onCancel={() => setRemoveConfirmation(null)}
+    onConfirm={() => { onRemoveInstrument?.(removeConfirmation); setRemoveConfirmation(null); }} />;
   const notRequiredAction = onNotRequired && <Button variant="ghost" className="assessment-not-required-action" onClick={()=>setReasonMode(true)}>Mark as not required or postpone</Button>;
   if (reasonMode) return <Modal title="Mark Collection Occasion as not required or postpone" subtitle={group.name} className="assessment-not-required-modal" wide onClose={onClose}>
     <form onSubmit={event=>{event.preventDefault();if(reason.trim() && (!postponedDate || postponedDate > TODAY && postponedDate > bundleDue)) onNotRequired(reason.trim(), postponedDate);}}>
@@ -57,7 +65,7 @@ export default function AssessmentBundleDetails({ group, episode, delivery, stat
         <ModalFooter><Button type="button" onClick={()=>setReasonMode(false)}>Cancel</Button><Button type="submit" variant="primary" disabled={!reason.trim() || !!postponedDate && (postponedDate <= TODAY || postponedDate <= bundleDue)}>{postponedDate ? 'Postpone Collection Occasion' : 'Mark as not required'}</Button></ModalFooter>
     </form>
   </Modal>;
-  if (previewRecord) return <Modal title="Measure preview" subtitle={`${getInstrument(previewRecord.version)?.name || previewRecord.label} · ${previewRecord.version}`} onClose={()=>setPreviewRecord(null)} closeLabel="Close preview" className="questionnaire-preview-modal">
+  if (previewRecord) return <Modal title="Measure preview" subtitle={`${getInstrument(previewRecord.version)?.name || previewRecord.label} · ${displayMeasureVersion(previewRecord.version)}`} onClose={()=>setPreviewRecord(null)} closeLabel="Close preview" className="questionnaire-preview-modal">
     <InstrumentPreview key={previewRecord.id} instrument={getInstrument(previewRecord.version)} respondent={previewRecord.respondent || delivery.recipient} onBack={()=>setPreviewRecord(null)} backLabel="Back to measure details" />
   </Modal>;
   const content = <>
@@ -92,7 +100,7 @@ export default function AssessmentBundleDetails({ group, episode, delivery, stat
                     <TextLink className="assessment-instrument-preview" aria-label={`Preview ${getInstrument(record.version)?.name || record.label}`} ref={node => {if (node) previewTriggers.current.set(record.id, node); else previewTriggers.current.delete(record.id);}} onClick={()=>{returnFocusRecord.current = record.id; setPreviewRecord(record);}}>Preview</TextLink>
                     {individual && <Button variant="ghost" disabled={!onArchive} aria-label={`Archive ${getInstrument(record.version)?.name || record.label}`} onClick={()=>setArchiveConfirmation(record)}>Archive</Button>}
                     {onRemoveInstrument && <Button variant="ghost" disabled={group.records.length < 2 || record.response !== 'Not started' || record.assignment !== 'Planned' || record.attempts?.length > 0 || record.answers?.some(Boolean) || record.draftAnswers?.some(Boolean)}
-                      aria-label={`Remove ${getInstrument(record.version)?.name || record.label}`} onClick={()=>onRemoveInstrument(record)}>Remove</Button>}
+                      aria-label={`Remove ${getInstrument(record.version)?.name || record.label}`} onClick={()=>setRemoveConfirmation(record)}>Remove</Button>}
                   </ActionGroup></td>
                 </tr>;
               })}</tbody>

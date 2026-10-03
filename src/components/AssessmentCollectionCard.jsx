@@ -1,3 +1,4 @@
+import { displayMeasureVersion } from '../terminology.js';
 import { INSTRUMENTS } from '../instruments';
 import { isOutstanding } from "../workflow";
 import { COLLECTION_METHOD_OPTIONS, LABELS } from "../terminology.js";
@@ -83,7 +84,7 @@ export default function AssessmentCollectionCard({
   return (
     <RecordItem
       title={col.label}
-      subtitle={<>{showDueDates && col.due && <>{showDueLabels ? `${dueLabel || "Due date"} · ` : ""}{formatDate(col.due)} · </>}{col.version}{simpleAssessments ? "" : scoreText}</>}
+      subtitle={<>{showDueDates && col.due && <>{showDueLabels ? `${dueLabel || "Due date"} · ` : ""}{formatDate(col.due)} · </>}{displayMeasureVersion(col.version)}{simpleAssessments ? "" : scoreText}</>}
       status={scheduleAssessments ? collectionStatus(col) : simpleStatus}
       collapsible={simpleAssessments || inTimeline || isPrior}
       initiallyExpanded={simpleAssessments ? col.response !== "Submitted" : initiallyExpanded}

@@ -4,8 +4,9 @@ import { reconcileAssessmentSchedules, scheduleRuleError } from "./assessmentSch
 import { mvpAssessmentMode, mvpPathwayEnabled, mvpBlankAssessmentTemplate, mvpClinicianCreationEnabled, mvpBundleEditingEnabled, mvpReviewBundles, MVP_REVIEW_BUNDLES, mvpReviewBundleError, MVP_INITIAL_BUNDLES, mvpInitialBundles, mvpInitialBundleError } from './mvpAssessmentPathway.js';
 import { PROFILE_FIELDS, PROFILE_EPISODE_FIELDS } from './batch1Registration.js';
 import { clientProfileInstrument, clientProfileBundle, clientProfileBundleError } from './clientProfileMeasure.js';
-import { completedStatusTransitions, validMeasureStatusChange } from './measureStatusChange.js';
+import { availableStatusTransitionForGroup, completedStatusTransitions, statusChangeGroupForRecord, validMeasureStatusChange } from './measureStatusChange.js';
 import { isRequiredStatusOutcomeTransition, statusOutcomeRuleFor, visibleStatusOutcomeOptions, validCustomStatusOutcomeRule } from './statusOutcomeRules.js';
+import { DEFAULT_UI_COLOR_SETUP, uiColorSetup } from './uiColorSetups.js';
 import { ensureSampleMvpFlow } from './sampleMvpFlow.js';
 import { MVP_PRESET, mvpPresetActive } from './featurePresets.js';
 import { ASSESSMENT_OUTCOME_OPTIONS, visibleAssessmentOutcomeOptions, assessmentOutcomeRecord, initialAssessmentHasOutcomeStatus } from './assessmentOutcome.js';
@@ -87,10 +88,16 @@ export const PERSON_TAG_OPTIONS = [
   "Review requested",
 ];
 export const SAMPLE_DATE = "2026-09-15";
-const localDate = new Date();
-const currentLocalDate = `${localDate.getFullYear()}-${String(localDate.getMonth() + 1).padStart(2, "0")}-${String(localDate.getDate()).padStart(2, "0")}`;
+const localCalendarDate = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 const testDate = typeof process !== "undefined" ? process.env.YSCC_TEST_DATE : undefined;
-export const TODAY = /^\d{4}-\d{2}-\d{2}$/.test(testDate || "") ? testDate : currentLocalDate;
+const fixedTestDate = /^\d{4}-\d{2}-\d{2}$/.test(testDate || "") ? testDate : null;
+export let TODAY = fixedTestDate || localCalendarDate(new Date());
+export function refreshToday(now = new Date()) {
+  const next = fixedTestDate || localCalendarDate(now);
+  if (next === TODAY) return false;
+  TODAY = next;
+  return true;
+}
 export const VERSION = DEMO_INSTRUMENT.version;
 export const CLOSURE_ASSESSMENT_VERSION = "Episode closure assessment v1.0";
 export const CLOSURE_FEEDBACK_VERSION = "Care experience feedback v1.0";
@@ -3952,7 +3959,7 @@ function prepareIntakes(next) {
 export function createSeed() {
   return withSampleFixtures(prepareQualityState(prepareSeed({
     schema: 1,
-    settings: { simpleAssessments: true, scheduleAssessments: false, showAssessmentDueDates: true, groupAssessmentsByBundle: false, bundleAccordions: false, automaticAssessmentDueDates: false, assessmentScheduleRules: [], linkAssessmentAppointments: true, assessmentSms: true, uiColorSetup: 1 },
+    settings: { simpleAssessments: true, scheduleAssessments: false, showAssessmentDueDates: true, groupAssessmentsByBundle: false, bundleAccordions: false, automaticAssessmentDueDates: false, assessmentScheduleRules: [], linkAssessmentAppointments: true, assessmentSms: true, uiColorSetup: DEFAULT_UI_COLOR_SETUP },
     terminologyRevision: 1,
     people: [
       ...seeds.map((s, i) => ({
@@ -4414,7 +4421,7 @@ function reduceState(state, action) {
     return {...state, settings:{...state.settings, assessmentScheduleRules:rules.filter(rule => rule.id !== action.id)}};
   }
   if (action.type === "SET_UI_COLOR_SETUP") {
-    if (![1, 2, 3, 4].includes(action.setup) || state.settings?.uiColorSetup === action.setup) return state;
+    if (uiColorSetup(action.setup) !== action.setup || state.settings?.uiColorSetup === action.setup) return state;
     return { ...state, settings: { ...state.settings, uiColorSetup: action.setup } };
   }
   if (action.type === "SET_GENERAL_REPORT_VISIBILITY") {
@@ -4630,7 +4637,10 @@ function reduceState(state, action) {
       break;
     }
     case 'RECORD_STATUS_TRANSITION_OUTCOME': {
-      const transition = completedStatusTransitions(e, state.settings).find(item =>
+      const records = statusChangeGroupForRecord(e, action.recordId);
+      const candidates = [...completedStatusTransitions(e, state.settings),
+        ...(records.length ? [availableStatusTransitionForGroup(e, records, state.settings)] : [])].filter(Boolean);
+      const transition = candidates.find(item =>
         item.recordId === action.recordId && item.from === action.from && item.to === action.to);
       const rule = statusOutcomeRuleFor(state.settings, action.from, action.to);
       if (!p || !e || !canAssess(p, e) || e.status !== 'Active' ||

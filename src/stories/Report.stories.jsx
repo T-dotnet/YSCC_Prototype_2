@@ -20,7 +20,7 @@ export default {
   parameters: {
     layout: "fullscreen",
     settings: { simpleAssessments: true, scheduleAssessments: false },
-    docs: { description: { component: "The production report with fictional sample evidence. Measure selection, comparison, timeline filters and disclosure work locally. Source navigation is displayed as feedback rather than leaving Storybook. Use the Color setup toolbar to preview the four interface palettes; chart and risk colours keep their semantic roles." } },
+    docs: { description: { component: "The production report with fictional sample evidence. Measure selection, comparison, timeline filters and disclosure work locally. Source navigation is displayed as feedback rather than leaving Storybook. Use the Color setup toolbar to preview the six visible interface palettes; chart and risk colours keep their semantic roles." } },
   },
 };
 
@@ -52,7 +52,7 @@ export const SemanticCareTimeline = {
   render: () => {
     const [visible, setVisible] = useState(true);
     const [destination, setDestination] = useState("");
-    return <ReportFrame><CareTimeline person={person} episode={episode} simpleAssessments scheduleAssessments={false}
+    return <ReportFrame><h2 className="sr-only">Care overview</h2><CareTimeline person={person} episode={episode} simpleAssessments scheduleAssessments={false}
       isVisible={visible} onToggle={() => setVisible(!visible)} navigate={setDestination} />
       {destination && <p className="ds-note" role="status">Source route: {destination}</p>}
     </ReportFrame>;

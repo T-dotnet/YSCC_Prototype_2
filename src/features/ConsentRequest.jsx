@@ -1,3 +1,4 @@
+import { displayMeasureVersion } from '../terminology.js';
 import { useEffect, useState } from "react";
 import { ArrowRight, Check, HeartHandshake, ShieldCheck } from "lucide-react";
 import { useStore } from "../store";
@@ -114,7 +115,7 @@ export default function ConsentRequest({ session, navigate, onEnd }) {
               </span>
               <span>
                 <ShieldCheck size={20} />
-                <strong>{request.version}</strong>
+                <strong>{displayMeasureVersion(request.version)}</strong>
               </span>
             </div>
             <section className="consent-request-copy">

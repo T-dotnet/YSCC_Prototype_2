@@ -15,6 +15,12 @@ const statusChangeGroupKey = record => record.bundleInstanceId
     ? `bundle:${record.bundleId}:${record.due || ''}:${record.bundleEventId || ''}:${record.scheduleAnchor || ''}`
     : `record:${record.id}`;
 
+export const statusChangeGroupForRecord = (episode, recordId) => {
+  const target = episode?.collections?.find(record => record.id === recordId);
+  return target ? episode.collections.filter(record =>
+    statusChangeGroupKey(record) === statusChangeGroupKey(target)) : [];
+};
+
 export function completedStatusTransitions(episode, settings) {
   const groups = new Map();
   for (const record of episode?.collections || []) {
@@ -41,6 +47,20 @@ export function completedStatusTransitions(episode, settings) {
     from = group.to;
   }
   return transitions;
+}
+
+export function availableStatusTransitionForGroup(episode, records, settings) {
+  const completed = completedStatusTransitions(episode, settings).find(transition =>
+    transition.recordIds.some(id => records.some(record => record.id === id)));
+  if (completed) return completed;
+  const profile = records.some(record => record.clientProfileMeasure &&
+    initialAssessmentStatusChange(record, settings) === 'Assessment');
+  const review = records.some(record => record.mvpTimepointId &&
+    initialAssessmentStatusChange(record, settings) === 'Ongoing review');
+  if (!profile && !review) return null;
+  return { from: profile ? 'Profiling' : 'Ongoing review',
+    to: profile ? 'Assessment' : 'Ongoing review',
+    recordId: records[0].id, recordIds: records.map(record => record.id) };
 }
 
 export function completedMeasureStatusChange(episode, settings) {

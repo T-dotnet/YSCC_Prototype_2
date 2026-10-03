@@ -6,14 +6,18 @@ import { assessmentBundleGroups, uniqueBundleInstanceName, bundleContext, bundle
 import { assessmentBundleGroupingEnabled } from './assessmentFeatures.js';
 
 const context = {personId:'YS-1034',episodeId:'EP-1034-01'};
-const version = INSTRUMENTS[0].version;
-const otherVersion = INSTRUMENTS.find(item => item.version !== version).version;
+const version = 'EP Batch 2 · Living Situation v1.0';
+const otherVersion = 'EP Batch 2 · Assessment Survey v1.0';
 const item = (id,requirement='Mandatory',extra={}) => ({id,version,channel:'Clinic tablet',recipient:'Person',requirement,...extra});
 const rule = {id:'bundle-ui',name:'Care review',trigger:'current',programStream:'All',careLevel:'All',days:28,enabled:true,
   assessments:[item('mandatory'),item('optional','Optional',{channel:'Clinician entry'})]};
 const getEpisode = state => state.people.find(person => person.id === context.personId).episodes.find(episode => episode.id === context.episodeId);
-const prepare = () => reducer(reducer(createSeed(),{type:'SAVE_ASSESSMENT_SCHEDULE_RULE',rule}),
-  {type:'SET_ASSESSMENT_FEATURE',feature:'groupAssessmentsByBundle',enabled:true});
+const prepare = () => {
+  const seed = createSeed();
+  seed.settings.advancedAssessmentOptions = true;
+  return reducer(reducer(seed,{type:'SAVE_ASSESSMENT_SCHEDULE_RULE',rule}),
+    {type:'SET_ASSESSMENT_FEATURE',feature:'groupAssessmentsByBundle',enabled:true});
+};
 const action = (extra={}) => ({type:'CREATE_ASSESSMENT_BUNDLE',...context,id:'manual-bundle',bundleId:rule.id,
   optionalIds:[],extraAssessments:[],due:'',...extra});
 
@@ -46,7 +50,7 @@ test('unchecked optional assessments are excluded and saved with the bundle crea
   assert.equal(getEpisode(next).collections.filter(collection => collection.bundleInstanceId === 'manual-bundle').length,1);
 });
 test('invalid or unavailable selection cannot partially create a bundle', () => {
-  const state = prepare();
+  const state = reducer(prepare(),{type:'SET_ASSESSMENT_FEATURE',feature:'assessmentSms',enabled:false});
   for (const override of [{optionalIds:['mandatory']},{optionalIds:['missing']},{optionalIds:['optional','optional']},
     {extraAssessments:[item('extra','Optional')]},{extraAssessments:[item('extra','Optional',{version:otherVersion,channel:'SMS link'})]},
     {bundleId:'missing'},{due:TODAY}]) assert.equal(reducer(state,action(override)),state);
@@ -54,8 +58,8 @@ test('invalid or unavailable selection cannot partially create a bundle', () => 
   assert.equal(reducer(disabled,action()),disabled);
   const closed = JSON.parse(JSON.stringify(state));getEpisode(closed).status='Closed';
   assert.equal(reducer(closed,action()),closed);
-  const gated = JSON.parse(JSON.stringify(state));gated.people.find(person => person.id === context.personId).intakes.forEach(intake => intake.outcome='Do not proceed');
-  assert.equal(reducer(gated,action()),gated);
+  const historical = JSON.parse(JSON.stringify(state));historical.people.find(person => person.id === context.personId).intakes.forEach(intake => intake.outcome='Do not proceed');
+  assert.notEqual(reducer(historical,action()),historical);
 });
 test('scheduled bundle creation respects scheduling switch and due date without enabling contacts', () => {
   const state = reducer(prepare(),{type:'SET_ASSESSMENT_FEATURE',feature:'scheduleAssessments',enabled:true});
@@ -72,7 +76,7 @@ test('bundle grouping keeps different assessment types together and individual o
   const groups = assessmentBundleGroups({collections:records},records,[rule]);
   assert.equal(groups.length,2);assert.equal(groups[0].records.length,2);assert.equal(groups[0].records[0].id,'two');
   assert.match(groups[0].description,/Program stream \/ care-level condition/);
-  assert.equal(groups[1].name,'Individual instruments');
+  assert.equal(groups[1].name,'Individual measures');
   assert.equal(assessmentBundleGroups({collections:records},[records[1]],[])[0].name,rule.name);
   assert.match(assessmentBundleGroups({collections:records},[records[1]],[])[0].description,/Every 28 days/);
   assert.match(bundleDescription({trigger:'event',eventType:'harm',delayDays:2}),/Event trigger.*Due 2 days after event/);
@@ -80,28 +84,30 @@ test('bundle grouping keeps different assessment types together and individual o
 test('optional-only bundles need a selection and unavailable mandatory items block creation', () => {
   assert.match(newBundleError({...rule,assessments:[item('opt','Optional')]},[],[],{},{}),/at least one/);
   assert.match(newBundleError({...rule,assessments:[item('mandatory','Mandatory',{channel:'SMS link'})]},[],[],{},{assessmentSms:false}),/SMS/);
-  assert.match(newBundleError({...rule,assessments:[item('mandatory','Mandatory',{recipient:'Family respondent'})]},[],[],{},{}),/family respondent/i);
+  assert.match(newBundleError({...rule,assessments:[item('mandatory','Mandatory',{recipient:'Family respondent'})]},[],[],{},{}),/Choose an enabled assessment/);
 });
 test('shared delivery and recipient apply to selected mandatory and optional rows without changing the template', () => {
-  const state = prepare();state.people.find(person => person.id === context.personId).family='Taylor Ellis';
+  const state = prepare();
   const before = structuredClone(state.settings.assessmentScheduleRules);
   const next = reducer(state,action({optionalIds:['optional'],assessmentOverrides:[
-    {id:'mandatory',channel:'Clinician entry',recipient:'Family respondent'},
-    {id:'optional',channel:'Clinician entry',recipient:'Family respondent'}]}));
+    {id:'mandatory',channel:'Clinician entry',recipient:'Person'},
+    {id:'optional',channel:'Clinician entry',recipient:'Person'}]}));
   const created = getEpisode(next).collections.filter(collection => collection.bundleInstanceId === 'manual-bundle');
   assert.deepEqual(created.map(collection => [collection.channel,collection.respondent,collection.assistance,collection.bundleRequirement]),
-    [['Clinician entry','Family respondent','Transcribed','Mandatory'],['Clinician entry','Family respondent','Transcribed','Optional']]);
+    [['Clinician entry','Person','Transcribed','Mandatory'],['Clinician entry','Person','Transcribed','Optional']]);
   assert.deepEqual(next.settings.assessmentScheduleRules,before);
   const loaded = upgradeSampleData(JSON.parse(JSON.stringify(next)));
-  assert.equal(getEpisode(loaded).collections.find(collection => collection.id === created[0].id).respondent,'Family respondent');
+  assert.equal(getEpisode(loaded).collections.find(collection => collection.id === created[0].id).respondent,'Person');
 });
 test('delivery edits can recover unavailable defaults but cannot bypass channel, recipient or item validation', () => {
-  const state = prepare();
+  const enabled = prepare();
   const smsRule={...rule,assessments:[item('mandatory','Mandatory',{channel:'SMS link'})]};
-  const configured = reducer(state,{type:'SAVE_ASSESSMENT_SCHEDULE_RULE',rule:smsRule});
+  const configured = reducer(reducer(enabled,{type:'SAVE_ASSESSMENT_SCHEDULE_RULE',rule:smsRule}),
+    {type:'SET_ASSESSMENT_FEATURE',feature:'assessmentSms',enabled:false});
   assert.equal(reducer(configured,action()),configured);
   const recovered=reducer(configured,action({assessmentOverrides:[{id:'mandatory',channel:'Clinic tablet'}]}));
   assert.equal(getEpisode(recovered).collections.at(-1).channel,'Clinic tablet');
+  const state = reducer(enabled,{type:'SET_ASSESSMENT_FEATURE',feature:'assessmentSms',enabled:false});
   for (const assessmentOverrides of [[{id:'mandatory',channel:'Invalid'}],[{id:'mandatory',channel:'SMS link'}],
     [{id:'mandatory',recipient:'Family respondent'}],[{id:'mandatory',recipient:'Invalid'}],[{id:'missing',channel:'Clinic tablet'}],
     [{id:'mandatory',requirement:'Optional'}],[{id:'mandatory',version:otherVersion}],
@@ -154,7 +160,8 @@ test('removing optional types preserves drafts, completed responses, delivery ev
   }
 });
 test('invalid bundle edits are atomic and unavailable care episodes reject edits', () => {
-  const state = reducer(prepare(),action({optionalIds:['optional']}));
+  const state = reducer(reducer(prepare(),action({optionalIds:['optional']})),
+    {type:'SET_ASSESSMENT_FEATURE',feature:'assessmentSms',enabled:false});
   for (const values of [{optionalIds:['mandatory']},{bundleId:'missing'},{optionalIds:['optional','optional']},
     {assessmentOverrides:[{id:'mandatory',requirement:'Optional'}]},
     {extraAssessments:[item('extra','Optional',{version:otherVersion,channel:'SMS link'})]},

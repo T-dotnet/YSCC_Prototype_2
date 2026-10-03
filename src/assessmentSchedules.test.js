@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {reconcileAssessmentSchedules, matchingScheduleRules, scheduleRuleError} from './assessmentSchedules.js';
 import {reducer, createSeed, upgradeSampleData} from './model.js';
-const rule = (extra={}) => ({id:'rule',version:'Life and care check-in v1.0',programStream:'All',careLevel:'All',weeks:4,enabled:true,...extra});
-const episode = {id:'EP',status:'Active',start:'2026-09-01',carePeriods:[{startDate:'2026-09-01',endDateExclusive:null,programStream:'General',careLevel:'Mid'}],collections:[]};
+const rule = (extra={}) => ({id:'rule',version:'EP Batch 2 · Living Situation v1.0',programStream:'All',careLevel:'All',weeks:4,enabled:true,...extra});
+const episode = {id:'EP',status:'Active',start:'2026-09-01',carePeriods:[{startDate:'2026-09-01',endDateExclusive:null,programStream:'Mood',careLevel:'Mid'}],collections:[]};
 const make = (extra={}) => ({settings:{automaticAssessmentDueDates:true,assessmentScheduleRules:[rule()]},people:[{id:'P',episodes:[structuredClone(episode)]}],...extra});
 const collections = state => state.people[0].episodes[0].collections;
 const today = '2026-09-28';
@@ -15,7 +15,7 @@ test('care-change anchor generates one next collection and reconciles without du
  assert.equal(reconcileAssessmentSchedules(next,today),next);
 });
 test('specific rules override defaults; stream beats level for partial matches',()=>{
- const rules=[rule(),rule({id:'level',careLevel:'Mid',weeks:2}),rule({id:'stream',programStream:'General',weeks:3}),rule({id:'exact',programStream:'General',careLevel:'Mid',weeks:1})];
+ const rules=[rule(),rule({id:'level',careLevel:'Mid',weeks:2}),rule({id:'stream',programStream:'Mood',weeks:3}),rule({id:'exact',programStream:'Mood',careLevel:'Mid',weeks:1})];
  assert.equal(matchingScheduleRules(rules,episode,today)[0].id,'exact');
  assert.equal(matchingScheduleRules(rules.slice(0,3),episode,today)[0].id,'stream');
 });

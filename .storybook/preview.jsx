@@ -3,11 +3,12 @@ import "@fontsource-variable/outfit/index.css";
 import "../src/styles.css";
 import "./storybook.css";
 import ysccTheme from "./ysccTheme";
+import { DEFAULT_UI_COLOR_SETUP } from "../src/uiColorSetups";
 
 function StoryEnvironment({ children, setup, settings }) {
   useLayoutEffect(() => {
     const previous = document.documentElement.dataset.uiSetup;
-    document.documentElement.dataset.uiSetup = String(setup || 1);
+    document.documentElement.dataset.uiSetup = String(setup || DEFAULT_UI_COLOR_SETUP);
     return () => {
       if (previous === undefined) delete document.documentElement.dataset.uiSetup;
       else document.documentElement.dataset.uiSetup = previous;
@@ -17,7 +18,7 @@ function StoryEnvironment({ children, setup, settings }) {
 }
 
 export default {
-  initialGlobals: { uiSetup: 1 },
+  initialGlobals: { uiSetup: DEFAULT_UI_COLOR_SETUP },
   globalTypes: {
     uiSetup: {
       description: "Brand UI color setup",
@@ -26,10 +27,12 @@ export default {
         icon: "paintbrush",
         dynamicTitle: true,
         items: [
-          { value: 1, title: "Setup 1 · Current" },
-          { value: 2, title: "Setup 2 · Forest" },
-          { value: 3, title: "Setup 3 · Forest + lime" },
-          { value: 4, title: "Setup 4 · Forest + cyan" },
+          { value: 1, title: "Setup 1 · Original" },
+          { value: 5, title: "Yonder · Grove" },
+          { value: 6, title: "Yonder · Ember" },
+          { value: 7, title: "Yonder · Coral & Sage" },
+          { value: 8, title: "Yonder · Orchard" },
+          { value: 9, title: "Setup 1 · Yonder (default)" },
         ],
       },
     },

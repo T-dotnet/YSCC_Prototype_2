@@ -10,7 +10,7 @@ function instrument(batch, group) {
   return {
     name,
     version: `EP Batch ${batch} · ${name} v1.0`,
-    description: `headspace EP 2025 Batch ${batch} coded field capture. Follow the approved assessment protocol for clinical use.`,
+    description: `headspace EP 2025 ${batch === 3 ? '90-day review' : 'assessment'} coded field capture. Follow the approved assessment protocol for clinical use.`,
     respondents: batch === 3 ? ["Clinician"] : ["Person"],
     sections: [{ id: "fields", title: name }],
     questions: group.variables,

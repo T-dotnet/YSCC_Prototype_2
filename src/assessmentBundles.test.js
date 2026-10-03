@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import { bundleError, asBundle, reconcileAssessmentBundles, bundleAgeMatches } from './assessmentBundles.js';
 import { assessmentsWithDueVisibility } from './assessmentDue.js';
 import { createSeed, reducer, TODAY, upgradeSampleData } from './model.js';
-const version='Your preferences and next steps v2.0';
+const version='EP Batch 2 · Living Situation v1.0';
 const item=(extra={})=>({id:'one',version,channel:'Clinician entry',recipient:'Person',requirement:'Mandatory',...extra});
-const bundle=(extra={})=>({id:'B',name:'Care review',trigger:'current',programStream:'General',careLevel:'Mid',weeks:4,enabled:true,assessments:[item()],...extra});
-const episode=()=>({id:'E',status:'Active',carePeriods:[{startDate:'2026-09-01',endDateExclusive:null,programStream:'General',careLevel:'Mid'}],events:[],collections:[]});
+const bundle=(extra={})=>({id:'B',name:'Care review',trigger:'current',programStream:'Mood',careLevel:'Mid',weeks:4,enabled:true,assessments:[item()],...extra});
+const episode=()=>({id:'E',status:'Active',carePeriods:[{startDate:'2026-09-01',endDateExclusive:null,programStream:'Mood',careLevel:'Mid'}],events:[],collections:[]});
 const make=(b=bundle())=>({settings:{automaticAssessmentDueDates:true,assessmentSms:false,assessmentScheduleRules:[b]},people:[{id:'P',family:'Family',episodes:[episode()]}]});
 const ep=s=>s.people[0].episodes[0];
 const today='2026-09-28';
@@ -14,7 +14,7 @@ test('bundle validates names, multiple targets, recipient support and event timi
  assert.equal(bundleError(bundle()),null);
  assert.ok(bundleError(bundle({name:''})));
  assert.ok(bundleError(bundle({assessments:[item(),item({id:'two'})]})));
- assert.equal(bundleError(bundle({assessments:[item(),item({id:'two',version:'Initial assessment v1.0',channel:'Clinic tablet',recipient:'Person'})]})),null);
+ assert.equal(bundleError(bundle({assessments:[item(),item({id:'two',version:'Mood stream check-in v1.0',channel:'Clinic tablet',recipient:'Person'})]})),null);
  assert.ok(bundleError(bundle({trigger:'event',eventType:'harm',delayDays:-1})));
 });
 test('clinician respondent requires clinician entry and is retained on scheduled instruments',()=>{
@@ -27,7 +27,7 @@ test('clinician respondent requires clinician entry and is retained on scheduled
  assert.equal(ep(scheduled).collections[0].channel,'Clinician entry');
 });
 test('mandatory assessments share bundle delivery settings; optional waits for staff',()=>{
- const original=make(bundle({assessments:[item(),item({id:'two',version:'Initial assessment v1.0',channel:'Clinic tablet',recipient:'Family respondent'}),item({id:'opt',channel:'Clinic tablet',requirement:'Optional'})]}));
+ const original=make(bundle({assessments:[item(),item({id:'two',version:'Mood stream check-in v1.0',channel:'Clinic tablet',recipient:'Family respondent'}),item({id:'opt',channel:'Clinic tablet',requirement:'Optional'})]}));
  const next=reconcileAssessmentBundles(original,today);
  assert.equal(ep(next).collections.length,2);
  assert.deepEqual(ep(next).collections.map(c=>[c.channel,c.respondent,c.bundleRequirement]),[['Clinician entry','Person','Mandatory'],['Clinician entry','Person','Mandatory']]);
@@ -82,7 +82,7 @@ test('saving an event bundle snapshots previous events; new care events trigger 
  assert.ok(e.collections.some(c=>c.bundleEventId));
 });
 test('converting a legacy rule retains its pending auto assessment without duplicating it',()=>{
- const legacy={id:'B',version,programStream:'General',careLevel:'Mid',weeks:4,enabled:true};
+ const legacy={id:'B',version,programStream:'Mood',careLevel:'Mid',weeks:4,enabled:true};
  const state=make(asBundle(legacy));
  ep(state).collections=[{id:'legacy',version,due:'2026-09-29',scheduleRuleId:'B',scheduleAnchor:'2026-09-01',assignment:'Planned',response:'Not started'}];
  assert.equal(reconcileAssessmentBundles(state,today),state);
@@ -172,21 +172,21 @@ test('saving an old four-week bundle converts to 28 days and retains existing du
   let state=createSeed();
   const rule=bundle({channel:'Clinician entry',recipient:'Person',programStream:'All',careLevel:'All',
     assessments:[{id:'one',version,requirement:'Mandatory'},
-      {id:'two',version:'Initial assessment v1.0',requirement:'Optional'}]});
+      {id:'two',version:'EP Batch 2 · Assessment Survey v1.0',requirement:'Optional'}]});
   state=reducer(state,{type:'SAVE_ASSESSMENT_SCHEDULE_RULE',rule});
   const saved=state.settings.assessmentScheduleRules.find(item=>item.id===rule.id);
   assert.equal(saved.channel,'Clinician entry');assert.equal(saved.recipient,'Person');
   assert.ok(saved.assessments.every(item=>!('channel' in item)&&!('recipient' in item)));
   state=reducer(state,{type:'SET_ASSESSMENT_FEATURE',feature:'groupAssessmentsByBundle',enabled:true});
   state=reducer(state,{type:'CREATE_ASSESSMENT_BUNDLE',personId:'YS-1034',episodeId:'EP-1034-01',
-    id:'global-test',bundleId:rule.id,optionalIds:['two'],extraAssessments:[{id:'extra',version:'Life and care check-in v1.0',
+    id:'global-test',bundleId:rule.id,optionalIds:['two'],extraAssessments:[{id:'extra',version:'EP Batch 2 · K10 v1.0',
       channel:'Clinic tablet',recipient:'Family respondent',requirement:'Optional'}],due:''});
   const records=state.people.find(p=>p.id==='YS-1034').episodes.find(e=>e.id==='EP-1034-01').collections.filter(c=>c.bundleInstanceId==='global-test');
   assert.equal(records.length,3);
   assert.ok(records.every(c=>c.channel==='Clinician entry'&&c.respondent==='Person'));
   const reloaded=upgradeSampleData(JSON.parse(JSON.stringify(state)));
   assert.deepEqual(reloaded.settings.assessmentScheduleRules.find(item=>item.id===rule.id),saved);
-  assert.match(bundleError({...rule,recipient:'Family respondent',assessments:[{id:'one',version:'Life and care check-in v1.0',requirement:'Mandatory'}]}),/does not support/);
+  assert.match(bundleError({...rule,recipient:'Family respondent',assessments:[{id:'one',version,requirement:'Mandatory'}]}),/does not support/);
  });
 
 test('fixed-date bundles validate dates and create each assessment once',()=>{

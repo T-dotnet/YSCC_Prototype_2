@@ -1,3 +1,4 @@
+import { displayMeasureVersion } from '../terminology.js';
 import { useState } from "react";
 import { ActionGroup, Button, Field, Modal, Notice, ValidatedForm } from "./UI";
 import {
@@ -445,14 +446,14 @@ export default function CareTimelineEntryForm({
                   >
                     {configuredMeasures().map((measure) => (
                       <option key={measure.key} value={measure.key}>
-                        {measure.name} · {measure.version}
+                        {measure.name} · {displayMeasureVersion(measure.version)}
                       </option>
                     ))}
                   </select>
                 </Field>
                 {selectedMeasure && (
                   <div className="measure-record-rules">
-                    <strong>{selectedMeasure.version}</strong>
+                    <strong>{displayMeasureVersion(selectedMeasure.version)}</strong>
                     <span>
                       Respondents: {selectedMeasure.respondents.join(" · ")}
                     </span>

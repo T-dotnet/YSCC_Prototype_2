@@ -1,3 +1,4 @@
+import { displayMeasureVersion } from '../terminology.js';
 import { ActionGroup, Button, Field, Modal, Notice, ValidatedForm } from "./UI";
 import { CARE_LEVELS, CARE_LEVEL_REASONS, PROGRAM_STREAMS, currentCarePeriod, nextDate } from "../carePeriods";
 import { STANDARD_INSTRUMENTS } from "../instruments";
@@ -96,7 +97,7 @@ export default function CareLevelForm({ episode, clinicians, error, onClose, onS
                 </Field>
                 <Field label="Initial measure">
                   <select name="assessmentVersion" defaultValue={STANDARD_INSTRUMENTS.find(item => item.version === episode.collections?.at(-1)?.version)?.version || STANDARD_INSTRUMENTS[0].version} required>
-                    {STANDARD_INSTRUMENTS.map((instrument) => <option key={instrument.version} value={instrument.version}>{instrument.name} · {instrument.version}</option>)}
+                    {STANDARD_INSTRUMENTS.map((instrument) => <option key={instrument.version} value={instrument.version}>{instrument.name} · {displayMeasureVersion(instrument.version)}</option>)}
                   </select>
                 </Field>
               </>

@@ -353,7 +353,7 @@ html:has(.shell-modern), body:has(.shell-modern) { overflow: hidden; }
     height: auto;
     overflow: visible;
     contain: none;
-    background: white;
+    background: var(--surface-raised);
     padding: 0;
   }
   .shell.shell-modern .app-body > .main {

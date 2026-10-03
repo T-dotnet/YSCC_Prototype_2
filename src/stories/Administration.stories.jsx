@@ -43,6 +43,14 @@ export const AssessmentPacks = {
     const canvas = within(canvasElement);
     await expect(canvas.getByRole("heading", { name: "Assessment Packs" })).toBeVisible();
     await expect(canvas.getByText("Client profile", { exact: true })).toBeVisible();
+    await expect(canvas.queryByRole("button", { name: "Delete Client profile" })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("button", { name: "More info about Client profile" })).not.toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("button", { name: "Why Client profile is required" }));
+    const infoDialog = within(canvasElement.ownerDocument.body).getByRole("dialog", { name: "About Client profile" });
+    await expect(within(infoDialog).getByText("mandatory first Assessment Pack", { exact: false })).toBeVisible();
+    await expect(within(infoDialog).getByText("Profile information", { exact: false })).toBeVisible();
+    await userEvent.click(within(infoDialog).getByRole("button", { name: "Close" }));
+    await expect(infoDialog).not.toBeInTheDocument();
     await userEvent.click(canvas.getByRole("button", { name: "Edit Client profile" }));
     const dialog = within(canvasElement.ownerDocument.body).getByRole("dialog", { name: "Edit Client profile Assessment Pack" });
     await expect(within(dialog).getByRole("heading", { name: "Profile items in this Assessment Pack" })).toBeVisible();

@@ -6,7 +6,7 @@ export default function AssessmentOutcomeForm({ outcome: recordedOutcome, settin
   const [outcome, setOutcome] = useState(recordedOutcome || '');
   const [error, setError] = useState('');
   const options = visibleAssessmentOutcomeOptions(settings);
-  return <Modal title="Record outcome" subtitle="Outcome of assessment · Batch 2" onClose={onClose}>
+  return <Modal title="Record outcome" subtitle="Outcome of initial assessment" onClose={onClose}>
     <ValidatedForm onSubmit={event => {
       event.preventDefault();
       if (recordedOutcome === outcome) return onClose();

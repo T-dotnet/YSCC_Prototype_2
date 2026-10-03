@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { CLIENT_PROFILE_INSTRUMENTS, clientProfileBundleError } from '../clientProfileMeasure';
 import { ActionGroup, Button, Checkbox, Field, FieldInput, FieldSelect, Modal, Select } from './UI';
 import BundleAssessmentRow from './BundleAssessmentRow';
+import ConfirmRemoval from './ConfirmRemoval';
 import SpecificMeasureFields from './SpecificMeasureFields';
 import { measureSourceOptions } from '../measureTriggers';
 import ProfileValueTriggerFields from './ProfileValueTriggerFields';
@@ -20,6 +21,7 @@ export default function ClientProfileBundleEditor({ bundle, settings, onClose, o
     key === 'profileValue' ? !!bundle.triggerDataEnabled :
       key === 'careLevel' ? bundle.careLevel && bundle.careLevel !== 'All' : bundle[key] != null));
   const [error, setError] = useState('');
+  const [pendingParameterRemoval, setPendingParameterRemoval] = useState(null);
   const nameInput = useRef(null);
   const change = (key, value) => { setDraft(current => ({ ...current, [key]: value })); setError(''); };
   const selected = draft.instrumentVersions || [];
@@ -93,13 +95,7 @@ export default function ClientProfileBundleEditor({ bundle, settings, onClose, o
                 : <FieldInput label={key === 'minAge' ? 'Minimum age (years)' : 'Maximum age (years)'}
                     required type="number" min="0" max="120" step="1" value={draft[key] ?? ''}
                     onChange={event => change(key, event.target.value === '' ? null : Number(event.target.value))} />}
-            <Button type="button" onClick={() => {
-              setParameters(current => current.filter(value => value !== key));
-              setDraft(current => key === 'profileValue'
-                ? { ...current, triggerDataEnabled: false, triggerDataField: '', triggerDataValue: '' }
-                : { ...current, [key]: key === 'careLevel' ? 'All' : null });
-              setError('');
-            }}>Remove</Button>
+            <Button type="button" onClick={() => setPendingParameterRemoval(key)}>Remove</Button>
           </div>)}
           {parameters.length < parameterOptions.length && <div className="bundle-name-field new-bundle-extra-picker">
             <Field label="Parameter to add"><Select value={parameterToAdd}
@@ -130,5 +126,15 @@ export default function ClientProfileBundleEditor({ bundle, settings, onClose, o
       </div>
       <ActionGroup className="modal-footer"><Button type="button" onClick={onClose}>Cancel</Button><Button type="submit" variant="primary">Save Assessment Pack</Button></ActionGroup>
     </form>
+    <ConfirmRemoval item={pendingParameterRemoval ? { name: `${parameterOptions.find(([value]) => value === pendingParameterRemoval)?.[1]} parameter`, type: 'parameter' } : null}
+      onCancel={() => setPendingParameterRemoval(null)} onConfirm={() => {
+        const key = pendingParameterRemoval;
+        setParameters(current => current.filter(value => value !== key));
+        setDraft(current => key === 'profileValue'
+          ? { ...current, triggerDataEnabled: false, triggerDataField: '', triggerDataValue: '' }
+          : { ...current, [key]: key === 'careLevel' ? 'All' : null });
+        setError('');
+        setPendingParameterRemoval(null);
+      }} />
   </Modal>;
 }

@@ -22,7 +22,7 @@ export const ReadTheCollection = {
   render: () => (
     <div className="ds-story">
       <h2>YSCC component collection</h2>
-      <p>This Storybook is the visual companion to the full visible-app inventory. It moves from tokens through controls and records to page compositions. Stories use the app components, styles, and fictional sample records. The Color setup toolbar previews all four brand palettes; story state is isolated from saved app data.</p>
+      <p>This Storybook is the visual companion to the full visible-app inventory. It moves from tokens through controls and records to page compositions. Stories use the app components, styles, and fictional sample records. The Color setup toolbar previews all six visible palettes; story state is isolated from saved app data.</p>
       <div className="ds-stack">
         {groups.map(([group, ids, covered, remaining]) => (
           <div className="ds-example" key={group}>

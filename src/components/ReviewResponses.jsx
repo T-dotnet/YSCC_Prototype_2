@@ -1,3 +1,4 @@
+import { displayMeasureVersion } from '../terminology.js';
 import { episodeWithVisibleContacts } from "../assessmentFeatures.js";
 import { getInstrument } from "../instruments";
 import useDraft from "../useDraft";
@@ -555,7 +556,7 @@ export default function ReviewResponses({
               Back to Assessment
             </button>
             <h1>{title}</h1>
-            <p>{`${displayPersonName(person)} · ${c.label} · ${c.version}`}</p>
+            <p>{`${displayPersonName(person)} · ${c.label} · ${displayMeasureVersion(c.version)}`}</p>
           </div>
           <div className="assessment-review-header-actions">
             {canEdit && onEdit && (
@@ -574,7 +575,7 @@ export default function ReviewResponses({
   return (
     <Modal
       title={title}
-      subtitle={`${displayPersonName(person)} · ${c.label} · ${c.version}`}
+      subtitle={`${displayPersonName(person)} · ${c.label} · ${displayMeasureVersion(c.version)}`}
       onClose={requestClose}
       wide
       className="response-dialog"

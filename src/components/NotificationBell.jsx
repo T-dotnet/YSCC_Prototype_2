@@ -8,7 +8,7 @@ import { useStore } from "../store";
 import { TODAY, formatDate } from "../model";
 import { getNotifications } from "../notifications";
 import { mvpPathwayEnabled } from "../mvpAssessmentPathway";
-import { FilterTabs } from "./UI";
+import { Badge, FilterTabs } from "./UI";
 import { displayTerminology } from "../terminology.js";
 
 const CATEGORY_MAP = {
@@ -208,9 +208,9 @@ export default function NotificationBell({ navigate }) {
                   >
                     <div className="notification-item-content">
                       <div className="notification-item-header">
-                        <span className={`badge ${categoryInfo.badgeClass} notification-category-badge`}>
+                        <Badge tone={categoryInfo.badgeClass} className="notification-category-badge" showMark={false}>
                           {displayTerminology(categoryInfo.label)}
-                        </span>
+                        </Badge>
                         {displayDate && (
                           <span className="notification-item-date">{displayDate}</span>
                         )}

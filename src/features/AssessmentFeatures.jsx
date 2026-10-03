@@ -111,7 +111,7 @@ export default function AssessmentFeatures({navigate,openModal}) {
             <div>
               <h3>Create initial and 90-day assessments</h3>
               <p>Prepare an initial assessment and scheduled 90-day reviews for each program stream. Review reminders appear in Notifications.</p>
-              <p>Psychosis reviews use Batch 3 Data item measures. Other streams use fictional staff-completed reviews until approved measures are available. Batch 2 and 3 measures are codebook fields, not approved clinical questionnaires.</p>
+              <p>Psychosis reviews use codebook data item measures. Other streams use fictional staff-completed reviews until approved measures are available. These measures are codebook fields, not approved clinical questionnaires.</p>
               <p>When off, no new pathway assessments are prepared. Existing assessments and responses remain available.</p>
             </div>
             <Switch label="Create initial and 90-day assessments" checked={mvpPathwayEnabled(settings)}
@@ -119,7 +119,7 @@ export default function AssessmentFeatures({navigate,openModal}) {
           </div>
           {mvpPathwayEnabled(settings) && <div className="admin-row">
             <span className="admin-icon"><SlidersHorizontal size={24} /></span>
-            <div><h3>Record assessment outcome</h3><p>Show Record outcome beside the response action at every stage of an initial assessment configured to change status to Ongoing review. The Batch 2 outcome is required before that status change.</p></div>
+            <div><h3>Record assessment outcome</h3><p>Show Record outcome beside the response action at every stage of an initial assessment configured to change status to Ongoing review. An assessment outcome is required before that status change.</p></div>
             <Switch label="Record assessment outcome" checked={settings.mvpRecordAssessmentOutcome !== false}
               onChange={event => commit({type:'SET_MVP_RECORD_ASSESSMENT_OUTCOME',enabled:event.target.checked})} />
           </div>}

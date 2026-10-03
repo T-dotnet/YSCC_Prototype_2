@@ -14,7 +14,7 @@ test('Client profile trigger condition waits for the selected profile value and 
   assert.equal(configured.settings.clientProfileBundle.triggerDataValue, 'Aboriginal');
   const added = reducer(configured, { type: 'ADD_PERSON', mvpProfile: true, requestId: 'profile-trigger-value',
     name: 'Profile Trigger Example', dob: '2008-04-12', owner: 'Jess Taylor',
-    nextAction: 'Complete Client profile', reviewDate: TODAY });
+    nextAction: 'Complete Client profile', reviewDate: TODAY, programStream: 'Mood' });
   const person = added.people.find(item => item.registrationRequestId === 'profile-trigger-value');
   assert.equal(person.episodes[0].collections.some(item => item.clientProfileMeasure), false);
   const matched = structuredClone(added);
@@ -22,7 +22,8 @@ test('Client profile trigger condition waits for the selected profile value and 
   const scheduled = reconcileMvpAssessmentPathway(matched, TODAY);
   const records = scheduled.people.find(item => item.id === person.id).episodes[0].collections
     .filter(item => item.clientProfileMeasure);
-  assert.equal(records.length, 4);
+  assert.deepEqual(records.map(item => item.version).sort(),
+    clientProfileBundle(configured.settings).instrumentVersions.slice().sort());
   assert.ok(records.every(item => item.due === addDays(person.episodes[0].start, 4)));
   assert.equal(reconcileMvpAssessmentPathway(scheduled, TODAY), scheduled);
 });
@@ -40,7 +41,7 @@ test('Client profile also waits for configured stream and age conditions', () =>
   } });
   const added = reducer(configured, { type: 'ADD_PERSON', mvpProfile: true, requestId: 'profile-stream-age',
     name: 'Profile Stream Example', dob: '2008-04-12', owner: 'Jess Taylor',
-    nextAction: 'Complete Client profile', reviewDate: TODAY });
+    nextAction: 'Complete Client profile', reviewDate: TODAY, programStream: 'Mood' });
   const person = added.people.find(item => item.registrationRequestId === 'profile-stream-age');
   assert.equal(person.episodes[0].collections.some(item => item.clientProfileMeasure), false);
   const matched = structuredClone(added);
@@ -48,6 +49,7 @@ test('Client profile also waits for configured stream and age conditions', () =>
   updated.dob = '2006-04-12';
   updated.episodes[0].programStream = 'Psychosis';
   const scheduled = reconcileMvpAssessmentPathway(matched, TODAY);
-  assert.equal(scheduled.people.find(item => item.id === person.id).episodes[0].collections
-    .filter(item => item.clientProfileMeasure).length, 4);
+  assert.deepEqual(scheduled.people.find(item => item.id === person.id).episodes[0].collections
+    .filter(item => item.clientProfileMeasure).map(item => item.version).sort(),
+    clientProfileBundle(configured.settings).instrumentVersions.slice().sort());
 });

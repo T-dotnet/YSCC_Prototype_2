@@ -1,9 +1,11 @@
+import { displayMeasureVersion } from '../terminology.js';
 import { peopleBundleSummary } from "../people";
 import { assessmentBundleStatus } from '../assessmentBundleStatus.js';
 import { personWithVisibleContacts } from "../assessmentFeatures.js";
 import { COLLECTION_METHOD_OPTIONS, LABELS, appTerm, displayTerminology } from "../terminology.js";
 import StandardTable from "../components/StandardTable";
 import AssessmentBundleDetails from "../components/AssessmentBundleDetails";
+import ConfirmRemoval from "../components/ConfirmRemoval";
 import BundleQuestionnaire from "../components/BundleQuestionnaire";
 import { QueueRow, QueueCell } from "../components/QueueRow";
 import { SortableHeader, useQueueSort } from "../components/QueueControls";
@@ -13,7 +15,7 @@ import MvpAssessmentSummary from '../components/MvpAssessmentSummary';
 import AssessmentOutcomeForm from '../components/AssessmentOutcomeForm';
 import StatusTransitionOutcomeForm from '../components/StatusTransitionOutcomeForm';
 import { initialAssessmentReadyForOutcome, initialAssessmentHasOutcomeStatus, initialAssessmentStatusChange } from '../assessmentOutcome.js';
-import { completedStatusTransitions } from '../measureStatusChange.js';
+import { availableStatusTransitionForGroup, completedStatusTransitions } from '../measureStatusChange.js';
 import { statusOutcomeRuleFor } from '../statusOutcomeRules.js';
 import SectionActionHeader from "../components/SectionActionHeader";
 import { assessmentBundleGroups, instrumentSupportsRespondent } from "../assessmentBundles";
@@ -148,6 +150,7 @@ export default function Person({ id, navigate, openModal }) {
   const [intakeDetailsOpen, setIntakeDetailsOpen] = useState(false);
   const [profileDetailsOpen, setProfileDetailsOpen] = useState(false);
   const [tagEditorOpen, setTagEditorOpen] = useState(false);
+  const [pendingTagRemoval, setPendingTagRemoval] = useState(null);
   const [selectedTag, setSelectedTag] = useState("");
   const [tagError, setTagError] = useState("");
   const [levelHistoryOpen, setLevelHistoryOpen] = useState(false);
@@ -321,24 +324,19 @@ export default function Person({ id, navigate, openModal }) {
     return { transition, rule, recorded: (e.statusOutcomes || []).find(item => item.recordId === transition.recordId) };
   };
   const configuredCustomOutcomeForGroup = records => {
-    const completed = customOutcomeForGroup(records);
-    if (completed) return completed;
-    // The transition is created after submission; keep its configured action visible meanwhile.
-    const profile = records.some(record => record.clientProfileMeasure &&
-      initialAssessmentStatusChange(record, state.settings) === 'Assessment');
-    const review = records.some(record => record.mvpTimepointId &&
-      initialAssessmentStatusChange(record, state.settings) === 'Ongoing review');
-    if (!profile && !review) return null;
-    const rule = profile
-      ? statusOutcomeRuleFor(state.settings, 'Profiling', 'Assessment')
-      : statusOutcomeRuleFor(state.settings, 'Ongoing review', 'Ongoing review');
-    return rule ? { rule, transition: null, recorded: null } : null;
+    const transition = availableStatusTransitionForGroup(e, records, state.settings);
+    if (!transition) return null;
+    const rule = statusOutcomeRuleFor(state.settings, transition.from, transition.to);
+    if (rule?.builtIn) return null;
+    return rule ? { rule, transition,
+      recorded: (e.statusOutcomes || []).find(item => item.recordId === transition.recordId) } : null;
   };
   const openReview = (collection) =>
     navigate(`/people/${p.id}/assessment-review/${collection.id}`, {
       scroll: false,
     });
   const collectAssessmentResponse = (record) => {
+    if (!record) return;
     const savedBundle = state.settings?.assessmentScheduleRules?.find(item => item.id === (record.bundleId || record.scheduleRuleId));
     const override = e.assessmentBundleSelections?.[savedBundle?.id]?.assessmentOverrides?.[0];
     const collection = savedBundle ? {...record,channel:override?.channel || savedBundle.channel || savedBundle.assessments?.[0]?.channel || record.channel,
@@ -480,7 +478,8 @@ export default function Person({ id, navigate, openModal }) {
     record.mvpInitialAssessment && record.mvpRespondent === 'Person' &&
     initialAssessmentStatusChange(record, state.settings) === 'Ongoing review');
   const overviewOutcomePending = !!overviewBundle &&
-    (overviewBundle.records.some(awaitingOutcome) || (overviewCustomOutcome?.rule?.enabled && !!overviewCustomOutcome.transition && !overviewCustomOutcome.recorded));
+    (overviewBundle.records.some(awaitingOutcome) || (overviewCustomOutcome?.rule?.enabled &&
+      overviewBundle.records.every(record => record.response === 'Submitted') && !overviewCustomOutcome.recorded));
   const overviewBundleSummary = overviewOutcomePending
     ? { ...rawOverviewBundleSummary, status: 'Record outcome',
       detail: `${overviewBundle.records.filter(record => record.response === 'Submitted').length} of ${overviewBundle.records.length} measures completed · Outcome required` }
@@ -634,13 +633,7 @@ export default function Person({ id, navigate, openModal }) {
                       className="person-tag-remove"
                       type="button"
                       aria-label={`Remove ${tag} tag`}
-                      onClick={() => {
-                        const result = commit({ type: "REMOVE_PERSON_TAG", personId: p.id, tag });
-                        if (result.error) {
-                          setTagError(result.error);
-                          setTagEditorOpen(true);
-                        }
-                      }}
+                      onClick={() => setPendingTagRemoval(tag)}
                     >
                       <X size={11} aria-hidden="true" />
                     </button>
@@ -760,10 +753,8 @@ export default function Person({ id, navigate, openModal }) {
                 {(p.tags || []).map((tag) => (
                   <div className="person-tag-editor-item" key={tag}>
                     <span className="person-tag">{tag}</span>
-                    <button type="button" className="text-link" aria-label={`Remove ${tag} tag`} onClick={() => {
-                      const result = commit({ type: "REMOVE_PERSON_TAG", personId: p.id, tag });
-                      if (result.error) setTagError(result.error);
-                    }}>Remove</button>
+                    <button type="button" className="text-link" aria-label={`Remove ${tag} tag`}
+                      onClick={() => setPendingTagRemoval(tag)}>Remove</button>
                   </div>
                 ))}
               </div>
@@ -773,6 +764,13 @@ export default function Person({ id, navigate, openModal }) {
           </ValidatedForm>
         </Modal>
       )}
+      <ConfirmRemoval item={pendingTagRemoval ? { name: `${pendingTagRemoval} tag`, type: 'tag',
+        description: 'This tag will be removed from the person record.' } : null}
+        onCancel={() => setPendingTagRemoval(null)} onConfirm={() => {
+          const result = commit({ type: "REMOVE_PERSON_TAG", personId: p.id, tag: pendingTagRemoval });
+          if (result.error) { setTagError(result.error); setTagEditorOpen(true); }
+          setPendingTagRemoval(null);
+        }} />
       <div className={`person-content-surface person-open-surface${tab === "Assessment" ? " assessment-ledger-surface" : ""}`}>
       {contextualView === "Referrals" ? (
         <div className="section-toolbar">
@@ -851,11 +849,10 @@ export default function Person({ id, navigate, openModal }) {
                     <ActionGroup className="actions">
                       <Button
                         variant={overviewOutcomePending ? 'secondary' : 'primary'}
-                        aria-haspopup={overviewBundle || overviewCardStep.primary.modal ? 'dialog' : undefined}
+                        aria-haspopup={!overviewBundle && overviewCardStep.primary.modal ? 'dialog' : undefined}
                         onClick={() => {
                           if (overviewBundle && overviewPendingRecord) {
-                            openModal({ type: 'collection', collectResponse: true, personId: p.id,
-                              episodeId: e.id, collectionId: overviewPendingRecord.id });
+                            collectAssessmentResponse(overviewPendingRecord);
                           } else if (overviewBundle) {
                             setResponseGroup(overviewBundle);
                             setTab('Assessment');
@@ -870,8 +867,7 @@ export default function Person({ id, navigate, openModal }) {
                       </Button>
                     {overviewOutcomeAvailable && recordOutcomeAction}
                     {overviewCustomOutcomeAvailable && <Button variant={overviewOutcomePending ? 'primary' : 'secondary'}
-                      disabled={outcomeActionDisabled || !overviewCustomOutcome.transition}
-                      title={!overviewCustomOutcome.transition ? 'Complete all measures before recording an outcome' : undefined}
+                      disabled={outcomeActionDisabled}
                       onClick={() => setStatusOutcomeForm(overviewCustomOutcome.transition)}>
                       Record outcome
                     </Button>}
@@ -914,7 +910,7 @@ export default function Person({ id, navigate, openModal }) {
                       </div>}
                       <div>
                         <dt>Measure</dt>
-                        <dd>{c.version}</dd>
+                        <dd>{displayMeasureVersion(c.version)}</dd>
                       </div>
                     </dl>}
                     {!overviewBundle && !simpleAssessments && c.response === "Submitted" && (!reviewed || noClinicalReviewRequired(c)) && (
@@ -1629,6 +1625,7 @@ export default function Person({ id, navigate, openModal }) {
           <CareEvents
             episode={e}
             person={p}
+            onCollectAssessmentResponse={collectAssessmentResponse}
             audit={state.audit}
             attentionIds={attentionItems.map((item) => item.id)}
             attentionOnly={attentionOnly}
@@ -1680,14 +1677,14 @@ export default function Person({ id, navigate, openModal }) {
               <RecordItem
                 key={request.id}
                 title={request.title}
-                subtitle={`${request.version} · ${request.scope}`}
+                subtitle={`${displayMeasureVersion(request.version)} · ${request.scope}`}
                 status={request.status}
                 collapsible
                 lead={
                   <>
                     <span className="record-item-lead-icon"><FileCheck2 size={22} aria-hidden="true" /></span>
                     <span>
-                      <strong>{request.version}</strong>
+                      <strong>{displayMeasureVersion(request.version)}</strong>
                     </span>
                   </>
                 }

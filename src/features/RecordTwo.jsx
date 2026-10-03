@@ -1,3 +1,4 @@
+import { displayMeasureVersion } from '../terminology.js';
 import { useState } from "react";
 import {
   ArrowDown,
@@ -527,7 +528,7 @@ function OutcomeMeasureCard({
           {showHeading && (
             <div className="outcome-card-heading">
               <strong>{measure.displayName}</strong>
-              <span>{measure.version}</span>
+              <span>{displayMeasureVersion(measure.version)}</span>
             </div>
           )}
           <div className="outcome-card-score">

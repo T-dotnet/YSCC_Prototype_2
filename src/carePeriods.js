@@ -1,4 +1,5 @@
 export const PROGRAM_STREAMS = ["Psychosis", "Eating Disorder", "Personality", "Mood"];
+export const UNIDENTIFIED_EPISODE_STREAM = "Not identified yet";
 export const CARE_LEVELS = ["High", "Mid", "Low"];
 export const CARE_LEVEL_REASONS = [
   "Scheduled review",

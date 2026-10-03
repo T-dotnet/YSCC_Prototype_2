@@ -1,5 +1,5 @@
 import { useEffect, useRef, useId } from "react";
-import { ActionGroup, Button } from "./UI";
+import { Button, ModalFooter } from "./UI";
 
 export default function DiscardChanges({ onKeepEditing, onDiscard }) {
   const keep = useRef(null);
@@ -14,22 +14,22 @@ export default function DiscardChanges({ onKeepEditing, onDiscard }) {
         <h3 id={id}>Discard your unsaved changes?</h3>
         <p>Your saved record will stay as it is.</p>
       </div>
-      <ActionGroup className="modal-footer">
-        <button
+      <ModalFooter>
+        <Button
           ref={keep}
           type="button"
-          className="button primary"
+          variant="primary"
           onClick={() => {
             onKeepEditing();
             requestAnimationFrame(() => prior.current?.focus?.());
           }}
         >
           Keep editing
-        </button>
+        </Button>
         <Button type="button" onClick={onDiscard}>
           Discard changes
         </Button>
-      </ActionGroup>
+      </ModalFooter>
     </div>
   );
 }

@@ -88,11 +88,13 @@ export const ReportEvidence = {
       <div className="ds-stack">
         <ReportEvidenceCard
           variant="score"
+          headingLevel={3}
           title="K10 self-report"
           metric={<div className="report-evidence-metric score"><strong>26</strong><span>/ 50</span></div>}
         >Collected 24 September 2026. The value is presented as a raw score with its scale.</ReportEvidenceCard>
         <ReportEvidenceCard
           variant="qualitative"
+          headingLevel={3}
           title="Care observation"
           metric={<div className="report-evidence-metric qualitative"><strong>2</strong><span>notes</span></div>}
         >Qualitative observations are kept separate from scored measures.</ReportEvidenceCard>

@@ -1,11 +1,11 @@
 import StandardTable from "../components/StandardTable";
 import AssessmentScheduleSettings from "../components/AssessmentScheduleSettings";
 import AdminInstrumentsTable from "../components/AdminInstrumentsTable";
-import AdminDataDictionary from "../components/AdminDataDictionary";
 import AdminOutcomeOptions from "../components/AdminOutcomeOptions";
 import ProductTerminology from "../components/ProductTerminology";
 import useQueueView from "../useQueueView";
-import { useMemo } from "react";
+import { lazy, Suspense, useMemo } from "react";
+const AdminDataDictionary = lazy(() => import("../components/AdminDataDictionary"));
 import { INSTRUMENTS, STANDARD_INSTRUMENTS } from "../instruments";
 import {
   Plus,
@@ -369,7 +369,7 @@ export function Administration({ openModal, navigate }) {
       {adminTab === "bundles" && <AssessmentScheduleSettings />}
       {adminTab === "instruments" && <AdminInstrumentsTable settings={state.settings} />}
       {adminTab === "outcomes" && <AdminOutcomeOptions />}
-      {adminTab === "data-dictionary" && <AdminDataDictionary />}
+      {adminTab === "data-dictionary" && <Suspense fallback={<p role="status">Opening data dictionary…</p>}><AdminDataDictionary /></Suspense>}
       {adminTab === "workspace" && <div className="stack">
       <div className="section-toolbar administration-section-heading">
         <div>

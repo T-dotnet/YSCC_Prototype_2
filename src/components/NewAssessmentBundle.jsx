@@ -13,6 +13,7 @@ import { mvpAssessmentMode, mvpBlankAssessmentTemplate } from '../mvpAssessmentP
 import { ActionGroup, Badge, Checkbox, IconButton, Modal, Button, Field, Select, Empty, Notice, ValidatedForm } from './UI';
 import AssessmentScheduleSettings from "./AssessmentScheduleSettings";
 import BundleAssessmentRow from './BundleAssessmentRow';
+import ConfirmRemoval from './ConfirmRemoval';
 import AssessmentModalActions from './AssessmentModalActions';
 import StatusChangeFields from './StatusChangeFields';
 
@@ -58,6 +59,7 @@ export default function NewAssessmentBundle({ person, episode, onClose, onCreate
   const [extraVersion, setExtraVersion] = useState('');
   const [due, setDue] = useState(TODAY);
   const [error, setError] = useState('');
+  const [pendingExtraRemoval, setPendingExtraRemoval] = useState(null);
   const [instanceId] = useState(uid);
   const bundles = (mvpAssessments ? [] : (state.settings?.assessmentScheduleRules || [])).map(asBundle)
     .filter(bundle => editingBundle ? bundle.id === editBundleId : bundle.enabled && bundleAgeMatches(bundle,person,TODAY));
@@ -180,7 +182,7 @@ export default function NewAssessmentBundle({ person, episode, onClose, onCreate
               return <tr key={item.record?.id || item.id || index}>
                 <td>{instrument?.name || item.record?.label}{item.record && responseDate(item.record) && <small>Completed {formatDate(responseDate(item.record))}</small>}</td>
                 <td><Badge>{rowStatus(item)}</Badge></td>
-                <td>{additional ? <div className="bundle-additional-requirement"><IconButton icon={Trash2} label={`Remove ${instrument?.name}`} onClick={() => {setExtras(items => items.filter(extra => extra.version !== item.version));setError('');}} /><span>Remove</span></div>
+                <td>{additional ? <div className="bundle-additional-requirement"><IconButton icon={Trash2} label={`Remove ${instrument?.name}`} onClick={() => setPendingExtraRemoval({ name: instrument?.name || item.version, version: item.version })} /><span>Remove</span></div>
                   : <Checkbox label={mandatory ? 'Mandatory' : 'Include'} aria-label={`Include ${instrument?.name}`} checked={included} disabled={mandatory || !!unavailable}
                       onChange={event => {setOptionalIds(ids => event.target.checked ? [...new Set([...ids,item.id])] : ids.filter(id => id !== item.id));setError('');}} />}</td>
               </tr>;
@@ -229,6 +231,12 @@ export default function NewAssessmentBundle({ person, episode, onClose, onCreate
         onMarkNotRequired={onMarkNotRequired || (footerAction ? () => footerAction.props.onClick() : null)}
         onArchive={onArchive} onCancel={onClose} saveLabel={editingBundle ? 'Save changes' : 'Create Collection Occasion'} disabled={!bundle || blankMvp && !blankVersions.length || !!selectionError} />
     </ValidatedForm>}
+    <ConfirmRemoval item={pendingExtraRemoval ? { name: pendingExtraRemoval.name, type: 'measure' } : null}
+      onCancel={() => setPendingExtraRemoval(null)} onConfirm={() => {
+        setExtras(items => items.filter(extra => extra.version !== pendingExtraRemoval.version));
+        setError('');
+        setPendingExtraRemoval(null);
+      }} />
   </>;
   return embedded ? content : <Modal title={editingBundle ? 'Edit Collection Occasion' : 'New Collection Occasion'} subtitle={editingBundle ? bundleName(bundle) : `${person.name} · Episode ${episode.number}`} onClose={onClose} wide className="new-assessment-bundle-modal">{content}</Modal>;
 }

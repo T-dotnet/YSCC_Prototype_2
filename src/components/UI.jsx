@@ -27,93 +27,9 @@ const displayChildren = children => Array.isArray(children)
   : displayTerminology(children);
 export function Logo() {
   return (
-    <span className="brand">
-      <svg
-        viewBox="0 0 48 48"
-        aria-hidden="true"
-        className="brand-icon floral-logo"
-      >
-        <defs>
-          <clipPath id="yscc-y-clip">
-            {/* Bold geometric humanist Y shape matching the reference image */}
-            <path d="M 9.5 7 L 18.5 7 L 24 18.5 L 29.5 7 L 38.5 7 L 28.5 24.5 L 28.5 41 L 19.5 41 L 19.5 24.5 Z" />
-          </clipPath>
-        </defs>
-
-        {/* Soft rounded container background */}
-        <rect
-          width="48"
-          height="48"
-          rx="11"
-          fill="#edf3f0"
-          className="floral-logo-bg"
-        />
-
-        {/* Clipped botanical illustration inside the Y */}
-        <g clipPath="url(#yscc-y-clip)">
-          {/* Deep forest green letter Y body fill */}
-          <rect width="48" height="48" fill="#14362b" />
-
-          {/* Botanical motifs: Vines and stems (soft mint / sage) */}
-          {/* Lower stem central branch */}
-          <path
-            d="M 24 40 Q 23.5 32 24 25"
-            stroke="#7cbfa3"
-            strokeWidth="1.6"
-            strokeLinecap="round"
-            fill="none"
-          />
-          {/* Left arm branch */}
-          <path
-            d="M 23 27 Q 19 22 13 11"
-            stroke="#ff542e"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            fill="none"
-          />
-          {/* Right arm branch (mint) */}
-          <path
-            d="M 24 26 Q 27 20 34 11"
-            stroke="#7cbfa3"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            fill="none"
-          />
-
-          {/* Mint fern / leaves on lower stem */}
-          <ellipse cx="21" cy="37" rx="3" ry="1.6" transform="rotate(-35 21 37)" fill="#9ad4be" />
-          <ellipse cx="27" cy="35" rx="3.2" ry="1.6" transform="rotate(30 27 35)" fill="#9ad4be" />
-          <ellipse cx="21" cy="32" rx="3.3" ry="1.7" transform="rotate(-28 21 32)" fill="#81c4a9" />
-          <ellipse cx="27" cy="29.5" rx="3.4" ry="1.7" transform="rotate(32 27 29.5)" fill="#81c4a9" />
-          <ellipse cx="21.5" cy="26" rx="3.2" ry="1.8" transform="rotate(-40 21.5 26)" fill="#68af92" />
-
-          {/* Left upper branch: Vibrant coral botanical foliage */}
-          <ellipse cx="14.5" cy="14" rx="4.8" ry="2.4" transform="rotate(-48 14.5 14)" fill="#fa532c" />
-          <ellipse cx="18.5" cy="11.5" rx="4.5" ry="2.2" transform="rotate(-35 18.5 11.5)" fill="#fa532c" />
-          <ellipse cx="17" cy="17.5" rx="4.2" ry="2.3" transform="rotate(-55 17 17.5)" fill="#fa532c" />
-          <ellipse cx="21" cy="16" rx="4.6" ry="2.4" transform="rotate(-40 21 16)" fill="#ff6d48" />
-          <ellipse cx="20.5" cy="22" rx="3.8" ry="2.1" transform="rotate(-52 20.5 22)" fill="#fa532c" />
-
-          {/* Center cluster: Peach blossom petals & bright orange leaf highlights */}
-          <ellipse cx="24" cy="21" rx="4.5" ry="2.2" transform="rotate(18 24 21)" fill="#ffa190" />
-          <ellipse cx="26.5" cy="17.5" rx="4.8" ry="2.3" transform="rotate(15 26.5 17.5)" fill="#ffb4a6" />
-          <ellipse cx="24.5" cy="25" rx="3.8" ry="1.9" transform="rotate(25 24.5 25)" fill="#fa532c" />
-          <ellipse cx="28.5" cy="23" rx="4.2" ry="2" transform="rotate(45 28.5 23)" fill="#ff643d" />
-
-          {/* Right upper branch: delicate mint / sage sprig with rounded leaf buds */}
-          <circle cx="34" cy="13" r="1.7" fill="#8fd0b7" />
-          <circle cx="31.5" cy="11" r="1.6" fill="#8fd0b7" />
-          <ellipse cx="30" cy="14.5" rx="3" ry="1.6" transform="rotate(35 30 14.5)" fill="#8fd0b7" />
-          <ellipse cx="33" cy="17" rx="3.2" ry="1.7" transform="rotate(25 33 17)" fill="#76c3a6" />
-          <ellipse cx="28" cy="18" rx="3" ry="1.6" transform="rotate(-20 28 18)" fill="#76c3a6" />
-          <circle cx="35" cy="16" r="1.5" fill="#8fd0b7" />
-          <circle cx="32" cy="20.5" r="1.6" fill="#76c3a6" />
-        </g>
-      </svg>
-      <span className="brand-text">
-        <span className="brand-name">YSCC</span>
-        <span className="brand-tag">Youth Care</span>
-      </span>
+    <span className="brand" aria-label="Yonder">
+      <img className="brand-wordmark" src="/yonder-logo.png" alt="" aria-hidden="true" />
+      <img className="brand-symbol" src="/yonder-icon-transparent.png" alt="" aria-hidden="true" />
     </span>
   );
 }
@@ -211,12 +127,12 @@ export function PersonIdentity({ name, descriptor, className = "" }) {
     </span>
   );
 }
-export function Badge({ children, tone, className = "", verbatim = false }) {
+export function Badge({ children, tone, className = "", verbatim = false, showMark = true }) {
   return (
     <span
       className={`badge ${tone || badgeTone(children)} ${className}`.trim()}
     >
-      <span />
+      {showMark && <span />}
       {verbatim ? children : displayChildren(children)}
     </span>
   );

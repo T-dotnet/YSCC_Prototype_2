@@ -1,3 +1,4 @@
+import { displayMeasureVersion } from '../terminology.js';
 import { useState } from "react";
 import { ChevronDown, X } from "lucide-react";
 import { careTimelineData, timelineExtent, timelinePosition } from "../careTimeline";
@@ -211,7 +212,7 @@ function RecordDetail({ person, episode, entry, onClose, onOpenSource }) {
           <>
             <div>
               <dt>Measure</dt>
-              <dd>{collection.version || "Not recorded"}</dd>
+              <dd>{displayMeasureVersion(collection.version) || "Not recorded"}</dd>
             </div>
             {isPlanned ? (
               <div>

@@ -4,14 +4,14 @@ import { asBundle, bundleError, bundleTiming, reconcileAssessmentBundles } from 
 import { canCollectInEpisode, createSeed, reducer, upgradeSampleData } from './model.js';
 import { getInstrument } from './instruments.js';
 
-const assessment = (extra = {}) => ({id:'item',version:'Your preferences and next steps v2.0',
+const assessment = (extra = {}) => ({id:'item',version:'EP Batch 2 · Living Situation v1.0',
   channel:'Clinic tablet',recipient:'Person',requirement:'Mandatory',...extra});
 const rule = (extra = {}) => ({id:'timing-bundle',name:'Timing review',trigger:'current',
-  programStream:'General',careLevel:'Mid',days:7,timing:'days',repeat:true,enabled:true,
+  programStream:'Mood',careLevel:'Mid',days:7,timing:'days',repeat:true,enabled:true,
   assessments:[assessment()],...extra});
 const make = bundle => ({settings:{automaticAssessmentDueDates:true,assessmentScheduleRules:[bundle]},
   people:[{id:'person',dob:'2008-09-15',intakes:[],episodes:[{id:'episode',status:'Active',start:'2026-09-01',
-    carePeriods:[{startDate:'2026-09-01',endDateExclusive:null,programStream:'General',careLevel:'Mid'}],collections:[]}]}]});
+    carePeriods:[{startDate:'2026-09-01',endDateExclusive:null,programStream:'Mood',careLevel:'Mid'}],collections:[]}]}]});
 const episode = state => state.people[0].episodes[0];
 const today = '2026-09-28';
 

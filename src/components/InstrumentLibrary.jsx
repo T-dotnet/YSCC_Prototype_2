@@ -1,3 +1,4 @@
+import { displayMeasureVersion } from '../terminology.js';
 import { useRef, useState } from "react";
 import { ArrowRight, Eye } from "lucide-react";
 import { INSTRUMENTS, STANDARD_INSTRUMENTS } from "../instruments";
@@ -62,7 +63,7 @@ export default function InstrumentLibrary({ onClose }) {
                 <h3>{instrument.name}</h3>
                 <p>{instrument.description}</p>
                 <small>
-                  {instrument.version} · Up to {instrument.questions.length}{" "}
+                  {displayMeasureVersion(instrument.version)} · Up to {instrument.questions.length}{" "}
                   questions · {instrument.sections.length} sections
                 </small>
                 {instrument.responseFormat && (

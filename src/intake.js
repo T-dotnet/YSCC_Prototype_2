@@ -1,5 +1,5 @@
 import { careChanges, recordFieldChanges } from "./activity.js";
-import { PROGRAM_STREAMS } from "./carePeriods.js";
+import { PROGRAM_STREAMS, UNIDENTIFIED_EPISODE_STREAM } from "./carePeriods.js";
 import { validExternalSlot } from "./externalAppointmentSlots.js";
 import { PROFILE_FIELDS } from "./batch1Registration.js";
 
@@ -160,7 +160,7 @@ export function newIntake({
     reviewer: owner,
     summary: "",
     assessmentOwner: "",
-    nextAction: "Complete Batch 1 registration",
+    nextAction: "Complete registration",
     reviewDate: today,
     waitingReason: "",
     waitingOn: "",
@@ -172,7 +172,7 @@ export function newIntake({
         actor,
         title: "Intake received",
         detail:
-          "Profile created; complete Batch 1 registration before planning assessment.",
+          "Profile created; complete registration before planning assessment.",
       },
     ],
   };
@@ -194,7 +194,7 @@ export function intakeActionError(state, action, staff) {
     if ((!action.mvpProfile || action.dob) &&
         (!validDate(action.dob) || action.dob > new Date().toISOString().slice(0, 10)))
       return "Enter a valid date of birth.";
-    if (action.mvpProfile && !PROGRAM_STREAMS.includes(action.programStream))
+    if (action.mvpProfile && ![...PROGRAM_STREAMS, UNIDENTIFIED_EPISODE_STREAM].includes(action.programStream))
       return "Choose an episode stream.";
     if (state.people.some((p) => p.registrationRequestId === action.requestId))
       return "This registration is already saved. Open the existing record.";
@@ -248,7 +248,7 @@ export function intakeActionError(state, action, staff) {
     if (action.type === "START_ASSESSMENT") {
       if (!PROGRAM_STREAMS.includes(action.programStream))
         return "Choose the program stream for this episode.";
-      if (!i || i.status === "Received") return "Save Batch 1 registration fields before planning assessment.";
+      if (!i || i.status === "Received") return "Save registration fields before planning assessment.";
       if (p.episodes.some((episode) => episode.id !== i.episodeId) ||
           (i.episodeId && p.episodes.find((episode) => episode.id === i.episodeId)?.collections?.[0]?.due))
         return "An existing care record needs review; another episode cannot be created here.";
@@ -461,7 +461,7 @@ export function applyIntakeAction(
     for (const key of PROFILE_FIELDS) if (f[key] !== undefined) p[key] = f[key].trim();
     i.revision += 1;
     i.history.unshift({
-      ...history("Batch 1 registration updated", f.changeReason.trim()),
+      ...history("registration updated", f.changeReason.trim()),
       changes: [
         ...recordFieldChanges(previous, i, fields.map((key) => [key, key.replace(/([A-Z])/g, " $1")])),
       ],

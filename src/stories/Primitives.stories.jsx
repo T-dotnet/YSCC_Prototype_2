@@ -68,6 +68,14 @@ export const BadgePlayground = {
   render: (args) => <div className="ds-story"><Badge {...args} /></div>,
 };
 
+export const BadgeWithoutStatusMark = {
+  parameters: { docs: { description: { story: "Notification categories use shared badge colours without a status mark. Status badges keep the mark by default." } } },
+  render: () => <div className="ds-story ds-row">
+    <Badge tone="purple" className="notification-category-badge" showMark={false}>Measure ready for review</Badge>
+    <Badge tone="purple">Ready for review</Badge>
+  </div>,
+};
+
 export const StatusBadges = {
   render: () => (
     <div className="ds-story">

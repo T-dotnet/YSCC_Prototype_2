@@ -3,11 +3,13 @@ export default function ReportEvidenceCard({
   title,
   children,
   metric,
+  headingLevel = 5,
 }) {
+  const Heading = `h${headingLevel}`;
   return (
     <article className={`report-evidence-card ${variant}`}>
       <div className="report-evidence-card-copy">
-        <h5>{title}</h5>
+        <Heading>{title}</Heading>
         <p>{children}</p>
       </div>
       {metric}

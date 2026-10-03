@@ -139,6 +139,7 @@ export const ConsolidatedChangeRow = {
 export const CompactAssessmentStates = {
   render: () => <div className="ds-story"><h2>Compact assessment records</h2>
     <p>Created, Draft and Completed share the same production component. Scheduling is off.</p>
+    <h3 className="sr-only">Initial assessment</h3>
     <div className="ds-record-list assessment-simple-group"><div className="assessment-simple-group-records">
       {["Created", "Draft", "Submitted"].map((response) => <AssessmentCollectionCard
         key={response}

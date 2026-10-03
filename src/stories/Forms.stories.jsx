@@ -6,9 +6,11 @@ import {
   Field,
   FormErrorSummary,
   Notice,
+  RadioCard,
   SearchInput,
   Select,
   StaffPicker,
+  Switch,
   ValidatedForm,
 } from "../components/UI";
 
@@ -63,6 +65,36 @@ export const Checkboxes = {
     await userEvent.click(canvas.getByRole('checkbox',{name:'Repeat'}));
     await expect(canvas.getByRole('checkbox',{name:'Repeat'})).toBeChecked();
     await expect(canvas.getByRole('checkbox',{name:'Mandatory'})).toBeDisabled();
+  },
+};
+
+export const RadioCardsAndSwitch = {
+  render: () => {
+    const [method, setMethod] = useState("Clinic tablet");
+    const [enabled, setEnabled] = useState(true);
+    return <div className="ds-story ds-form ds-stack">
+      <fieldset>
+        <legend>Collection method</legend>
+        <div className="collection-method-cards">
+          {["Clinic tablet", "Clinician entry"].map(value => <RadioCard
+            key={value} className="collection-method-card" selected={method === value}
+            name="story-collection-method" value={value} checked={method === value}
+            onChange={() => setMethod(value)}>
+            <span><strong>{value}</strong><small>{value === "Clinic tablet" ? "Answers entered on a clinic device" : "Answers entered by the clinician"}</small></span>
+          </RadioCard>)}
+        </div>
+      </fieldset>
+      <Switch label="Allow collection" checked={enabled} onChange={event => setEnabled(event.target.checked)} />
+      <p role="status">Selected: {method}; collection {enabled ? "on" : "off"}</p>
+    </div>;
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("radio", { name: /Clinician entry/ }));
+    await expect(canvas.getByRole("radio", { name: /Clinician entry/ })).toBeChecked();
+    await userEvent.click(canvas.getByRole("switch", { name: "Allow collection" }));
+    await expect(canvas.getByRole("switch", { name: "Allow collection" })).not.toBeChecked();
+    await expect(canvas.getByRole("status")).toHaveTextContent("Selected: Clinician entry; collection off");
   },
 };
 

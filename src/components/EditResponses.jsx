@@ -1,3 +1,4 @@
+import { displayMeasureVersion } from '../terminology.js';
 import useDraft from "../useDraft";
 import { useRef, useState } from "react";
 import { Pencil, ArrowLeft } from "lucide-react";
@@ -60,7 +61,7 @@ export default function EditResponses({
   return (
     <Modal
       title="Edit answers"
-      subtitle={`${displayPersonName(person)} · ${collection.label} · ${collection.version}`}
+      subtitle={`${displayPersonName(person)} · ${collection.label} · ${displayMeasureVersion(collection.version)}`}
       onClose={requestClose}
       wide
       className="response-dialog"

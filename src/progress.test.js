@@ -7,7 +7,7 @@ import {
 } from "./instruments.js";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createSeed, reducer, TODAY } from "./model.js";
+import { createSeed, reducer } from "./model.js";
 import {
   patientProgress,
   questionnaireProgress,
@@ -227,7 +227,7 @@ test("unknown dates are explicit and never replaced by due dates", () => {
   );
   assert.equal(responseDate({ submittedAt: "2026-02-31" }), null);
   assert.equal(responseDate({ submittedAt: "bad" }), null);
-  assert.equal(responseDate({ submittedAt: "2026-09-15T12:31:00Z" }), TODAY);
+  assert.equal(responseDate({ submittedAt: "2026-09-15T12:31:00Z" }), "2026-09-15");
 });
 
 test("different versions, identities and respondent roles cannot be compared", () => {

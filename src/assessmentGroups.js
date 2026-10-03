@@ -1,6 +1,6 @@
 import { getInstrument } from "./instruments.js";
 import { isCompletedScore } from "./outcomeMeasures.js";
-import { responseDate } from "./progress.js";
+import { responseDate } from "./responseDate.js";
 
 export const assessmentType = (collection) => {
   const instrument = getInstrument(collection.version);

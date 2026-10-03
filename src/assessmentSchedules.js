@@ -2,7 +2,7 @@ import { bundleError, reconcileAssessmentBundles, bundleIntervalDays } from "./a
 import { INSTRUMENTS } from './instruments.js';
 import { PROGRAM_STREAMS, CARE_LEVELS, carePeriodAt } from './carePeriods.js';
 import { assessmentType } from './assessmentGroups.js';
-import { responseDate } from './progress.js';
+import { responseDate } from './responseDate.js';
 import { mvpAssessmentMode, reconcileMvpAssessmentPathway } from './mvpAssessmentPathway.js';
 
 export function scheduleRuleError(rule, rules = []) {

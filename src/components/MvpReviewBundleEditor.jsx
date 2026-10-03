@@ -5,6 +5,7 @@ import { COLLECTION_METHOD_OPTIONS, LABELS } from '../terminology';
 import { mvpBattery, mvpReviewBundleError, mvpReviewItems } from '../mvpAssessmentPathway';
 import { ActionGroup, Button, Checkbox, Field, FieldInput, FieldSelect, Modal, Select } from './UI';
 import BundleAssessmentRow from './BundleAssessmentRow';
+import ConfirmRemoval from './ConfirmRemoval';
 import SpecificMeasureFields from './SpecificMeasureFields';
 import ProfileValueTriggerFields from './ProfileValueTriggerFields';
 import StatusChangeFields from './StatusChangeFields';
@@ -20,6 +21,7 @@ export default function MvpReviewBundleEditor({ bundle, settings, onClose, onSav
   const [parameters, setParameters] = useState(parameterOptions.map(([key]) => key).filter(key =>
     key === 'profileValue' ? !!bundle.triggerDataEnabled : key === 'careLevel' ? bundle.careLevel !== 'All' : bundle[key] != null));
   const [error, setError] = useState('');
+  const [pendingParameterRemoval, setPendingParameterRemoval] = useState(null);
   const nameInput = useRef(null);
   const change = (key, value) => { setDraft(current => ({ ...current, [key]: value })); setError(''); };
   const items = mvpReviewItems(draft);
@@ -96,7 +98,7 @@ export default function MvpReviewBundleEditor({ bundle, settings, onClose, onSav
             {key === 'profileValue' ? <ProfileValueTriggerFields draft={draft} change={change} />
               : key === 'careLevel' ? <FieldSelect label="Care level" required value={draft.careLevel === 'All' ? '' : draft.careLevel} onChange={event => change(key, event.target.value)}><option value="" disabled>Choose a care level</option>{CARE_LEVELS.map(value => <option key={value} value={value}>{value}</option>)}</FieldSelect>
               : <FieldInput label={key === 'minAge' ? 'Minimum age (years)' : 'Maximum age (years)'} required type="number" min="0" max="120" step="1" value={draft[key] ?? ''} onChange={event => change(key, event.target.value === '' ? null : Number(event.target.value))} />}
-            <Button type="button" onClick={() => { setParameters(current => current.filter(value => value !== key)); if (key === 'profileValue') setDraft(current => ({ ...current, triggerDataEnabled: false, triggerDataField: '', triggerDataValue: '' })); else change(key, key === 'careLevel' ? 'All' : null); }}>Remove</Button>
+            <Button type="button" onClick={() => setPendingParameterRemoval(key)}>Remove</Button>
           </div>)}
           {parameters.length < parameterOptions.length && <div className="bundle-name-field new-bundle-extra-picker"><Field label="Parameter to add"><Select value={parameterToAdd} onChange={event => setParameterToAdd(event.target.value)}><option value="">Choose a parameter</option>{parameterOptions.filter(([key]) => !parameters.includes(key)).map(([key,label]) => <option key={key} value={key}>{label}</option>)}</Select></Field>
             <Button type="button" disabled={!parameterToAdd} onClick={() => { if (parameterToAdd === 'profileValue') change('triggerDataEnabled', true); setParameters(current => [...current, parameterToAdd]); setParameterToAdd(''); }}>Add parameter</Button></div>}
@@ -117,5 +119,13 @@ export default function MvpReviewBundleEditor({ bundle, settings, onClose, onSav
       </div>
       <ActionGroup className="modal-footer"><Button type="button" onClick={onClose}>Cancel</Button><Button type="submit" variant="primary">Save Assessment Pack</Button></ActionGroup>
     </form>
+    <ConfirmRemoval item={pendingParameterRemoval ? { name: `${parameterOptions.find(([value]) => value === pendingParameterRemoval)?.[1]} parameter`, type: 'parameter' } : null}
+      onCancel={() => setPendingParameterRemoval(null)} onConfirm={() => {
+        const key = pendingParameterRemoval;
+        setParameters(current => current.filter(value => value !== key));
+        if (key === 'profileValue') setDraft(current => ({ ...current, triggerDataEnabled: false, triggerDataField: '', triggerDataValue: '' }));
+        else change(key, key === 'careLevel' ? 'All' : null);
+        setPendingParameterRemoval(null);
+      }} />
   </Modal>;
 }

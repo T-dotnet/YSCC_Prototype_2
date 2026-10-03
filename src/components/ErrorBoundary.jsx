@@ -1,5 +1,6 @@
 import React from "react";
 import { Button } from "./UI";
+import { clearPrototypeStorage } from "../prototypeStorage.js";
 
 export default class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -27,7 +28,7 @@ export default class ErrorBoundary extends React.Component {
             </Button>
             <Button type="button" variant="secondary" onClick={() => {
               if (!window.confirm("Clear locally saved workspace data and reset the prototype? This cannot be undone.")) return;
-              localStorage.clear();
+              clearPrototypeStorage(localStorage);
               window.location.reload();
             }}>
               Clear data and reset

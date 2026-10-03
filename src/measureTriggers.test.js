@@ -23,12 +23,12 @@ test('a scheduled measure follows Client profile completion and is created once'
   const rule = { id: 'FOLLOW-UP', name: 'Follow-up', trigger: 'current', timing: 'days', after: 'specific-measure',
     triggerMeasureId: sourceId, triggerMeasureStatus: 'completed', days: 1, repeat: false,
     programStream: 'All', careLevel: 'All', enabled: true, channel: 'Clinic tablet', recipient: 'Person',
-    assessments: [{ id: 'one', version: 'Your preferences and next steps v2.0', requirement: 'Mandatory' }] };
+    assessments: [{ id: 'one', version: 'EP Batch 2 · Living Situation v1.0', requirement: 'Mandatory' }] };
   assert.equal(specificMeasureError(rule), null);
   assert.ok(specificMeasureError({ ...rule, triggerMeasureStatus: '' }));
   const initial = { settings: { automaticAssessmentDueDates: true, assessmentScheduleRules: [rule] },
     people: [{ id: 'P', episodes: [{ id: 'EP', status: 'Active', start: '2026-10-02',
-      carePeriods: [{ startDate: '2026-10-02', endDateExclusive: null, programStream: 'General', careLevel: 'Mid' }],
+      carePeriods: [{ startDate: '2026-10-02', endDateExclusive: null, programStream: 'Mood', careLevel: 'Mid' }],
       collections: records }] }] };
   assert.equal(reconcileAssessmentBundles(initial, '2026-10-03'), initial);
   const completed = structuredClone(initial);
@@ -45,10 +45,10 @@ test('a profile data field value gates an otherwise ready measure', () => {
     days: 1, repeat: false, programStream: 'All', careLevel: 'All', enabled: true,
     channel: 'Clinic tablet', recipient: 'Person', triggerDataEnabled: true,
     triggerDataField: 'contact', triggerDataValue: 'Suitable',
-    assessments: [{ id: 'one', version: 'Your preferences and next steps v2.0', requirement: 'Mandatory' }] };
+    assessments: [{ id: 'one', version: 'EP Batch 2 · Living Situation v1.0', requirement: 'Mandatory' }] };
   const initial = { settings: { automaticAssessmentDueDates: true, assessmentScheduleRules: [rule] },
     people: [{ id: 'P', contact: 'Not confirmed', episodes: [{ id: 'EP', status: 'Active', start: '2026-10-02',
-      carePeriods: [{ startDate: '2026-10-02', endDateExclusive: null, programStream: 'General', careLevel: 'Mid' }],
+      carePeriods: [{ startDate: '2026-10-02', endDateExclusive: null, programStream: 'Mood', careLevel: 'Mid' }],
       collections: [] }] }] };
   assert.equal(reconcileAssessmentBundles(initial, '2026-10-03'), initial);
   const ready = structuredClone(initial);

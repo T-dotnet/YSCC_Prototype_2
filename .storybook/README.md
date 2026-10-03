@@ -2,7 +2,16 @@
 
 Run `npm run storybook` from `YSCC_Prototype_2` and open `http://127.0.0.1:6006`. Run `npm run build-storybook` to verify a static build. The build output is ignored at `storybook-static/`.
 
+Run `./node_modules/.bin/vitest run --project storybook` for the interaction and accessibility checks. `vitest.config.js` decodes the browser URL for this checkout's curly-apostrophe path before Storybook matches story test files; the obsolete manual annotation setup has been removed.
+
 This collection accompanies the visible-app audit in `../output/design-system-audit-2026-09-26/` (relative to the parent YSCC Platform folder). Stories use the current components, `src/styles.css`, the app fonts, and `createSeed()` sample records. The Storybook chrome uses the app's light canvas, ink, forest, and action coral colours. These stories document the prototype rather than declare approved canonical components.
+
+## Shared-component and style audit (3 October 2026)
+
+- Application CSS literal white backgrounds and foregrounds now use `--surface-raised` and `--on-solid`. The assessment care-point action bar uses the same surface token. The QR code keeps its required light square through `--surface-raised`.
+- The discard confirmation uses the shared `Button` and `ModalFooter`. Notification category labels use `Badge` with `showMark={false}` so their existing marker-free appearance remains intact.
+- Inline styles for chart positions, progress widths, popover coordinates, and data-driven CSS variables remain computed values. The logo's SVG colours and the shell's scoped custom properties are visual definitions, not duplicate control styles.
+- `BadgeWithoutStatusMark`, `RadioCardsAndSwitch`, and `DiscardConfirmation` document the relevant variants and interactions. Review these alongside the existing button, checkbox, and modal stories.
 
 | Level | Stories | Audit IDs |
 | --- | --- | --- |
@@ -31,7 +40,7 @@ The person header in navigation stories is a Storybook fixture that supplies the
 - **Record item:** card anatomy, consolidated Care event and change-log rows, expandable details, and editable controls for the new `tableRow`, `summaryMeta`, and `eyebrow` props.
 - **Compact assessments:** Created, Draft, and Completed states with scheduling off.
 - **Consolidated report:** the production Report dashboard, compare-measures modal, sample chart disclosures, and semantic Care timeline.
-- **Color setups:** the global toolbar previews Setup 1 (current), Setup 2 (forest), Setup 3 (forest and lime), and Setup 4 (forest and cyan) on every story.
+- **Color setups:** the global toolbar previews the six visible choices: Setup 1, Yonder Grove, Yonder Ember, Yonder Coral & Sage, Yonder Orchard, and Setup 1 Yonder. Setup 1 Yonder is the default; Setups 2–4 remain defined but are hidden from selection.
 - **Administration:** production Measures catalogue with preview, Assessment Packs list and Client profile editor, and record outcome settings. These stories use the codebook pathway in the Storybook-only store.
 
 The Storybook-only store alias uses a fresh fictional seed and in-memory updates. It never reads or writes the app's local storage. Source links in the report show their destination as feedback; collection actions in compact state examples are visual-only. Existing Care event filters now receive this provider too.

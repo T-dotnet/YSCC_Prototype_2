@@ -1,3 +1,4 @@
+import { displayMeasureVersion } from '../terminology.js';
 import { useMemo, useState } from "react";
 import { Plus } from "lucide-react";
 import { INSTRUMENTS } from "../instruments";
@@ -122,7 +123,7 @@ function QuestionDraftEditor({ entry, onClose, onSave }) {
           <Field label="Measure">
             <select value={draft.instrumentVersion} onChange={event => change("instrumentVersion", event.target.value)} required>
               <option value="">Select a measure</option>
-              {INSTRUMENTS.map(instrument => <option key={instrument.version} value={instrument.version}>{instrument.name} · {instrument.version}</option>)}
+              {INSTRUMENTS.map(instrument => <option key={instrument.version} value={instrument.version}>{instrument.name} · {displayMeasureVersion(instrument.version)}</option>)}
             </select>
           </Field>
           <Field label="hAPI question"><textarea value={draft.sourceQuestion} onChange={event => change("sourceQuestion", event.target.value)} rows={3} /></Field>
@@ -166,7 +167,7 @@ function DataDictionaryEditor({ row, edited, onClose, onSave, onRestore }) {
     const saveError = onSave(row, draft);
     if (saveError) setError(saveError);
   };
-  return <Modal title="Edit data dictionary entry" subtitle={row.instrument?.version || "Derived extract field"} onClose={onClose} wide className="data-dictionary-editor">
+  return <Modal title="Edit data dictionary entry" subtitle={displayMeasureVersion(row.instrument?.version) || "Derived extract field"} onClose={onClose} wide className="data-dictionary-editor">
     <form onSubmit={submit}>
       <div className="form-body data-dictionary-editor-body">
         {row.question ? <>
@@ -399,7 +400,7 @@ export default function AdminDataDictionary() {
           onClear={clearFilters}
           advanced={<Select label="Measure" value={instrumentVersion} onChange={event => update(setInstrumentVersion, event.target.value)}>
               <option value="">All measures</option>
-              {INSTRUMENTS.map(instrument => <option key={instrument.version} value={instrument.version}>{instrument.name} · {instrument.version}</option>)}
+              {INSTRUMENTS.map(instrument => <option key={instrument.version} value={instrument.version}>{instrument.name} · {displayMeasureVersion(instrument.version)}</option>)}
             </Select>}
         />
         <div id="data-dictionary-results" role="tabpanel" aria-labelledby={`data-dictionary-mapping-tab-${mappingItems.findIndex(item => item.value === mapping)}`}>
@@ -429,12 +430,12 @@ export default function AdminDataDictionary() {
               </QueueCell>
               <QueueCell label="hAPI question" slot="summary" verbatim><HapiQuestion value={row.field?.sourceQuestion || row.customEntry?.sourceQuestion} /></QueueCell>
               <QueueCell label="Measure" slot="owner" verbatim>
-                {row.customEntry ? <><strong>{row.instrument.name}</strong><small>{row.instrument.version} · Draft association</small></>
+                {row.customEntry ? <><strong>{row.instrument.name}</strong><small>{displayMeasureVersion(row.instrument.version)} · Draft association</small></>
                 : row.instrument ? <>
                   <button type="button" className="name-link" onClick={() => setPreview(row.instrument)} aria-label={`Preview ${row.instrument.name}`}>
                     {row.instrument.name}
                   </button>
-                  <small>{row.instrument.version}</small>
+                  <small>{displayMeasureVersion(row.instrument.version)}</small>
                 </> : <span className="muted">No measure question</span>}
               </QueueCell>
               <QueueCell label="Variable name for extract" slot="metric"><code>{row.field?.variable || "—"}</code></QueueCell>
@@ -453,7 +454,7 @@ export default function AdminDataDictionary() {
         </div>
       </Panel>
     </div>
-    {preview && <Modal title="Measure preview" subtitle={preview.version} className="questionnaire-preview-modal" closeLabel="Close preview" onClose={() => setPreview(null)}>
+    {preview && <Modal title="Measure preview" subtitle={displayMeasureVersion(preview.version)} className="questionnaire-preview-modal" closeLabel="Close preview" onClose={() => setPreview(null)}>
       <InstrumentPreview key={preview.version} instrument={preview} respondent={preview.respondents[0]} onBack={() => setPreview(null)} />
     </Modal>}
     {addingQuestion && <QuestionDraftEditor onClose={() => setAddingQuestion(false)} onSave={saveQuestion} />}

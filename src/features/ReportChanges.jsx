@@ -1,3 +1,4 @@
+import { displayMeasureVersion } from '../terminology.js';
 import { formatDate } from "../model";
 import { responseDate } from "../progress";
 
@@ -45,7 +46,7 @@ export default function ReportChanges({ evidence }) {
         return (
           <section className="report-change-group" key={group.id}>
             <header className="report-change-header">
-              <h4>{group.version || "Questionnaire version not recorded"}</h4>
+              <h4>{displayMeasureVersion(group.version) || "Questionnaire version not recorded"}</h4>
               <p>
                 {group.respondent} ·{" "}
                 {group.role || "Respondent role not recorded"}

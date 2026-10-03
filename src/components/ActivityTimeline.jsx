@@ -322,7 +322,7 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordA
             : collection?.response !== "Submitted" && collection?.due &&
               !["Cancelled", "Paused"].includes(collection.assignment) &&
               canCollectAssessment && onCollectAssessmentResponse
-              ? <Button variant="secondary" aria-haspopup="dialog" onClick={() => onCollectAssessmentResponse(collection.id)}>Collect response</Button>
+              ? <Button variant="secondary" onClick={() => onCollectAssessmentResponse(collection.id)}>Collect response</Button>
               : null
           : null;
         const toFact = ({ label, value }) => ({
@@ -524,6 +524,21 @@ export function ClinicalHistory({
     if (attentionActive) onClearAttention?.();
     setFilters({ type: "all", period: "all", startDate: "", endDate: "", query: "" });
   };
+  if (quickFilters && entries.length === 0) return (
+    <div className="clinical-history" id="clinical-history-timeline" ref={timelineRef}>
+      <section className="report-empty-state contacts-empty-state" aria-labelledby="contacts-empty-title">
+        <div className="report-empty-main">
+          <span className="report-empty-icon" aria-hidden="true"><CalendarDays size={28} /></span>
+          <span className="report-empty-kicker">Contacts status</span>
+          <h3 id="contacts-empty-title">No contacts recorded yet</h3>
+          <p>Contacts and completed measure activity from this care episode will appear here when they are recorded.</p>
+          <div className="report-empty-sections" aria-label="Contact activity awaiting records">
+            <span>Care timeline <strong>Awaiting the first contact</strong></span>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
   const results = visibleEntries.length === 0 ? (
     <Empty title="No timeline records match these filters">
       Try a different search, type or date range.

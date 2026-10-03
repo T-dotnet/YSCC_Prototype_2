@@ -1,3 +1,4 @@
+import { displayMeasureVersion } from '../terminology.js';
 import { episodeWithVisibleContacts } from "../assessmentFeatures.js";
 import { useEffect, useState } from "react";
 import { useStore } from "../store";
@@ -126,7 +127,7 @@ export default function ClinicianQuestionnaire({
             ? "Completion details"
             : "Complete measure as clinician"
       }
-      subtitle={`${patientIdentifier(person)} · ${c.label} · ${c.version}`}
+      subtitle={`${patientIdentifier(person)} · ${c.label} · ${displayMeasureVersion(c.version)}`}
       onClose={requestClose}
       wide
     >

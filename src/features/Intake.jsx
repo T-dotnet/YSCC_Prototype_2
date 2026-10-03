@@ -5,7 +5,7 @@ import { useStore } from "../store";
 import { appTerm } from "../terminology.js";
 import { patientIdentifier, patientSecondaryDetail } from "../patientIdentity";
 import AppointmentSlotPicker from "../components/AppointmentSlotPicker";
-import { PROGRAM_STREAMS } from "../carePeriods";
+import { PROGRAM_STREAMS, UNIDENTIFIED_EPISODE_STREAM } from "../carePeriods";
 import {
   REFERRAL_SOURCES, GENDER_OPTIONS, SEXUALITY_OPTIONS, ATSI_OPTIONS,
   EDUCATION_OPTIONS, PROFILE_FIELDS, derivedEpisodeStream,
@@ -53,7 +53,7 @@ export function RegisterPerson({ onClose, navigate, notify }) {
   return (
     <Modal
       title={mvpProfile ? "New profile" : "Register for intake"}
-      subtitle={mvpProfile ? "Add the essentials now. Complete the profile details in the new record." : "Create the young person record, then complete Batch 1 registration in intake."}
+      subtitle={mvpProfile ? "Add the essentials now. Complete the profile details in the new record." : "Create the young person record, then complete registration in intake."}
       onClose={onClose}
     >
       <ValidatedForm
@@ -66,7 +66,7 @@ export function RegisterPerson({ onClose, navigate, notify }) {
             name,
             nameUnknown: false,
             owner: staff?.name || "",
-            nextAction: mvpProfile ? clientProfileBundle(state.settings)?.enabled ? "Complete Client profile" : "Begin initial assessment" : "Complete Batch 1 registration",
+            nextAction: mvpProfile ? clientProfileBundle(state.settings)?.enabled ? "Complete Client profile" : "Begin initial assessment" : "Complete registration",
             reviewDate: TODAY,
             requestId,
             mvpProfile,
@@ -87,7 +87,7 @@ export function RegisterPerson({ onClose, navigate, notify }) {
         }}
       >
         <div className="form-body registration-form-body">
-          {!mvpProfile && <p className="muted">Name and date of birth create the profile. Batch 1 extract fields are completed in intake.</p>}
+          {!mvpProfile && <p className="muted">Name and date of birth create the profile. registration fields are completed in intake.</p>}
           <Field label="Young person’s name">
             <input
               value={name}
@@ -118,6 +118,7 @@ export function RegisterPerson({ onClose, navigate, notify }) {
           {mvpProfile && <Field label="Episode stream">
             <select name="programStream" defaultValue="" required>
               <option value="">Choose an episode stream</option>
+              <option value={UNIDENTIFIED_EPISODE_STREAM}>{UNIDENTIFIED_EPISODE_STREAM}</option>
               {PROGRAM_STREAMS.map(stream => <option key={stream} value={stream}>{stream}</option>)}
             </select>
           </Field>}
@@ -353,8 +354,8 @@ export function IntakePanel({ person, intake, navigate }) {
     setValidationMode("");
     submit({
       type: "SAVE_INTAKE",
-      values: { ...draft, changeReason: "Batch 1 registration fields saved." },
-    }, "Batch 1 fields saved.");
+      values: { ...draft, changeReason: "registration fields saved." },
+    }, "Registration fields saved.");
   };
   return (
     <ValidatedForm
@@ -536,7 +537,7 @@ export function IntakeAssessmentPanel({ person, intake, navigate, onReopen, reop
             )
           ) : (
             <Notice tone="amber">
-              Save Batch 1 registration before planning the initial assessment.
+              Save registration before planning the initial assessment.
             </Notice>
           )}
           {!ready && canReopen && onReopen && (
@@ -558,7 +559,7 @@ export default function IntakeWorkspace({ person, navigate, openModal }) {
     value,
     label,
     disabled: !recordTabsUnlocked,
-    title: !recordTabsUnlocked ? "Available after Batch 1 registration is saved" : undefined,
+    title: !recordTabsUnlocked ? "Available after registration is saved" : undefined,
   });
   const tabs = ["Overview", lockedTab("Assessment", appTerm("measures")), "Events"];
   const requestedTab = params.get("tab")?.toLowerCase();
@@ -604,7 +605,7 @@ export default function IntakeWorkspace({ person, navigate, openModal }) {
             <div className="stack intake-workspace-sections">
               {intakeReady(intake)
                 ? <IntakeAssessmentPanel person={person} intake={intake} navigate={navigate} />
-                : <Empty title="Assessment has not started">Save Batch 1 registration on Overview to plan the initial assessment.</Empty>}
+                : <Empty title="Assessment has not started">Save registration on Overview to plan the initial assessment.</Empty>}
             </div>
           )}
           {selectedTab === "Events" && intake.episodeId && person.episodes.find((item) => item.id === intake.episodeId) && (

@@ -83,6 +83,7 @@ export const OverviewSummary = {
 export const ContactParticipantContext = {
   render: () => (
     <PersonSurfaceFrame>
+      <h2 className="sr-only">Overview</h2>
       <section className="consent-context-panel" aria-labelledby="story-consent-context-title">
         <h3 id="story-consent-context-title">Contact and participant context</h3>
         <dl className="consent-summary-row">
