@@ -1,5 +1,5 @@
 import { EP_BATCH_2_INSTRUMENTS, EP_BATCH_3_INSTRUMENTS } from './epCodebookInstruments.js';
-import { CLIENT_PROFILE_INSTRUMENTS } from './clientProfileMeasure.js';
+import { CLIENT_PROFILE_INSTRUMENTS } from './clientProfileInstruments.js';
 
 export const LEGACY_INSTRUMENT = {
   version: "Demo check-in v1.0",

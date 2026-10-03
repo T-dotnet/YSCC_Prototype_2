@@ -2,8 +2,9 @@ import { displayMeasureVersion } from '../terminology.js';
 import { useState } from "react";
 import { Eye } from "lucide-react";
 import StandardTable from "./StandardTable";
+import ListFilterBar from "./ListFilterBar";
 import { QueueCell, QueueRow } from "./QueueRow";
-import { ActionGroup, Badge, Button, Modal, Panel } from "./UI";
+import { ActionGroup, Badge, Button, Empty, Modal, Panel, Select } from "./UI";
 import InstrumentPreview from "./InstrumentPreview";
 import { INSTRUMENTS, STANDARD_INSTRUMENTS } from "../instruments";
 import { measuresByInstrumentVersion } from "../administrationMeasures";
@@ -14,11 +15,25 @@ const recordedDate = (date) => date ? formatDate(date.slice(0, 10)) : "Not recor
 
 export default function AdminInstrumentsTable({ settings }) {
   const [preview, setPreview] = useState(null);
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState("All");
+  const [packId, setPackId] = useState("");
   const availableVersions = new Set(
     (mvpAssessmentMode(settings) ? INSTRUMENTS : STANDARD_INSTRUMENTS)
       .map((instrument) => instrument.version),
   );
   const associatedPacks = measuresByInstrumentVersion(settings);
+  const packs = [...new Map([...associatedPacks.values()].flat().map(pack => [pack.id, pack])).values()]
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const clearFilters = () => { setQuery(""); setStatus("All"); setPackId(""); };
+  const visibleInstruments = INSTRUMENTS.filter(instrument => {
+    const available = availableVersions.has(instrument.version);
+    const measurePacks = associatedPacks.get(instrument.version) || [];
+    const matchesSearch = `${instrument.name} ${displayMeasureVersion(instrument.version)} ${measurePacks.map(pack => pack.name).join(" ")}`
+      .toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
+    return matchesSearch && (status === "All" || (status === "Available") === available)
+      && (!packId || (packId === "none" ? !measurePacks.length : measurePacks.some(pack => pack.id === packId)));
+  });
 
   return (
     <>
@@ -35,6 +50,26 @@ export default function AdminInstrumentsTable({ settings }) {
       </ActionGroup>
     </div>
     <Panel className="admin-panel">
+      <ListFilterBar id="admin-measure-filters" label="Measure status" className="administration-filter-bar"
+        items={["All", "Available", "Other pathway"].map(value => ({
+          value, label: value, count: value === "All" ? INSTRUMENTS.length : INSTRUMENTS.filter(instrument =>
+            (availableVersions.has(instrument.version) ? "Available" : "Other pathway") === value).length,
+        }))}
+        value={status} onChange={setStatus} query={query} onQueryChange={setQuery}
+        placeholder="Search measures, IDs or Assessment Packs"
+        shown={visibleInstruments.length} total={INSTRUMENTS.length} noun="measures"
+        activeAdvancedCount={Number(Boolean(packId))} onClear={clearFilters}
+        activeFilters={[
+          ...(query ? [{ id: "search", label: `Search: ${query}`, onRemove: () => setQuery("") }] : []),
+          ...(status !== "All" ? [{ id: "status", label: `Status: ${status}`, onRemove: () => setStatus("All") }] : []),
+          ...(packId ? [{ id: "pack", label: `Assessment Pack: ${packId === "none" ? "None" : packs.find(pack => pack.id === packId)?.name || packId}`, onRemove: () => setPackId("") }] : []),
+        ]}
+        advanced={<Select label="Assessment Pack" value={packId} onChange={event => setPackId(event.target.value)}>
+          <option value="">All Assessment Packs</option>
+          {packs.map(pack => <option key={pack.id} value={pack.id}>{pack.name}</option>)}
+          <option value="none">No Assessment Pack</option>
+        </Select>} />
+      {visibleInstruments.length ? (
       <StandardTable label="Measure catalogue">
         <thead>
           <tr>
@@ -48,7 +83,7 @@ export default function AdminInstrumentsTable({ settings }) {
           </tr>
         </thead>
         <tbody>
-          {INSTRUMENTS.map((instrument) => {
+          {visibleInstruments.map((instrument) => {
             const available = availableVersions.has(instrument.version);
             const packs = associatedPacks.get(instrument.version) || [];
             return (
@@ -84,6 +119,9 @@ export default function AdminInstrumentsTable({ settings }) {
           })}
         </tbody>
       </StandardTable>
+      ) : <Empty title="No measures match these filters" action={<Button variant="secondary" onClick={clearFilters}>Clear filters</Button>}>
+        Try another search or filter.
+      </Empty>}
     </Panel>
     </div>
     {preview && <Modal title="Measure preview" subtitle={displayMeasureVersion(preview.version)} className="questionnaire-preview-modal" closeLabel="Close preview" onClose={() => setPreview(null)}>

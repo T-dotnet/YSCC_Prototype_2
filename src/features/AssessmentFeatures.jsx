@@ -88,18 +88,6 @@ export default function AssessmentFeatures({navigate,openModal}) {
           <Switch label="MVP schedule presets" checked={settings.mvpSchedulePresets !== false}
             onChange={event => commit({ type: 'SET_MVP_SCHEDULE_PRESETS', enabled: event.target.checked })} />
         </div>}
-        {settings.phase2CareActivity && <div className="admin-row">
-          <span className="admin-icon"><SlidersHorizontal size={24} /></span>
-          <div><h3>Care point heading</h3><p>Show the selected care point name, such as Initial assessment, as the heading in the person Assessment tab.</p></div>
-          <Switch label="Care point heading" checked={settings.mvpCarePointHeading === true}
-            onChange={event => commit({ type: 'SET_MVP_CARE_POINT_HEADING', enabled: event.target.checked })} />
-        </div>}
-        {settings.phase2CareActivity && settings.mvpCarePointHeading === true && <div className="admin-row admin-row-subsetting">
-          <span className="admin-icon"><SlidersHorizontal size={24} /></span>
-          <div><h3>Place Record outcome below the table</h3><p>Show the Record outcome action below the active Assessment table. When off, show it beside the care point heading.</p></div>
-          <Switch label="Place Record outcome below the table" checked={settings.mvpOutcomeBelowTable !== false}
-            onChange={event => commit({ type: 'SET_MVP_OUTCOME_BELOW_TABLE', enabled: event.target.checked })} />
-        </div>}
         <div className="admin-row">
           <span className="admin-icon"><SlidersHorizontal size={24} /></span>
           <div><h3>Separate measures and contacts</h3><p>Hide links between measures and contacts. Staff can save responses and drafts without linking a contact or adding completion details.</p></div>
@@ -117,12 +105,6 @@ export default function AssessmentFeatures({navigate,openModal}) {
             <Switch label="Create initial and 90-day assessments" checked={mvpPathwayEnabled(settings)}
               onChange={event => commit({type:'SET_MVP_ASSESSMENT_PATHWAY',enabled:event.target.checked})} />
           </div>
-          {mvpPathwayEnabled(settings) && <div className="admin-row">
-            <span className="admin-icon"><SlidersHorizontal size={24} /></span>
-            <div><h3>Record assessment outcome</h3><p>Show Record outcome beside the response action at every stage of an initial assessment configured to change status to Ongoing review. An assessment outcome is required before that status change.</p></div>
-            <Switch label="Record assessment outcome" checked={settings.mvpRecordAssessmentOutcome !== false}
-              onChange={event => commit({type:'SET_MVP_RECORD_ASSESSMENT_OUTCOME',enabled:event.target.checked})} />
-          </div>}
         </> : <>
         <div className="admin-row">
           <span className="admin-icon"><SlidersHorizontal size={24} /></span>
@@ -143,6 +125,26 @@ export default function AssessmentFeatures({navigate,openModal}) {
         ))}
         </>}
       </Panel>
+      {mvp && <Panel title="Assessment display and outcomes" className="admin-panel">
+        {settings.phase2CareActivity && <div className="admin-row">
+          <span className="admin-icon"><SlidersHorizontal size={24} /></span>
+          <div><h3>Care point heading</h3><p>Show the selected care point name, such as Initial assessment, as the heading in the person Assessment tab.</p></div>
+          <Switch label="Care point heading" checked={settings.mvpCarePointHeading === true}
+            onChange={event => commit({ type: 'SET_MVP_CARE_POINT_HEADING', enabled: event.target.checked })} />
+        </div>}
+        {settings.phase2CareActivity && settings.mvpCarePointHeading === true && <div className="admin-row admin-row-subsetting">
+          <span className="admin-icon"><SlidersHorizontal size={24} /></span>
+          <div><h3>Place Record outcome below the table</h3><p>Show the Record outcome action below the active Assessment table. When off, show it beside the care point heading.</p></div>
+          <Switch label="Place Record outcome below the table" checked={settings.mvpOutcomeBelowTable !== false}
+            onChange={event => commit({ type: 'SET_MVP_OUTCOME_BELOW_TABLE', enabled: event.target.checked })} />
+        </div>}
+        {mvpPathwayEnabled(settings) && <div className="admin-row">
+          <span className="admin-icon"><SlidersHorizontal size={24} /></span>
+          <div><h3>Record assessment outcome</h3><p>Show Record outcome beside the response action at every stage of an initial assessment configured to change status to Ongoing review. An assessment outcome is required before that status change.</p></div>
+          <Switch label="Record assessment outcome" checked={settings.mvpRecordAssessmentOutcome !== false}
+            onChange={event => commit({type:'SET_MVP_RECORD_ASSESSMENT_OUTCOME',enabled:event.target.checked})} />
+        </div>}
+      </Panel>}
       <Panel title="Other features" className="admin-panel">
         <div className="admin-row">
           <span className="admin-icon"><SlidersHorizontal size={24} /></span>

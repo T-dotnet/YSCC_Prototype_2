@@ -23,7 +23,6 @@ import { CLIENT_PROFILE_INSTRUMENTS, clientProfileBundle, DEFAULT_CLIENT_PROFILE
 import ClientProfileBundleEditor from './ClientProfileBundleEditor';
 import ListFilterBar from './ListFilterBar';
 import StatusChangeFields, { StatusChangeValue } from './StatusChangeFields';
-import { ActiveFilters } from './QueueControls';
 import AllowedCollectionMethods from './AllowedCollectionMethods';
 import { collectionMethodSummary } from '../allowedCollectionMethods.js';
 import { MVP_SCHEDULE_PRESETS, presetForBundle } from '../mvpSchedulePresets.js';
@@ -48,7 +47,7 @@ const blankBundle = () => ({id:crypto.randomUUID(), name:'', channel:'Clinician 
 const parameterOptions = [
   ['programStream', 'Program stream'], ['careLevel', 'Care level'],
   ['minAge', 'Minimum age (years)'], ['maxAge', 'Maximum age (years)'],
-  ['profileValue', 'Profile data field'],
+  ['profileValue', 'Data dictionary item'],
 ];
 const configuredParameters = bundle => parameterOptions.map(([key])=>key).filter(key =>
   key === 'profileValue' ? !!bundle.triggerDataEnabled : key === 'programStream' || key === 'careLevel' ? bundle[key] !== 'All' : bundle[key] != null);
@@ -147,7 +146,7 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
           <Button variant="primary" onClick={()=>{setDraft({...blankBundle(), createdInMvp:mvp});setAssessmentVersion('');setParameterToAdd('');setParameters([]);setError('');setMessage('');}}>Add Assessment Pack</Button>
         </ActionGroup>
       </div>
-      <ListFilterBar id="assessment-bundle-filters" label="Assessment Pack status"
+      <ListFilterBar id="assessment-bundle-filters" label="Assessment Pack status" className="administration-filter-bar"
         items={['All', 'Enabled', 'Disabled'].map(value => ({
           value, label:value, count:value === 'All' ? displayBundles.length : displayBundles.filter(bundle =>
             (bundle.enabled ? 'Enabled' : 'Disabled') === value).length,
@@ -155,6 +154,13 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
         value={listStatus} onChange={setListStatus} query={listQuery} onQueryChange={setListQuery}
         placeholder="Search Assessment Packs or measures" shown={visibleBundles.length} total={displayBundles.length}
         noun="Assessment Packs" onClear={clearListFilters}
+        activeFilters={[
+          ...(listQuery ? [{id:'search', label:`Search: ${listQuery}`, onRemove:()=>setListQuery('')}] : []),
+          ...(listStatus !== 'All' ? [{id:'status', label:`Status: ${listStatus}`, onRemove:()=>setListStatus('All')}] : []),
+          ...(listRespondent !== 'All' ? [{id:'respondent', label:`Respondent: ${listRespondent === 'Person' ? 'Patient' : listRespondent}`, onRemove:()=>setListRespondent('All')}] : []),
+          ...(listStream !== 'Any' ? [{id:'stream', label:`Program stream: ${listStream === 'All' ? 'All program streams' : listStream}`, onRemove:()=>setListStream('Any')}] : []),
+          ...(listMethod !== 'All' ? [{id:'method', label:`Collection method: ${COLLECTION_METHOD_OPTIONS.find(([value])=>value===listMethod)?.[1] || listMethod}`, onRemove:()=>setListMethod('All')}] : []),
+        ]}
         activeAdvancedCount={Number(listRespondent !== 'All') + Number(listStream !== 'Any') + Number(listMethod !== 'All')}
         advanced={<>
           <Select label="Respondent" value={listRespondent} onChange={event=>setListRespondent(event.target.value)}>
@@ -169,13 +175,6 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
             {COLLECTION_METHOD_OPTIONS.map(([value,label])=><option key={value} value={value}>{label}</option>)}
           </Select>
         </>}/>
-      <ActiveFilters items={[
-        ...(listQuery ? [{id:'search', label:`Search: ${listQuery}`, onRemove:()=>setListQuery('')}] : []),
-        ...(listStatus !== 'All' ? [{id:'status', label:`Status: ${listStatus}`, onRemove:()=>setListStatus('All')}] : []),
-        ...(listRespondent !== 'All' ? [{id:'respondent', label:`Respondent: ${listRespondent === 'Person' ? 'Patient' : listRespondent}`, onRemove:()=>setListRespondent('All')}] : []),
-        ...(listStream !== 'Any' ? [{id:'stream', label:`Program stream: ${listStream === 'All' ? 'All program streams' : listStream}`, onRemove:()=>setListStream('Any')}] : []),
-        ...(listMethod !== 'All' ? [{id:'method', label:`Collection method: ${COLLECTION_METHOD_OPTIONS.find(([value])=>value===listMethod)?.[1] || listMethod}`, onRemove:()=>setListMethod('All')}] : []),
-      ]} onClear={clearListFilters}/>
       {mvp && <div className="assessment-schedule-rule-list stack" aria-label="Assessment Pack configuration">
         {!visibleBundles.length && <p className="muted">No Assessment Packs match these filters.</p>}
         {visibleBundles.filter(bundle => systemBundles.some(item => item.id === bundle.id)).map(bundle => {

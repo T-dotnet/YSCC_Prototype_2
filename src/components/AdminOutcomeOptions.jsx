@@ -1,9 +1,10 @@
 import { useState } from 'react';
+import ListFilterBar from './ListFilterBar';
 import { ChevronDown } from 'lucide-react';
 import { mvpPathwayEnabled } from '../mvpAssessmentPathway.js';
 import { statusOutcomeRules, visibleStatusOutcomeOptions } from '../statusOutcomeRules.js';
 import { useStore } from '../store';
-import { ActionGroup, Button, Checkbox, DeleteAction, EditAction, Modal, Panel, Switch } from './UI';
+import { ActionGroup, Button, Checkbox, DeleteAction, EditAction, Empty, Modal, Panel, Select, Switch } from './UI';
 
 export default function AdminOutcomeOptions() {
   const { state, commit } = useStore();
@@ -12,6 +13,16 @@ export default function AdminOutcomeOptions() {
   const [draft, setDraft] = useState(null);
   const [error, setError] = useState('');
   const [pendingDelete, setPendingDelete] = useState(null);
+  const [query, setQuery] = useState('');
+  const [status, setStatus] = useState('All');
+  const [source, setSource] = useState('');
+  const sources = [...new Set(rules.map(rule => rule.from))].sort();
+  const clearFilters = () => { setQuery(''); setStatus('All'); setSource(''); };
+  const filteredRules = rules.filter(rule =>
+    (status === 'All' || (rule.enabled ? 'Enabled' : 'Disabled') === status) &&
+    (!source || rule.from === source) &&
+    `${rule.from} ${rule.to} ${visibleStatusOutcomeOptions(rule).join(' ')}`.toLocaleLowerCase()
+      .includes(query.trim().toLocaleLowerCase()));
   const editing = draft?.rule;
   const visible = visibleStatusOutcomeOptions(editing);
 
@@ -57,8 +68,26 @@ export default function AdminOutcomeOptions() {
           <p>Choose which outcomes appear when a measure changes status.</p>
         </div>
       </div>
+      <ListFilterBar id="admin-outcome-filters" label="Record outcome status" className="administration-filter-bar"
+        items={['All', 'Enabled', 'Disabled'].map(value => ({ value, label:value,
+          count:value === 'All' ? rules.length : rules.filter(rule => (rule.enabled ? 'Enabled' : 'Disabled') === value).length }))}
+        value={status} onChange={setStatus} query={query} onQueryChange={setQuery}
+        placeholder="Search status changes or outcomes" shown={filteredRules.length} total={rules.length}
+        noun="status changes" onClear={clearFilters} activeAdvancedCount={Number(Boolean(source))}
+        activeFilters={[
+          ...(query ? [{id:'search', label:`Search: ${query}`, onRemove:()=>setQuery('')}] : []),
+          ...(status !== 'All' ? [{id:'status', label:`Status: ${status}`, onRemove:()=>setStatus('All')}] : []),
+          ...(source ? [{id:'source', label:`From: ${source}`, onRemove:()=>setSource('')}] : []),
+        ]}
+        advanced={<Select label="From status" value={source} onChange={event => setSource(event.target.value)}>
+          <option value="">All starting statuses</option>
+          {sources.map(value => <option key={value} value={value}>{value}</option>)}
+        </Select>} />
       <div className="administration-outcome-cards" aria-label="Record outcome settings">
-        {rules.map(rule => {
+        {!filteredRules.length && <Empty title="No status changes match these filters" action={<Button variant="secondary" onClick={clearFilters}>Clear filters</Button>}>
+          Try another search or filter.
+        </Empty>}
+        {filteredRules.map(rule => {
             const options = visibleStatusOutcomeOptions(rule);
             const shown = options.length;
             const ruleKey = `${rule.from}-${rule.to}`;

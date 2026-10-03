@@ -2,13 +2,15 @@ import { displayMeasureVersion } from '../terminology.js';
 import { useMemo, useState } from "react";
 import { Plus } from "lucide-react";
 import { INSTRUMENTS } from "../instruments";
+import { useStore } from "../store";
+import { DICTIONARY_DELETED_KEY, notifyDictionaryChanged } from '../dataDictionaryCatalog';
 import extractFields from "../epExtractCodebook.json";
 import StandardTable from "./StandardTable";
 import ListFilterBar from "./ListFilterBar";
-import { ActiveFilters } from "./QueueControls";
 import { QueueCell, QueueRow } from "./QueueRow";
 import InstrumentPreview from "./InstrumentPreview";
-import { ActionGroup, Badge, Button, EditAction, Field, Modal, ModalFooter, Panel, Select } from "./UI";
+import { ActionGroup, Badge, Button, DeleteAction, EditAction, Field, Modal, ModalFooter, Panel, Select } from "./UI";
+import ConfirmRemoval from './ConfirmRemoval';
 
 const PAGE_SIZE = 40;
 const OVERRIDES_KEY = "yscc-data-dictionary-overrides-v1";
@@ -226,6 +228,7 @@ function HapiQuestion({ value }) {
 }
 
 export default function AdminDataDictionary() {
+  const { state } = useStore();
   const [query, setQuery] = useState("");
   const [instrumentVersion, setInstrumentVersion] = useState("");
   const [mapping, setMapping] = useState("all");
@@ -236,6 +239,11 @@ export default function AdminDataDictionary() {
   const [addedQuestions, setAddedQuestions] = useState(readAddedQuestions);
   const [overrides, setOverrides] = useState(readOverrides);
   const [savedMessage, setSavedMessage] = useState("");
+  const [deletedKeys, setDeletedKeys] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(DICTIONARY_DELETED_KEY) || '[]'); }
+    catch { return []; }
+  });
+  const [pendingDelete, setPendingDelete] = useState(null);
 
   const rows = useMemo(() => dataDictionaryRows.map(row => ({
     ...row,
@@ -263,12 +271,13 @@ export default function AdminDataDictionary() {
       derived: entry.extractType === "Derived",
     } : null,
   })), [addedQuestions]);
-  const allRows = useMemo(() => [...derivedRows, ...addedRows, ...rows], [derivedRows, addedRows, rows]);
+  const allRows = useMemo(() => [...derivedRows, ...addedRows, ...rows].filter(row => !deletedKeys.includes(row.key)), [derivedRows, addedRows, rows, deletedKeys]);
 
   const persist = next => {
     try {
       localStorage.setItem(OVERRIDES_KEY, JSON.stringify(next));
       setOverrides(next);
+      notifyDictionaryChanged();
       return "";
     } catch {
       return "Could not save in this browser. Free browser storage and try again.";
@@ -320,6 +329,7 @@ export default function AdminDataDictionary() {
     try {
       localStorage.setItem(ADDED_QUESTIONS_KEY, JSON.stringify(next));
       setAddedQuestions(next);
+      notifyDictionaryChanged();
       setAddingQuestion(false);
       setEditing(null);
       setSavedMessage(`${key ? "Updated" : "Added"} draft question ${title}.`);
@@ -332,6 +342,28 @@ export default function AdminDataDictionary() {
       return "Could not save in this browser. Free browser storage and try again.";
     }
   };
+  const deleteEntry = () => {
+    if (!pendingDelete) return;
+    const next = [...new Set([...deletedKeys, pendingDelete.key])];
+    try {
+      localStorage.setItem(DICTIONARY_DELETED_KEY, JSON.stringify(next));
+      setDeletedKeys(next);
+      notifyDictionaryChanged();
+      setSavedMessage(`Deleted ${pendingDelete.question?.title || pendingDelete.field?.variable}.`);
+      setPendingDelete(null);
+    } catch { setSavedMessage('Could not save the deletion in this browser.'); }
+  };
+  const restoreDeleted = () => {
+    try {
+      localStorage.removeItem(DICTIONARY_DELETED_KEY);
+      setDeletedKeys([]);
+      notifyDictionaryChanged();
+      setSavedMessage('Deleted dictionary items restored.');
+    } catch { setSavedMessage('Could not restore dictionary items in this browser.'); }
+  };
+  const parameterUses = pendingDelete ? (state.settings?.assessmentScheduleRules || [])
+    .filter(rule => rule.triggerDataEnabled && rule.triggerDataField === pendingDelete.key)
+    .map(rule => rule.name) : [];
 
   const filtered = useMemo(() => {
     const term = query.trim().toLocaleLowerCase();
@@ -374,6 +406,7 @@ export default function AdminDataDictionary() {
           <p>Measure questions and calculated fields from the headspace EP 2025 data extract codebook.</p>
         </div>
         <ActionGroup className="button-row">
+          {deletedKeys.length > 0 && <Button type="button" onClick={restoreDeleted}>Restore deleted items ({deletedKeys.length})</Button>}
           <Button type="button" variant="primary" onClick={() => { setSavedMessage(""); setAddingQuestion(true); }}>
             <Plus size={18} aria-hidden="true" /> Add question
           </Button>
@@ -386,7 +419,7 @@ export default function AdminDataDictionary() {
           id="data-dictionary-mapping"
           label="Extract mapping"
           panelId="data-dictionary-results"
-          className="data-dictionary-filter-bar"
+          className="data-dictionary-filter-bar administration-filter-bar"
           items={mappingItems}
           value={mapping}
           onChange={value => update(setMapping, value)}
@@ -398,13 +431,13 @@ export default function AdminDataDictionary() {
           noun={filtered.length === 1 ? "entry" : "entries"}
           activeAdvancedCount={Number(Boolean(instrumentVersion))}
           onClear={clearFilters}
+          activeFilters={activeFilters}
           advanced={<Select label="Measure" value={instrumentVersion} onChange={event => update(setInstrumentVersion, event.target.value)}>
               <option value="">All measures</option>
               {INSTRUMENTS.map(instrument => <option key={instrument.version} value={instrument.version}>{instrument.name} · {displayMeasureVersion(instrument.version)}</option>)}
             </Select>}
         />
         <div id="data-dictionary-results" role="tabpanel" aria-labelledby={`data-dictionary-mapping-tab-${mappingItems.findIndex(item => item.value === mapping)}`}>
-        <ActiveFilters items={activeFilters} onClear={clearFilters} />
         <p className="data-dictionary-table-hint">Scroll horizontally for the full extract coding.</p>
         <StandardTable label="Data dictionary questions" className="data-dictionary-table" responsive={false}>
           <thead><tr>
@@ -426,6 +459,8 @@ export default function AdminDataDictionary() {
                     ? `Edit data dictionary entry for ${row.question.title} in ${row.instrument.name}`
                     : `Edit derived extract field ${row.field.variable}`}
                     onClick={() => { setSavedMessage(""); setEditing(row); }}>Edit</EditAction>
+                  <DeleteAction aria-label={`Delete data dictionary item ${row.question?.title || row.field?.variable}`}
+                    onClick={() => setPendingDelete(row)}>Delete</DeleteAction>
                 </div>
               </QueueCell>
               <QueueCell label="hAPI question" slot="summary" verbatim><HapiQuestion value={row.field?.sourceQuestion || row.customEntry?.sourceQuestion} /></QueueCell>
@@ -461,5 +496,10 @@ export default function AdminDataDictionary() {
     {editing?.customEntry && <QuestionDraftEditor key={editing.key} entry={editing.customEntry} onClose={() => setEditing(null)} onSave={saveQuestion} />}
     {editing && !editing.customEntry && <DataDictionaryEditor key={editing.key} row={editing} edited={Boolean(overrides[editing.key])}
       onClose={() => setEditing(null)} onSave={save} onRestore={restore} />}
+    <ConfirmRemoval item={pendingDelete ? { name: pendingDelete.question?.title || pendingDelete.field?.variable || 'item', type: 'item',
+      description: parameterUses.length
+        ? `This item is used as a parameter in ${parameterUses.length} Assessment Pack${parameterUses.length === 1 ? '' : 's'}: ${parameterUses.join(', ')}. Deleting it will leave those parameters invalid until you choose another data field.`
+        : 'This item will be removed from this browser’s data dictionary and Assessment Pack field choices.' } : null}
+      onCancel={() => setPendingDelete(null)} onConfirm={deleteEntry} />
   </>;
 }

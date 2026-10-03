@@ -20471,7 +20471,46 @@ thead th,
   .list-filter-bar:has(> .care-event-advanced-filters:not([hidden])) > .care-event-results-count { grid-row:4; }
 }
 @media (max-width:700px) {
-  .list-filter-bar .care-event-search-row > .search { flex:1 1 0; width:auto; max-width:none; }
+.list-filter-bar .care-event-search-row > .search { flex:1 1 0; width:auto; max-width:none; }
+}
+
+/* Administration lists use the shared People filter rhythm: tabs, controls, then results. */
+.administration-filter-bar,
+.worklist-main-panel .administration-filter-bar {
+  grid-template-columns:minmax(0, 1fr);
+  gap:0;
+}
+.administration-filter-bar > .care-event-quick-filters {
+  grid-column:1;
+  grid-row:1;
+  min-width:0;
+}
+.administration-filter-bar > .care-event-search-row {
+  grid-column:1;
+  grid-row:2;
+  justify-content:flex-end;
+  padding:var(--space-3) 0;
+  border-top:1px solid var(--line);
+}
+.administration-filter-bar > .care-event-advanced-filters { grid-column:1; grid-row:3; }
+.administration-filter-bar > .care-event-results-count {
+  grid-column:1;
+  grid-row:3;
+  min-height:64px;
+  border-top:1px solid var(--line);
+}
+.administration-filter-bar:has(> .care-event-advanced-filters:not([hidden])) > .care-event-results-count { grid-row:4; }
+.administration-filter-bar .care-event-search-row > .search { flex:0 1 320px; width:320px; max-width:320px; }
+.administration-filter-bar .care-event-results-count > .active-filters-row {
+  flex:1;
+  align-items:center;
+  margin:0;
+  padding:0;
+  min-width:0;
+}
+.administration-filter-bar .care-event-results-count .text-button-small { margin-left:auto; }
+@media (max-width:700px) {
+  .administration-filter-bar .care-event-search-row > .search { flex:1 1 0; width:auto; max-width:none; }
 }
 
 .modal-footer .assessment-not-required-action { margin-right:auto; }
