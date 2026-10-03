@@ -6,7 +6,7 @@ import {
   CONTACT_TYPES,
 } from "../appointments";
 import { formatDate, TODAY } from "../model";
-import { ActionGroup, Button, Field, Notice, ValidatedForm } from "./UI";
+import { ActionGroup, Button, Field, Notice, RadioInput, ValidatedForm } from "./UI";
 import CollectionMethodChoice from "./CollectionMethodChoice";
 import TabletAssistanceChoice from "./TabletAssistanceChoice";
 
@@ -87,9 +87,9 @@ export default function DraftContactForm({ episode, collection, error, onCancel,
         {showContactChoice && <>
         <fieldset className="draft-contact-choices">
           <legend>Which contact supplied these answers?</legend>
-          <label><input type="radio" name="draftContactChoice" checked={choice === "existing"} onChange={() => selectChoice("existing")} /> Link an existing attended contact</label>
-          <label><input type="radio" name="draftContactChoice" checked={choice === "new"} onChange={() => selectChoice("new")} /> Record a new attended contact</label>
-          <label><input type="radio" name="draftContactChoice" checked={choice === "none"} onChange={() => selectChoice("none")} /> No contact took place</label>
+          <label><RadioInput name="draftContactChoice" checked={choice === "existing"} onChange={() => selectChoice("existing")} /> Link an existing attended contact</label>
+          <label><RadioInput name="draftContactChoice" checked={choice === "new"} onChange={() => selectChoice("new")} /> Record a new attended contact</label>
+          <label><RadioInput name="draftContactChoice" checked={choice === "none"} onChange={() => selectChoice("none")} /> No contact took place</label>
         </fieldset>
         {choice === "existing" && (
           <Field label="Attended contact">
@@ -137,7 +137,7 @@ export default function DraftContactForm({ episode, collection, error, onCancel,
           </>
         )}
         {choice === "none" && (
-          <Notice>The draft will stay on the instrument record. Related contacts will remain unchanged.</Notice>
+          <Notice>The draft will stay on the measure record. Related contacts will remain unchanged.</Notice>
         )}
         </>}
         {(choiceError || error) && <p className="field-error" role="alert">{choiceError || error}</p>}

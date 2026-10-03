@@ -1,5 +1,5 @@
 import StandardTable from "./StandardTable";
-import { COLLECTION_METHOD_OPTIONS, LABELS, appTerm, displayTerminology } from "../terminology.js";
+import { COLLECTION_METHOD_OPTIONS, LABELS, displayTerminology } from "../terminology.js";
 import { Fragment, useRef, useState } from 'react';
 import { ChevronDown, Trash2 } from 'lucide-react';
 import { useStore } from '../store';
@@ -7,7 +7,7 @@ import { INSTRUMENTS, STANDARD_INSTRUMENTS } from '../instruments';
 import { PROGRAM_STREAMS, CARE_LEVELS } from '../carePeriods';
 import { bundleError, asBundle, bundleName, BUNDLE_EVENT_TYPES, bundleAgeLabel, bundleTiming, instrumentSupportsRespondent } from '../assessmentBundles';
 import { assessmentSmsEnabled } from '../assessmentFeatures';
-import { ActionGroup, EditAction, DeleteAction, Panel, Button, Badge, Modal, Field, Select, Checkbox, Switch, IconButton } from './UI';
+import { ActionGroup, EditAction, DeleteAction, Panel, Button, Badge, Modal, Field, FieldInput, FieldSelect, Select, Checkbox, Switch, IconButton } from './UI';
 import { QueueRow, QueueCell } from './QueueRow';
 import BundleAssessmentRow from './BundleAssessmentRow';
 import { mvpAssessmentMode, mvpReviewBundles, mvpReviewItems, MVP_REVIEW_BUNDLES, mvpInitialBundles, mvpInitialVersions, MVP_INITIAL_BUNDLES } from '../mvpAssessmentPathway';
@@ -23,11 +23,14 @@ import ClientProfileBundleEditor from './ClientProfileBundleEditor';
 import ListFilterBar from './ListFilterBar';
 import StatusChangeFields, { StatusChangeValue } from './StatusChangeFields';
 import { ActiveFilters } from './QueueControls';
+import AllowedCollectionMethods from './AllowedCollectionMethods';
+import { collectionMethodSummary } from '../allowedCollectionMethods.js';
+import { MVP_SCHEDULE_PRESETS, presetForBundle } from '../mvpSchedulePresets.js';
 
-const profileConfig = ({ id, name, channel, respondent, enabled, instrumentVersions,
+const profileConfig = ({ id, name, channel, allowedCollectionMethods, respondent, enabled, instrumentVersions,
   timing, after, delayDays, dueDate, triggerMeasureId, triggerMeasureStatus,
   triggerDataEnabled, triggerDataField, triggerDataValue, programStream, careLevel, minAge, maxAge, statusChange }) =>
-  ({ id, name, channel, respondent, enabled, instrumentVersions,
+  ({ id, name, channel, allowedCollectionMethods, respondent, enabled, instrumentVersions,
     timing, after, delayDays, dueDate, triggerMeasureId, triggerMeasureStatus,
     triggerDataEnabled, triggerDataField, triggerDataValue, programStream, careLevel, minAge, maxAge, statusChange });
 const mvpInstrumentSummary = bundle => {
@@ -36,7 +39,7 @@ const mvpInstrumentSummary = bundle => {
   if (!bundle.coreVersion) return `${mvpReviewItems(bundle).length} total`;
   const streams = bundle.programStream && bundle.programStream !== 'All' ? [bundle.programStream] : PROGRAM_STREAMS;
   const distinctVersions = new Set(streams.flatMap(stream => mvpDisplayBattery(bundle, stream)));
-  return `${distinctVersions.size} instrument type${distinctVersions.size === 1 ? '' : 's'} across ${streams.length} program stream${streams.length === 1 ? '' : 's'}`;
+  return `${distinctVersions.size} measure type${distinctVersions.size === 1 ? '' : 's'} across ${streams.length} program stream${streams.length === 1 ? '' : 's'}`;
 };
 
 const blankAssessment = () => ({id:crypto.randomUUID(), version:'', requirement:'Mandatory'});
@@ -74,16 +77,19 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
   const [listRespondent, setListRespondent] = useState('All');
   const [listStream, setListStream] = useState('Any');
   const [listMethod, setListMethod] = useState('All');
-  const adminBundles = mvp ? bundles.filter(bundle => bundle.createdInMvp) : bundles;
+  const availableVersions = new Set(INSTRUMENTS.map(instrument => instrument.version));
+  const adminBundles = bundles.filter(bundle => (!mvp || bundle.createdInMvp) &&
+    bundle.assessments?.length && bundle.assessments.every(item => availableVersions.has(item.version)));
   const systemBundles = mvp ? mvpDisplayBundles(state.settings) : [];
   const displayBundles = administrationMeasureBundles(state.settings);
   const search = listQuery.trim().toLocaleLowerCase();
   const visibleBundles = displayBundles.filter(bundle => {
-    const status = bundle.example ? 'Mock' : bundle.enabled ? 'Enabled' : 'Disabled';
+    const status = bundle.enabled ? 'Enabled' : 'Disabled';
     if (listStatus !== 'All' && status !== listStatus) return false;
     if (listRespondent !== 'All' && (bundle.respondent || bundle.recipient) !== listRespondent) return false;
     if (listStream !== 'Any' && (bundle.programStream || 'All') !== listStream) return false;
-    if (listMethod !== 'All' && bundle.channel !== listMethod) return false;
+    if (listMethod !== 'All' && !(Array.isArray(bundle.allowedCollectionMethods)
+      ? bundle.allowedCollectionMethods.includes(listMethod) : true)) return false;
     if (!search) return true;
     const versions = instrumentVersionsForAdministrationMeasure(bundle);
     return [bundle.name, bundle.programStream, bundle.schedule, ...versions.map(version =>
@@ -104,45 +110,48 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
   })}));
   const save = event => {
     event.preventDefault();
+    if (mvp && (state.settings?.phase2CareActivity && state.settings?.mvpSchedulePresets !== false) && !presetForBundle(draft)) {
+      setError('Choose a care point preset.'); return;
+    }
     const normalized = asBundle(draft);
     const validation = bundleError(normalized, bundles) || specificMeasureError(normalized, state.settings) || profileValueTriggerError(normalized);
     if (validation) {setError(validation); return;}
     const result = commit({type:'SAVE_ASSESSMENT_SCHEDULE_RULE', rule:normalized});
     if (result.error) {setError(result.error); return;}
-    setDraft(null); setError(''); setMessage('Assessment saved.');
+    setDraft(null); setError(''); setMessage('Assessment Pack saved.');
     onSaved?.(normalized);
   };
   return <div className="stack">
     {!editorOnly && !mvp && <Panel title="Automatic assessment due dates" className="admin-panel assessment-schedule-settings">
       <div className="admin-row">
-        <div><h3>Enable assessments</h3><p>Prepare mandatory instruments automatically. Staff choose which optional instruments to include in each person’s Assessment tab.</p></div>
+        <div><h3>Enable assessments</h3><p>Prepare mandatory measures automatically. Staff choose which optional measures to include in each person’s Assessment tab.</p></div>
         <Switch label="Automatic assessment due dates" checked={!!state.settings?.automaticAssessmentDueDates}
           onChange={event=>commit({type:'SET_AUTOMATIC_ASSESSMENT_DUE_DATES', enabled:event.target.checked})}/>
       </div>
       <p>Schedule assessments from an event or for a specific date. Event-based schedules can repeat when configured with a time interval.</p>
-      <p>Assignments are prepared in this browser. Live SMS and tablet delivery are not connected. SMS instruments wait while Assessment SMS flow is off. Existing instruments and answers are retained.</p>
+      <p>Assignments are prepared in this browser. Live SMS and tablet delivery are not connected. SMS measures wait while Assessment SMS flow is off. Existing measures and answers are retained.</p>
     </Panel>}
-    <section className="assessment-schedule-settings stack" aria-label={appTerm("measures")}>
+    <section className="assessment-schedule-settings stack" aria-label="Assessment Packs">
       {!editorOnly && <>
       <div className="section-toolbar administration-section-heading">
         <div>
-          <h2>{appTerm("measures")}</h2>
-          {!editorOnly && <p>Configure the measures used in care reviews and collections.</p>}
+          <h2>Assessment Packs</h2>
+          {!editorOnly && <p>Configure the sets of measures issued at each point in care.</p>}
         </div>
         <ActionGroup className="button-row">
           {mvp && !clientProfileBundle(state.settings) && <Button onClick={()=>setProfileDraft({ ...DEFAULT_CLIENT_PROFILE_BUNDLE,
             instrumentVersions: CLIENT_PROFILE_INSTRUMENTS.map(item => item.version) })}>Add Client profile</Button>}
-          <Button variant="primary" onClick={()=>{setDraft({...blankBundle(), createdInMvp:mvp});setAssessmentVersion('');setParameterToAdd('');setParameters([]);setError('');setMessage('');}}>Add {appTerm('measures', 'singular').toLowerCase()}</Button>
+          <Button variant="primary" onClick={()=>{setDraft({...blankBundle(), createdInMvp:mvp});setAssessmentVersion('');setParameterToAdd('');setParameters([]);setError('');setMessage('');}}>Add Assessment Pack</Button>
         </ActionGroup>
       </div>
-      <ListFilterBar id="assessment-bundle-filters" label="Assessment status"
-        items={['All', 'Enabled', 'Disabled', ...(mvp ? ['Mock'] : [])].map(value => ({
+      <ListFilterBar id="assessment-bundle-filters" label="Assessment Pack status"
+        items={['All', 'Enabled', 'Disabled'].map(value => ({
           value, label:value, count:value === 'All' ? displayBundles.length : displayBundles.filter(bundle =>
-            (bundle.example ? 'Mock' : bundle.enabled ? 'Enabled' : 'Disabled') === value).length,
+            (bundle.enabled ? 'Enabled' : 'Disabled') === value).length,
         }))}
         value={listStatus} onChange={setListStatus} query={listQuery} onQueryChange={setListQuery}
-        placeholder="Search assessments or instruments" shown={visibleBundles.length} total={displayBundles.length}
-        noun="assessments" onClear={clearListFilters}
+        placeholder="Search Assessment Packs or measures" shown={visibleBundles.length} total={displayBundles.length}
+        noun="Assessment Packs" onClear={clearListFilters}
         activeAdvancedCount={Number(listRespondent !== 'All') + Number(listStream !== 'Any') + Number(listMethod !== 'All')}
         advanced={<>
           <Select label="Respondent" value={listRespondent} onChange={event=>setListRespondent(event.target.value)}>
@@ -164,12 +173,12 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
         ...(listStream !== 'Any' ? [{id:'stream', label:`Program stream: ${listStream === 'All' ? 'All program streams' : listStream}`, onRemove:()=>setListStream('Any')}] : []),
         ...(listMethod !== 'All' ? [{id:'method', label:`Collection method: ${COLLECTION_METHOD_OPTIONS.find(([value])=>value===listMethod)?.[1] || listMethod}`, onRemove:()=>setListMethod('All')}] : []),
       ]} onClear={clearListFilters}/>
-      {mvp && <div className="assessment-schedule-rule-list stack" aria-label={`${appTerm("measures")} configuration`}>
-        {!visibleBundles.length && <p className="muted">No {appTerm("measures").toLowerCase()} match these filters.</p>}
+      {mvp && <div className="assessment-schedule-rule-list stack" aria-label="Assessment Pack configuration">
+        {!visibleBundles.length && <p className="muted">No Assessment Packs match these filters.</p>}
         {visibleBundles.filter(bundle => systemBundles.some(item => item.id === bundle.id)).map(bundle => {
           return <Fragment key={bundle.id}>
           <Panel className="assessment-bundle-summary"
-          title={<span className="bundle-summary-heading"><span className="bundle-summary-title">{bundle.name}{bundle.example && <Badge tone="neutral">Mock</Badge>}</span><small className="bundle-summary-id">ID: {bundle.id}</small></span>}
+          title={<span className="bundle-summary-heading"><span className="bundle-summary-title">{bundle.name}</span><small className="bundle-summary-id">ID: {bundle.id}</small></span>}
           action={bundle.profileMeasure ? <ActionGroup className="button-row bundle-summary-actions">
             <Switch label={`Enable ${bundle.name}`} checked={bundle.enabled} onChange={event => {
               const result = commit({type:'SAVE_CLIENT_PROFILE_BUNDLE', bundle:profileConfig({...bundle, enabled:event.target.checked})});
@@ -187,33 +196,33 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
           </ActionGroup>}>
           <div className="panel-body">
             <dl className="metadata bundle-summary-conditions">
-              <div><dt>Schedule</dt><dd>{bundle.profileMeasure ? bundle.timing === 'date' ? `Due ${bundle.dueDate}` :
+              <div><dt>{(state.settings?.phase2CareActivity && state.settings?.mvpSchedulePresets !== false) ? 'Care point' : 'Schedule'}</dt><dd>{bundle.profileMeasure ? bundle.timing === 'date' ? `Due ${bundle.dueDate}` :
                 `After ${bundle.after === 'specific-measure' ? `${bundle.triggerMeasureStatus} · ${measureSourceOptions(state.settings).find(item => item.id === bundle.triggerMeasureId)?.name || bundle.triggerMeasureId}` : bundle.after === 'intake' ? 'intake' : bundle.after === 'care-period' ? 'care episode starts' : 'new profile'}${bundle.delayDays ? ` + ${bundle.delayDays} days` : ''}`
                 : MVP_INITIAL_BUNDLES.some(item => item.id === bundle.id) ? bundle.timing === 'date' ? `Due ${bundle.dueDate}` : `${bundle.after === 'specific-measure' ? `After ${bundle.triggerMeasureStatus} · ${bundle.triggerMeasureId === 'MVP-CLIENT-PROFILE' ? 'Client profile' : bundle.triggerMeasureId}` : bundle.after === 'intake' ? 'After intake' : 'After care episode starts'}${bundle.delayDays ? ` + ${bundle.delayDays} days` : ''}` : bundle.schedule || bundleTiming(bundle)}</dd></div>
               {bundle.triggerDataEnabled && <div><dt>Data field</dt><dd>{PROFILE_TRIGGER_FIELDS.find(field => field.id === bundle.triggerDataField)?.label}: {bundle.triggerDataValue}</dd></div>}
               <div><dt>{LABELS.respondent}</dt><dd>{bundle.respondent === 'Person' ? 'Patient' : 'Clinician'}</dd></div>
-              <div><dt>{LABELS.collectionMethod}</dt><dd>{COLLECTION_METHOD_OPTIONS.find(([value])=>value===bundle.channel)?.[1]}</dd></div>
+              <div><dt>Allowed collection methods</dt><dd>{collectionMethodSummary(bundle)}</dd></div>
               <div><dt>Status change</dt><dd><StatusChangeValue verbatim value={bundle.statusChange} /></dd></div>
               {!bundle.example && <><div><dt>{LABELS.programStream}</dt><dd>{bundle.programStream === 'All' ? 'All program streams' : bundle.programStream}</dd></div><div><dt>Care level</dt><dd>{bundle.careLevel === 'All' ? 'All care levels' : bundle.careLevel}</dd></div><div><dt>Age</dt><dd>{bundleAgeLabel(bundle)}</dd></div></>}
             </dl>
             <details className="bundle-summary-assessments">
-              <summary className="bundle-summary-assessments-heading"><span>Instruments</span><span className="muted">{mvpInstrumentSummary(bundle)}</span><ChevronDown size={18} aria-hidden="true" /></summary>
+              <summary className="bundle-summary-assessments-heading"><span>Measures</span><span className="muted">{mvpInstrumentSummary(bundle)}</span><ChevronDown size={18} aria-hidden="true" /></summary>
               <div className="collection-details-accordion-body">
-                <StandardTable className="bundle-assessments-table" density="compact" label={`Instruments in ${bundle.name}`}>
-                  <thead><tr><th scope="col">{bundle.coreVersion && !MVP_INITIAL_BUNDLES.some(item => item.id === bundle.id) ? 'Program stream' : 'Instrument'}</th>{bundle.coreVersion && !MVP_INITIAL_BUNDLES.some(item => item.id === bundle.id) && <th scope="col">Instruments</th>}</tr></thead>
+                <StandardTable className="bundle-assessments-table" density="compact" label={`Measures in ${bundle.name}`}>
+                  <thead><tr><th scope="col">{bundle.coreVersion && !MVP_INITIAL_BUNDLES.some(item => item.id === bundle.id) ? 'Program stream' : 'Measure'}</th>{bundle.coreVersion && !MVP_INITIAL_BUNDLES.some(item => item.id === bundle.id) && <th scope="col">Measures</th>}</tr></thead>
                   <tbody>{bundle.profileMeasure ? CLIENT_PROFILE_INSTRUMENTS.map(instrument => <QueueRow key={instrument.version}>
-                    <QueueCell label="Instrument" slot="subject" verbatim><strong>{instrument.name}</strong></QueueCell>
+                    <QueueCell label="Measure" slot="subject" verbatim><strong>{instrument.name}</strong></QueueCell>
                   </QueueRow>) : MVP_INITIAL_BUNDLES.some(item => item.id === bundle.id)
                     ? mvpInitialVersions(bundle, bundle.programStream).map(version => <QueueRow key={version}>
-                      <QueueCell label="Instrument" slot="subject" verbatim><strong>{INSTRUMENTS.find(item => item.version === version)?.name || version}</strong></QueueCell>
+                      <QueueCell label="Measure" slot="subject" verbatim><strong>{INSTRUMENTS.find(item => item.version === version)?.name || version}</strong></QueueCell>
                     </QueueRow>)
                     : bundle.coreVersion
                     ? (bundle.programStream && bundle.programStream !== 'All' ? [bundle.programStream] : PROGRAM_STREAMS).map(stream => <QueueRow key={stream}>
                       <QueueCell label="Program stream" slot="subject"><strong>{stream}</strong></QueueCell>
-                      <QueueCell label="Instruments" slot="state">{mvpDisplayBattery(bundle,stream).map(version => INSTRUMENTS.find(item => item.version === version)?.name || version).join(' · ')}</QueueCell>
+                      <QueueCell label="Measures" slot="state">{mvpDisplayBattery(bundle,stream).map(version => INSTRUMENTS.find(item => item.version === version)?.name || version).join(' · ')}</QueueCell>
                     </QueueRow>)
                     : mvpReviewItems(bundle).map(item => <QueueRow key={item.id}>
-                      <QueueCell label="Instrument" slot="subject" verbatim><strong>{INSTRUMENTS.find(instrument => instrument.version === item.version)?.name || item.version}</strong></QueueCell>
+                      <QueueCell label="Measure" slot="subject" verbatim><strong>{INSTRUMENTS.find(instrument => instrument.version === item.version)?.name || item.version}</strong></QueueCell>
                     </QueueRow>)}</tbody>
                 </StandardTable>
               </div>
@@ -226,15 +235,15 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
           <Button key={bundle.id} onClick={()=>{const result=commit({type:'SAVE_MVP_REVIEW_BUNDLE',bundle});setMessage(result.error || `${bundle.name} restored.`);}}>Restore {bundle.name}</Button>)}
       </div>}
       {adminBundles.length ? <div className="assessment-schedule-rule-list stack">
-        {mvp && <h3>User-created {appTerm('measures').toLowerCase()}</h3>}
-        {mvp && !visibleBundles.some(bundle => adminBundles.some(item => item.id === bundle.id)) && <p className="muted">No {appTerm('measures').toLowerCase()} match these filters.</p>}
+        {mvp && <h3>User-created Assessment Packs</h3>}
+        {mvp && !visibleBundles.some(bundle => adminBundles.some(item => item.id === bundle.id)) && <p className="muted">No Assessment Packs match these filters.</p>}
         {visibleBundles.filter(bundle => adminBundles.some(item => item.id === bundle.id)).map(bundle=> {
         const saved = bundles.find(item=>item.id===bundle.id);
         const mandatory=bundle.assessments.filter(item=>item.requirement==='Mandatory').length;
         const conditions=bundle.trigger==='event'
           ? [['Trigger', BUNDLE_EVENT_TYPES.find(e=>e.value===bundle.eventType)?.label], ['Due', bundleTiming(bundle)]]
-          : [[LABELS.programStream, bundle.programStream==='All' ? 'All program streams' : bundle.programStream], ['Care level', bundle.careLevel==='All' ? 'All care levels' : bundle.careLevel], ['Age', bundleAgeLabel(bundle)], ['Schedule', bundleTiming(bundle)]];
-        conditions.push([LABELS.collectionMethod, COLLECTION_METHOD_OPTIONS.find(([value])=>value===bundle.channel)?.[1]], [LABELS.respondent, bundle.recipient==='Person' ? 'Patient' : bundle.recipient]);
+          : [[LABELS.programStream, bundle.programStream==='All' ? 'All program streams' : bundle.programStream], ['Care level', bundle.careLevel==='All' ? 'All care levels' : bundle.careLevel], ['Age', bundleAgeLabel(bundle)], [mvp && (state.settings?.phase2CareActivity && state.settings?.mvpSchedulePresets !== false) ? 'Care point' : 'Schedule', mvp && (state.settings?.phase2CareActivity && state.settings?.mvpSchedulePresets !== false) ? presetForBundle(bundle)?.label || bundleTiming(bundle) : bundleTiming(bundle)]];
+        conditions.push(['Allowed collection methods', collectionMethodSummary(bundle)], [LABELS.respondent, bundle.recipient==='Person' ? 'Patient' : bundle.recipient]);
         conditions.push(['Status change', <StatusChangeValue verbatim value={bundle.statusChange} />]);
         return <Panel key={bundle.id} className="assessment-bundle-summary"
           title={<span className="bundle-summary-heading"><span className="bundle-summary-title">{bundle.name}</span><small className="bundle-summary-id">ID: {bundle.id}</small></span>}
@@ -251,12 +260,12 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
           <div className="panel-body">
             <dl className="metadata bundle-summary-conditions">{conditions.map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
             <details className="bundle-summary-assessments">
-              <summary className="bundle-summary-assessments-heading"><span>Instruments</span><span className="muted">{bundle.assessments.length} total · {mandatory} mandatory · {bundle.assessments.length-mandatory} optional</span><ChevronDown size={18} aria-hidden="true" /></summary>
+              <summary className="bundle-summary-assessments-heading"><span>Measures</span><span className="muted">{bundle.assessments.length} total · {mandatory} mandatory · {bundle.assessments.length-mandatory} optional</span><ChevronDown size={18} aria-hidden="true" /></summary>
               <div className="collection-details-accordion-body">
-              <StandardTable className="bundle-assessments-table" density="compact" label={`Instruments in ${bundle.name}`}>
-                <thead><tr><th scope="col">Instrument</th><th scope="col">Requirement</th></tr></thead>
+              <StandardTable className="bundle-assessments-table" density="compact" label={`Measures in ${bundle.name}`}>
+                <thead><tr><th scope="col">Measure</th><th scope="col">Requirement</th></tr></thead>
                 <tbody>{bundle.assessments.map(item=><QueueRow key={item.id}>
-                  <QueueCell label="Instrument" slot="subject"><strong>{INSTRUMENTS.find(i=>i.version===item.version)?.name}</strong></QueueCell>
+                  <QueueCell label="Measure" slot="subject"><strong>{INSTRUMENTS.find(i=>i.version===item.version)?.name}</strong></QueueCell>
                   <QueueCell label="Requirement" slot="state"><Badge tone="neutral">{item.requirement}</Badge></QueueCell>
                 </QueueRow>)}</tbody>
               </StandardTable>
@@ -264,12 +273,12 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
             </details>
           </div>
         </Panel>;
-      })}</div> : !mvp && <p className="muted">{displayTerminology('No assessments yet. Add an assessment to group the instruments for a care condition or event.')}</p>}
+      })}</div> : !mvp && <p className="muted">No Assessment Packs yet. Add a Pack to group measures for a care condition or event.</p>}
       </>}
       {initialDraft && <MvpInitialBundleEditor key={initialDraft.id} bundle={initialDraft} settings={state.settings}
         onClose={()=>setInitialDraft(null)} onSave={bundle=>{
           const result=commit({type:'SAVE_MVP_INITIAL_BUNDLE',bundle});
-          if(!result.error)setMessage(`${appTerm('measures', 'singular')} saved.`);
+          if(!result.error)setMessage('Assessment Pack saved.');
           return result;
         }}/>}
       {profileDraft && <ClientProfileBundleEditor key={profileDraft.id} bundle={profileDraft} settings={state.settings}
@@ -281,64 +290,91 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
       {mvpDraft && <MvpReviewBundleEditor key={mvpDraft.id} bundle={mvpDraft} settings={state.settings}
         onClose={()=>setMvpDraft(null)} onSave={bundle=>{
           const result=commit({type:'SAVE_MVP_REVIEW_BUNDLE',bundle});
-          if(!result.error)setMessage(`${appTerm('measures', 'singular')} saved.`);
+          if(!result.error)setMessage('Assessment Pack saved.');
           return result;
         }}/>}
-      {draft && <Modal title={bundles.some(b=>b.id===draft.id) ? 'Edit assessment':'New assessment'}
-        subtitle="Configure when the assessment applies and which instruments it includes."
+      {draft && <Modal title={bundles.some(b=>b.id===draft.id) ? 'Edit Assessment Pack':'New Assessment Pack'}
+        subtitle="Define when the Pack applies and which measures it includes."
         onClose={closeEditor} initialFocusRef={nameInput} wide className="assessment-bundle-settings-modal">
       <form onSubmit={save} className="assessment-schedule-form">
         <div className="form-body">
         {bundleField}
         <div className="assessment-schedule-fields">
-          <label className="bundle-name-field"><span>Assessment name</span><input ref={nameInput} required maxLength={80} value={draft.name} onChange={e=>change('name',e.target.value)}/></label>
-          <Checkbox className="bundle-name-field assessment-schedule-enabled" label="Enable this assessment" checked={draft.enabled} onChange={e=>change('enabled',e.target.checked)}/>
+          <FieldInput className="bundle-name-field" label="Assessment Pack name" ref={nameInput} required maxLength={80} value={draft.name} onChange={e=>change('name',e.target.value)}/>
+          <Checkbox className="bundle-name-field assessment-schedule-enabled" label="Enable this Assessment Pack" checked={draft.enabled} onChange={e=>change('enabled',e.target.checked)}/>
           <h3 className="bundle-name-field bundle-collection-heading">Collection settings</h3>
-          <label><span>{LABELS.respondent}</span><select value={draft.recipient} onChange={e=>{setDraft(current=>({...current,recipient:e.target.value,...(e.target.value==='Clinician'?{channel:'Clinician entry'}:{})}));setError('');}}><option value="Person">Patient</option><option value="Clinician">Clinician</option></select></label>
-          <label><span>{LABELS.collectionMethod}</span><select value={draft.channel} onChange={e=>change('channel',e.target.value)}>{COLLECTION_METHOD_OPTIONS.filter(([value])=>value!=='SMS link' || sms || draft.channel===value).map(([value,label])=><option key={value} value={value} disabled={value==='SMS link' && !sms || draft.recipient==='Clinician' && value!=='Clinician entry'}>{label}{value==='SMS link' && !sms ? ' (SMS disabled)':''}</option>)}</select></label>
-            <div className="bundle-name-field bundle-timing-fields">
+          <FieldSelect label={LABELS.respondent} value={draft.recipient} onChange={e=>{setDraft(current=>{
+            const recipient = e.target.value;
+            const channel = recipient === 'Clinician' ? 'Clinician entry' : current.channel;
+            return {...current, recipient, channel,
+              allowedCollectionMethods: recipient === 'Clinician' && Array.isArray(current.allowedCollectionMethods)
+                ? ['Clinician entry'] : current.allowedCollectionMethods,
+              assessments: current.assessments.map(item=>({...item,recipient,channel}))};
+          });setError('');}}><option value="Person">Patient</option><option value="Clinician">Clinician</option></FieldSelect>
+          <AllowedCollectionMethods bundle={draft} methods={COLLECTION_METHOD_OPTIONS.filter(([value]) =>
+            (value !== 'SMS link' || sms) && (draft.recipient !== 'Clinician' || value === 'Clinician entry')).map(([value]) => value)}
+            onChange={methods => setDraft(current => {
+              const channel = methods?.length && !methods.includes(current.channel) ? methods[0] : current.channel;
+              return { ...current, allowedCollectionMethods: methods, channel,
+                assessments: current.assessments.map(item => ({ ...item, channel })) };
+            })} />
+            {mvp && (state.settings?.phase2CareActivity && state.settings?.mvpSchedulePresets !== false) ? <div className="bundle-name-field mvp-preset-pair">
+              <div className="bundle-timing-fields">
+              <div className="bundle-name-field mvp-preset-label">Care point preset</div>
+              <Select className="mvp-care-point-select" label="Care point preset" required value={presetForBundle(draft)?.id || ''} onChange={event => {
+                const preset = MVP_SCHEDULE_PRESETS.find(item => item.id === event.target.value);
+                if (preset) setDraft(current => ({ ...current, ...preset.fields, dueDate: '' }));
+                setError('');
+              }}>
+                <option value="" disabled>Choose a care point</option>
+                {MVP_SCHEDULE_PRESETS.map(preset => <option key={preset.id} value={preset.id}>{preset.label}</option>)}
+              </Select>
+              <p className="muted bundle-name-field">{presetForBundle(draft)?.description || 'Choose when this Assessment Pack is prepared.'}</p>
+              </div>
+              <StatusChangeFields compact value={draft.statusChange} onChange={value=>change('statusChange',value)} />
+            </div> :             <div className="bundle-name-field bundle-timing-fields">
               <h3 className="bundle-name-field bundle-timing-heading">Schedule</h3>
-              <label><span>Trigger</span><select required value={draft.trigger === 'event' ? 'days' : ['days','date'].includes(draft.timing) ? draft.timing : ''} onChange={event=> {
+              <FieldSelect label="Trigger" required value={draft.trigger === 'event' ? 'days' : ['days','date'].includes(draft.timing) ? draft.timing : ''} onChange={event=> {
                 const timing = event.target.value;
                 setDraft(current=>({...current,trigger:timing === 'event' ? 'event' : 'current',timing,repeat:timing === 'days' ? current.repeat : false}));
                 setError('');
-              }}>{!['days','date'].includes(draft.timing) && draft.trigger !== 'event' && <option value="" disabled>Choose Event or Date</option>}<option value="days">Event</option><option value="date">Date</option></select></label>
+              }}>{!['days','date'].includes(draft.timing) && draft.trigger !== 'event' && <option value="" disabled>Choose Event or Date</option>}<option value="days">Event</option><option value="date">Date</option></FieldSelect>
               {draft.trigger === 'event' && <>
-                <label><span>Event category</span><select required value={draft.eventType} onChange={e=>change('eventType',e.target.value)}><option value="">Choose an event category</option>{BUNDLE_EVENT_TYPES.map(e=><option key={e.value} value={e.value}>{e.label}</option>)}</select></label>
-                <label><span>Days after event</span><input required type="number" min="0" max="730" step="1" value={draft.delayDays} onChange={e=>change('delayDays',Number(e.target.value))}/></label>
+                <FieldSelect label="Event category" required value={draft.eventType} onChange={e=>change('eventType',e.target.value)}><option value="">Choose an event category</option>{BUNDLE_EVENT_TYPES.map(e=><option key={e.value} value={e.value}>{e.label}</option>)}</FieldSelect>
+                <FieldInput label="Days after event" required type="number" min="0" max="730" step="1" value={draft.delayDays} onChange={e=>change('delayDays',Number(e.target.value))}/>
               </>}
-              {draft.trigger !== 'event' && draft.timing === 'date' && <label><span>Due date</span><input required type="date" value={draft.dueDate || ''} onChange={e=>change('dueDate',e.target.value)}/></label>}
+              {draft.trigger !== 'event' && draft.timing === 'date' && <FieldInput label="Due date" required type="date" value={draft.dueDate || ''} onChange={e=>change('dueDate',e.target.value)}/>}
               {draft.trigger !== 'event' && draft.timing === 'days' && <>
-                <label><span>Time (days)</span><input required type="number" min="1" max="728" step="1" value={draft.days} onChange={e=>change('days',Number(e.target.value))}/></label>
-                <label><span>After</span><select value={draft.after || 'care-period'} onChange={e=>setDraft(current=>({...current,after:e.target.value,...(e.target.value === 'referral' ? {repeat:false,referralStatus:current.referralStatus || 'Accepted'} : {})}))}>
+                <FieldInput label="Time (days)" required type="number" min="1" max="728" step="1" value={draft.days} onChange={e=>change('days',Number(e.target.value))}/>
+                <FieldSelect label="After" value={draft.after || 'care-period'} onChange={e=>setDraft(current=>({...current,after:e.target.value,...(e.target.value === 'referral' ? {repeat:false,referralStatus:current.referralStatus || 'Accepted'} : {})}))}>
                   {!mvp && !draft.after && <option value="care-period">Care period starts</option>}
                   <option value="intake">Intake</option>
                   <option value="specific-measure">Specific measure</option>
                   {mvp ? <><option value="referral">Referral</option><option value="discharge">Discharge</option></> : <><option value="discharge">Discharge</option><option value="referral">Referral</option></>}
                   {(mvp ? BUNDLE_EVENT_TYPES.filter(event=>event.value==='level-change') : BUNDLE_EVENT_TYPES).map(event=><option key={event.value} value={event.value}>{event.label}</option>)}
-                </select></label>
+                </FieldSelect>
                 <SpecificMeasureFields draft={draft} settings={state.settings} change={change} />
-                {draft.after === 'referral' ? <label><span>Referral status</span><select required value={draft.referralStatus || 'Accepted'} onChange={e=>change('referralStatus',e.target.value)}>{['Accepted','Denied','Reworked','Modified'].map(status=><option key={status} value={status}>{status}</option>)}</select></label> : <Checkbox className="bundle-repeat-choice" label="Repeat" checked={draft.repeat} aria-describedby={`bundle-repeat-hint-${draft.id}`} onChange={event=>change('repeat',event.target.checked)}/>}
+                {draft.after === 'referral' ? <FieldSelect label="Referral status" required value={draft.referralStatus || 'Accepted'} onChange={e=>change('referralStatus',e.target.value)}>{['Accepted','Denied','Reworked','Modified'].map(status=><option key={status} value={status}>{status}</option>)}</FieldSelect> : <Checkbox className="bundle-repeat-choice" label="Repeat" checked={draft.repeat} aria-describedby={`bundle-repeat-hint-${draft.id}`} onChange={event=>change('repeat',event.target.checked)}/>}
               </>}
               <p id={`bundle-repeat-hint-${draft.id}`} className={`muted ${draft.timing === 'days' ? 'bundle-repeat-hint' : 'bundle-name-field'}`}>{draft.trigger === 'event' ? 'Runs once for each matching event.' : draft.timing === 'intake' ? 'Runs once when intake is completed for this care episode.'
                 : draft.timing === 'discharge' ? 'Runs once when this care episode closes.'
                   : draft.timing === 'date' ? 'Runs once on the selected date.'
                   : draft.repeat ? `Repeats every ${draft.days} days after ${draft.after === 'intake' ? 'intake' : draft.after === 'discharge' ? 'discharge' : (draft.after === 'referral' ? `referral ${draft.referralStatus || 'Accepted'}` : BUNDLE_EVENT_TYPES.find(event=>event.value===draft.after)?.label) || 'the care period starts'}.` : `Runs once ${draft.days} days after ${draft.after === 'intake' ? 'intake' : draft.after === 'discharge' ? 'discharge' : (draft.after === 'referral' ? `referral ${draft.referralStatus || 'Accepted'}` : BUNDLE_EVENT_TYPES.find(event=>event.value===draft.after)?.label) || 'the care period starts'}.`}</p>
-            </div>
+            </div>}
           <>
-            <h3 className="bundle-name-field bundle-collection-heading">Trigger conditions</h3>
+            <h3 className="bundle-name-field bundle-collection-heading">Parameter</h3>
             {!!parameters.length && <div className="bundle-name-field bundle-parameter-list">
               {parameters.filter(key => availableParameterOptions.some(([value]) => value === key)).map(key => <div key={key} className="bundle-parameter-row">
                 {key === 'profileValue' ? <ProfileValueTriggerFields draft={draft} change={change} />
-                  : key === 'programStream' ? <label><span>Program stream</span><select required value={draft.programStream === 'All' ? '' : draft.programStream} onChange={e=>change(key,e.target.value)}><option value="" disabled>Choose a program stream</option>{PROGRAM_STREAMS.map(value=><option key={value} value={value}>{value}</option>)}</select></label>
-                  : key === 'careLevel' ? <label><span>Care level</span><select required value={draft.careLevel === 'All' ? '' : draft.careLevel} onChange={e=>change(key,e.target.value)}><option value="" disabled>Choose a care level</option>{CARE_LEVELS.map(value=><option key={value} value={value}>{value}</option>)}</select></label>
-                    : <label><span>{key === 'minAge' ? 'Minimum age (years)' : 'Maximum age (years)'}</span><input required type="number" min="0" max="120" step="1" placeholder="Enter age" value={draft[key] ?? ''} onChange={e=>change(key,e.target.value==='' ? null:Number(e.target.value))}/></label>}
+                  : key === 'programStream' ? <FieldSelect label="Program stream" required value={draft.programStream === 'All' ? '' : draft.programStream} onChange={e=>change(key,e.target.value)}><option value="" disabled>Choose a program stream</option>{PROGRAM_STREAMS.map(value=><option key={value} value={value}>{value}</option>)}</FieldSelect>
+                  : key === 'careLevel' ? <FieldSelect label="Care level" required value={draft.careLevel === 'All' ? '' : draft.careLevel} onChange={e=>change(key,e.target.value)}><option value="" disabled>Choose a care level</option>{CARE_LEVELS.map(value=><option key={value} value={value}>{value}</option>)}</FieldSelect>
+                    : <FieldInput label={key === 'minAge' ? 'Minimum age (years)' : 'Maximum age (years)'} required type="number" min="0" max="120" step="1" placeholder="Enter age" value={draft[key] ?? ''} onChange={e=>change(key,e.target.value==='' ? null:Number(e.target.value))}/>}
                 <IconButton icon={Trash2} label={`Remove ${parameterOptions.find(([value])=>value===key)?.[1]} parameter`} className="bundle-editor-delete" onClick={()=>removeParameter(key)} />
               </div>)}
             </div>}
             {availableParameterOptions.some(([key]) => !parameters.includes(key)) && <div className="bundle-name-field new-bundle-extra-picker">
               <Field label="Parameter to add">
-                <Select label="Parameter to add" value={parameterToAdd} onChange={event=>setParameterToAdd(event.target.value)}>
+                <Select value={parameterToAdd} onChange={event=>setParameterToAdd(event.target.value)}>
                   <option value="">Choose a parameter</option>
                   {availableParameterOptions.filter(([key])=>!parameters.includes(key)).map(([key,label])=><option key={key} value={key}>{label}</option>)}
                 </Select>
@@ -354,11 +390,11 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
           </>
 
         </div>
-        <StatusChangeFields value={draft.statusChange} onChange={value=>change('statusChange',value)} />
-        <section className="bundle-editor-assessments" aria-label="Instruments in this assessment">
+        {!(mvp && state.settings?.phase2CareActivity && state.settings?.mvpSchedulePresets !== false) && <StatusChangeFields value={draft.statusChange} onChange={value=>change('statusChange',value)} />}
+        <section className="bundle-editor-assessments">
         <header className="bundle-editor-assessments-heading">
-          <h3>Instruments in this assessment</h3>
-          <p className="muted">{editorOnly ? 'Choose the instruments to include in this assessment.' : 'Mandatory instruments are always included. Optional instruments wait for staff selection.'}</p>
+          <h3>Measures in this Assessment Pack</h3>
+          <p className="muted">{editorOnly ? 'Choose the measures to include in this Pack.' : 'Mandatory measures are always included. Optional measures wait for staff selection.'}</p>
         </header>
         <div className="bundle-editor-assessment-list">{draft.assessments.map(item=> {
           const instrument = INSTRUMENTS.find(instrument=>instrument.version===item.version);
@@ -368,24 +404,24 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
             onRemove={()=>change('assessments',draft.assessments.filter(a=>a.id!==item.id))}
           />;
         })}</div>
-        {!draft.assessments.length && <p className="new-bundle-section-caption">Choose at least one instrument to include.</p>}
+        {!draft.assessments.length && <p className="new-bundle-section-caption">Choose at least one measure to include.</p>}
         {availableAssessments.length ? <div className="new-bundle-extra-picker">
-          <Field label="Instrument type to add">
-            <Select label="Instrument type to add" value={assessmentVersion} onChange={event=>setAssessmentVersion(event.target.value)}>
-              <option value="">Choose an instrument</option>
+          <Field label="Measure type to add">
+            <Select value={assessmentVersion} onChange={event=>setAssessmentVersion(event.target.value)}>
+              <option value="">Choose a measure</option>
               {availableAssessments.map(instrument=><option key={instrument.version} value={instrument.version}>{instrument.name}</option>)}
             </Select>
           </Field>
           <Button type="button" disabled={!assessmentVersion} onClick={()=>{
             change('assessments',[...draft.assessments,{...blankAssessment(),version:assessmentVersion}]);
             setAssessmentVersion('');
-          }}>Add instrument</Button>
-        </div> : <p className="muted">All available instrument types are included.</p>}
+          }}>Add measure</Button>
+        </div> : <p className="muted">All available measure types are included.</p>}
         </section>
         {error && <p role="alert" className="field-error">{displayTerminology(error)}</p>}
         </div>
         <ActionGroup className="modal-footer">
-          <Button type="button" onClick={closeEditor}>Cancel</Button><Button type="submit" variant="primary" disabled={!draft.assessments.length}>Save assessment</Button>
+          <Button type="button" onClick={closeEditor}>Cancel</Button><Button type="submit" variant="primary" disabled={!draft.assessments.length}>Save Assessment Pack</Button>
         </ActionGroup>
       </form>
       </Modal>}

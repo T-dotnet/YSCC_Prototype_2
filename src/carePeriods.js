@@ -1,4 +1,4 @@
-export const PROGRAM_STREAMS = ["Psychosis", "Eating Disorder", "Complex", "General"];
+export const PROGRAM_STREAMS = ["Psychosis", "Eating Disorder", "Personality", "Mood"];
 export const CARE_LEVELS = ["High", "Mid", "Low"];
 export const CARE_LEVEL_REASONS = [
   "Scheduled review",
@@ -43,9 +43,9 @@ export function carePeriodError(episode, action, staff, today, clinicians) {
   const current = currentCarePeriod(episode);
   if (action.type === "SET_INITIAL_CARE_LEVEL") {
     if (episode.carePeriods?.length) return "The starting care level is already recorded.";
-    if (!PROGRAM_STREAMS.includes(episode.programStream || action.programStream))
+    if (!PROGRAM_STREAMS.includes(episode.programStream) && !PROGRAM_STREAMS.includes(action.programStream))
       return "Choose a program stream for this episode.";
-    if (episode.programStream && action.programStream && action.programStream !== episode.programStream)
+    if (PROGRAM_STREAMS.includes(episode.programStream) && action.programStream && action.programStream !== episode.programStream)
       return "The program stream is already set for this episode.";
     if (!validDate(episode.start) || episode.start > today)
       return "This episode does not have a valid start date.";

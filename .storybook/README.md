@@ -8,7 +8,7 @@ This collection accompanies the visible-app audit in `../output/design-system-au
 | --- | --- | --- |
 | Foundations | Semantic colours, typography, spacing and shape | F01–F03 |
 | Primitives | Buttons, badges, identity, search, fields, pickers, validation | A01, A03–A04, A06–A09, A12 |
-| Compositions | Tabs, consent and Care events filters, queue, applied chips, record item, panel, dialog, empty/success, report evidence, person-record surfaces | M01–M08, M11, M16; person surfaces |
+| Compositions | Tabs, consent and Care events filters, queue, applied chips, record item, panel, dialog, empty/success, report evidence, person-record surfaces, Administration | M01–M08, M11, M16; person surfaces; Measures, Assessment Packs, record outcomes |
 | Templates | Person record context, current People heading/panel excerpt, and assessment collection cards | O03–O05, partial |
 
 ## Visual parity reference
@@ -32,6 +32,7 @@ The person header in navigation stories is a Storybook fixture that supplies the
 - **Compact assessments:** Created, Draft, and Completed states with scheduling off.
 - **Consolidated report:** the production Report dashboard, compare-measures modal, sample chart disclosures, and semantic Care timeline.
 - **Color setups:** the global toolbar previews Setup 1 (current), Setup 2 (forest), Setup 3 (forest and lime), and Setup 4 (forest and cyan) on every story.
+- **Administration:** production Measures catalogue with preview, Assessment Packs list and Client profile editor, and record outcome settings. These stories use the codebook pathway in the Storybook-only store.
 
 The Storybook-only store alias uses a fresh fictional seed and in-memory updates. It never reads or writes the app's local storage. Source links in the report show their destination as feedback; collection actions in compact state examples are visual-only. Existing Care event filters now receive this provider too.
 

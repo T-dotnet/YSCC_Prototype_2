@@ -39,3 +39,16 @@ test("scheduling off hides planned-contact reminders and switching on restores t
   state.settings.scheduleAssessments = true;
   assert.deepEqual(getNotifications(state, TODAY).filter(n => n.category === "appointment_overdue"), planned);
 });
+
+test("data quality notifications identify the current person and disappear when resolved", () => {
+  const state = createSeed();
+  const issue = state.issues.find(item => item.id === 'DQ-001');
+  const person = state.people.find(item => item.id === issue.personId);
+  const current = getNotifications(state, TODAY).find(item => item.id === `dq-${issue.id}`);
+  assert.equal(current.personId, person.id);
+  assert.equal(current.personName, person.name);
+  assert.ok(current.detail.startsWith(`${person.name} · `));
+
+  issue.status = 'Resolved';
+  assert.equal(getNotifications(state, TODAY).some(item => item.id === `dq-${issue.id}`), false);
+});

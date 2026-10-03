@@ -3,7 +3,7 @@ import { LABELS } from "../terminology.js";
 import { useEffect, useRef, useState } from "react";
 import { CONTACT_RECIPIENTS, CONTACT_TYPES, DRAFT_CONTACT_DELIVERY_MODES } from "../appointments";
 import { formatDate, TODAY } from "../model";
-import { Button, Field, Notice, ValidatedForm } from "./UI";
+import { Button, Field, Notice, RadioInput, ValidatedForm } from "./UI";
 import CollectionMethodChoice from "./CollectionMethodChoice";
 import { useStore } from "../store";
 import { assessmentSmsEnabled } from "../assessmentFeatures";
@@ -95,11 +95,11 @@ export default function QuestionnaireAppointmentConfirmation({
           <p>Use the appointment linked when collection started, choose another contact, or record a new one.</p>
           <fieldset className="draft-contact-choices">
             <legend>Which contact supplied these answers?</legend>
-            {appointment && <label><input type="radio" name="contactChoice" value="linked" checked={contactChoice === "linked"}
-              onChange={() => setContactChoice("linked")} required /> Use the appointment linked to this instrument · {formatDate(appointment.actualDate || appointment.plannedDate)} · {appointment.attendance}</label>}
-            <label><input type="radio" name="contactChoice" value="existing" checked={contactChoice === "existing"}
+            {appointment && <label><RadioInput name="contactChoice" value="linked" checked={contactChoice === "linked"}
+              onChange={() => setContactChoice("linked")} required /> Use the appointment linked to this measure · {formatDate(appointment.actualDate || appointment.plannedDate)} · {appointment.attendance}</label>}
+            <label><RadioInput name="contactChoice" value="existing" checked={contactChoice === "existing"}
               onChange={() => setContactChoice("existing")} required /> Choose another existing contact</label>
-            <label><input type="radio" name="contactChoice" value="new" checked={contactChoice === "new"}
+            <label><RadioInput name="contactChoice" value="new" checked={contactChoice === "new"}
               onChange={() => setContactChoice("new")} required /> Record a new attended contact</label>
           </fieldset>
           {contactChoice === "existing" && (

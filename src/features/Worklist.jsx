@@ -1,17 +1,14 @@
 import { useState, useMemo } from "react";
 import { Plus, ArrowRight, CalendarX } from "lucide-react";
 import { useStore } from "../store";
-import { assessmentSchedulingEnabled } from "../assessmentFeatures";
+import { assessmentDueDatesEnabled, assessmentSchedulingEnabled } from "../assessmentFeatures";
 import { patientIdentifier, patientSecondaryDetail } from "../patientIdentity";
-import {
-  getTasks,
-  formatDate,
-  currentStaff,
-  TODAY,
-} from "../model";
+import { formatDate, currentStaff, TODAY } from "../model";
 import { appointmentIsOverdue } from "../appointments";
 import { getQualityIssues } from "../dataQuality";
-import { matchesWorkOwner, ownedTasks, taskHref } from "../workflow";
+import { matchesWorkOwner, taskHref } from "../workflow";
+import { getWorkItems, WORK_STAGES, workNeedsAttention } from "../workQueue";
+import { contactVisible } from "../assessmentFeatures";
 import { intakeStage } from "../intake";
 import useQueueView from "../useQueueView";
 import { sortQueueRows } from "../queueSort";
@@ -35,36 +32,28 @@ const filters = [
   "All work",
   "Needs attention",
   "Ready for review",
-  "Intake",
-  "Referrals",
 ];
 const PAGE_SIZE = 6;
 
-const workRecord = (task) =>
-  task.collection || {
-    id: task.record.id,
-    label:
-      task.kind === "intake"
-        ? "Intake"
-        : `Referral · ${task.record.destination}`,
-    due: task.record.reviewDate,
-  };
 export default function Worklist({ navigate, openModal }) {
   const { state } = useStore();
   const scheduleAssessments = assessmentSchedulingEnabled(state.settings);
+  const showDueDates = scheduleAssessments || assessmentDueDatesEnabled(state.settings);
   const view = useQueueView();
   const query = view.params.get("q") || "";
   const filter = filters.includes(view.params.get("filter"))
     ? view.params.get("filter")
     : "All work";
-  const point = view.params.get("point") || "All collection points";
+  const stage = WORK_STAGES.includes(view.params.get("stage")) ? view.params.get("stage") : "All stages";
   const ownership = ["me", "team", "unassigned"].includes(
     view.params.get("owner"),
   )
     ? view.params.get("owner")
     : "me";
   const { sort: sortConfig, toggleSort } = useQueueSort({ key: "due", direction: "asc" });
-  const tasks = ownedTasks(getTasks(state), state, ownership);
+  const tasks = getWorkItems(state, ownership);
+  const statuses = [...new Set(tasks.map(task => task.status))].sort();
+  const statusFilter = statuses.includes(view.params.get("status")) ? view.params.get("status") : "All statuses";
 
   // Alerts complement the worklist instead of repeating assessment tasks that
   // already have a clear next action above.
@@ -97,7 +86,7 @@ export default function Worklist({ navigate, openModal }) {
       .filter((e) => e.status === "Active")
       .flatMap((episode) =>
         (episode.appointments || [])
-          .filter((apt) => scheduleAssessments && appointmentIsOverdue(apt, TODAY))
+          .filter((apt) => contactVisible(apt, state.settings) && appointmentIsOverdue(apt, TODAY))
           .map((apt) => ({
             id: `apto-${apt.id}`,
             category: "Contact input overdue",
@@ -109,7 +98,7 @@ export default function Worklist({ navigate, openModal }) {
             badgeColor: "coral",
             icon: CalendarX,
             actionLabel: "Record outcome",
-            href: `/people/${encodeURIComponent(person.id)}?tab=appointments`,
+            href: `/people/${encodeURIComponent(person.id)}?tab=Events&episode=${encodeURIComponent(episode.id)}`,
             date: apt.plannedDate,
           }))
       )
@@ -141,32 +130,26 @@ export default function Worklist({ navigate, openModal }) {
   const visibleAlerts = filteredAlerts.slice(alertStart, alertStart + ALERT_PAGE_SIZE);
   const alertShowingFrom = filteredAlerts.length ? alertStart + 1 : 0;
   const alertShowingTo = Math.min(alertStart + ALERT_PAGE_SIZE, filteredAlerts.length);
-  const matchesFilter = (task, selected) =>
-    selected === "All work" ||
-    (selected === "Intake"
-      ? task.kind === "intake"
-      : selected === "Referrals"
-        ? task.kind === "referral"
-        : selected === "Needs attention"
-          ? ["Overdue", "Sending failed", "Declined"].includes(task.status)
-          : task.status === "Ready for review");
+  const matchesFilter = (task, selected) => selected === "All work" ||
+    (selected === "Needs attention" ? workNeedsAttention(task) : task.status === "Ready for review");
   const filtered = useMemo(() => {
     let result = tasks.filter(
       (task) =>
         matchesFilter(task, filter) &&
-        (point === "All collection points" || workRecord(task).label === point) &&
-        `${task.person.name} ${task.person.id}`
+        (stage === "All stages" || task.stage === stage) &&
+        (statusFilter === "All statuses" || task.status === statusFilter) &&
+        `${task.person.name} ${task.person.id} ${task.title} ${task.status}`
           .toLowerCase()
           .includes(query.toLowerCase()),
     );
 
     return sortQueueRows(result, sortConfig, {
       name: (task) => task.person.name,
-      due: (task) => workRecord(task).due,
+      due: (task) => task.due || "9999-12-31",
       status: (task) => task.status,
-      item: (task) => task.kind === "intake" ? "Intake" : workRecord(task).label,
+      item: (task) => task.title,
     });
-  }, [tasks, filter, point, query, sortConfig]);
+  }, [tasks, filter, stage, statusFilter, query, sortConfig]);
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const requestedPage = Number(view.params.get("page"));
   const page = Math.min(
@@ -190,6 +173,8 @@ export default function Worklist({ navigate, openModal }) {
     const next = new URLSearchParams(window.location.search);
     next.delete("q");
     next.delete("point");
+    next.delete("stage");
+    next.delete("status");
     next.delete("filter");
     next.delete("page");
     const nextUrl = window.location.pathname + (next.size ? `?${next}` : "");
@@ -201,7 +186,7 @@ export default function Worklist({ navigate, openModal }) {
     <>
       <PageHeading
         title="My work"
-        subtitle="Intake, assessment and referral follow-up in one place."
+        subtitle="Client profile, initial assessment, 90-day review and other follow-up in one place."
         meta={`Today · ${formatDate(TODAY)} · Fictional sample data`}
       >
         <Button
@@ -252,19 +237,20 @@ export default function Worklist({ navigate, openModal }) {
             shown={filtered.length}
             total={tasks.length}
             noun={filtered.length === 1 ? "task" : "tasks"}
-            activeAdvancedCount={Number(point !== "All collection points")}
+            activeAdvancedCount={Number(stage !== "All stages") + Number(statusFilter !== "All statuses")}
             onClear={clearAll}
             advanced={
-              <Select
-                label="Collection point filter"
-                value={point}
-                onChange={(event) => view.set("point", event.target.value, "All collection points", true)}
-              >
-                <option>All collection points</option>
-                {[...new Set(tasks.map((task) => workRecord(task).label))].map((label) => (
-                  <option key={label}>{label}</option>
-                ))}
-              </Select>
+              <>
+                <Select label="Flow stage" value={stage}
+                  onChange={(event) => view.set("stage", event.target.value, "All stages", true)}>
+                  {WORK_STAGES.map(value => <option key={value}>{value}</option>)}
+                </Select>
+                <Select label="Work item status" value={statusFilter}
+                  onChange={(event) => view.set("status", event.target.value, "All statuses", true)}>
+                  <option>All statuses</option>
+                  {statuses.map(value => <option key={value}>{value}</option>)}
+                </Select>
+              </>
             }
           />
           <div
@@ -275,7 +261,8 @@ export default function Worklist({ navigate, openModal }) {
             <ActiveFilters
               items={[
                 ...(query ? [{ id: "search", label: `Search: ${query}`, onRemove: () => view.set("q", "", "", true) }] : []),
-                ...(point !== "All collection points" ? [{ id: "point", label: `Point: ${point}`, onRemove: () => view.set("point", "All collection points", "All collection points", true) }] : []),
+                ...(stage !== "All stages" ? [{ id: "stage", label: `Stage: ${stage}`, onRemove: () => view.set("stage", "All stages", "All stages", true) }] : []),
+                ...(statusFilter !== "All statuses" ? [{ id: "status", label: `Status: ${statusFilter}`, onRemove: () => view.set("status", "All statuses", "All statuses", true) }] : []),
               ]}
               onClear={clearAll}
             />
@@ -284,7 +271,7 @@ export default function Worklist({ navigate, openModal }) {
                   <tr>
                     <SortableHeader label="Person" sortKey="name" sort={sortConfig} onSort={toggleSort} />
                     <SortableHeader label="Work item" sortKey="item" sort={sortConfig} onSort={toggleSort} />
-                    <SortableHeader label={!scheduleAssessments ? "Progress" : "Due / review date"} sortKey="due" sort={sortConfig} onSort={toggleSort} />
+                    <SortableHeader label={showDueDates ? "Due / progress" : "Progress"} sortKey="due" sort={sortConfig} onSort={toggleSort} />
                     <SortableHeader label="Status" sortKey="status" sort={sortConfig} onSort={toggleSort} />
                     <th scope="col">Next action</th>
                   </tr>
@@ -292,9 +279,8 @@ export default function Worklist({ navigate, openModal }) {
                 <tbody>
                   {visibleTasks.map((task) => {
                     const { person: p, status, action } = task;
-                    const c = workRecord(task);
                     return (
-                      <QueueRow key={c.id} onClick={() => openTask(task)}>
+                      <QueueRow key={task.id} onClick={() => openTask(task)}>
                         <QueueCell label="Person" slot="subject">
                           <div className="person-cell">
                             <span>
@@ -312,30 +298,26 @@ export default function Worklist({ navigate, openModal }) {
                           </div>
                         </QueueCell>
                         <QueueCell label="Work item" slot="summary">
-                          {task.kind === "intake"
-                            ? `Intake - ${intakeStage(task.record)}`
-                            : c.label}
+                          {task.kind === "intake" ? `Intake · ${intakeStage(task.record)}` : task.title}
                         </QueueCell>
-                        <QueueCell label={!scheduleAssessments ? "Progress" : "Due / review date"} slot="date">
-                          {!scheduleAssessments && task.collection ? (
-                            <span className="muted">{status === "Draft" ? "Draft saved" : "Instrument created"}</span>
-                          ) : c.response === "Submitted" ? (
-                            <span className="muted">Response received · review pending</span>
-                          ) : (
-                            <span className={status === "Overdue" ? "status-overdue-text" : undefined}>{formatDate(c.due)}</span>
-                          )}
+                        <QueueCell label={showDueDates ? "Due / progress" : "Progress"} slot="date">
+                          {(showDueDates || !task.collection) && task.due && <span className={status === "Overdue" ? "status-overdue-text" : undefined}>{formatDate(task.due)}</span>}
+                          {task.collection && <small className="muted">{task.completed} of {task.total} {task.total === 1 ? "measure" : "measures"} completed</small>}
+                          {!task.collection && !task.due && <span className="muted">No date set</span>}
                         </QueueCell>
                         <QueueCell label="Status" slot="state">
                           <Badge>{status}</Badge>
                         </QueueCell>
                         <QueueCell label="Next action" slot="action">
                           <Button
-                            className="task-action"
+                            type="button"
+                            variant="secondary"
+                            className="work-item-cta"
                             onClick={(e) => {
                               e.stopPropagation();
                               openTask(task);
                             }}
-                            aria-label={`${action} · ${patientIdentifier(p)} · ${c.label}`}
+                            aria-label={`${action} · ${patientIdentifier(p)} · ${task.title}`}
                           >
                             {action}
                             <ArrowRight size={16} />
@@ -361,7 +343,7 @@ export default function Worklist({ navigate, openModal }) {
               >
                 {ownership === "me" && !tasks.length
                   ? "Choose My team to see work assigned to other care owners."
-                  : "Try another search, status, or collection point."}
+                  : "Try another search, status, or flow stage."}
               </Empty>
             )}
             <div className="table-footer" role="status">
@@ -369,7 +351,7 @@ export default function Worklist({ navigate, openModal }) {
                 Showing {showingFrom}–{showingTo} of {filtered.length}{" "}
                 {filtered.length === 1 ? "task" : "tasks"}
               </span>
-              <span>Sorted by priority, then due / review date</span>
+              <span>Sorted by {sortConfig.key === "due" ? "due date" : sortConfig.key === "name" ? "person" : sortConfig.key === "item" ? "work item" : "status"}</span>
               <Pagination
                 label="My work"
                 page={page}
@@ -387,7 +369,7 @@ export default function Worklist({ navigate, openModal }) {
           title="Additional alerts"
         >
           <p className="alerts-intro">
-            Data quality and appointment follow-up that is not already shown in
+            Data quality and contact follow-up that is not already shown in
             the worklist.
           </p>
           <FilterTabs
@@ -461,7 +443,8 @@ export default function Worklist({ navigate, openModal }) {
                   </div>
                   <div className="alert-card-footer">
                     <Button
-                      className="task-action small"
+                      type="button"
+                      variant="secondary"
                       onClick={() => {
                         view.remember();
                         if (alert.issueId)

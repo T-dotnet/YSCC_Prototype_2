@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { addDays, assessmentSlots, availableExternalSlots } from "../externalAppointmentSlots";
 import { formatDate, TODAY } from "../model";
+import { RadioInput } from "./UI";
 
 export default function AppointmentSlotPicker({ mode, dueDate, selectedSlot, onSelect, required = false, scrollTargetRef }) {
   const [range, setRange] = useState("7");
@@ -34,7 +35,7 @@ export default function AppointmentSlotPicker({ mode, dueDate, selectedSlot, onS
       <fieldset className="appointment-slot-ranges">
         <legend>When?</legend>
         {[["7", "Next 7 days"], ["14", "Next 14 days"], ["custom", "Choose dates"]].map(([value, label]) =>
-          <label key={value}><input type="radio" name="slotRange" checked={range === value} onChange={() => { setRange(value); onSelect(null); }} />{label}</label>)}
+          <label key={value}><RadioInput name="slotRange" checked={range === value} onChange={() => { setRange(value); onSelect(null); }} />{label}</label>)}
       </fieldset>
       {range === "custom" && <div className="appointment-slot-dates">
         <label>From <input type="date" value={from} min={TODAY} onChange={(event) => { setFrom(event.target.value); onSelect(null); }} /></label>

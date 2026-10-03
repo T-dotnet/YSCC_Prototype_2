@@ -191,8 +191,11 @@ export function intakeActionError(state, action, staff) {
     )
       return "Record an intake owner, next action and review date.";
     if (!text(action.name)) return "Enter the young person’s name.";
-    if (!validDate(action.dob) || action.dob > new Date().toISOString().slice(0, 10))
+    if ((!action.mvpProfile || action.dob) &&
+        (!validDate(action.dob) || action.dob > new Date().toISOString().slice(0, 10)))
       return "Enter a valid date of birth.";
+    if (action.mvpProfile && !PROGRAM_STREAMS.includes(action.programStream))
+      return "Choose an episode stream.";
     if (state.people.some((p) => p.registrationRequestId === action.requestId))
       return "This registration is already saved. Open the existing record.";
     if (
@@ -391,7 +394,7 @@ export function applyIntakeAction(
         state.settings?.clientProfileBundle !== null && state.settings?.clientProfileBundle?.enabled !== false } : {}),
       episodes: mvpProfile ? [{
         id: uid(), number: "01", status: "Active", start: today,
-        programStream: "General", disposition: "Undecided", owner: action.owner.trim(),
+        programStream: action.programStream || "", disposition: "Undecided", owner: action.owner.trim(),
         collections: [], events: [], appointments: [],
       }] : [],
       intakes: intake ? [intake] : [],

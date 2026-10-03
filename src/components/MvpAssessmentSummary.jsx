@@ -18,7 +18,7 @@ export default function MvpAssessmentSummary({ person, episode, settings, commit
     action={due && <Badge tone={due < TODAY ? 'coral' : due === TODAY ? 'amber' : 'neutral'}
       className="mvp-assessment-due-badge">{dueStatus} · <time dateTime={due}>{formatDate(due)}</time></Badge>}>
     <div className="panel-body stack">
-      <p>{due ? <>{stream} stream · {current.length} scheduled instrument{current.length === 1 ? '' : 's'}.</> : 'No active review is scheduled for this episode.'}</p>
+      <p>{due ? <>{stream} stream · {current.length} scheduled measure{current.length === 1 ? '' : 's'}.</> : 'No active review is scheduled for this episode.'}</p>
       {due && <div className="mvp-assessment-respondents">{groups.map(({respondent, records: bundle}) => {
         const methodLocked = bundle.some(record => record.response !== 'Not started' ||
           record.draftAnswers?.some(Boolean) || record.answers?.some(Boolean));

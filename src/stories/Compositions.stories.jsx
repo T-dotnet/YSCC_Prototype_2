@@ -6,7 +6,7 @@ import StandardTable from "../components/StandardTable";
 import { QueueCell, QueueRow } from "../components/QueueRow";
 import { linkedAssessmentScore } from "../assessmentGroups";
 import { recordCompleteness } from "../dataQuality";
-import { age, createSeed, formatDate, TODAY } from "../model";
+import { age, createDefaultWorkspace, createSeed, formatDate, TODAY } from "../model";
 import { episodeDisplayStatus, peopleForList } from "../people";
 import {
   Button,
@@ -17,11 +17,13 @@ import {
   Notice,
   PageHeading,
   Panel,
+  ProgressBar,
   Select,
   Success,
 } from "../components/UI";
 
 const seed = createSeed();
+const peopleSeed = createDefaultWorkspace();
 const person = seed.people.find((item) => item.id === "YS-1024");
 const episode = person.episodes[0];
 const currentCollection = episode.collections.find((item) => item.id === "A-0-current");
@@ -44,9 +46,9 @@ export const PageHeadingAndPanel = {
     const [status, setStatus] = useState("All episodes");
     const [query, setQuery] = useState("");
     const [assessment, setAssessment] = useState("All statuses");
-    const rows = peopleForList(seed.people, status, query);
+    const rows = peopleForList(peopleSeed.people, status, query);
     const visible = rows.filter((row) => assessment === "All statuses" || row.status === assessment);
-    const episodeFilters = ["All episodes", "Intake", "Active", "Paused", "Closed", "Completed", "Archived"];
+    const episodeFilters = ["All episodes", "Profiling", "Assessment", "Ongoing review", "Closed"];
     const clear = () => { setStatus("All episodes"); setQuery(""); setAssessment("All statuses"); };
     return <div className="ds-story">
       <PageHeading title="People" subtitle="See who needs attention and where they are in their care." meta={`Today · ${formatDate(TODAY)} · Fictional sample data`}>
@@ -57,14 +59,14 @@ export const PageHeadingAndPanel = {
         <ListFilterBar
           id="story-people-filters"
           label="Care episode status"
-          items={episodeFilters.map((value) => ({ value, label: value === "All episodes" ? "All" : value, count: peopleForList(seed.people, value).length }))}
+          items={episodeFilters.map((value) => ({ value, label: value === "All episodes" ? "All" : value, verbatim: true, count: peopleForList(peopleSeed.people, value).length }))}
           value={status}
           onChange={setStatus}
           query={query}
           onQueryChange={setQuery}
           placeholder="Search people"
           shown={visible.length}
-          total={peopleForList(seed.people, status).length}
+          total={peopleForList(peopleSeed.people, status).length}
           noun="people"
           activeAdvancedCount={Number(assessment !== "All statuses")}
           onClear={clear}
@@ -84,7 +86,7 @@ export const PageHeadingAndPanel = {
                 <QueueCell label="Person" slot="subject" className="people-identity"><div className="person-cell"><span className="people-identity-copy"><button className="name-link" type="button">{p.name}</button><span className="people-identity-meta"><small className="people-id">{p.id}</small><small>{p.dob ? `${age(p.dob)} years` : "Age unknown"}</small></span></span></div></QueueCell>
                 <QueueCell label="Next / latest assessment" slot="summary" className="people-assessment"><span>{row.stage ? `Intake - ${row.stage}` : row.label}</span><small className={row.status === "Overdue" ? "people-overdue" : ""}>{row.detail}</small></QueueCell>
                 <QueueCell label="Status" slot="state" className="people-status"><Badge>{row.status}</Badge></QueueCell>
-                <QueueCell label="Required data" slot="metric" className="people-completeness"><div className="people-completeness-summary"><strong>{completeness}%</strong><span className="people-completeness-bar" role="progressbar" aria-label={`${completeness}% of required data complete`} aria-valuemin="0" aria-valuemax="100" aria-valuenow={completeness}><span style={{ width: `${completeness}%` }} /></span></div></QueueCell>
+                <QueueCell label="Required data" slot="metric" className="people-completeness"><div className="people-completeness-summary"><strong>{completeness}%</strong><ProgressBar className="people-completeness-bar" value={completeness} label={`${completeness}% of required data complete`} /></div></QueueCell>
                 <QueueCell label="Care owner" slot="owner" className="people-owner">{row.episode?.owner || p.owner || "Unassigned"}</QueueCell>
                 <QueueCell label="Episode" slot="date" className="people-episode" verbatim><span>{episodeDisplayStatus(row.episode)}</span><small>{row.episode ? `Started ${formatDate(row.episode.start)}` : "Not started"}</small></QueueCell>
                 <QueueCell label="Open" slot="action" className="people-open"><ChevronRight size={18} aria-hidden="true" /></QueueCell>

@@ -6,6 +6,7 @@ import {
 import { profileValueTriggerError } from './profileValueTriggers.js';
 import { CARE_LEVELS, PROGRAM_STREAMS } from './carePeriods.js';
 import { validMeasureStatusChange } from './measureStatusChange.js';
+import { allowedCollectionMethodsError } from './allowedCollectionMethods.js';
 
 export const CLIENT_PROFILE_BUNDLE_ID = 'MVP-CLIENT-PROFILE';
 export const CLIENT_PROFILE_NAME = 'Client profile';
@@ -29,7 +30,6 @@ const instrument = (name, id, description, questions) => ({
 // the review of each heading; submitted answers update those same fields.
 export const CLIENT_PROFILE_INSTRUMENTS = [
   instrument('Young person', 'young-person', 'Review the young person details in Profile information.', [
-    text('name', 'Name', false), date('dob', 'Date of birth', false),
     choice('clientGender', 'Gender', GENDER_OPTIONS), text('clientPostcode', 'Postcode'),
     choice('clientAtsiStatus', 'Aboriginal and/or Torres Strait Islander', ATSI_OPTIONS),
     text('clientLanguageHome', 'Language spoken at home'),
@@ -49,22 +49,19 @@ export const CLIENT_PROFILE_INSTRUMENTS = [
     choice('registeredCentreState', 'State or territory', REGISTERED_CENTRE_STATES),
     text('registeredCentrePostcode', 'Centre postcode'),
   ]),
-  instrument('Participation and contact', 'participation-contact', 'Review participation and contact suitability in the record. Confirming this heading does not record consent or change contact suitability.', [
-    { id: 'reviewed', title: 'Have you reviewed participation and contact suitability in the record?', options: ['Reviewed'] },
-  ]),
 ];
 
 export const clientProfileInstrument = version =>
   CLIENT_PROFILE_INSTRUMENTS.find(item => item.version === version);
 
-export function clientProfileReadOnlyFacts(person, episode) {
+export function clientProfileReadOnlyFacts(person, episode, settings) {
   const intake = person.intakes?.find(item => item.episodeId === episode.id);
   const details = episode.profileDetails || {};
   const values = { ...intake, ...details };
   return {
     'care-episode': [
       ['Person record ID', person.id], ['Episode number', episode.number || 'Not recorded'],
-      ['Current status', derivedEpisodeStatus(values, episode)],
+      ['Current status', derivedEpisodeStatus(values, episode, settings)],
       ['Calculated program stream', derivedEpisodeStream(values, episode)],
       ['Age at service commencement', ageAtCommencement(person.dob, values.commencementDate) ?? 'Not available'],
     ],
@@ -75,9 +72,15 @@ export function clientProfileReadOnlyFacts(person, episode) {
   };
 }
 
-export const clientProfileBundle = settings => settings?.clientProfileBundle === null ? null :
-  { ...DEFAULT_CLIENT_PROFILE_BUNDLE, ...settings?.clientProfileBundle,
-    instrumentVersions: settings?.clientProfileBundle?.instrumentVersions || CLIENT_PROFILE_INSTRUMENTS.map(item => item.version) };
+export const clientProfileBundle = settings => {
+  if (settings?.clientProfileBundle === null) return null;
+  const available = CLIENT_PROFILE_INSTRUMENTS.map(item => item.version);
+  const configured = settings?.clientProfileBundle?.instrumentVersions;
+  const retained = Array.isArray(configured)
+    ? configured.filter(version => available.includes(version)) : available;
+  return { ...DEFAULT_CLIENT_PROFILE_BUNDLE, ...settings?.clientProfileBundle,
+    instrumentVersions: retained.length ? retained : available };
+};
 
 const validDate = value => /^\d{4}-\d{2}-\d{2}$/.test(value || '') &&
   !Number.isNaN(Date.parse(`${value}T12:00:00Z`)) && new Date(`${value}T12:00:00Z`).toISOString().slice(0, 10) === value;
@@ -86,8 +89,13 @@ export function clientProfileBundleError(bundle, settings) {
   if (!bundle || bundle.id !== CLIENT_PROFILE_BUNDLE_ID || !bundle.name?.trim() || bundle.name.trim().length > 80)
     return 'Enter a Client profile measure name of 80 characters or fewer.';
   if (!validMeasureStatusChange(bundle.statusChange)) return 'Choose a valid status change.';
-  if (!['Clinic tablet', 'Clinician entry'].includes(bundle.channel) || typeof bundle.enabled !== 'boolean')
+  const availableMethods = ['Clinic tablet', 'Clinician entry',
+    ...(settings?.assessmentSms === false ? [] : ['SMS link'])];
+  if (!availableMethods.includes(bundle.channel) || typeof bundle.enabled !== 'boolean')
     return 'Choose a valid collection method and enable setting.';
+  if (allowedCollectionMethodsError(bundle, availableMethods) ||
+      Array.isArray(bundle.allowedCollectionMethods) && !bundle.allowedCollectionMethods.includes(bundle.channel))
+    return 'Choose Any or allowed collection methods that include the planned method.';
   if (!['All', ...PROGRAM_STREAMS].includes(bundle.programStream || 'All')) return 'Choose a program stream.';
   if (!['All', ...CARE_LEVELS].includes(bundle.careLevel || 'All')) return 'Choose a care level.';
   if ([bundle.minAge, bundle.maxAge].some(value => value != null &&
@@ -115,7 +123,7 @@ export function clientProfileBundleError(bundle, settings) {
   if (!Array.isArray(bundle.instrumentVersions) || !bundle.instrumentVersions.length ||
       new Set(bundle.instrumentVersions).size !== bundle.instrumentVersions.length ||
       bundle.instrumentVersions.some(version => !clientProfileInstrument(version)))
-    return 'Choose at least one unique Client profile instrument.';
+    return 'Choose at least one unique Client profile measure.';
   if (profileValueTriggerError(bundle)) return profileValueTriggerError(bundle);
   return null;
 }

@@ -110,7 +110,7 @@ export default function QuestionnaireEvidence({
     <div className="stack patient-progress questionnaire-details">
       <details className="report-accordion questionnaire-comparison-panel" open>
         <summary>
-          <span>Instrument comparison and details</span>
+          <span>Measure comparison and details</span>
           {latest && hasComparison && !comparison.reason && (
             <Badge>{changeCountLabel}</Badge>
           )}
@@ -282,7 +282,7 @@ export default function QuestionnaireEvidence({
                     questions. Questions not asked on both paths are not
                     comparable.
                   </p>
-                  <StandardTable label="Instrument response comparison" variant="comparison" responsive={false} className="progress-table" scrollClassName="progress-table-scroll">
+                  <StandardTable label="Measure response comparison" variant="comparison" responsive={false} className="progress-table" scrollClassName="progress-table-scroll">
                       <caption className="sr-only">
                         {selected.label} compared with {latest.label}. Changes
                         describe answers, not a clinical score.
@@ -381,7 +381,7 @@ export default function QuestionnaireEvidence({
                   {undated.length === 1 ? "response has" : "responses have"} no
                   recorded submission date and{" "}
                   {undated.length === 1 ? "is" : "are"} excluded from the
-                  comparison. Open Instrument to review all responses.
+                  comparison. Open Measure to review all responses.
                 </Notice>
               )}
             </>
@@ -395,8 +395,8 @@ export default function QuestionnaireEvidence({
               </h3>
               <p>
                 {progress.responses.length
-                  ? "Open Instrument to review submitted responses and collection history."
-                  : "Once the first instrument is submitted, its answers will appear here. Follow-ups will add new points for comparison."}
+                  ? "Open Measure to review submitted responses and collection history."
+                  : "Once the first measure is submitted, its answers will appear here. Follow-ups will add new points for comparison."}
               </p>
             </div>
           )}

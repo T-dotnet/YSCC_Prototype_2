@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ArrowRight, Plus, Trash2 } from "lucide-react";
-import { ActionGroup, Checkbox, DeleteAction, EditAction, IconButton, Avatar, Badge, Button, PersonIdentity, TextLink } from "../components/UI";
+import { ActionGroup, Checkbox, DeleteAction, EditAction, IconButton, Avatar, Badge, Button, PersonIdentity, ProgressBar, TextLink } from "../components/UI";
 
 export default {
   title: "02 Primitives/Actions and identity",
@@ -90,6 +90,24 @@ export const StatusBadges = {
       </div>
     </div>
   ),
+};
+
+export const ProgressBars = {
+  render: () => <div className="ds-story ds-stack">
+    <h2>Progress bars</h2>
+    <div className="ds-example">
+      <strong>3 of 5 measures completed</strong>
+      <ProgressBar value={3} max={5} label="3 of 5 measures completed" />
+    </div>
+    <div className="ds-example">
+      <strong>Required data complete</strong>
+      <ProgressBar className="people-completeness-bar" value={100} label="100% of required data complete" />
+    </div>
+    <div className="ds-example">
+      <strong>No measures yet</strong>
+      <ProgressBar value={0} max={0} label="0 of 0 measures completed" />
+    </div>
+  </div>,
 };
 
 export const IdentityAndTextAction = {

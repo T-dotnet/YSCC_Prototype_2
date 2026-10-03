@@ -65,7 +65,7 @@ export default function AssessmentCollectionCard({
         <div className="assessment-grouped-record-title">
           {!col.bundleId && !col.scheduleRuleId && <span className="assessment-grouped-record-eyebrow">{respondentLabel}</span>}
           <h4>{col.bundleId || col.scheduleRuleId ? INSTRUMENTS.find(item => item.version === col.version)?.name || col.label : col.label}</h4>
-          {col.readOnly && <small>Historical instrument · view only · version retained</small>}
+          {col.readOnly && <small>Historical measure · view only · version retained</small>}
           {linkAssessmentAppointments && col.externalAppointment && <small>External contact · {formatDate(col.externalAppointment.date)} at {col.externalAppointment.time}</small>}
         </div>
         {!col.bundleId && !col.scheduleRuleId && <div className="assessment-grouped-record-statuses">
@@ -118,7 +118,7 @@ export default function AssessmentCollectionCard({
           {linkAssessmentAppointments && <RelatedRecordsAccordion kind="contacts" records={relatedContacts} collection={col} />}
         </>
       }
-      note={col.readOnly ? "Historical instrument · view only · version retained" : null}
+      note={col.readOnly ? "Historical measure · view only · version retained" : null}
       actions={(!simpleAssessments || col.response !== "Submitted" || linkAssessmentAppointments || showDueDates) && (
         <>
           {(!simpleAssessments || linkAssessmentAppointments || showDueDates) && <TextLink aria-haspopup="dialog" onClick={() => onViewDetails(col)}>View details</TextLink>}

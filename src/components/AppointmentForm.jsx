@@ -227,13 +227,13 @@ export default function AppointmentForm({
                 setAssessmentMenuOpen(false);
               }
             }}>
-            <span className="appointment-assessment-label" id="appointment-assessment-label">Associated instruments (optional)</span>
+            <span className="appointment-assessment-label" id="appointment-assessment-label">Associated measures (optional)</span>
             <button type="button" className="appointment-assessment-trigger"
               aria-labelledby="appointment-assessment-label appointment-assessment-value"
               aria-expanded={assessmentMenuOpen}
               aria-controls="appointment-assessment-options"
               onClick={() => { setAssessmentMenuOpen((open) => !open); setAssessmentSearch(""); }}>
-              <span id="appointment-assessment-value">{selectedCount ? `${selectedCount} instrument${selectedCount === 1 ? "" : "s"} selected` : "Choose instruments"}</span>
+              <span id="appointment-assessment-value">{selectedCount ? `${selectedCount} measure${selectedCount === 1 ? "" : "s"} selected` : "Choose measures"}</span>
               <ChevronDown size={18} aria-hidden="true" />
             </button>
             {assessmentMenuOpen && <div className="appointment-assessment-dropdown" id="appointment-assessment-options">
@@ -241,11 +241,11 @@ export default function AppointmentForm({
                 <Search size={17} aria-hidden="true" />
                 <input ref={assessmentSearchRef} type="search" value={assessmentSearch}
                   onChange={(event) => setAssessmentSearch(event.target.value)}
-                  placeholder="Search instruments" aria-label="Search instruments" />
+                  placeholder="Search measures" aria-label="Search measures" />
               </div>
               <div className="appointment-assessment-list">
                 <div className="appointment-assessment-group">
-                  <h3>Existing instruments</h3>
+                  <h3>Existing measures</h3>
                   {visibleDueAssessments.length ? visibleDueAssessments.map((collection) => {
                     const availability = assessmentAvailability(collection);
                     const relatedCount = contactsForAssessment(episode, collection.id).length;
@@ -260,11 +260,11 @@ export default function AppointmentForm({
                               : current.filter((id) => id !== collection.id));
                         }} />
                     );
-                  }) : <p>{searchTerm ? "No matching instruments." : "No instruments are in this care episode."}</p>}
+                  }) : <p>{searchTerm ? "No matching measures." : "No measures are in this care episode."}</p>}
                 </div>
                 <div className="appointment-assessment-group">
-                  <h3>New instrument</h3>
-                  <p>Selected instruments will be created and linked when you save this contact.</p>
+                  <h3>New measure</h3>
+                  <p>Selected measures will be created and linked when you save this contact.</p>
                   {visibleInstruments.map((instrument) => (
                     <Checkbox className="appointment-assessment-option" key={instrument.version}
                       label={<><strong>{instrument.name}</strong><small>{instrument.version}</small></>}
@@ -273,8 +273,8 @@ export default function AppointmentForm({
                           ? [...current, instrument.version]
                           : current.filter((version) => version !== instrument.version))} />
                   ))}
-                  {visibleInstruments.length === 0 && <p>No matching new instruments.</p>}
-                  {!canCreateAssessment && <p>Complete intake before planning a new instrument.</p>}
+                  {visibleInstruments.length === 0 && <p>No matching new measures.</p>}
+                  {!canCreateAssessment && <p>Complete intake before planning a new measure.</p>}
                 </div>
               </div>
             </div>}

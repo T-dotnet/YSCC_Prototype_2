@@ -71,6 +71,7 @@ export function Tabs({
             {disabled && <LockKeyhole size={13} aria-hidden="true" />}
             {(() => {
               const label = typeof item === "string" ? item : item.label || item.value;
+              if (typeof item === "object" && item.verbatim) return label;
               return label === "Assessment" ? appTerm("measures")
                 : displayTerminology(label);
             })()}

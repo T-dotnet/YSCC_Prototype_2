@@ -129,7 +129,7 @@ export default function ReviewResponses({
       ? "Response recorded"
       : reviewed
         ? "Review recorded"
-        : "Review instrument";
+        : "Review measure";
 
   const record = (
     <ValidatedForm
@@ -182,7 +182,7 @@ export default function ReviewResponses({
       }}
     >
       <div className="response-dialog-body">
-        {c.readOnly && <Notice>This historical instrument is view only. Its submitted answers and recorded review remain available.</Notice>}
+        {c.readOnly && <Notice>This historical measure is view only. Its submitted answers and recorded review remain available.</Notice>}
         {saveError && (
           <p className="form-error" role="alert">
             {saveError}
@@ -240,15 +240,7 @@ export default function ReviewResponses({
                   : reviewNotRequired ? "Response recorded" : c.reviewNote || "No review note recorded."}
               </p>
               {linkAssessmentAppointments && sameDayRecordedAppointments.length > 0 && (
-                <p
-                  className="review-associated-meta"
-                  style={{
-                    marginTop: "var(--space-2)",
-                    paddingTop: "var(--space-2)",
-                    borderTop: "1px solid var(--line-soft)",
-                    color: "var(--muted)",
-                  }}
-                >
+                <p className="review-associated-meta review-associated-recorded">
                   <strong>Associated contact:</strong>{" "}
                   {sameDayRecordedAppointments
                     .map(
@@ -337,35 +329,11 @@ export default function ReviewResponses({
             </Field>
 
             {plannedAppointments.length > 0 && (
-              <div
-                style={{
-                  background: "var(--surface-subtle)",
-                  border: "1px solid var(--control-border)",
-                  borderRadius: "8px",
-                  padding: "var(--space-4)",
-                  marginTop: "var(--space-4)",
-                  marginBottom: "var(--space-4)",
-                }}
-                aria-label="Associated contact outcome"
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: "var(--space-3)",
-                    marginBottom: "var(--space-2)",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "var(--space-2)",
-                    }}
-                  >
-                    <Calendar size={18} style={{ color: "var(--category-assessment-ink)" }} />
-                    <strong className="review-associated-title" style={{ color: "var(--ink)" }}>
+              <div className="review-associated-outcome" aria-label="Associated contact outcome">
+                <div className="review-associated-heading">
+                  <div className="review-associated-heading-label">
+                    <Calendar size={18} aria-hidden="true" />
+                    <strong className="review-associated-title">
                       Associated contact outcome
                     </strong>
                   </div>
@@ -375,15 +343,9 @@ export default function ReviewResponses({
                       : activeAppointment?.attendance}
                   </Badge>
                 </div>
-                <p
-                  className="review-associated-meta"
-                  style={{
-                    margin: "0 0 var(--space-3) 0",
-                    color: "var(--muted)",
-                  }}
-                >
+                <p className="review-associated-meta review-associated-help">
                   Capture the service contact outcome alongside your clinical
-                  instrument review.
+                  measure review.
                 </p>
 
                 {plannedAppointments.length > 1 && (
@@ -416,17 +378,7 @@ export default function ReviewResponses({
 
                 {activeAppointment && (
                   <div>
-                    <div
-                      className="review-associated-copy"
-                      style={{
-                        marginBottom: "var(--space-3)",
-                        padding: "var(--space-2) var(--space-3)",
-                        background: "var(--surface)",
-                        borderRadius: "6px",
-                        border: "1px solid var(--line)",
-                        color: "var(--ink-soft)",
-                      }}
-                    >
+                    <div className="review-associated-copy review-associated-planned">
                       <strong>Planned:</strong>{" "}
                       {formatDate(activeAppointment.plannedDate)} at{" "}
                       {activeAppointment.plannedTime} (
@@ -435,7 +387,7 @@ export default function ReviewResponses({
                       {activeAppointment.deliveryMode}
                     </div>
 
-                    <div className="form-grid" style={{ marginBottom: "var(--space-3)" }}>
+                    <div className="form-grid review-associated-fields">
                       <Field label="Contact outcome">
                         <select
                           value={appointmentAttendance}
@@ -508,24 +460,8 @@ export default function ReviewResponses({
             )}
 
             {linkAssessmentAppointments && sameDayRecordedAppointments.length > 0 && (
-              <div
-                className="review-associated-copy"
-                style={{
-                  background: "var(--status-success-bg)",
-                  border: "1px solid var(--status-success-border)",
-                  borderRadius: "8px",
-                  padding: "var(--space-3) var(--space-4)",
-                  margin: "var(--space-3) 0",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "var(--space-2)",
-                  color: "var(--status-success-ink)",
-                }}
-              >
-                <CheckCircle2
-                  size={16}
-                  style={{ color: "var(--status-success-mark)", flexShrink: 0 }}
-                />
+              <div className="review-associated-copy review-associated-completed">
+                <CheckCircle2 size={16} aria-hidden="true" />
                 <span>
                   <strong>
                     Recorded contact on {formatDate(assessmentDate)}:
@@ -578,7 +514,7 @@ export default function ReviewResponses({
           {reviewNotRequired
             ? "No separate clinical review required · Answers remain available above"
             : canReview
-              ? "Review stays separate from instrument completion."
+              ? "Review stays separate from measure completion."
               : reviewed && !c.needsReview
                 ? "Saved review · Answers remain available above"
                 : "Awaiting a clinician’s review."}
@@ -621,7 +557,7 @@ export default function ReviewResponses({
             <h1>{title}</h1>
             <p>{`${displayPersonName(person)} · ${c.label} · ${c.version}`}</p>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
+          <div className="assessment-review-header-actions">
             {canEdit && onEdit && (
               <EditAction onClick={() => onEdit(note)}>Edit answers</EditAction>
             )}

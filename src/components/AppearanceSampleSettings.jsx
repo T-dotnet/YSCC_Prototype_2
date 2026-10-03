@@ -1,7 +1,7 @@
 import { ArrowRight, FileCheck2, RotateCcw } from 'lucide-react';
 import { useStore } from '../store';
 import { UI_COLOR_SETUPS, uiColorSetup } from '../uiColorSetups';
-import { ActionGroup, Panel, Button } from './UI';
+import { ActionGroup, Panel, Button, RadioInput } from './UI';
 
 export default function AppearanceSampleSettings({navigate,openModal}) {
   const {state,commit}=useStore();
@@ -15,8 +15,7 @@ export default function AppearanceSampleSettings({navigate,openModal}) {
           {UI_COLOR_SETUPS.map((setup) => (
             <label className="appearance-option" key={setup.id}>
               <span className="appearance-option-heading">
-                <input
-                  type="radio"
+                <RadioInput
                   name="ui-color-setup"
                   value={setup.id}
                   checked={selectedUiSetup === setup.id}

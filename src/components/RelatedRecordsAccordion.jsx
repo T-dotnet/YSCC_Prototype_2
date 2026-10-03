@@ -29,7 +29,7 @@ export default function RelatedRecordsAccordion({ kind, records = [], collection
     (kind !== "contacts" || contactVisible(record, state.settings)) && (assessmentSmsEnabled(state.settings) || record.deliveryMode !== "SMS"));
   if (!visibleRecords.length && !showEmpty) return null;
   const contacts = kind === "contacts";
-  const title = contacts ? "Related contacts" : "Linked instruments";
+  const title = contacts ? "Related contacts" : "Linked measures";
   const headings = contacts
     ? ["Date", "Name", "Status / outcome", LABELS.collectionMethod, ...(collection ? ["Contribution"] : [])]
     : ["Name", assessmentSchedulingEnabled(state.settings) ? "Response / due date" : "Response", "Status / outcome", "Contribution"];

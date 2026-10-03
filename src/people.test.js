@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createSeed, getTasks, TODAY } from "./model.js";
+import { createDefaultWorkspace, createSeed, getTasks, TODAY } from "./model.js";
 import { newIntake } from "./intake.js";
 import { comparePeople, episodeDisplayStatus, peopleForList, peopleInEpisodes, personStatus } from "./people.js";
 
@@ -81,17 +81,25 @@ test("completed episodes remain discoverable in the People status filter", () =>
   assert.match(rows[0].detail, /Closure assessment and care experience feedback complete/);
 });
 
-test("episode filtering keeps the status and opened collection in the same care period", () => {
-  const person = createSeed().people.find((p) => p.name === "Zoe Patel");
+test("episode filters use the current displayed stage, not a historical episode", () => {
+  const person = createDefaultWorkspace().people.find((p) => p.name === "Zoe Patel");
   person.episodes.reverse();
   const current = peopleInEpisodes([person])[0];
   assert.equal(current.episode.status, "Active");
-  assert.equal(current.status, "Ready for review");
-  const historical = peopleInEpisodes([person], "Closed")[0];
-  assert.equal(historical.episode.id, "EP-1027-history-01");
-  assert.equal(historical.status, "Closed");
-  assert.equal(historical.collection, undefined);
+  assert.equal(current.status, "Overdue");
+  assert.equal(peopleInEpisodes([person], "Closed").length, 0);
+  assert.equal(peopleInEpisodes([person], "Ongoing review")[0].episode.id, current.episode.id);
   assert.equal(peopleInEpisodes([person], "Paused").length, 0);
+});
+
+test("displayed episode stages partition current People rows", () => {
+  const people = createDefaultWorkspace().people;
+  const rows = peopleForList(people);
+  const stages = [...new Set(rows.map((row) => episodeDisplayStatus(row.episode)))];
+  assert.deepEqual(stages.sort(), ["Assessment", "Closed", "Ongoing review", "Profiling"]);
+  assert.equal(stages.reduce((count, stage) => count + peopleForList(people, stage).length, 0), rows.length);
+  for (const stage of stages)
+    assert.ok(peopleForList(people, stage).every((row) => episodeDisplayStatus(row.episode) === stage));
 });
 
 test("People episode value follows the person header status", () => {

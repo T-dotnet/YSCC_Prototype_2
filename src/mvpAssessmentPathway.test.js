@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mvpBattery, mvpPathwayEnabled, mvpClinicianCreationEnabled, mvpBundleEditingEnabled, mvpReviewBundles, mvpReviewItems, mvpReviewNumbers, reconcileMvpAssessmentPathway, MVP_INITIAL_BUNDLE, MVP_INITIAL_BUNDLES, mvpInitialBundles } from './mvpAssessmentPathway.js';
+import { mvpBattery, mvpPathwayEnabled, mvpClinicianCreationEnabled, mvpBundleEditingEnabled, mvpReviewBundles, mvpReviewItems, mvpReviewNumbers, reconcileMvpAssessmentPathway, MVP_INITIAL_BUNDLE, MVP_INITIAL_BUNDLES, mvpInitialBundles, makeInitialAssessmentsImmediate } from './mvpAssessmentPathway.js';
 import { assessmentBundleGroups } from './assessmentBundles.js';
 import { createSeed, createDefaultWorkspace, reducer, upgradeSampleData } from './model.js';
 import { getNotifications } from './notifications.js';
@@ -79,6 +79,17 @@ test('combined initial bundle settings expand into independent stream bundles', 
   assert.deepEqual(bundles.find(bundle => bundle.programStream === 'General').assessmentsByStream.General,
     ['Initial assessment v1.0']);
   assert.ok(bundles.every(bundle => bundle.channel === 'Clinician entry' && bundle.delayDays === 3));
+});
+
+test('saved initial assessment schedules become immediate once across every stream', () => {
+  const state = { settings: {
+    mvpInitialBundle: { ...MVP_INITIAL_BUNDLE, delayDays: 3 },
+    mvpInitialBundles: MVP_INITIAL_BUNDLES.map(bundle => ({ ...bundle, delayDays: 3 })),
+  } };
+  const updated = makeInitialAssessmentsImmediate(state);
+  assert.equal(updated.settings.mvpInitialBundle.delayDays, 0);
+  assert.ok(mvpInitialBundles(updated.settings).every(bundle => bundle.delayDays === 0));
+  assert.equal(makeInitialAssessmentsImmediate(updated), updated);
 });
 
 test('initial bundle timing and instrument edits affect new records and preserve existing ones', () => {

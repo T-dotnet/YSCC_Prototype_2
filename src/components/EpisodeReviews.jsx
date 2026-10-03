@@ -71,7 +71,7 @@ export default function EpisodeReviews({ episode, personId, commit, canEdit }) {
               );
             })}
           </div>
-          <p className="episode-reviews-context">Episode review dates are tracked separately from instrument collections and reviews of submitted answers.</p>
+          <p className="episode-reviews-context">Episode review dates are tracked separately from measure collections and reviews of submitted answers.</p>
         </div>
       </Panel>
       {mode === "schedule" && (

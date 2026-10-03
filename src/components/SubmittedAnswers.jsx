@@ -7,7 +7,7 @@ import {
   answerLabel,
   describeRule,
 } from "../instruments";
-import { Notice } from "./UI";
+import { Notice, RadioInput } from "./UI";
 import { collectionActor, formatDate } from "../model";
 import { answerSession } from "../responseSessions";
 import { Undo2 } from "lucide-react";
@@ -123,8 +123,7 @@ export default function SubmittedAnswers({
               className={`submitted-option ${answer === option ? "selected" : ""}`}
               key={option}
             >
-              <input
-                type="radio"
+              <RadioInput
                 name={`${id}-${question.id}`}
                 value={option}
                 checked={answer === option}
@@ -149,7 +148,7 @@ export default function SubmittedAnswers({
       <div className="response-section-heading">
         <div>
           <h3>
-            {onAnswersChange ? "Instrument answers" : "Submitted answers"}
+            {onAnswersChange ? "Measure answers" : "Submitted answers"}
           </h3>
           <p className="muted">
             {collectionActor(person, collection, "respondent")} ·{" "}
@@ -258,7 +257,7 @@ export default function SubmittedAnswers({
       ) : (
         <>
           <Notice>
-            Question text is unavailable for this instrument version.
+            Question text is unavailable for this measure version.
           </Notice>
           {answers.length ? (
             answers.map((answer, index) => (

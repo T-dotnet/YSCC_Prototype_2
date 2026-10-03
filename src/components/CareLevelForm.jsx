@@ -1,6 +1,6 @@
 import { ActionGroup, Button, Field, Modal, Notice, ValidatedForm } from "./UI";
 import { CARE_LEVELS, CARE_LEVEL_REASONS, PROGRAM_STREAMS, currentCarePeriod, nextDate } from "../carePeriods";
-import { DEMO_INSTRUMENT, STANDARD_INSTRUMENTS } from "../instruments";
+import { STANDARD_INSTRUMENTS } from "../instruments";
 import { formatDate, TODAY } from "../model";
 
 export default function CareLevelForm({ episode, clinicians, error, onClose, onSave }) {
@@ -23,14 +23,14 @@ export default function CareLevelForm({ episode, clinicians, error, onClose, onS
         <div className="form-body care-level-form">
           <Notice>{initial
             ? "Record the program stream and starting level for this episode."
-            : "Changing the program stream or care level closes this episode, assigns its closure instrument and care experience feedback, and starts a new episode with an initial instrument."}</Notice>
+            : "Changing the program stream or care level closes this episode and starts a new episode with an initial measure."}</Notice>
           {initial ? (
             <p>Confirm the level in effect from the episode start, {formatDate(episode.start)}. No earlier level will be inferred.</p>
           ) : (
-            <p>Current stream: <strong>{episode.programStream || "Not recorded"}</strong>. Current level: <strong>{current.careLevel}</strong> since {formatDate(current.startDate)}. The current episode closes on the day before the effective date. Its existing records and closure instrument stay linked to it.</p>
+            <p>Current stream: <strong>{episode.programStream || "Not recorded"}</strong>. Current level: <strong>{current.careLevel}</strong> since {formatDate(current.startDate)}. The current episode closes on the day before the effective date. Its existing records stay linked to it.</p>
           )}
           <div className="form-grid">
-            {initial && !episode.programStream && (
+            {initial && !PROGRAM_STREAMS.includes(episode.programStream) && (
               <Field label="Program stream">
                 <select name="programStream" defaultValue="" required>
                   <option value="">Choose stream</option>
@@ -91,11 +91,11 @@ export default function CareLevelForm({ episode, clinicians, error, onClose, onS
                     {reviewedCollections.map((collection) => <option key={collection.id} value={collection.id}>{collection.label} · {collection.reviewDate ? formatDate(collection.reviewDate) : "date not recorded"}</option>)}
                   </select>
                 </Field>
-                <Field label="Initial instrument due in new episode">
+                <Field label="Initial measure due in new episode">
                   <input name="assessmentDue" type="date" min={TODAY} defaultValue={TODAY} required />
                 </Field>
-                <Field label="Initial instrument">
-                  <select name="assessmentVersion" defaultValue={episode.collections?.at(-1)?.version || DEMO_INSTRUMENT.version} required>
+                <Field label="Initial measure">
+                  <select name="assessmentVersion" defaultValue={STANDARD_INSTRUMENTS.find(item => item.version === episode.collections?.at(-1)?.version)?.version || STANDARD_INSTRUMENTS[0].version} required>
                     {STANDARD_INSTRUMENTS.map((instrument) => <option key={instrument.version} value={instrument.version}>{instrument.name} · {instrument.version}</option>)}
                   </select>
                 </Field>

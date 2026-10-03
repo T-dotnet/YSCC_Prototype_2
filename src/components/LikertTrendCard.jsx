@@ -115,7 +115,7 @@ export default function LikertTrendCard({
           </>
         )}
         <div className="likert-summary-selected">
-          <span>{latest.label || "Selected instrument"} · {formatDate(latest.date)}</span>
+          <span>{latest.label || "Selected measure"} · {formatDate(latest.date)}</span>
           <strong>{latest.answer}</strong>
           {answerSource && <small className="answer-session-source">Supplied in session {answerSessionNumber} · {formatDate(answerSource.date)} · {answerSource.channel || "Collection method not recorded"}</small>}
           {corrected && <small className="answer-session-source">Corrected after submission · see response history</small>}
@@ -228,7 +228,7 @@ export default function LikertTrendCard({
                 <li className={pointRole} key={point.id}>
                   {pointRole && (
                     <small>
-                      {point.label || (pointRole === "selected" ? "Selected instrument" : "Compared response")}
+                      {point.label || (pointRole === "selected" ? "Selected measure" : "Compared response")}
                     </small>
                   )}
                   <time dateTime={point.date}>{formatDate(point.date)}</time>

@@ -7,6 +7,10 @@ html:has(.shell-modern), body:has(.shell-modern) { overflow: hidden; }
   --shell-frame: #e9ede7;
   --shell-nav-hover: #dfe6dc;
   --shell-nav-active: #d4dfce;
+  --shell-divider: #cbd4c5;
+  --shell-profile-divider: #d1d9cc;
+  --shell-control-surface: #f6f8f4;
+  --shell-control-border: #d7ded2;
   --shell-content-top: 32px;
   --sidebar-width: 232px;
   --sidebar-collapsed-width: 76px;
@@ -14,13 +18,13 @@ html:has(.shell-modern), body:has(.shell-modern) { overflow: hidden; }
   height: 100dvh;
   overflow: clip;
   contain: layout paint;
-  padding-bottom: 16px;
+  padding-bottom: var(--space-4);
   background: var(--shell-frame);
 }
 
 .shell.shell-modern > .sidebar {
   inset: 12px auto 12px 12px;
-  padding: 8px 12px 0;
+  padding: var(--space-2) var(--space-3) 0;
   width: calc(var(--sidebar-width) - 12px);
   border: 0;
   background: var(--shell-frame);
@@ -28,16 +32,16 @@ html:has(.shell-modern), body:has(.shell-modern) { overflow: hidden; }
 
 .shell.shell-modern > .sidebar.collapsed {
   width: calc(var(--sidebar-collapsed-width) - 12px);
-  padding-inline: 4px;
+  padding-inline: var(--space-1);
 }
 
 .shell.shell-modern .brand-row {
   min-height: 40px;
-  padding: 0 4px 16px;
+  padding: 0 var(--space-1) var(--space-4);
 }
 
 .shell.shell-modern .sidebar.collapsed .brand-row {
-  gap: 4px;
+  gap: var(--space-1);
   padding-inline: 0;
 }
 
@@ -46,10 +50,10 @@ html:has(.shell-modern), body:has(.shell-modern) { overflow: hidden; }
 }
 
 .shell.shell-modern .sidebar .scope {
-  margin: 4px 0 20px;
-  padding: 10px 8px;
+  margin: var(--space-1) 0 var(--space-5);
+  padding: var(--space-2-5) var(--space-2);
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: transparent;
 }
 
@@ -58,16 +62,16 @@ html:has(.shell-modern), body:has(.shell-modern) { overflow: hidden; }
 }
 
 .shell.shell-modern .sidebar nav {
-  gap: 6px;
-  padding-top: 12px;
-  border-top: 1px solid #cbd4c5;
+  gap: var(--space-1-5);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--shell-divider);
 }
 
 .shell.shell-modern .sidebar .nav-item {
   min-height: 42px;
-  padding: 10px 12px;
-  gap: 12px;
-  border-radius: 8px;
+  padding: var(--space-2-5) var(--space-3);
+  gap: var(--space-3);
+  border-radius: var(--radius-sm);
   color: var(--ink-soft);
   font-size: var(--type-supporting);
   transition: background-color 160ms ease-out, color 160ms ease-out;
@@ -97,12 +101,12 @@ html:has(.shell-modern), body:has(.shell-modern) { overflow: hidden; }
 }
 
 .shell.shell-modern .sidebar-bottom {
-  padding-top: 24px;
+  padding-top: var(--space-6);
 }
 
 .shell.shell-modern .sidebar .profile {
-  border-top-color: #d1d9cc;
-  padding: 16px 4px 8px;
+  border-top-color: var(--shell-profile-divider);
+  padding: var(--space-4) var(--space-1) var(--space-2);
 }
 
 .shell.shell-modern .sidebar .profile:hover {
@@ -121,22 +125,27 @@ html:has(.shell-modern), body:has(.shell-modern) { overflow: hidden; }
 .shell.shell-modern .topbar {
   z-index: 20;
   height: 64px;
-  padding: 0 24px 0 20px;
+  padding: 0 var(--space-6) 0 var(--space-5);
   border: 0;
   background: var(--shell-frame);
 }
 
 .shell.shell-modern .global-search-input {
-  background: #f6f8f4;
-  border-color: #d7ded2;
-  border-radius: 8px;
+  background: var(--shell-control-surface);
+  border-color: var(--shell-control-border);
+  border-radius: var(--radius-sm);
 }
 
 .shell.shell-modern .topbar-search {
-  --shell-search-width: min(390px, calc(100% - 720px));
+  /* Center when possible; leave room for the controls on narrower headers. */
+  --shell-search-width: min(390px, calc(100% - 520px));
   position: absolute;
-  left: calc((100% - var(--shell-search-width)) / 2);
+  left: min(
+    calc((100% - var(--shell-search-width)) / 2),
+    calc(100% - var(--shell-search-width) - 355px)
+  );
   width: var(--shell-search-width);
+  max-width: 390px;
   min-width: 32px;
   margin-left: 0;
 }
@@ -146,16 +155,17 @@ html:has(.shell-modern), body:has(.shell-modern) { overflow: hidden; }
   width: 1px;
   height: 24px;
   flex-shrink: 0;
-  background: #cbd4c5;
+  background: var(--shell-divider);
 }
 
 .shell.shell-modern .topbar-search + .topbar-right {
   margin-left: auto;
 }
 
-@media (max-width: 1000px) {
+@media (max-width: 900px) {
   .shell.shell-modern .topbar-search {
     --shell-search-width: 32px;
+    left: calc((100% - var(--shell-search-width)) / 2);
   }
 }
 
@@ -173,12 +183,12 @@ html:has(.shell-modern), body:has(.shell-modern) { overflow: hidden; }
 }
 
 .shell.shell-modern .topbar-divider {
-  background: #cbd4c5;
+  background: var(--shell-divider);
 }
 
 .shell.shell-modern .topbar-right {
   flex-shrink: 0;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .shell.shell-modern .notification-popover {
@@ -204,8 +214,8 @@ html:has(.shell-modern), body:has(.shell-modern) { overflow: hidden; }
   width: auto;
   min-width: 52px;
   min-height: 40px;
-  padding: 8px;
-  gap: 6px;
+  padding: var(--space-2);
+  gap: var(--space-1-5);
 }
 
 .shell.shell-modern .system-status-indicator,
@@ -223,8 +233,8 @@ html:has(.shell-modern), body:has(.shell-modern) { overflow: hidden; }
 
 .shell.shell-modern .system-status-indicator:hover,
 .shell.shell-modern .logout-button:hover {
-  background: #f6f8f4;
-  border-color: #d7ded2;
+  background: var(--shell-control-surface);
+  border-color: var(--shell-control-border);
 }
 
 .shell.shell-modern .app-body > .main {
@@ -233,12 +243,12 @@ html:has(.shell-modern), body:has(.shell-modern) { overflow: hidden; }
   height: calc(100dvh - 80px);
   min-height: 0;
   overflow: auto;
-  margin: 0 16px 0 0;
-  padding: 32px 36px 48px;
+  margin: 0 var(--space-4) 0 0;
+  padding: var(--space-8) var(--content-padding-inline) var(--space-12);
   border: 0;
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
-  box-shadow: 0 4px 18px rgb(30 53 16 / 6%);
+  box-shadow: var(--shadow-md);
   scroll-margin-top: 80px;
 }
 
@@ -287,17 +297,17 @@ html:has(.shell-modern), body:has(.shell-modern) { overflow: hidden; }
     --shell-content-top: 24px;
   }
   .shell.shell-modern .app-body > .main {
-    padding: 24px;
+    padding: var(--space-6);
   }
   .shell.shell-modern .topbar {
-    gap: 12px;
-    padding-inline: 16px;
+    gap: var(--space-3);
+    padding-inline: var(--space-4);
   }
 }
 
 @media (max-width: 700px) {
   .shell.shell-modern {
-    padding-bottom: 8px;
+    padding-bottom: var(--space-2);
     --shell-content-top: 24px;
   }
   .shell.shell-modern > .app-body,
@@ -306,15 +316,15 @@ html:has(.shell-modern), body:has(.shell-modern) { overflow: hidden; }
   }
   .shell.shell-modern .topbar {
     height: 56px;
-    gap: 8px;
-    padding-inline: 12px;
+    gap: var(--space-2);
+    padding-inline: var(--space-3);
   }
   .shell.shell-modern .app-body > .main {
     width: calc(100% - 16px);
-    margin: 0 8px;
+    margin: 0 var(--space-2);
     height: calc(100dvh - 64px);
-    padding: 24px 16px 32px;
-    border-radius: 12px;
+    padding: var(--space-6) var(--space-4) var(--space-8);
+    border-radius: var(--radius);
     scroll-margin-top: 64px;
   }
   .shell.shell-modern > .sidebar,
@@ -322,8 +332,8 @@ html:has(.shell-modern), body:has(.shell-modern) { overflow: hidden; }
     inset: 8px auto 8px 0;
     width: var(--sidebar-mobile-width);
     max-width: calc(100% - 48px);
-    padding: 12px;
-    border-radius: 0 12px 12px 0;
+    padding: var(--space-3);
+    border-radius: 0 var(--radius) var(--radius) 0;
     background: var(--shell-frame);
   }
   .shell.shell-modern .sidebar .nav-item {

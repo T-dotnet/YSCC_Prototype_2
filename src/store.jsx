@@ -11,6 +11,7 @@ import React, {
 import { createDefaultWorkspace, reducer, STORAGE_KEY, upgradeSampleData, TODAY } from "./model";
 import { ensureSampleMvpFlow } from "./sampleMvpFlow";
 import { uiColorSetup } from "./uiColorSetups";
+import { makeInitialAssessmentsImmediate } from "./mvpAssessmentPathway";
 // Keep the context identity stable while Vite replaces this module in development.
 // Otherwise an old provider and a new useStore can briefly use different contexts.
 const Store = import.meta.hot?.data?.storeContext || createContext(null);
@@ -35,7 +36,7 @@ export function StoreProvider({ children }) {
       } catch {
         initialState = createDefaultWorkspace();
       }
-      initialState = reconcileAssessmentSchedules(initialState, TODAY);
+      initialState = reconcileAssessmentSchedules(makeInitialAssessmentsImmediate(initialState), TODAY);
       const requestedMode = new URLSearchParams(window.location.search).get("simpleAssessments");
       if (requestedMode !== "off") return initialState;
       return {

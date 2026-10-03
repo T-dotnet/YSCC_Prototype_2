@@ -70,6 +70,7 @@ export function RegisterPerson({ onClose, navigate, notify }) {
             reviewDate: TODAY,
             requestId,
             mvpProfile,
+            programStream: mvpProfile ? values.programStream : "",
           };
           const problem = intakeActionError(state, action, staff);
           if (problem) return setError(problem);
@@ -111,9 +112,15 @@ export function RegisterPerson({ onClose, navigate, notify }) {
               </button>
             </Notice>
           )}
-          <Field label="Date of birth">
-            <input name="dob" type="date" max={TODAY} required />
+          <Field label={mvpProfile ? "Date of birth (optional)" : "Date of birth"}>
+            <input name="dob" type="date" max={TODAY} required={!mvpProfile} />
           </Field>
+          {mvpProfile && <Field label="Episode stream">
+            <select name="programStream" defaultValue="" required>
+              <option value="">Choose an episode stream</option>
+              {PROGRAM_STREAMS.map(stream => <option key={stream} value={stream}>{stream}</option>)}
+            </select>
+          </Field>}
           {error && (
             <p role="alert" className="field-error">
               {error}
@@ -512,11 +519,11 @@ export function IntakeAssessmentPanel({ person, intake, navigate, onReopen, reop
                   <section className="mvp-initial-assessment-preview" aria-label="Initial assessment">
                     <div className="mvp-initial-assessment-preview-heading">
                       <h3>Young person</h3>
-                      <Badge>{initialAssessmentInstruments.length} instruments</Badge>
+                      <Badge>{initialAssessmentInstruments.length} measures</Badge>
                     </div>
                     {initialAssessmentInstruments.length > 0
                       ? <ul>{initialAssessmentInstruments.map((name) => <li key={name}>{name}</li>)}</ul>
-                      : <p className="muted">No initial assessment instruments are configured for this stream.</p>}
+                      : <p className="muted">No initial assessment measures are configured for this stream.</p>}
                   </section>
                 )}
                 {linkAssessmentAppointments && <AppointmentSlotPicker key={due} mode="assessment" dueDate={due} selectedSlot={externalSlot} onSelect={setExternalSlot} />}

@@ -1,4 +1,5 @@
 import React from "react";
+import { Button } from "./UI";
 
 export default class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -17,25 +18,21 @@ export default class ErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ padding: "var(--space-10)", textAlign: "center", color: "var(--validation-text)" }}>
+        <div className="error-boundary" role="alert">
           <h1>Something went wrong.</h1>
           <p>{this.state.error?.toString()}</p>
-          <button
-            onClick={() => window.location.reload()}
-            style={{ marginTop: "var(--space-5)", padding: "var(--space-3) var(--space-5)", cursor: "pointer" }}
-          >
-            Reload page
-          </button>
-          <button 
-            onClick={() => {
+          <div className="error-boundary-actions">
+            <Button type="button" variant="primary" onClick={() => window.location.reload()}>
+              Reload page
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => {
               if (!window.confirm("Clear locally saved workspace data and reset the prototype? This cannot be undone.")) return;
               localStorage.clear();
               window.location.reload();
-            }}
-            style={{ marginTop: "var(--space-5)", marginLeft: "var(--space-3)", padding: "var(--space-3) var(--space-5)", cursor: "pointer" }}
-          >
-            Clear data and reset
-          </button>
+            }}>
+              Clear data and reset
+            </Button>
+          </div>
         </div>
       );
     }

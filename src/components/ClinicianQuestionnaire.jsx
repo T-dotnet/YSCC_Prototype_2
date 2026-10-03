@@ -119,12 +119,12 @@ export default function ClinicianQuestionnaire({
     <Modal
       title={
         draftSaved ? "Draft saved" : finished
-          ? "Instrument submitted"
+          ? "Measure submitted"
           : saveContactOpen
             ? simpleAssessments ? "Save draft" : "Save draft and link contact"
             : pendingAnswers
             ? "Completion details"
-            : "Complete instrument as clinician"
+            : "Complete measure as clinician"
       }
       subtitle={`${patientIdentifier(person)} · ${c.label} · ${c.version}`}
       onClose={requestClose}
@@ -142,7 +142,7 @@ export default function ClinicianQuestionnaire({
         />
       ) : <div className="form-body">
         {draftSaved ? <Success title="Draft saved" action={<Button variant="primary" onClick={onClose}>Back to record</Button>}>
-          Your answers are saved as a draft on the instrument. You can continue it later.
+          Your answers are saved as a draft on the measure. You can continue it later.
         </Success> : finished ? (
           <Success
             title="Response saved"
@@ -182,7 +182,7 @@ export default function ClinicianQuestionnaire({
             )}
             {!pendingAnswers && (
               <Notice>
-                Enter {respondent}’s answers using the instrument wording
+                Enter {respondent}’s answers using the measure wording
                 below. Save progress to continue in another session, or review
                 and submit when complete.
               </Notice>
@@ -190,7 +190,7 @@ export default function ClinicianQuestionnaire({
             {!available ? (
               <Notice tone="amber">
                 This collection is no longer available for clinician completion.
-                Close it and check the instrument record.
+                Close it and check the measure record.
               </Notice>
             ) : (
               <div hidden={discard}>
@@ -217,7 +217,7 @@ export default function ClinicianQuestionnaire({
                       setError("");
                     }}
                     onSubmit={completeQuestions}
-                    submitLabel={simpleAssessments ? "Complete instrument" : "Continue to completion details"}
+                    submitLabel={simpleAssessments ? "Complete measure" : "Continue to completion details"}
                     completionNote={simpleAssessments ? undefined :
                       linkedAppointment
                         ? `Next, choose the linked appointment on ${formatDate(linkedAppointment.plannedDate)} at ${linkedAppointment.plannedTime}, another existing contact, or a new contact. Your answers have not been submitted yet.`

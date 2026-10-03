@@ -221,6 +221,23 @@ export function Badge({ children, tone, className = "", verbatim = false }) {
     </span>
   );
 }
+export function ProgressBar({ value, max = 100, label, className = "progress-track" }) {
+  const maximum = Number.isFinite(Number(max)) && Number(max) > 0 ? Number(max) : 1;
+  const current = Number.isFinite(Number(value)) ? Math.min(maximum, Math.max(0, Number(value))) : 0;
+  const complete = Number(max) > 0 && current === maximum;
+  return (
+    <span
+      className={`${className}${complete ? " complete-100" : ""}`}
+      role="progressbar"
+      aria-label={displayTerminology(label)}
+      aria-valuemin={0}
+      aria-valuemax={maximum}
+      aria-valuenow={current}
+    >
+      <span style={{ width: `${current / maximum * 100}%` }} />
+    </span>
+  );
+}
 export function AlertLabel({ children, tone = "attention" }) {
   return <span className={`alert-label ${tone}`}>{children}</span>;
 }
@@ -246,21 +263,33 @@ export function SearchInput({
     </label>
   );
 }
-export function Select({ label, children, className = "", ...props }) {
+export function Select({ label, children, className = "", verbatim = false, ...props }) {
   return (
     <div className={`select-wrap ${className}`}>
       <select aria-label={displayTerminology(label)} {...props}>
-        {displayChildren(children)}
+        {verbatim ? children : displayChildren(children)}
       </select>
       <ChevronDown size={16} />
     </div>
   );
 }
-export function Checkbox({ label, className = "", ...props }) {
+export function Checkbox({ label, className = "", verbatim = false, ...props }) {
   return <label className={`check-field checkbox-control ${className}`.trim()}>
     <input {...props} type="checkbox" />
-    <span>{displayTerminology(label)}</span>
+    <span>{verbatim ? label : displayTerminology(label)}</span>
   </label>;
+}
+export function RadioInput({ className = "", ...props }) {
+  return <input {...props} className={`radio-input ${className}`.trim()} type="radio" />;
+}
+
+export function RadioCard({ className = "", selected = false, children, ...inputProps }) {
+  return (
+    <label className={`${className} ${selected ? "selected" : ""}`.trim()}>
+      <RadioInput {...inputProps} />
+      {children}
+    </label>
+  );
 }
 export function Switch({ label, onLabel = "On", offLabel = "Off", className = "", checked, ...props }) {
   return <label className={`admin-setting-toggle ${className}`.trim()}>
@@ -268,7 +297,7 @@ export function Switch({ label, onLabel = "On", offLabel = "Off", className = ""
     <span>{checked ? onLabel : offLabel}</span>
   </label>;
 }
-export function Field({ label, hint, error, children }) {
+export function Field({ label, hint, error, children, className = "" }) {
   const hintId = useId();
   const errorId = useId();
   const requiredId = useId();
@@ -288,7 +317,7 @@ export function Field({ label, hint, error, children }) {
       })
     : children;
   return (
-    <label className={`field ${error ? "has-error" : ""}`}>
+    <label className={`field ${error ? "has-error" : ""} ${className}`.trim()}>
       <span>{displayTerminology(label)}</span>
       {control}
       {hint && <small id={hintId}>{displayTerminology(hint)}</small>}
@@ -298,6 +327,14 @@ export function Field({ label, hint, error, children }) {
       </small>
     </label>
   );
+}
+export function FieldInput({ label, hint, error, className = "", ...props }) {
+  return <Field label={label} hint={hint} error={error} className={className}><input {...props} /></Field>;
+}
+export function FieldSelect({ label, hint, error, className = "", verbatim = false, children, ...props }) {
+  return <Field label={label} hint={hint} error={error} className={className}>
+    <Select verbatim={verbatim} {...props}>{children}</Select>
+  </Field>;
 }
 export function StaffPicker({
   name,

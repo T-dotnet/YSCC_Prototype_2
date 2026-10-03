@@ -2,6 +2,7 @@
 // Historical response codes and extract-only missing codes are intentionally omitted
 // from new-entry controls. Existing values remain visible in the intake form.
 import { completedMeasureStatusChange } from './measureStatusChange.js';
+import { assessmentOutcomeAllowsOngoingReview, assessmentOutcomeEnabled, initialAssessmentStatusChange } from './assessmentOutcome.js';
 import { EP_BATCH_2_INSTRUMENTS } from './epCodebookInstruments.js';
 
 const assessmentOutcomeInstrument = EP_BATCH_2_INSTRUMENTS.find(
@@ -9,7 +10,13 @@ const assessmentOutcomeInstrument = EP_BATCH_2_INSTRUMENTS.find(
 const assessmentOutcomeIndex = assessmentOutcomeInstrument?.questions.findIndex(
   question => question.id === 'assessment_outcome');
 
-function notProceedAssessmentOutcome(episode) {
+function notProceedAssessmentOutcome(episode, settings) {
+  if (episode?.assessmentOutcome?.value) {
+    const code = Number(/^\d+/.exec(episode.assessmentOutcome.value)?.[0]);
+    return code >= 3 && code <= 13;
+  }
+  if (assessmentOutcomeEnabled(settings) && (episode?.collections || []).some(record =>
+    record.mvpInitialAssessment && record.mvpRespondent === 'Person')) return false;
   if (assessmentOutcomeIndex < 0) return false;
   const latest = (episode?.collections || []).filter(record =>
     record.version === assessmentOutcomeInstrument?.version &&
@@ -101,12 +108,12 @@ export function derivedEpisodeStream(intake, episode) {
   return "Unknown";
 }
 
-export function derivedEpisodeStatus(intake, episode) {
+export function derivedEpisodeStatus(intake, episode, settings) {
   if (episode?.status === "Discharged" ||
       (episode?.status === "Closed" && episode?.disposition === "Discharged")) return "Discharged";
   if (episode?.status && episode.status !== "Active") return episode.status;
-  if (notProceedAssessmentOutcome(episode)) return "Not proceed";
-  const completedStatus = completedMeasureStatusChange(episode);
+  if (notProceedAssessmentOutcome(episode, settings)) return "Not proceed";
+  const completedStatus = completedMeasureStatusChange(episode, settings);
   if (completedStatus) return completedStatus;
   const profile = (episode?.collections || []).filter(record => record.clientProfileMeasure);
   if (profile.length) {
@@ -115,11 +122,13 @@ export function derivedEpisodeStatus(intake, episode) {
       record.mvpInitialAssessment && record.mvpRespondent === "Person");
     if (!initial.length || initial.some(record => record.response !== "Submitted"))
       return "Assessment";
-    return "Ongoing review";
+    return initial.some(record => initialAssessmentStatusChange(record, settings) === 'Ongoing review') &&
+      assessmentOutcomeAllowsOngoingReview(episode, settings) ? "Ongoing review" : "Assessment";
   }
   const initial = (episode?.collections || []).filter(record =>
     record.mvpInitialAssessment && record.mvpRespondent === "Person");
   if (initial.length && initial.every(record => record.response === "Submitted"))
-    return "Ongoing review";
+    return initial.some(record => initialAssessmentStatusChange(record, settings) === 'Ongoing review') &&
+      assessmentOutcomeAllowsOngoingReview(episode, settings) ? "Ongoing review" : "Assessment";
   return "Assessment";
 }

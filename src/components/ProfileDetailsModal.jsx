@@ -17,7 +17,7 @@ function SummarySection({ title, rows }) {
   </section>;
 }
 
-export default function ProfileDetailsModal({ person, episode, intake, openModal, onClose }) {
+export default function ProfileDetailsModal({ person, episode, intake, settings, openModal, onClose }) {
   const [editing, setEditing] = useState(false);
   const [saved, setSaved] = useState(false);
   const values = initialValues(person, episode, intake);
@@ -44,7 +44,7 @@ export default function ProfileDetailsModal({ person, episode, intake, openModal
         <SummarySection title="Care episode" rows={[
           ["Person record ID", person.id],
           ["Episode number", recorded(episode.number)],
-          ["Current status", derivedEpisodeStatus(context, episode)],
+          ["Current status", derivedEpisodeStatus(context, episode, settings)],
           ["Calculated program stream", derivedEpisodeStream(context, episode)],
           ["Age at service commencement", ageAtCommencement(values.dob, values.commencementDate) ?? "Not available"],
           ["Service commencement date", date(values.commencementDate)],

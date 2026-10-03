@@ -17,20 +17,20 @@ export const SAMPLE_ASSESSMENT_BUNDLES = [
       assessment('start-k10', k10, 'Optional')],
   },
   {
-    id: 'sample-bundle-review', name: 'General care review', enabled: true,
-    trigger: 'current', programStream: 'General', careLevel: 'Mid', days: 28, minAge: 12, maxAge: 25,
+    id: 'sample-bundle-review', name: 'Mood care review', enabled: true,
+    trigger: 'current', programStream: 'Mood', careLevel: 'Mid', days: 28, minAge: 12, maxAge: 25,
     assessments: [assessment('review-life', life), assessment('review-k10', k10),
       assessment('review-who5', who5, 'Optional')],
   },
   {
     id: 'sample-bundle-youth', name: 'Patient check-in', enabled: true,
-    trigger: 'current', programStream: 'General', careLevel: 'All', days: 56, minAge: 12, maxAge: 17,
+    trigger: 'current', programStream: 'Psychosis', careLevel: 'All', days: 56, minAge: 12, maxAge: 17,
     assessments: [assessment('youth-preferences', preferences), assessment('youth-sdq', sdq, 'Optional'),
       assessment('youth-who5', who5, 'Optional')],
   },
   {
     id: 'sample-bundle-support', name: 'Higher-support care review', enabled: true,
-    trigger: 'current', programStream: 'General', careLevel: 'High', days: 28,
+    trigger: 'current', programStream: 'Eating Disorder', careLevel: 'High', days: 28,
     assessments: [assessment('support-life', life), assessment('support-preferences', preferences)],
   },
   {

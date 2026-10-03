@@ -8,9 +8,10 @@ import { getInstrument, questionnaireState } from '../instruments';
 import { assessmentContactLinkingEnabled, assessmentSmsEnabled, episodeWithVisibleContacts } from '../assessmentFeatures';
 import { bundleCollectionGroup, bundleQuestionnaireProgress, nextBundleCollection } from '../bundleCollection';
 import { bundleDelivery } from '../assessmentBundles';
-import { mvpAssessmentMode } from '../mvpAssessmentPathway';
-import { clientProfileReadOnlyFacts } from '../clientProfileMeasure';
-import { Button, Logo, Modal, Notice, ProductCopy, Success } from './UI';
+import { mvpAssessmentMode, mvpInitialBundles, mvpReviewBundles } from '../mvpAssessmentPathway';
+import { clientProfileBundle, clientProfileReadOnlyFacts } from '../clientProfileMeasure';
+import { allowedCollectionMethods } from '../allowedCollectionMethods.js';
+import { Button, Logo, Modal, Notice, ProductCopy, ProgressBar, Success } from './UI';
 import QuestionnaireFlow from './QuestionnaireFlow';
 import QuestionnaireAppointmentConfirmation from './QuestionnaireAppointmentConfirmation';
 import TabletAssistanceConfirmation from './TabletAssistanceConfirmation';
@@ -21,10 +22,11 @@ import { Tabs } from './Tabs';
 
 export default function BundleQuestionnaire({ person, episode, collection, onClose, participant = false, inline = false, initialAttemptId }) {
   const { state, commit } = useStore();
-  const mvpBundle = mvpAssessmentMode(state.settings) && (!!collection.mvpTimepointId || !!collection.clientProfileMeasure);
+  const mvpBundle = mvpAssessmentMode(state.settings) &&
+    (!!collection.mvpTimepointId || !!collection.clientProfileMeasure || !!collection.mvpInitialAssessment);
   episode = episodeWithVisibleContacts(episode, state.settings);
   const group = bundleCollectionGroup(episode, collection, state.settings?.assessmentScheduleRules) ||
-    { key: collection.id, name: collection.label || getInstrument(collection.version)?.name || "Instrument", records: [collection] };
+    { key: collection.id, name: collection.label || getInstrument(collection.version)?.name || "Measure", records: [collection] };
   // Keep this session's list stable while submissions reorder the ledger.
   const [multipleInstances, setMultipleInstances] = useState(false);
   const presenceKey = `${person.id}:${episode.id}:${group.instanceId || group.key}`;
@@ -61,11 +63,23 @@ export default function BundleQuestionnaire({ person, episode, collection, onClo
   const records = ids.map(id => episode.collections.find(record => record.id === id)).filter(Boolean);
   const introFlow = participant || inline;
   const staffCollectionEntry = !participant || new URLSearchParams(window.location.search).get('overview') === '1';
-  const mvpReviewTabs = mvpBundle && state.settings?.mvpReviewHighlight === false && staffCollectionEntry;
-  const mvpMethodLocked = mvpBundle && records.some(record => record.response !== 'Not started' ||
-    record.draftAnswers?.some(Boolean) || record.answers?.some(Boolean));
+  const savedBundle = state.settings?.assessmentScheduleRules?.find(rule => rule.id === (group.bundleId || group.key));
+  const bundleDefinition = collection.clientProfileMeasure ? clientProfileBundle(state.settings)
+    : collection.mvpInitialAssessment ? mvpInitialBundles(state.settings).find(bundle => bundle.id === collection.mvpInitialBundleDefinitionId)
+    : collection.mvpTimepointId ? mvpReviewBundles(state.settings).find(bundle => bundle.id === collection.mvpBundleDefinitionId)
+    : savedBundle;
+  const availableMethods = (bundleDefinition?.respondent === 'Clinician' || bundleDefinition?.recipient === 'Clinician' ? ['Clinician entry']
+    : ['Clinician entry', 'Clinic tablet', 'SMS link'])
+    .filter(value => value !== 'SMS link' || assessmentSmsEnabled(state.settings));
+  const allowedMethods = allowedCollectionMethods(bundleDefinition, availableMethods);
+  const mvpReviewTabs = mvpBundle && staffCollectionEntry &&
+    (state.settings?.mvpReviewHighlight === false || !collection.mvpTimepointId ||
+      Array.isArray(bundleDefinition?.allowedCollectionMethods));
+  const methodLocked = records.some(record => record.response !== 'Not started' ||
+    (!record.clientProfileMeasure && record.draftAnswers?.some(Boolean)) || record.answers?.some(Boolean));
   const mvpClinicianFirst = mvpAssessmentMode(state.settings) &&
-    state.settings?.mvpReviewHighlight === false && staffCollectionEntry && !mvpMethodLocked;
+    state.settings?.mvpReviewHighlight === false && staffCollectionEntry && !methodLocked &&
+    allowedMethods.includes('Clinician entry');
   const [activeId, setActiveId] = useState(collection.id);
   const [drafts, setDrafts] = useState({});
   const attemptIds = useRef({ [collection.id]: initialAttemptId || collection.attempts?.at(-1)?.id });
@@ -81,7 +95,7 @@ export default function BundleQuestionnaire({ person, episode, collection, onClo
   const answers = drafts[activeId] || c?.draftAnswers || [];
   const instrument = getInstrument(c?.version);
   const profileFacts = c?.clientProfileMeasure && instrument?.clientProfileSection
-    ? clientProfileReadOnlyFacts(person, episode)[instrument.clientProfileSection] : null;
+    ? clientProfileReadOnlyFacts(person, episode, state.settings)[instrument.clientProfileSection] : null;
   const simple = !assessmentContactLinkingEnabled(state.settings);
   const separateMeasuresContacts = mvpAssessmentMode(state.settings) && !!state.settings?.mvpSeparateMeasuresContacts;
   const staff = currentStaff(state);
@@ -96,23 +110,24 @@ export default function BundleQuestionnaire({ person, episode, collection, onClo
   const dirty = dirtyRecords.length > 0;
   const draftRecords = records.filter(record => record.response !== 'Submitted' &&
     (record.id === activeId || dirtyRecords.includes(record)));
-  const savedBundle = state.settings?.assessmentScheduleRules?.find(rule => rule.id === (group.bundleId || group.key));
   const delivery = savedBundle ? bundleDelivery(savedBundle,
     episode.assessmentBundleSelections?.[savedBundle.id]?.assessmentOverrides) : null;
   const [collectionTab, setCollectionTab] = useState(() => {
     if (mvpClinicianFirst) return 'clinician';
     const method = mvpAssessmentMode(state.settings) ? collection.channel : delivery?.channel || collection.channel;
-    return method === 'SMS link' ? 'sms' : method === 'Clinic tablet' ? 'tablet' : 'clinician';
+    const firstAllowed = allowedMethods.includes(method) ? method : allowedMethods[0];
+    return firstAllowed === 'SMS link' ? 'sms' : firstAllowed === 'Clinic tablet' ? 'tablet' : 'clinician';
   });
-  const clinicianTabCollection = (mvpClinicianFirst || mvpReviewTabs) && collectionTab === 'clinician';
+  const clinicianTabCollection = (mvpClinicianFirst || mvpReviewTabs || !!savedBundle) && collectionTab === 'clinician';
   const channelForTab = { clinician: 'Clinician entry', tablet: 'Clinic tablet', sms: 'SMS link' };
   const collectionTabs = [{ value: 'clinician', label: 'Clinician' },
     { value: 'tablet', label: 'Tablet' }, { value: 'sms', label: 'SMS' }]
-    .filter(tab => tab.value !== 'sms' || !mvpBundle || assessmentSmsEnabled(state.settings))
-    .map(tab => ({ ...tab, disabled: mvpReviewTabs && mvpMethodLocked &&
+    .filter(tab => allowedMethods.includes(channelForTab[tab.value]))
+    .map(tab => ({ ...tab, disabled: (mvpReviewTabs || !!savedBundle) && methodLocked &&
       channelForTab[tab.value] !== c?.channel }));
   const changeCollectionTab = value => {
-    if (mvpReviewTabs && !mvpMethodLocked && records.some(record => record.channel !== channelForTab[value])) {
+    if (!allowedMethods.includes(channelForTab[value])) return;
+    if ((mvpReviewTabs || savedBundle) && !methodLocked && records.some(record => record.channel !== channelForTab[value])) {
       const result = commit({ type: 'SET_MVP_BUNDLE_METHOD', personId: person.id, episodeId: episode.id,
         bundleId: collection.bundleId, channel: channelForTab[value] });
       if (result.error) { setError(result.error); return; }
@@ -121,13 +136,13 @@ export default function BundleQuestionnaire({ person, episode, collection, onClo
     setCollectionTab(value);
   };
   const context = id => ({ personId: person.id, episodeId: episode.id, collectionId: id });
-  const blocker = record => !record ? 'This instrument is no longer in the assessment.'
+  const blocker = record => !record ? 'This measure is no longer in the assessment.'
     : !canAssess(person, episode) || !canCollectInEpisode(episode, record)
       ? 'This care episode is not available for collection.'
     : !record.clientProfileMeasure && (person.consent !== 'Recorded' || person.contact !== 'Suitable')
       ? 'Check participation consent and contact suitability in the record.'
-    : ['Cancelled', 'Paused'].includes(record.assignment) ? `This instrument is ${record.assignment.toLowerCase()}.`
-    : !getInstrument(record.version) ? 'This instrument version is unavailable.' : '';
+    : ['Cancelled', 'Paused'].includes(record.assignment) ? `This measure is ${record.assignment.toLowerCase()}.`
+    : !getInstrument(record.version) ? 'This measure version is unavailable.' : '';
   const attempt = c?.attempts?.at(-1);
   const unavailable = blocker(c) || (c?.response !== 'Submitted' &&
     (c?.assignment !== 'Active' || c?.link !== 'Active' || !attempt || attempt.endedAt ||
@@ -151,7 +166,8 @@ export default function BundleQuestionnaire({ person, episode, collection, onClo
     setError('');
     setActiveId(record.id);
     if (record.response === 'Submitted' || blocker(record)) return;
-    const channel = clinicianTabCollection ? 'Clinician entry' :
+    const channel = staffCollectionEntry && introFlow && (mvpReviewTabs || savedBundle)
+      ? channelForTab[collectionTab] :
       (mvpAssessmentMode(state.settings) ? record.channel : delivery?.channel || record.channel) || 'Clinic tablet';
     const respondent = record.draftAnswers?.some(Boolean) ? record.respondent : delivery?.recipient || record.respondent;
     const latest = record.attempts?.at(-1);
@@ -179,7 +195,8 @@ export default function BundleQuestionnaire({ person, episode, collection, onClo
   const begin = () => {
     if (blocker(c)) return;
     let prepared = c;
-    const channel = clinicianTabCollection ? 'Clinician entry' :
+    const channel = staffCollectionEntry && introFlow && (mvpReviewTabs || savedBundle)
+      ? channelForTab[collectionTab] :
       (mvpAssessmentMode(state.settings) ? c.channel : delivery?.channel || c.channel) || 'Clinic tablet';
     if (mvpBundle && c.channel !== channel) {
       const result = commit({ type: 'SET_MVP_BUNDLE_METHOD', personId: person.id, episodeId: episode.id,
@@ -199,7 +216,7 @@ export default function BundleQuestionnaire({ person, episode, collection, onClo
       if (prepared.channel !== channel) { setError('Unable to start collection with this method.'); return; }
     }
     const latest = prepared.attempts?.at(-1);
-    if (!latest || latest.endedAt) { setError('Unable to reopen this instrument.'); return; }
+    if (!latest || latest.endedAt) { setError('Unable to reopen this measure.'); return; }
     attemptIds.current[c.id] = latest.id;
     if (!latest.startedAt) {
       const result = commit({ ...context(c.id), type: 'START_RESPONSE_SESSION', channel: prepared.channel, attemptId: latest.id });
@@ -216,7 +233,7 @@ export default function BundleQuestionnaire({ person, episode, collection, onClo
     const nextEpisode = result.state.people.find(item => item.id === person.id).episodes.find(item => item.id === episode.id);
     const nextRecords = ids.map(id => nextEpisode.collections.find(record => record.id === id)).filter(Boolean);
     const next = nextBundleCollection(nextRecords, c.id);
-    setAnnouncement(`${instrument.name} completed and saved.${next ? ' Continue with the next instrument.' : ''}`);
+    setAnnouncement(`${instrument.name} completed and saved.${next ? ' Continue with the next measure.' : ''}`);
     setPendingAnswers(null);
     setError('');
     if (next) selectRecord(next, nextEpisode);
@@ -263,14 +280,11 @@ export default function BundleQuestionnaire({ person, episode, collection, onClo
     <div className="bundle-collection-layout" hidden={discard}>
       <aside className="bundle-collection-sidebar" aria-label="Assessment progress">
         <div className="bundle-collection-progress">
-          <h3>Instruments</h3>
+          <h3>Measures</h3>
           <p><strong>{completed} of {records.length}</strong> completed</p>
-          <div className="progress-track" role="progressbar" aria-label="Instruments completed"
-            aria-valuemin={0} aria-valuemax={records.length} aria-valuenow={completed}>
-            <span style={{width: `${completed / records.length * 100}%`}} />
-          </div>
+          <ProgressBar value={completed} max={records.length} label="Measures completed" />
         </div>
-        <nav aria-label="Assessment instruments"><ol>
+        <nav aria-label="Assessment measures"><ol>
           {records.map((record, index) => {
             const progress = bundleQuestionnaireProgress(record, drafts[record.id] || record.draftAnswers || []);
             const percent = progress.completed ? 100 : progress.total ? Math.round(progress.answered / progress.total * 100) : 0;
@@ -297,7 +311,7 @@ export default function BundleQuestionnaire({ person, episode, collection, onClo
           })}
         </ol></nav>
       </aside>
-      <section className="bundle-collection-content" aria-label="Current instrument">
+      <section className="bundle-collection-content" aria-label="Current measure">
         {multipleInstances && <div role="alert"><Notice tone="amber">This assessment is open in another tab or window. You can continue here; changes made in either instance may affect the other.</Notice></div>}
         <p className="sr-only" role="status">{announcement}</p>
         {introFlow && (!mvpBundle || mvpReviewTabs) && !started && !finished && <Tabs id="collection-delivery" label="Collection method"
@@ -305,16 +319,16 @@ export default function BundleQuestionnaire({ person, episode, collection, onClo
         <div id="collection-delivery-panel" role={introFlow && (!mvpBundle || mvpReviewTabs) && !started && !finished ? 'tabpanel' : undefined}
           aria-labelledby={introFlow && (!mvpBundle || mvpReviewTabs) && !started && !finished ? `collection-delivery-tab-${collectionTabs.findIndex(tab => tab.value === collectionTab)}` : undefined}>
         {draftSaved ? <Success title="Draft saved" action={<Button variant="primary" onClick={onClose}>Back to record</Button>}>
-          Your answers are saved as a draft on the instrument. You can continue this assessment later.
+          Your answers are saved as a draft on the measure. You can continue this assessment later.
         </Success> : introFlow && !started && !finished && collectionTab !== 'clinician'
           ? <QuestionnaireAccessPanel key={collection.id} person={person} episodeId={episode.id}
               collectionId={collection.id} mode={collectionTab} onBack={requestClose} />
           : finished ? <Success title="Assessment completed" action={<Button variant="primary" onClick={onClose}>Back to record</Button>}>
-          All {records.length} instrument responses are saved. They are available in the assessment record.
+          All {records.length} measure responses are saved. They are available in the assessment record.
         </Success> : !started ? <div className="bundle-collection-intro">
-          <h2>A check-in, one instrument at a time.</h2>
-          <p>This assessment has {records.length - completed} instruments left to complete. The list shows where you are and what is still to do.</p>
-          <p>{hasProgress ? 'Your saved progress is here. Drafts still need to be submitted to complete an instrument.'
+          <h2>A check-in, one measure at a time.</h2>
+          <p>This assessment has {records.length - completed} {records.length - completed === 1 ? 'measure' : 'measures'} left to complete. The list shows where you are and what is still to do.</p>
+          <p>{hasProgress ? 'Your saved progress is here. Drafts still need to be submitted to complete a measure.'
             : 'You can save a draft and take a break at any time.'}</p>
           <Button variant="primary" disabled={!!blocker(c) || clinicianTabCollection && staff?.role !== 'Clinician'} onClick={begin}>{hasProgress ? 'Continue assessment' : 'Begin assessment'} <ArrowRight size={18} /></Button>
           <Button variant="ghost" onClick={requestClose}>Back to record</Button>
@@ -323,14 +337,14 @@ export default function BundleQuestionnaire({ person, episode, collection, onClo
           {error && <p className="field-error" role="alert">{error}</p>}
         </div> : <>
           {saveOpen ? <>
-            <Notice>{draftRecords.length} {draftRecords.length === 1 ? 'instrument draft will' : 'instrument drafts will'} be saved. Completed responses are already saved.</Notice>
+            <Notice>{draftRecords.length} {draftRecords.length === 1 ? 'measure draft will' : 'measure drafts will'} be saved. Completed responses are already saved.</Notice>
             <DraftContactForm episode={episode} collection={draftRecords[0] || c} error={error}
               showContactChoice={!simple} confirmTabletAssistance={simple}
               onCancel={() => { setSaveOpen(false); setError(''); }} onSave={saveDrafts} />
           </> : c?.response === 'Submitted' ? <Notice>This response has already been completed and saved.
-            <Button onClick={() => selectRecord(records.find(record => record.response !== 'Submitted'))}>Continue remaining instruments</Button>
+            <Button onClick={() => selectRecord(records.find(record => record.response !== 'Submitted'))}>Continue remaining measures</Button>
           </Notice>
-          : unavailable ? <Notice tone="amber">{unavailable} Select another instrument or return to the record.</Notice>
+          : unavailable ? <Notice tone="amber">{unavailable} Select another measure or return to the record.</Notice>
           : pendingAnswers ? simple ? <TabletAssistanceConfirmation error={error}
             onBack={() => { setPendingAnswers(null); setReturnToReview(true); setError(''); }}
             onConfirm={confirmation => submit(pendingAnswers, confirmation)} />
@@ -359,7 +373,7 @@ export default function BundleQuestionnaire({ person, episode, collection, onClo
   </>;
   if (inline) return <ProductCopy><div className="bundle-collection-inline">{body}</div></ProductCopy>;
   return participant ? <ProductCopy><div className="participant bundle-questionnaire">
-    <header className="participant-header"><Logo /><span>Assessment instruments · sample content</span></header>
+    <header className="participant-header"><Logo /><span>Assessment measures · sample content</span></header>
     <main className="bundle-collection-participant">
       <div className="bundle-questionnaire-workspace">
         <header className="bundle-collection-page-heading"><h1>{group.name}</h1>

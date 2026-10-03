@@ -69,8 +69,8 @@ export default function ReviewPack({
               </p>
               <p>
                 {incompleteCollections.length
-                  ? `${countLabel(incompleteCollections.length, "instrument collection")} ${incompleteCollections.length === 1 ? "is" : "are"} incomplete.`
-                  : "No instrument collections are incomplete."}
+                  ? `${countLabel(incompleteCollections.length, "measure collection")} ${incompleteCollections.length === 1 ? "is" : "are"} incomplete.`
+                  : "No measure collections are incomplete."}
               </p>
               <small>
                 {nextStep?.overdueText ? (
@@ -80,7 +80,7 @@ export default function ReviewPack({
             </div>
             {onOpenAssessment && (
               <Button variant="secondary" onClick={onOpenAssessment}>
-                Open instrument
+                Open measure
               </Button>
             )}
           </section>

@@ -17,42 +17,42 @@ export default function AdminInstrumentsTable({ settings }) {
     (mvpAssessmentMode(settings) ? INSTRUMENTS : STANDARD_INSTRUMENTS)
       .map((instrument) => instrument.version),
   );
-  const associatedMeasures = measuresByInstrumentVersion(settings);
+  const associatedPacks = measuresByInstrumentVersion(settings);
 
   return (
     <>
     <div className="stack administration-instrument-list">
     <div className="section-toolbar administration-section-heading">
       <div>
-        <h2>Instruments</h2>
-        <p>Browse sample questions and see which measures use each instrument.</p>
+        <h2>Measures</h2>
+        <p>Browse measures, preview their questions, and see which Assessment Packs include them.</p>
       </div>
       <ActionGroup className="button-row">
-        <Button type="button" variant="primary" disabled title="Adding instruments is not available yet" aria-label="Add instrument (not available yet)">
-          Add instrument
+        <Button type="button" variant="primary" disabled title="Adding measures is not available yet" aria-label="Add measure (not available yet)">
+          Add measure
         </Button>
       </ActionGroup>
     </div>
     <Panel className="admin-panel">
-      <StandardTable label="Instrument catalogue">
+      <StandardTable label="Measure catalogue">
         <thead>
           <tr>
-            <th scope="col">Instrument</th>
+            <th scope="col">Measure</th>
             <th scope="col">No. of questions</th>
             <th scope="col">Create date</th>
             <th scope="col">Last modified</th>
             <th scope="col">Status</th>
-            <th scope="col">Associated measures</th>
+            <th scope="col">Assessment Packs</th>
             <th scope="col">Actions</th>
           </tr>
         </thead>
         <tbody>
           {INSTRUMENTS.map((instrument) => {
             const available = availableVersions.has(instrument.version);
-            const measures = associatedMeasures.get(instrument.version) || [];
+            const packs = associatedPacks.get(instrument.version) || [];
             return (
               <QueueRow key={instrument.version}>
-                <QueueCell label="Instrument" slot="subject">
+                <QueueCell label="Measure" slot="subject">
                   <strong>{instrument.name}</strong>
                   <small>ID: {instrument.version}</small>
                 </QueueCell>
@@ -64,9 +64,9 @@ export default function AdminInstrumentsTable({ settings }) {
                     {available ? "Available" : "Other pathway"}
                   </Badge>
                 </QueueCell>
-                <QueueCell label="Associated measures" slot="summary">
-                  {measures.length ? measures.map(measure =>
-                    <div key={measure.id}>{measure.name}{measure.example ? " · Mock" : ""}</div>) : "None"}
+                <QueueCell label="Assessment Packs" slot="summary">
+                  {packs.length ? packs.map(pack =>
+                    <div key={pack.id}>{pack.name}</div>) : "None"}
                 </QueueCell>
                 <QueueCell label="Actions" slot="action">
                   <ActionGroup>
@@ -85,7 +85,7 @@ export default function AdminInstrumentsTable({ settings }) {
       </StandardTable>
     </Panel>
     </div>
-    {preview && <Modal title="Instrument preview" subtitle={preview.version} className="questionnaire-preview-modal" closeLabel="Close preview" onClose={() => setPreview(null)}>
+    {preview && <Modal title="Measure preview" subtitle={preview.version} className="questionnaire-preview-modal" closeLabel="Close preview" onClose={() => setPreview(null)}>
       <InstrumentPreview key={preview.version} instrument={preview} respondent={preview.respondents[0]} onBack={() => setPreview(null)} />
     </Modal>}
     </>

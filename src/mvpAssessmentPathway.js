@@ -1,11 +1,13 @@
 import { carePeriodAt, PROGRAM_STREAMS, CARE_LEVELS } from './carePeriods.js';
 import { addDays, validReviewDate } from './episodeReviews.js';
-import { INSTRUMENTS, MVP_STREAM_QUESTIONNAIRES, NINETY_DAY_REVIEW_INSTRUMENT, CLINICIAN_INITIAL_INSTRUMENT, CLINICIAN_REVIEW_INSTRUMENT, questionnaireState } from './instruments.js';
+import { INSTRUMENTS, MVP_STREAM_QUESTIONNAIRES, CLINICIAN_REVIEW_INSTRUMENT, questionnaireState } from './instruments.js';
 import { EP_BATCH_2_INSTRUMENTS, EP_BATCH_3_INSTRUMENTS } from './epCodebookInstruments.js';
 import { clientProfileRecords, clientProfileCompletionDate, clientProfileBundle, clientProfileBundleError, CLIENT_PROFILE_BUNDLE_ID } from './clientProfileMeasure.js';
 import { measureStatusSources, specificMeasureError } from './measureTriggers.js';
 import { profileValueMatches, profileValueTriggerError } from './profileValueTriggers.js';
 import { validMeasureStatusChange } from './measureStatusChange.js';
+import { initialAssessmentReadyForOutcome, assessmentOutcomeProceeds } from './assessmentOutcome.js';
+import { allowedCollectionMethodsError } from './allowedCollectionMethods.js';
 
 export const mvpAssessmentMode = settings => settings?.advancedAssessmentOptions === false;
 export const mvpPathwayEnabled = settings => mvpAssessmentMode(settings) && settings?.mvpAssessmentPathway !== false;
@@ -27,12 +29,24 @@ export function mvpReviewNumbers(episode) {
     .map(([id], index) => [id, index + 1]));
 }
 
-export const MVP_INITIAL_BUNDLE = { id: 'MVP-INITIAL-PERSON', name: 'Initial assessment · Young person', respondent: 'Person', channel: 'Clinic tablet', enabled: true, timing: 'days', after: 'specific-measure', delayDays: 0, triggerMeasureId: CLIENT_PROFILE_BUNDLE_ID, triggerMeasureStatus: 'completed', programStream: 'All', careLevel: 'All', minAge: null, maxAge: null, coreVersion: 'Initial assessment v1.0', statusChange: 'Ongoing review' };
-const initialStreams = ['General', ...PROGRAM_STREAMS.filter(stream => stream !== 'General')];
-const epCodebookStreams = new Set(['General', 'Psychosis']);
+export const MVP_INITIAL_BUNDLE = { id: 'MVP-INITIAL-PERSON', name: 'Initial assessment · Young person', respondent: 'Person', channel: 'Clinic tablet', enabled: true, timing: 'days', after: 'specific-measure', delayDays: 0, triggerMeasureId: CLIENT_PROFILE_BUNDLE_ID, triggerMeasureStatus: 'completed', programStream: 'All', careLevel: 'All', minAge: null, maxAge: null, coreVersion: EP_BATCH_2_INSTRUMENTS[0].version, statusChange: 'Ongoing review' };
+const initialStreams = PROGRAM_STREAMS;
+const epCodebookStreams = new Set(['Psychosis']);
 export const MVP_INITIAL_BUNDLES = initialStreams.map(stream => ({ ...MVP_INITIAL_BUNDLE,
   id: `MVP-INITIAL-PERSON-${stream.toUpperCase().replace(/[^A-Z0-9]+/g, '-')}`,
   name: `${MVP_INITIAL_BUNDLE.name} · ${stream}`, programStream: stream }));
+export function makeInitialAssessmentsImmediate(state) {
+  if (state.settings?.initialAssessmentsImmediateV1) return state;
+  const settings = state.settings || {};
+  return { ...state, settings: {
+    ...settings,
+    initialAssessmentsImmediateV1: true,
+    ...(settings.mvpInitialBundle ? { mvpInitialBundle: { ...settings.mvpInitialBundle, delayDays: 0 } } : {}),
+    ...(Array.isArray(settings.mvpInitialBundles) ? {
+      mvpInitialBundles: settings.mvpInitialBundles.map(bundle => ({ ...bundle, delayDays: 0 })),
+    } : {}),
+  } };
+}
 export const mvpInitialBundles = settings => {
   if (Array.isArray(settings?.mvpInitialBundles)) return MVP_INITIAL_BUNDLES.flatMap(original => {
     const saved = settings.mvpInitialBundles.find(bundle => bundle.id === original.id);
@@ -44,14 +58,13 @@ export const mvpInitialBundles = settings => {
     .map(bundle => ({ ...bundle, ...legacy, id: bundle.id, programStream: bundle.programStream,
       name: `${legacy.name.trim().slice(0, 77 - bundle.programStream.length).trim()} · ${bundle.programStream}` }));
 };
-const sameVersions = (versions, previous) => versions?.length === previous.length &&
-  versions.every((version, index) => version === previous[index]);
 export const mvpInitialVersions = (bundle, stream) => {
-  const previous = [bundle.coreVersion, MVP_STREAM_QUESTIONNAIRES[stream]?.version].filter(Boolean);
   const configured = bundle.assessmentsByStream?.[stream];
-  if (epCodebookStreams.has(stream) && (!configured || sameVersions(configured, previous)))
-    return EP_BATCH_2_INSTRUMENTS.map(instrument => instrument.version);
-  return configured || previous;
+  const allowed = epCodebookStreams.has(stream)
+    ? EP_BATCH_2_INSTRUMENTS.map(instrument => instrument.version)
+    : [MVP_STREAM_QUESTIONNAIRES[stream]?.version].filter(Boolean);
+  return configured?.length && configured.every(version => allowed.includes(version))
+    ? configured : allowed;
 };
 export function mvpInitialBundleError(bundle, settings) {
   const original = MVP_INITIAL_BUNDLES.find(item => item.id === bundle?.id);
@@ -61,6 +74,10 @@ export function mvpInitialBundleError(bundle, settings) {
   if (bundle.respondent !== 'Person' || typeof bundle.enabled !== 'boolean') return 'Choose a valid initial assessment.';
   if (!['Clinic tablet', 'Clinician entry', 'SMS link'].includes(bundle.channel) ||
       (bundle.channel === 'SMS link' && settings?.assessmentSms === false)) return 'Choose an available collection method.';
+  if (allowedCollectionMethodsError(bundle, ['Clinic tablet', 'Clinician entry',
+    ...(settings?.assessmentSms === false ? [] : ['SMS link'])]) ||
+      Array.isArray(bundle.allowedCollectionMethods) && !bundle.allowedCollectionMethods.includes(bundle.channel))
+    return 'Choose Any or allowed collection methods that include the planned method.';
   if (!['days', 'date'].includes(bundle.timing || 'days')) return 'Choose Event or Date.';
   if ((bundle.timing || 'days') === 'days' && (!Number.isInteger(bundle.delayDays) || bundle.delayDays < 0 || bundle.delayDays > 728)) return 'Enter a time from 0 to 728 days after the selected trigger.';
   if ((bundle.timing || 'days') === 'days' && !['care-period', 'intake', 'specific-measure'].includes(bundle.after)) return 'Choose what starts the schedule.';
@@ -73,11 +90,11 @@ export function mvpInitialBundleError(bundle, settings) {
   if ([bundle.programStream].some(stream => { const versions = mvpInitialVersions(bundle, stream);
     return !versions.length || new Set(versions).size !== versions.length ||
       versions.some(version => !INSTRUMENTS.some(instrument => instrument.version === version && instrument.respondents.includes('Person')));
-  })) return 'Choose at least one unique young-person instrument for this program stream.';
+  })) return 'Choose at least one unique young-person measure for this program stream.';
   return null;
 }
 const reviewStreams = initialStreams;
-export const MVP_REVIEW_BUNDLES = ['Person', 'Clinician'].flatMap(respondent => reviewStreams.map(stream => ({
+export const MVP_REVIEW_BUNDLES = ['Clinician'].flatMap(respondent => reviewStreams.map(stream => ({
   id: `MVP-REVIEW-${respondent.toUpperCase()}-${stream.toUpperCase().replace(/[^A-Z0-9]+/g, '-')}`,
   name: `90-day review · ${respondent === 'Person' ? 'Young person' : 'Clinician'} · ${stream}`,
   respondent, channel: respondent === 'Clinician' ? 'Clinician entry' : 'Clinic tablet', enabled: true,
@@ -88,56 +105,37 @@ export const mvpReviewBundles = settings => {
   const saved = settings?.mvpReviewBundles;
   if (!saved) return MVP_REVIEW_BUNDLES;
   return saved.flatMap(bundle => {
-    const legacyRole = bundle.id === 'MVP-REVIEW-PERSON' ? 'Person'
-      : bundle.id === 'MVP-REVIEW-FAMILY' ? 'Clinician' : null;
-    if (legacyRole) return reviewStreams.map(stream => {
-      const initial = MVP_REVIEW_BUNDLES.find(item => item.programStream === stream && item.respondent === legacyRole);
-      return { ...initial, ...bundle, id: initial.id, programStream: stream,
-        name: `${bundle.name.replace(/family/gi, 'Clinician')} · ${stream}`,
-        respondent: legacyRole, channel: legacyRole === 'Clinician' ? 'Clinician entry' : bundle.channel,
-        assessments: legacyRole === 'Clinician' ? undefined : bundle.assessmentsByStream?.[stream] };
-    });
-    if (bundle.id.startsWith('MVP-REVIEW-FAMILY-')) {
-      const original = MVP_REVIEW_BUNDLES.find(item => item.id === bundle.id.replace('MVP-REVIEW-FAMILY-', 'MVP-REVIEW-CLINICIAN-'));
-      return original ? [{ ...original, ...bundle, id: original.id,
-        name: bundle.name.replace(/family/gi, 'Clinician'), respondent: 'Clinician',
-        channel: 'Clinician entry', assessments: undefined }] : [];
-    }
     const original = MVP_REVIEW_BUNDLES.find(item => item.id === bundle.id);
-    return original ? [{ ...original, ...bundle }] : [];
+    return original ? [{ ...original, ...bundle, respondent: 'Clinician', channel: 'Clinician entry' }] : [];
   });
 };
 
-const coreVersion = {
-  Person: NINETY_DAY_REVIEW_INSTRUMENT.version,
-  Clinician: CLINICIAN_REVIEW_INSTRUMENT.version,
-};
-
 export function mvpBattery(stream, respondent) {
-  if (respondent === 'Clinician') return [CLINICIAN_REVIEW_INSTRUMENT.version];
-  if (epCodebookStreams.has(stream) && respondent === 'Person')
+  if (epCodebookStreams.has(stream) && respondent === 'Clinician')
     return EP_BATCH_3_INSTRUMENTS.map(instrument => instrument.version);
-  const streamVersion = MVP_STREAM_QUESTIONNAIRES[stream]?.version;
-  return streamVersion && coreVersion[respondent] ? [coreVersion[respondent], streamVersion] : [];
+  if (PROGRAM_STREAMS.includes(stream) && respondent === 'Clinician')
+    return [CLINICIAN_REVIEW_INSTRUMENT.version];
+  return [];
 }
 export function mvpReviewItems(bundle) {
-  const previous = [coreVersion[bundle.respondent], MVP_STREAM_QUESTIONNAIRES[bundle.programStream]?.version].filter(Boolean);
   const configured = bundle.assessments;
-  if (epCodebookStreams.has(bundle.programStream) && bundle.respondent === 'Person' &&
-      (!configured || sameVersions(configured.map(item => item.version), previous)))
-    return mvpBattery(bundle.programStream, bundle.respondent)
-      .map((version, index) => ({ id: `${bundle.programStream}-${index}`, version, requirement: 'Mandatory' }));
-  return configured || mvpBattery(bundle.programStream, bundle.respondent)
+  const allowed = mvpBattery(bundle.programStream, bundle.respondent);
+  if (configured?.length && configured.every(item => allowed.includes(item.version))) return configured;
+  return allowed
     .map((version, index) => ({ id: `${bundle.programStream}-${index}`, version, requirement: 'Mandatory' }));
 }
 export function mvpReviewBundleError(bundle, settings) {
   if (!MVP_REVIEW_BUNDLES.some(item => item.id === bundle?.id)) return 'Choose a review bundle.';
   if (!bundle.name?.trim() || bundle.name.trim().length > 80) return 'Enter an assessment name of 80 characters or fewer.';
   if (!validMeasureStatusChange(bundle.statusChange)) return 'Choose a valid status change.';
-  if (!['Person', 'Clinician'].includes(bundle.respondent)) return 'Choose a respondent.';
+  if (bundle.respondent !== 'Clinician') return 'The 90 Day Review is clinician-facing.';
   if (bundle.respondent === 'Clinician' && bundle.channel !== 'Clinician entry') return 'Clinician measures use Clinician entry.';
   if (!['Clinic tablet', 'Clinician entry', 'SMS link'].includes(bundle.channel) ||
       (bundle.channel === 'SMS link' && settings?.assessmentSms === false)) return 'Choose an available collection method.';
+  if (allowedCollectionMethodsError(bundle, bundle.respondent === 'Clinician' ? ['Clinician entry']
+    : ['Clinic tablet', 'Clinician entry', ...(settings?.assessmentSms === false ? [] : ['SMS link'])]) ||
+      Array.isArray(bundle.allowedCollectionMethods) && !bundle.allowedCollectionMethods.includes(bundle.channel))
+    return 'Choose Any or allowed collection methods that include the planned method.';
   if (typeof bundle.enabled !== 'boolean' || typeof bundle.repeat !== 'boolean') return 'Choose whether the assessment is enabled and repeats.';
   if (!PROGRAM_STREAMS.includes(bundle.programStream)) return 'Choose a program stream.';
   if (bundle.careLevel !== 'All' && !CARE_LEVELS.includes(bundle.careLevel)) return 'Choose a care level.';
@@ -150,12 +148,12 @@ export function mvpReviewBundleError(bundle, settings) {
   if (bundle.timing === 'days' && (!Number.isInteger(bundle.days) || bundle.days < 1 || bundle.days > 728)) return 'Enter a time from 1 to 728 days.';
   if (bundle.timing === 'date' && (!validReviewDate(bundle.dueDate) || bundle.repeat)) return 'Enter a valid date for a one-off review.';
   const items = mvpReviewItems(bundle);
-  if (!items.length) return 'Add at least one instrument.';
+  if (!items.length) return 'Add at least one measure.';
   if (new Set(items.map(item => item.id)).size !== items.length ||
       new Set(items.map(item => item.version)).size !== items.length ||
       items.some(item => item.requirement !== 'Mandatory' ||
         !INSTRUMENTS.find(instrument => instrument.version === item.version &&
-        instrument.respondents.includes(bundle.respondent)))) return 'Choose unique instruments compatible with the respondent.';
+        instrument.respondents.includes(bundle.respondent)))) return 'Choose unique measures compatible with the respondent.';
   return null;
 }
 
@@ -171,11 +169,6 @@ export function mvpBlankAssessmentTemplate(episode, today, versions = [], respon
 }
 
 const bundleId = (episodeId, due, respondent) => `MVP-${episodeId}-${due}-${respondent === 'Person' ? 'patient' : 'clinician'}`;
-
-const initialCoreVersion = {
-  Person: INSTRUMENTS.find(instrument => instrument.name === 'Initial assessment')?.version,
-  Clinician: CLINICIAN_INITIAL_INSTRUMENT.version,
-};
 
 function ensureClientProfiles(state, today) {
   const config = clientProfileBundle(state.settings);
@@ -218,8 +211,7 @@ function ensureInitialAssessments(state, today) {
       const existingInitial = (episode.collections || []).filter(record => record.mvpInitialAssessment);
       const startPeriod = carePeriodAt(episode, episode.start);
       const stream = startPeriod?.programStream || episode.programStream;
-      const streamVersion = MVP_STREAM_QUESTIONNAIRES[stream]?.version;
-      if (!streamVersion) return episode;
+      if (!PROGRAM_STREAMS.includes(stream)) return episode;
       const sourceFor = bundle => bundle.after === 'specific-measure'
         ? (!person.clientProfileRequired || !clientProfileBundle(state.settings)?.enabled) && bundle.triggerMeasureId === CLIENT_PROFILE_BUNDLE_ID
           ? [{ anchor: episode.start }] : measureStatusSources(episode, bundle.triggerMeasureId, bundle.triggerMeasureStatus, today)
@@ -234,7 +226,7 @@ function ensureInitialAssessments(state, today) {
       const makeRecords = (respondent, bundle, id) => {
         if (existingInitial.some(record => record.bundleId === id)) return [];
         const name = bundle?.name || 'Initial assessment · Clinician';
-        const versions = bundle ? mvpInitialVersions(bundle, stream) : [initialCoreVersion[respondent]];
+        const versions = mvpInitialVersions(bundle, stream);
         const triggerDate = bundle?.timing === 'date' ? bundle.dueDate : bundle ? sourceFor(bundle)[0]?.anchor : episode.start;
         const due = bundle?.timing === 'date' ? bundle.dueDate : bundle ? addDays(triggerDate, bundle.delayDays) : triggerDate;
         return versions.map((version, index) => {
@@ -262,9 +254,7 @@ function ensureInitialAssessments(state, today) {
         const id = index === 0 && !existingYoung.length ? youngBaseId : `${youngBaseId}-${bundle.id}`;
         return makeRecords('Person', bundle, id);
       });
-      const clinicianRecords = person.mvpInitialYoungPersonOnly || person.clientProfileRequired && clientProfileBundle(state.settings)?.enabled && !clientProfileCompletionDate(episode) || existingInitial.some(record => record.mvpRespondent === 'Clinician')
-        ? [] : makeRecords('Clinician', null, `MVP-INITIAL-${episode.id}-clinician`);
-      const records = [...youngRecords, ...clinicianRecords];
+      const records = youngRecords;
       if (!records.length) return episode;
       const replaceBlankIntakeForm = epCodebookStreams.has(stream) && youngRecords.length > 0;
       const retained = replaceBlankIntakeForm ? (episode.collections || []).filter(record =>
@@ -388,11 +378,12 @@ function reviewBundleMatches(bundle, person, period, stream, today) {
   return (bundle.minAge == null || age >= bundle.minAge) && (bundle.maxAge == null || age <= bundle.maxAge);
 }
 
-export function mvpInitialCompletionDate(episode) {
+export function mvpInitialCompletionDate(episode, settings) {
   const records = (episode?.collections || []).filter(record =>
     record.mvpInitialAssessment && record.mvpRespondent === 'Person');
   if (!records.length || records.some(record => record.response !== 'Submitted' ||
       !validReviewDate(record.submittedAt?.slice(0, 10)))) return null;
+  if (initialAssessmentReadyForOutcome(episode, settings) && !assessmentOutcomeProceeds(episode)) return null;
   return records.map(record => record.submittedAt.slice(0, 10)).sort().at(-1);
 }
 
@@ -405,7 +396,7 @@ function removePrematureProfileReviews(state, today) {
     let personChanged = false;
     const episodes = person.episodes.map(episode => {
       const collections = episode.collections || [];
-      const initialCompletedAt = mvpInitialCompletionDate(episode);
+      const initialCompletedAt = mvpInitialCompletionDate(episode, state.settings);
       const firstReviewDue = initialCompletedAt && addDays(initialCompletedAt, MVP_REVIEW_DAYS);
       const hasSubmittedReview = collections.some(record =>
         record.mvpTimepointId && record.response === 'Submitted');
@@ -445,12 +436,12 @@ export function reconcileMvpAssessmentPathway(state, today) {
       if (episode.status !== 'Active' || episode.readOnly) return episode;
       const period = carePeriodAt(episode, today);
       const stream = period?.programStream || episode.programStream;
-      if (!MVP_STREAM_QUESTIONNAIRES[stream]) return episode;
-      const initialCompletedAt = person.mvpProfile ? mvpInitialCompletionDate(episode) : null;
+      if (!PROGRAM_STREAMS.includes(stream)) return episode;
+      const initialCompletedAt = person.mvpProfile ? mvpInitialCompletionDate(episode, state.settings) : null;
       const records = [], events = [];
       const configuredBundles = mvpReviewBundles(state.settings);
       for (const bundle of configuredBundles) {
-        if (person.mvpProfile && !initialCompletedAt && bundle.after !== 'specific-measure') continue;
+        if (person.mvpProfile && !initialCompletedAt) continue;
         if (!bundle.enabled || !reviewBundleMatches(bundle, person, period, stream, today) ||
             !profileValueMatches(bundle, person, episode) ||
             mvpReviewBundleError(bundle, state.settings)) continue;

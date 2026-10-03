@@ -2,42 +2,39 @@ import { collectionStatus, formatDate, TODAY } from "./model.js";
 import { canAssess, intakeReady, intakeStage, intakeTasks } from "./intake.js";
 import { assessmentBundleGroups } from "./assessmentBundles.js";
 import { mvpAssessmentMode } from './mvpAssessmentPathway.js';
+import { initialAssessmentReadyForOutcome, initialAssessmentStatusChange } from './assessmentOutcome.js';
+import { assessmentBundleStatus } from './assessmentBundleStatus.js';
 import { currentCollection, currentMvpStageCollection } from "./workflow.js";
 import { derivedEpisodeStatus } from "./batch1Registration.js";
 
-export const episodeDisplayStatus = (episode) =>
-  episode ? derivedEpisodeStatus({}, episode) : "Intake";
+export const episodeDisplayStatus = (episode, settings) =>
+  episode ? derivedEpisodeStatus({}, episode, settings) : "Intake";
 
 const openIntake = (intake) =>
   !["Completed", "Closed incomplete"].includes(intake.status) ||
   (intakeReady(intake) && !intake.episodeId);
 
-export function peopleInEpisodes(people, status = "All episodes") {
+export function peopleInEpisodes(people, status = "All episodes", settings) {
   return (people || []).filter((person) =>
     status === "Archived" ? !!person.archivedAt : !person.archivedAt,
   ).flatMap((person) => {
     if (status === "Archived")
       return [{ person, episode: person.episodes?.[0], status: "Archived", label: "Archived person record", detail: "Record retained for review" }];
-    const episode =
-      status === "Intake"
-        ? undefined
-        : status === "All episodes"
-          ? person.episodes.find((e) => e.status === "Active") ||
-            person.episodes.find((e) => e.status === "Paused") ||
-            person.episodes[0]
-          : person.episodes.find((e) => e.status === status);
-    if (status === "Intake") {
-      if (person.mvpProfile) return [];
-      if (person.episodes.length && !person.intakes?.some(openIntake))
-        return [];
-    } else if (status !== "All episodes" && !episode) return [];
-    return [{ person, episode, ...personStatus(person, episode) }];
+    const episode = person.episodes?.find((e) => e.status === "Active") ||
+      person.episodes?.find((e) => e.status === "Paused") ||
+      person.episodes?.[0];
+    const row = { person, episode, ...personStatus(person, episode) };
+    const currentStatus = episodeDisplayStatus(episode, settings);
+    // Keep each person in one current-stage tab, matching the Episode column.
+    if (status !== "All episodes" && status !== currentStatus &&
+        !(status === "Active" && episode?.status === "Active")) return [];
+    return [row];
   });
 }
 
-export function peopleForList(people, status = "All episodes", query = "") {
+export function peopleForList(people, status = "All episodes", query = "", settings) {
   const search = query.trim().toLowerCase();
-  return peopleInEpisodes(people, status).filter(({ person }) =>
+  return peopleInEpisodes(people, status, settings).filter(({ person }) =>
     `${person.name} ${person.id}`.toLowerCase().includes(search),
   );
 }
@@ -63,7 +60,7 @@ export function personStatus(person, episode) {
       status: episode.status,
       label: `${episode.status} care episode`,
       detail: episode.status === "Completed"
-        ? "Closure instruments and care experience feedback complete"
+        ? "Closure measures and care experience feedback complete"
         : episode.nextCareStep || "No active assessment tasks",
     };
   }
@@ -78,7 +75,7 @@ export function personStatus(person, episode) {
   if (!collection) {
     return {
       status: "Not scheduled",
-      label: "No instrument planned",
+      label: "No measure planned",
       detail: "Plan the next collection",
     };
   }
@@ -130,15 +127,15 @@ export function peopleBundleSummary(row, settings) {
   const groups = assessmentBundleGroups(row.episode, row.episode.collections, settings?.assessmentScheduleRules);
   const matching = groups.find(item => item.records.some(record => record.id === row.collection?.id));
   const group = matching && matching.key !== 'individual' ? matching : groups.find(item => item.key !== 'individual');
-  if (!group || group.key === 'individual') return {...row, label:'No assessment scheduled', detail:'Instruments are recorded individually'};
-  const completed = group.records.filter(record => record.response === 'Submitted').length;
-  const pending = group.records.filter(record => record.response !== 'Submitted' && !['Cancelled','Paused'].includes(record.assignment));
-  const due = pending.map(record => record.due).filter(Boolean).sort()[0] || '';
+  if (!group || group.key === 'individual') return {...row, label:'No assessment scheduled', detail:'Measures are recorded individually'};
   const showDueStatus = settings?.scheduleAssessments || mvpAssessmentMode(settings);
-  const status = completed === group.records.length ? 'Completed'
-    : showDueStatus && due && due < TODAY ? 'Overdue'
-    : showDueStatus && due === TODAY ? 'Due today'
-    : completed || pending.some(record => record.response === 'Draft') ? 'In progress' : 'Not started';
-  return {...row, collection:pending[0] || group.records[0], label:group.name, status, due:showDueStatus ? due : '',
-    detail:`${completed} of ${group.records.length} instruments completed${showDueStatus && due ? ` · Due ${formatDate(due)}` : ''}`};
+  const outcomePending = initialAssessmentReadyForOutcome(row.episode, settings) && !row.episode.assessmentOutcome?.value;
+  const { status, label: statusLabel, completedCount, nextDue } = assessmentBundleStatus(group.records, TODAY, {
+    showDueDates: showDueStatus,
+    awaitingOutcome: record => outcomePending && record.mvpInitialAssessment &&
+      initialAssessmentStatusChange(record, settings) === 'Ongoing review',
+  });
+  const due = showDueStatus ? nextDue?.due || '' : '';
+  return {...row, collection:nextDue || group.records[0], label:group.name, status:statusLabel, bundleStatus:status, due,
+    detail:`${completedCount} of ${group.records.length} measures completed${status === 'record-outcome' ? ' · Outcome required' : due ? ` · Due ${formatDate(due)}` : ''}`};
 }

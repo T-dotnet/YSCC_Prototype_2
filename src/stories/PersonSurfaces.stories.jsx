@@ -55,7 +55,7 @@ export const OverviewSummary = {
                   <div><dt>Assessment</dt><dd><Badge>In progress</Badge></dd></div>
                   <div><dt>Response</dt><dd><Badge>Draft</Badge></dd></div>
                   <div><dt>Clinical review</dt><dd><Badge>Awaiting response</Badge></dd></div>
-                  <div><dt>Instrument</dt><dd>{collection.version}</dd></div>
+                  <div><dt>Measure</dt><dd>{collection.version}</dd></div>
                 </dl>
                 <div className="assessment-preview-action"><TextLink type="button">Preview questionnaire</TextLink></div>
               </section>

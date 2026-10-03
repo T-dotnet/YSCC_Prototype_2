@@ -1,15 +1,20 @@
 // Settings shown in the Measures and Workspace features sections. Keep the
 // inactive pathway's switches explicit so returning to it does not revive old choices.
-export const PHASE_2_MVP_PRESET = Object.freeze({
+export const MVP_PRESET = Object.freeze({
   showGeneralReport: true,
   advancedAssessmentOptions: false,
   assessmentSms: true,
   phase2CareActivity: true,
+  mvpCarePointHeading: true,
+  mvpOutcomeBelowTable: true,
+  mvpSchedulePresets: true,
   mvpSeparateMeasuresContacts: true,
   mvpAssessmentPathway: true,
+  mvpRecordAssessmentOutcome: true,
   mvpClinicianCreation: false,
   mvpBundleEditing: false,
   mvpProfileTab: false,
+  mvpShowPersonTags: false,
   mvpNewProfileCollectWorkspace: false,
   mvpReviewHighlight: false,
   simpleAssessments: false,
@@ -22,5 +27,8 @@ export const PHASE_2_MVP_PRESET = Object.freeze({
   automaticAssessmentDueDates: false,
 });
 
-export const phase2MvpPresetActive = settings =>
-  Object.entries(PHASE_2_MVP_PRESET).every(([key, value]) => settings?.[key] === value);
+export const mvpPresetActive = settings =>
+  Object.entries(MVP_PRESET).every(([key, value]) =>
+    key === 'mvpRecordAssessmentOutcome' || key === 'mvpOutcomeBelowTable' ? settings?.[key] !== false
+      : key === 'mvpShowPersonTags' ? settings?.[key] !== true
+      : settings?.[key] === value);

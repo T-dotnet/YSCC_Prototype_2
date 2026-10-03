@@ -35,11 +35,12 @@ export function SortableHeader({ label, sortKey, sort, onSort, className = "", .
   );
 }
 
-export function ActiveFilters({ items, onClear }) {
+export function ActiveFilters({ items, onClear, inline = false }) {
   if (!items.length) return null;
+  const Wrapper = inline ? 'span' : 'div';
   return (
-    <div className="active-filters-row">
-      <div className="active-filters-list">
+    <Wrapper className="active-filters-row">
+      <Wrapper className="active-filters-list">
         {items.map(({ id, label, onRemove }) => (
           <button
             key={id}
@@ -52,10 +53,10 @@ export function ActiveFilters({ items, onClear }) {
             <X size={14} aria-hidden="true" />
           </button>
         ))}
-      </div>
+      </Wrapper>
       <button type="button" className="text-button-small" onClick={onClear}>
         Clear all
       </button>
-    </div>
+    </Wrapper>
   );
 }

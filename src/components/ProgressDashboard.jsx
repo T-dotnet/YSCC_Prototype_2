@@ -63,7 +63,7 @@ export default function ProgressDashboard({
     0,
   );
   return (
-    <section className="report-dashboard" aria-label="Instrument analysis">
+    <section className="report-dashboard" aria-label="Measure analysis">
       {includeSummary && (
         <>
           <div className="dashboard-metrics" aria-label="Dashboard summary">
@@ -75,7 +75,7 @@ export default function ProgressDashboard({
             <article>
               <CalendarDays size={18} aria-hidden="true" />
               <strong>{questionnaireGroups.length}</strong>
-              <span>Instrument series</span>
+              <span>Measure series</span>
             </article>
             <article>
               <ChartNoAxesCombined size={18} aria-hidden="true" />
@@ -96,9 +96,9 @@ export default function ProgressDashboard({
       {!fixedVersion && questionnaireOptions.length > 0 && (
         <div className="dashboard-questionnaire-selector">
           <label className="dashboard-questionnaire-picker">
-            <span>Instrument</span>
+            <span>Measure</span>
             <Select
-              label="Choose instrument"
+              label="Choose measure"
               value={activeVersion}
               onChange={(event) =>
                 onSelectedVersionChange?.(event.target.value)
@@ -228,7 +228,7 @@ export default function ProgressDashboard({
                     <div className="panel-body">
                       <ReportEvidenceCard
                         variant="score"
-                        title="Overall instrument score"
+                        title="Overall measure score"
                         metric={
                           <div
                             className="report-evidence-metric score"
@@ -349,7 +349,7 @@ export default function ProgressDashboard({
                                   >
                                     <li className="selected">
                                       <span aria-hidden="true" />
-                                      {latestLikertResponse?.label || group.instrumentName || "Selected instrument"} ·{" "}
+                                      {latestLikertResponse?.label || group.instrumentName || "Selected measure"} ·{" "}
                                       {formatDate(
                                         responseDate(latestLikertResponse),
                                       )}
@@ -410,7 +410,7 @@ export default function ProgressDashboard({
           })
         ) : (
           <p className="dashboard-empty dashboard-empty-wide">
-            No dated submitted instrument responses are available yet.
+            No dated submitted measure responses are available yet.
           </p>
         )}
       </div>
@@ -418,7 +418,7 @@ export default function ProgressDashboard({
       {hasVisibleLikertQuestions && (
         <footer className="dashboard-method-note">
           Likert positions are normalised to a 0–100 score and averaged within
-          each instrument version. The score is not combined with qualitative
+          each measure version. The score is not combined with qualitative
           responses and does not infer clinical meaning.
         </footer>
       )}

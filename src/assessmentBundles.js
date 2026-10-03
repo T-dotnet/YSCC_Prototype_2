@@ -7,13 +7,14 @@ import { responseDate } from './progress.js';
 import { measureStatusSources, specificMeasureError } from './measureTriggers.js';
 import { profileValueMatches, profileValueTriggerError } from './profileValueTriggers.js';
 import { validMeasureStatusChange } from './measureStatusChange.js';
+import { allowedCollectionMethodsError } from './allowedCollectionMethods.js';
 
 export const BUNDLE_EVENT_TYPES = [
   { value: 'episode-started', label: 'Care episode started' },
   { value: 'level-change', label: 'Program or care level changed' },
   ...[...CARE_EVENT_TYPES, ...SYSTEM_EVENT_TYPES, ...REPORT_EVENT_TYPES].map(({value, label}) => ({value, label})),
 ];
-export const bundleName = rule => rule.name || `${INSTRUMENTS.find(i => i.version === rule.version)?.name || 'Instrument'} assessment`;
+export const bundleName = rule => rule.name || `${INSTRUMENTS.find(i => i.version === rule.version)?.name || 'Measure'} assessment`;
 export const bundleIntervalDays = bundle => bundle.days ?? (bundle.weeks * 7);
 export const bundleTimingMode = bundle => bundle.timing ?? 'days';
 export const bundleRepeats = bundle => bundleTimingMode(bundle) === 'days' && bundle.after !== 'referral' && (bundle.repeat ?? true);
@@ -49,9 +50,9 @@ export function assessmentBundleGroups(episode, visibleCollections, rules = []) 
     const instance = episode.assessmentBundleInstances?.find(item => item.id === collection.bundleInstanceId && item.customName);
     const key = instance?.id || collection.bundleId || rule?.id || 'individual';
     const configuration = rule ? asBundle(rule) : collection.bundleContext;
-    if (!groups.has(key)) groups.set(key, {key, bundleId: collection.bundleId || rule?.id, instanceId: instance?.id, name:instance?.name || (key === 'individual' ? 'Individual instruments' : rule ? bundleName(rule) : collection.bundleName || 'Assessment'),
+    if (!groups.has(key)) groups.set(key, {key, bundleId: collection.bundleId || rule?.id, instanceId: instance?.id, name:instance?.name || (key === 'individual' ? 'Individual measures' : rule ? bundleName(rule) : collection.bundleName || 'Assessment'),
       triggeringEvent:configuration?.trigger === 'event' ? BUNDLE_EVENT_TYPES.find(event => event.value === configuration.eventType)?.label || configuration.eventType || 'Event not recorded' : null,
-      description:key === 'individual' ? 'Instruments created outside an assessment' : bundleDescription(rule ? asBundle(rule) : collection.bundleContext),
+      description:key === 'individual' ? 'Measures created outside an assessment' : bundleDescription(rule ? asBundle(rule) : collection.bundleContext),
       timing:key === 'individual' ? null : bundleTiming(rule ? asBundle(rule) : collection.bundleContext), records:[]});
     groups.get(key).records.push(collection);
   }
@@ -111,14 +112,14 @@ export function newBundleError(bundle, optionalIds, extras, person, settings, ov
     return 'Collection method and respondent apply to the whole assessment.';
   if (!Array.isArray(optionalIds) || new Set(optionalIds).size !== optionalIds.length ||
       optionalIds.some(id => !bundle.assessments.some(item => item.id === id && item.requirement === 'Optional')))
-    return 'Check the optional instrument selection.';
+    return 'Check the optional measure selection.';
   if (!Array.isArray(extras) || extras.some(item => !item || bundle.assessments.some(configured => configured.version === item.version)))
-    return 'Extra instruments must be instrument types outside this assessment.';
+    return 'Extra measures must be measure types outside this assessment.';
   const selected = [...bundleAssessmentsForCreation(bundle,overrides).filter(item => item.requirement === 'Mandatory' || optionalIds.includes(item.id)), ...bundleAdditionalAssessments(bundle,extras,overrides)];
-  if (!selected.length) return 'Include at least one instrument.';
+  if (!selected.length) return 'Include at least one measure.';
   const error = bundleError({...bundle,...delivery, assessments:selected});
   if (error) return error;
-  if (new Set(extras.map(item => item.version)).size !== extras.length) return 'Add each extra instrument type only once.';
+  if (new Set(extras.map(item => item.version)).size !== extras.length) return 'Add each extra measure type only once.';
   return selected.map(item => bundleAssessmentUnavailable(item, person, settings)).find(Boolean) || null;
 }
 export function asBundle(rule) {
@@ -171,18 +172,22 @@ export function bundleError(bundle, bundles=[]) {
     if (!Number.isInteger(bundle.delayDays) || bundle.delayDays < 0 || bundle.delayDays > 730) return 'Enter a delay from 0 to 730 days.';
   }
   if (typeof bundle.enabled !== 'boolean') return 'Choose whether this assessment is enabled.';
-  if (!bundle.assessments?.length) return 'Add at least one instrument.';
+  if (allowedCollectionMethodsError(bundle, bundle.recipient === 'Clinician' ? ['Clinician entry']
+    : COLLECTION_METHOD_OPTIONS.map(([value]) => value)) ||
+      Array.isArray(bundle.allowedCollectionMethods) && !bundle.allowedCollectionMethods.includes(bundle.channel))
+    return 'Choose Any or allowed collection methods that include the planned method.';
+  if (!bundle.assessments?.length) return 'Add at least one measure.';
   const ids = new Set(), targets = new Set();
   for (const item of bundleAssessmentsForCreation(bundle)) {
     const instrument = INSTRUMENTS.find(i => i.version === item.version);
-    if (!item.id || ids.has(item.id)) return 'Each instrument must have a unique identifier.';
+    if (!item.id || ids.has(item.id)) return 'Each measure must have a unique identifier.';
     ids.add(item.id);
-    if (!instrument) return 'Choose an instrument type for every instrument.';
-    if (!COLLECTION_METHOD_OPTIONS.some(([value]) => value === item.channel)) return 'Choose a collection method for every instrument.';
-    if (!instrumentSupportsRespondent(instrument, item.recipient, item.channel)) return `${instrument.name} does not support the assessment respondent and collection method. Choose a compatible instrument or change the collection settings.`;
-    if (!['Mandatory','Optional'].includes(item.requirement)) return 'Choose Mandatory or Optional for every instrument.';
+    if (!instrument) return 'Choose a measure type for every measure.';
+    if (!COLLECTION_METHOD_OPTIONS.some(([value]) => value === item.channel)) return 'Choose a collection method for every measure.';
+    if (!instrumentSupportsRespondent(instrument, item.recipient, item.channel)) return `${instrument.name} does not support the assessment respondent and collection method. Choose a compatible measure or change the collection settings.`;
+    if (!['Mandatory','Optional'].includes(item.requirement)) return 'Choose Mandatory or Optional for every measure.';
     const target = `${item.version}|${item.channel}|${item.recipient}|${item.requirement}`;
-    if (targets.has(target)) return 'This instrument, collection method and respondent are already in the assessment.';
+    if (targets.has(target)) return 'This measure, collection method and respondent are already in the assessment.';
     targets.add(target);
   }
   return null;

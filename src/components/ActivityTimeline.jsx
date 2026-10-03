@@ -295,7 +295,7 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordA
           : null;
         const measureLabels = showCategories && collection
           ? measureActivityLabels(collection, episode, reviewNumbers,
-            completedCollection ? `${completedCollection.label} instrument completed` : entry.title || "Recorded event", item.subtitle)
+            completedCollection ? `${completedCollection.label} measure completed` : entry.title || "Recorded event", item.subtitle)
           : null;
         const contactSummary = showCategories && appointment
           ? phase2Mvp ? { primary: mvpContactFacts(appointment), more: [] }
@@ -311,7 +311,7 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordA
           : contactSummary
             ? [...contactSummary.primary, ...contactSummary.more]
           : item.primary;
-        const hideLinkFact = ({ label }) => !["Initial assessment", "Associated appointment", "Associated contact", "Linked instrument"].includes(label) &&
+        const hideLinkFact = ({ label }) => !["Initial assessment", "Associated appointment", "Associated contact", "Linked measure"].includes(label) &&
           !label.startsWith("Associated assignment");
         const visiblePrimaryFacts = linkAssessmentAppointments ? primaryFacts : primaryFacts.filter(hideLinkFact);
         const moreFacts = (contactSummary ? [] : showCategories && collection ? [] : item.more)
@@ -367,7 +367,7 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordA
                 isSelectedSource}
               eyebrow={groupByDate ? categoryDisplay?.label : undefined}
               title={contactSummary ? (phase2Mvp ? appointment.contactName || appointment.contactType : appointment.contactType || appointment.appointmentType) || "Contact"
-                : measureLabels?.title || (completedCollection ? `${completedCollection.label} instrument completed` : entry.title || "Recorded event")}
+                : measureLabels?.title || (completedCollection ? `${completedCollection.label} measure completed` : entry.title || "Recorded event")}
               subtitle={contactSummary ? phase2Mvp ? appointment.contactType : appointment.practitionerService : measureLabels?.subtitle || item.subtitle}
               status={collection ? !scheduleAssessments
                   ? collection.response === "Submitted" ? "Completed" : collection.response === "Draft" ? "Draft" : "Not started"
@@ -527,7 +527,7 @@ export function ClinicalHistory({
   const results = visibleEntries.length === 0 ? (
     <Empty title="No timeline records match these filters">
       Try a different search, type or date range.
-      <div style={{ marginTop: "var(--space-3)" }}>
+      <div className="timeline-empty-actions">
         <Button variant="secondary" onClick={resetFilters}>Clear filters</Button>
       </div>
     </Empty>
@@ -674,7 +674,6 @@ export function ChangeLog({ episode, person, audit = [], entries: suppliedEntrie
   const clearFilters = () => setFilters({
     scope: "all",
     person: "all",
-    source: "all",
     actor: "all",
     startDate: "",
     endDate: "",
@@ -684,7 +683,6 @@ export function ChangeLog({ episode, person, audit = [], entries: suppliedEntrie
   const [filters, setFilters] = useState({
     scope: "all",
     person: "all",
-    source: "all",
     actor: "all",
     startDate: "",
     endDate: "",
@@ -725,7 +723,6 @@ export function ChangeLog({ episode, person, audit = [], entries: suppliedEntrie
       }
       if (isGlobal) {
         if (filters.person !== "all" && entry.person?.id !== filters.person) return false;
-        if (filters.source !== "all" && (entry.source || missingValue) !== filters.source) return false;
         if (filters.actor !== "all" && (entry.actor || missingValue) !== filters.actor) return false;
       }
       return true;
@@ -752,8 +749,6 @@ export function ChangeLog({ episode, person, audit = [], entries: suppliedEntrie
     .filter((entry) => entry.person)
     .map((entry) => [entry.person.id, entry.person])).values()]
     .sort((a, b) => a.name.localeCompare(b.name)), [entries]);
-  const sources = useMemo(() => [...new Set(entries.map((entry) => entry.source || missingValue))]
-    .sort((a, b) => a === missingValue ? 1 : b === missingValue ? -1 : a.localeCompare(b)), [entries]);
   const actors = useMemo(() => [...new Set(entries.map((entry) => entry.actor || missingValue))]
     .sort((a, b) => a === missingValue ? 1 : b === missingValue ? -1 : a.localeCompare(b)), [entries]);
   const quickScopes = [...scopes]
@@ -769,7 +764,7 @@ export function ChangeLog({ episode, person, audit = [], entries: suppliedEntrie
       count: entries.filter((entry) => entry.scope === scope.value).length,
     })),
   ];
-  const advancedFilterCount = [filters.person, filters.source, filters.actor]
+  const advancedFilterCount = [filters.person, filters.actor]
     .filter((value) => value !== "all").length + Number(Boolean(filters.startDate)) + Number(Boolean(filters.endDate));
 
   return (
@@ -777,6 +772,7 @@ export function ChangeLog({ episode, person, audit = [], entries: suppliedEntrie
       <ListFilterBar
         id={isGlobal ? "global-change-scope" : "person-change-scope"}
         label="Change scope"
+        hideTabs={isGlobal}
         items={scopeItems}
         value={filters.scope}
         onChange={(value) => setFilter("scope", value)}
@@ -799,13 +795,6 @@ export function ChangeLog({ episode, person, audit = [], entries: suppliedEntrie
               </Select>
             </div>
             <div className="care-timeline-type">
-              <span>Source</span>
-              <Select label="Filter by source" value={filters.source} onChange={(event) => setFilter("source", event.target.value)}>
-                <option value="all">All sources</option>
-                {sources.map((source) => <option key={source} value={source}>{source === missingValue ? "Not recorded" : source}</option>)}
-              </Select>
-            </div>
-            <div className="care-timeline-type">
               <span>Changed by</span>
               <Select label="Filter by changed by" value={filters.actor} onChange={(event) => setFilter("actor", event.target.value)}>
                 <option value="all">Anyone</option>
@@ -821,13 +810,13 @@ export function ChangeLog({ episode, person, audit = [], entries: suppliedEntrie
             <span>To</span>
             <input type="date" value={filters.endDate} onChange={(event) => setFilter("endDate", event.target.value)} />
           </label>
-          <div className="care-timeline-type">
+          {!isGlobal && <div className="care-timeline-type">
             <span>Scope</span>
             <Select label="Change scope" value={filters.scope} onChange={(event) => setFilter("scope", event.target.value)}>
               <option value="all">All scopes</option>
               {scopes.map((scope) => <option key={scope.value} value={scope.value}>{scope.label}</option>)}
             </Select>
-          </div>
+          </div>}
         </>}
       />
 
@@ -856,7 +845,6 @@ export function ChangeLog({ episode, person, audit = [], entries: suppliedEntrie
               ["Changed by", actorLabel(entry)],
               ...(entry.scope ? [["Scope", entry.scope]] : []),
               ...(entry.reason ? [["Reason", entry.reason]] : []),
-              ...(isGlobal ? [["Source", entry.source || "Not recorded"]] : entry.source ? [["Source", entry.source]] : []),
             ];
             return (
               <Fragment key={`${entry.person?.id || person?.id}:${entry.id}`}>
@@ -888,7 +876,7 @@ export function ChangeLog({ episode, person, audit = [], entries: suppliedEntrie
                   facts={details.map(([label, value]) => ({
                     label,
                     value,
-                    wide: label === "Reason" || label === "Source",
+                    wide: label === "Reason",
                   }))}
                   secondary={<details className="appointment-more-detail history-more-details activity-change-details">
                     <summary>
@@ -930,7 +918,7 @@ export function ChangeLog({ episode, person, audit = [], entries: suppliedEntrie
           {hasFilters ? (
             <>
               Try different filters or a different search.
-              <div style={{ marginTop: "var(--space-3)" }}>
+              <div className="timeline-empty-actions">
                 <Button variant="secondary" onClick={clearFilters}>
                   Clear filters
                 </Button>

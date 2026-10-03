@@ -18,8 +18,8 @@ const CATEGORY_MAP = {
     badgeClass: "coral",
   },
   assessment_overdue: {
-    label: "Instrument overdue",
-    shortLabel: "Instrument overdue",
+    label: "Measure overdue",
+    shortLabel: "Measure overdue",
     badgeClass: "coral",
   },
   appointment_overdue: {
@@ -28,9 +28,14 @@ const CATEGORY_MAP = {
     badgeClass: "coral",
   },
   assessment_review: {
-    label: "Instrument ready for review",
+    label: "Measure ready for review",
     shortLabel: "Ready for review",
     badgeClass: "purple",
+  },
+  assessment_outcome: {
+    label: "Assessment outcome needed",
+    shortLabel: "Record outcome",
+    badgeClass: "amber",
   },
   scheduled_review: {
     label: "Scheduled review",
@@ -60,6 +65,9 @@ export default function NotificationBell({ navigate }) {
     ).length,
     assessment_review: notifications.filter(
       (n) => n.category === "assessment_review"
+    ).length,
+    assessment_outcome: notifications.filter(
+      (n) => n.category === "assessment_outcome"
     ).length,
     scheduled_review: notifications.filter(
       (n) => n.category === "scheduled_review"
@@ -105,9 +113,10 @@ export default function NotificationBell({ navigate }) {
   const tabs = [
     { key: "all", label: "All", count: counts.all },
     { key: "data_quality", label: "Data quality", count: counts.data_quality },
-    { key: "assessment_overdue", label: "Instrument overdue", count: counts.assessment_overdue },
+    { key: "assessment_overdue", label: "Measure overdue", count: counts.assessment_overdue },
     { key: "appointment_overdue", label: "Contact overdue", count: counts.appointment_overdue },
     { key: "assessment_review", label: "Ready for review", count: counts.assessment_review },
+    { key: "assessment_outcome", label: "Record outcome", count: counts.assessment_outcome },
     ...(mvp ? [{ key: "scheduled_review", label: "Scheduled reviews", count: counts.scheduled_review }] : []),
   ];
 
@@ -162,6 +171,7 @@ export default function NotificationBell({ navigate }) {
             value={activeFilter}
             onChange={setFilter}
             className="notification-category-tabs"
+            autoReveal
             panelId="notification-panel"
           />
 

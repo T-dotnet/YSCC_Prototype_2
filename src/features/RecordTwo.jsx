@@ -344,7 +344,7 @@ function OutcomeTrend({ measure, selectedRecord, onSelect }) {
       <div className="outcome-trend-heading">
         <div>
           <h4>Score trend</h4>
-          <p>Instrument dates and recorded scores</p>
+          <p>Measure dates and recorded scores</p>
         </div>
         <span>
           Scale {minimum}–{maximum}
@@ -445,7 +445,7 @@ function OutcomeRecordDetail({ measure, record, onOpenAssessment }) {
     <section className="outcome-record-detail" aria-live="polite">
       <div className="outcome-record-detail-heading">
         <div>
-          <span>Selected instrument</span>
+          <span>Selected measure</span>
           <h4>{formatDate(record.date)}</h4>
         </div>
         <strong>{completedScore ? `Score ${record.value}` : "Score unavailable"}</strong>
@@ -487,7 +487,7 @@ function OutcomeRecordDetail({ measure, record, onOpenAssessment }) {
           className="outcome-source-link"
           onClick={() => onOpenAssessment(record)}
         >
-          {record.sourceClinicalRecordId ? "Open care record" : "Open instrument record"}
+          {record.sourceClinicalRecordId ? "Open care record" : "Open measure record"}
           <ExternalLink size={15} aria-hidden="true" />
         </button>
       )}
@@ -563,7 +563,7 @@ function OutcomeMeasureCard({
               <>
                 <ChangeIcon size={15} aria-hidden="true" />
                 <span>{measure.change?.label || "No change interpretation recorded"}</span>
-                {scoreChange && <small>{scoreChange} since previous instrument</small>}
+                {scoreChange && <small>{scoreChange} since previous measure</small>}
               </>
             )}
           </div>
@@ -580,7 +580,7 @@ function OutcomeMeasureCard({
             onSelect={onSelectRecord}
           />
           <section className="outcome-history" aria-labelledby={`outcome-history-${measure.key}`}>
-            <h4 id={`outcome-history-${measure.key}`}>Instrument history</h4>
+            <h4 id={`outcome-history-${measure.key}`}>Measure history</h4>
             <ol>
               {measure.records.map((record) => {
                 const selected = selectedRecord?.id === record.id;
@@ -676,10 +676,10 @@ function OutcomeComparison({ measures }) {
           can be combined or ranked.
         </p>
         {selectedMeasures.length ? (
-          <StandardTable label="Outcome measures by instrument date" variant="comparison" responsive={false} scrollClassName="outcome-comparison-table-wrap">
+          <StandardTable label="Outcome measures by measure date" variant="comparison" responsive={false} scrollClassName="outcome-comparison-table-wrap">
               <thead>
                 <tr>
-                  <th scope="col">Instrument date</th>
+                  <th scope="col">Measure date</th>
                   {selectedMeasures.map((measure) => (
                     <th key={measure.key} scope="col">{measure.displayName}</th>
                   ))}
@@ -996,7 +996,7 @@ function CompareMeasuresModal({ episode, onClose }) {
   return (
     <Modal
       title="Compare measures"
-      subtitle="Compare up to three outcome measures by recorded instrument date."
+      subtitle="Compare up to three outcome measures by recorded measure date."
       onClose={onClose}
       wide
       className="compare-measures-dialog"

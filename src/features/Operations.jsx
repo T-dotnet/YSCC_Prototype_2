@@ -1,6 +1,8 @@
 import StandardTable from "../components/StandardTable";
 import AssessmentScheduleSettings from "../components/AssessmentScheduleSettings";
 import AdminInstrumentsTable from "../components/AdminInstrumentsTable";
+import AdminDataDictionary from "../components/AdminDataDictionary";
+import AdminOutcomeOptions from "../components/AdminOutcomeOptions";
 import ProductTerminology from "../components/ProductTerminology";
 import useQueueView from "../useQueueView";
 import { useMemo } from "react";
@@ -21,6 +23,7 @@ import {
   MessageSquare,
   ShieldCheck,
   BookOpen,
+  Database,
 } from "lucide-react";
 import { useStore } from "../store";
 import { assessmentSmsEnabled } from "../assessmentFeatures";
@@ -351,7 +354,7 @@ export function Administration({ openModal, navigate }) {
   const { state } = useStore();
   const staff = currentStaff(state);
   const view = useQueueView();
-  const adminTabs = ["workspace", "bundles", "instruments"];
+  const adminTabs = ["workspace", "bundles", "instruments", "data-dictionary", "outcomes"];
   const adminTab = adminTabs.includes(view.params.get("tab")) ? view.params.get("tab") : "workspace";
   return (
     <>
@@ -359,12 +362,14 @@ export function Administration({ openModal, navigate }) {
         title="Administration"
         subtitle="The foundations of a consistent care experience."
       />
-      <Tabs id="administration" panelId="administration-panel" label="Administration sections" className="administration-tabs"
-        items={[{ value: "workspace", label: "Workspace" }, { value: "bundles", label: "Assessments" }, { value: "instruments", label: "Instruments" }]}
+      <Tabs id="administration" panelId="administration-panel" label="Administration sections" className="administration-tabs" autoReveal
+        items={[{ value: "workspace", label: "Workspace" }, { value: "bundles", label: "Assessment Packs" }, { value: "instruments", label: "Measures" }, { value: "data-dictionary", label: "Data dictionary" }, { value: "outcomes", label: "Record outcomes" }]}
         value={adminTab} onChange={(value) => view.set("tab", value, "workspace")} />
       <div role="tabpanel" id="administration-panel" className="administration-tab-content" aria-labelledby={`administration-tab-${adminTabs.indexOf(adminTab)}`}>
       {adminTab === "bundles" && <AssessmentScheduleSettings />}
       {adminTab === "instruments" && <AdminInstrumentsTable settings={state.settings} />}
+      {adminTab === "outcomes" && <AdminOutcomeOptions />}
+      {adminTab === "data-dictionary" && <AdminDataDictionary />}
       {adminTab === "workspace" && <div className="stack">
       <div className="section-toolbar administration-section-heading">
         <div>
@@ -375,20 +380,34 @@ export function Administration({ openModal, navigate }) {
       <Panel className="admin-panel">
         {[
           [
-            BookOpen,
-            "Instrument library",
-            `${(mvpAssessmentMode(state.settings) ? INSTRUMENTS : STANDARD_INSTRUMENTS).length} sample instruments · Browse topics and preview questions`,
-            "instrument",
-            "Browse instruments",
+            SlidersHorizontal,
+            "Assessment Packs",
+            mvpAssessmentMode(state.settings)
+              ? "Defined measure sets for initial assessments and 90-day reviews"
+              : "Define measure sets by program, care level, or a recorded event",
+            "bundles",
+            "Manage Assessment Packs",
           ],
           [
-            SlidersHorizontal,
-            "Assessments",
-            mvpAssessmentMode(state.settings)
-              ? "Fixed 90-day reviews with patient and clinician bundles"
-              : "Group instruments into assessments by program, care level, or a recorded event",
-            "bundles",
-            "Manage assessments",
+            BookOpen,
+            "Measures",
+            `${(mvpAssessmentMode(state.settings) ? INSTRUMENTS : STANDARD_INSTRUMENTS).length} codebook measures · Browse fields and preview questions`,
+            "instruments",
+            "Browse measures",
+          ],
+          [
+            Database,
+            "Data dictionary",
+            "Field definitions, coding, and extract mappings",
+            "data-dictionary",
+            "Browse data dictionary",
+          ],
+          [
+            FileCheck2,
+            "Record outcomes",
+            "Configure outcome choices for measure status changes",
+            "outcomes",
+            "Manage outcomes",
           ],
           [
             MessageSquare,
@@ -414,7 +433,7 @@ export function Administration({ openModal, navigate }) {
               <h3>{title}</h3>
               <p>{desc}</p>
             </div>
-            <Button onClick={() => type === "bundles" ? navigate("/administration?tab=bundles") : openModal({ type })}>
+            <Button onClick={() => ["bundles", "instruments", "outcomes", "data-dictionary"].includes(type) ? navigate(`/administration?tab=${type}`) : openModal({ type })}>
               {action}
               <ArrowRight size={17} />
             </Button>
@@ -438,7 +457,7 @@ export function Help({ navigate, openModal }) {
           [
             ClipboardList,
             "Follow an overdue review",
-            "Open Kai’s record, choose Set up collection, confirm a sample collection method, and complete the instrument.",
+            "Open Kai’s record, choose Set up collection, confirm a sample collection method, and complete the measure.",
             "Open Kai’s record",
             () => navigate("/people/YS-1024"),
           ],
@@ -459,8 +478,8 @@ export function Help({ navigate, openModal }) {
           [
             Users,
             "Try the participant experience",
-            "Try a longer instrument with questions that adapt to your answers, without updating a person’s care record. No account is needed.",
-            "Try a sample instrument",
+            "Try a longer measure with questions that adapt to your answers, without updating a person’s care record. No account is needed.",
+            "Try a sample measure",
             () => navigate("/preview"),
           ],
         ].map(([Icon, title, desc, label, fn]) => (

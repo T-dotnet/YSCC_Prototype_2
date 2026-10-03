@@ -1,12 +1,13 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import useQueueView from "../useQueueView";
 import { Plus, ChevronRight, CircleAlert, CheckCircle2 } from "lucide-react";
 import { useStore } from "../store";
 import { assessmentSchedulingEnabled, assessmentBundleGroupingEnabled } from "../assessmentFeatures";
-import { appTerm } from "../terminology.js";
+import { mvpAssessmentMode } from "../mvpAssessmentPathway";
 import { formatDate, TODAY } from "../model";
 import { getQualityIssues, recordCompleteness } from "../dataQuality";
 import { comparePeople, episodeDisplayStatus, peopleForList, peopleBundleSummary } from "../people";
+import { ASSESSMENT_BUNDLE_STATUS_TONES } from '../assessmentBundleStatus.js';
 import { sortQueueRows } from "../queueSort";
 import { patientIdentifier, patientSecondaryDetail } from "../patientIdentity";
 import { ActiveFilters, SortableHeader, useQueueSort } from "../components/QueueControls";
@@ -19,6 +20,7 @@ import {
   Panel,
   Select,
   Badge,
+  ProgressBar,
   Empty,
   Pagination,
 } from "../components/UI";
@@ -28,16 +30,27 @@ const PAGE_SIZE = 6;
 export default function People({ navigate, openModal }) {
   const { state } = useStore();
   const scheduleAssessments = assessmentSchedulingEnabled(state.settings);
+  const mvpMode = mvpAssessmentMode(state.settings);
+  const listPeople = useMemo(() => mvpMode
+    ? state.people.filter(person => person.episodes?.length || person.archivedAt)
+    : state.people, [state.people, mvpMode]);
   const groupedBundles = assessmentBundleGroupingEnabled(state.settings);
-  const summaryLabel = groupedBundles ? `Next / latest ${appTerm("measures", "singular").toLowerCase()}` : 'Next / latest instrument';
+  const summaryLabel = 'Assessment Pack';
   const view = useQueueView();
   const query = view.params.get("q") || "";
   const { sort: sortConfig, toggleSort } = useQueueSort({ key: "priority", direction: "asc" });
-  const status = ["Active", "Paused", "Closed", "Completed", "Intake", "Archived"].includes(
-    view.params.get("status"),
-  )
-    ? view.params.get("status")
-    : "All episodes";
+  const episodeStages = [...(mvpMode ? [] : ["Intake"]), "Profiling", "Assessment", "Ongoing review", "Not proceed", "Paused", "Closed", "Completed", "Discharged"];
+  const currentRows = peopleForList(listPeople, 'All episodes', '', state.settings);
+  const availableStages = [...new Set(currentRows.map((row) => episodeDisplayStatus(row.episode, state.settings)))];
+  const episodeFilters = ["All episodes", ...episodeStages.filter((stage) => availableStages.includes(stage)),
+    ...availableStages.filter((stage) => !episodeStages.includes(stage)),
+    ...(listPeople.some((person) => person.archivedAt) ? ["Archived"] : [])];
+  const requestedStatus = view.params.get("status");
+  const status = episodeFilters.includes(requestedStatus) ? requestedStatus : "All episodes";
+  useEffect(() => {
+    if (requestedStatus && requestedStatus !== status)
+      view.set("status", "All episodes", "All episodes", true);
+  }, [requestedStatus, status]);
   const setQuery = (value) => view.set("q", value, "", true);
   const setStatus = (value) => view.set("status", value, "All episodes", true);
   const assessmentStatus = view.params.get("assessment") || "All statuses";
@@ -60,7 +73,7 @@ export default function People({ navigate, openModal }) {
   const qualityIssues = useMemo(() => getQualityIssues(state, TODAY), [state]);
 
   const rows = useMemo(() => {
-    let result = peopleForList(state.people, status, query);
+    let result = peopleForList(listPeople, status, query, state.settings);
     if (!scheduleAssessments) result = result.map((row) => {
       if (!row.collection) return row;
       const assessmentState = row.collection.response === "Submitted" ? "Completed"
@@ -68,8 +81,8 @@ export default function People({ navigate, openModal }) {
       return {
         ...row,
         status: assessmentState,
-        detail: assessmentState === "Completed" ? "Instrument completed"
-          : assessmentState === "Draft" ? "Draft saved" : "Instrument created",
+        detail: assessmentState === "Completed" ? "Measure completed"
+          : assessmentState === "Draft" ? "Draft saved" : "Measure created",
         due: "",
       };
     });
@@ -82,9 +95,9 @@ export default function People({ navigate, openModal }) {
       status: (row) => row.status,
       completeness: (row) => recordCompleteness(row.person, TODAY).requiredPercentage,
       owner: (row) => row.episode?.owner || row.person.owner || "Unassigned",
-      episodeStatus: (row) => episodeDisplayStatus(row.episode),
+      episodeStatus: (row) => episodeDisplayStatus(row.episode, state.settings),
     }, sortConfig.key === "priority" ? comparePeople : undefined);
-  }, [state.people, state.settings, groupedBundles, scheduleAssessments, status, query, sortConfig]);
+  }, [listPeople, state.settings, groupedBundles, scheduleAssessments, status, query, sortConfig]);
 
   const statusOptions = [...new Set(rows.map((row) => row.status))];
   if (
@@ -96,11 +109,13 @@ export default function People({ navigate, openModal }) {
     (row) =>
       assessmentStatus === "All statuses" || row.status === assessmentStatus,
   );
-  const episodeFilters = ["All episodes", "Intake", "Active", "Paused", "Closed", "Completed", "Archived"];
   const episodeFilterItems = episodeFilters.map((value) => ({
     value,
     label: value === "All episodes" ? "All" : value,
-    count: peopleForList(state.people, value).length,
+    verbatim: true,
+    count: value === "All episodes" ? currentRows.length
+      : value === "Archived" ? listPeople.filter((person) => person.archivedAt).length
+        : currentRows.filter((row) => episodeDisplayStatus(row.episode, state.settings) === value).length,
   }));
   const pageCount = Math.max(1, Math.ceil(people.length / PAGE_SIZE));
   const requestedPage = Number(view.params.get("page"));
@@ -112,6 +127,11 @@ export default function People({ navigate, openModal }) {
   const visiblePeople = people.slice(pageStart, pageStart + PAGE_SIZE);
   const showingFrom = people.length ? pageStart + 1 : 0;
   const showingTo = Math.min(pageStart + PAGE_SIZE, people.length);
+  const activeFilterItems = [
+    ...(query ? [{ id: "search", label: `Search: ${query}`, onRemove: () => setQuery("") }] : []),
+    ...(assessmentStatus !== "All statuses" ? [{ id: "assessment", label: `${groupedBundles ? "Assessment" : "Measure"}: ${assessmentStatus}`, onRemove: () => view.set("assessment", "All statuses", "All statuses", true) }] : []),
+    ...(status !== "All episodes" ? [{ id: "episode", label: `Episode: ${status}`, onRemove: () => setStatus("All episodes") }] : []),
+  ];
   const personHref = ({ person, episode, collection }) => {
     const params = new URLSearchParams({ returnTo: view.href });
     if (episode) params.set("episode", episode.id);
@@ -155,13 +175,13 @@ export default function People({ navigate, openModal }) {
           onQueryChange={setQuery}
           placeholder="Search people"
           shown={people.length}
-          total={state.people.filter((person) => status === "Archived" ? !!person.archivedAt : !person.archivedAt).length}
+          total={peopleForList(listPeople, status, '', state.settings).length}
           noun="people"
           activeAdvancedCount={Number(assessmentStatus !== "All statuses")}
-          onClear={clearAll}
+          resultAction={<ActiveFilters items={activeFilterItems} onClear={clearAll} inline />}
           advanced={
             <Select
-              label={groupedBundles ? "Assessment status" : "Instrument status"}
+              label={groupedBundles ? "Assessment status" : "Measure status"}
               value={assessmentStatus}
               onChange={(e) =>
                 view.set("assessment", e.target.value, "All statuses", true)
@@ -175,14 +195,6 @@ export default function People({ navigate, openModal }) {
               ))}
             </Select>
           }
-        />
-        <ActiveFilters
-          items={[
-            ...(query ? [{ id: "search", label: `Search: ${query}`, onRemove: () => setQuery("") }] : []),
-            ...(assessmentStatus !== "All statuses" ? [{ id: "assessment", label: `${groupedBundles ? "Assessment" : "Instrument"}: ${assessmentStatus}`, onRemove: () => view.set("assessment", "All statuses", "All statuses", true) }] : []),
-            ...(status !== "All episodes" ? [{ id: "episode", label: `Episode: ${status}`, onRemove: () => setStatus("All episodes") }] : []),
-          ]}
-          onClear={clearAll}
         />
         <StandardTable className="people-table" scrollClassName="people-table-scroll" label="People and assessment status">
             <thead>
@@ -229,6 +241,10 @@ export default function People({ navigate, openModal }) {
                       </div>
                     </QueueCell>
                     <QueueCell label={summaryLabel} slot="summary" className="people-assessment">
+                      <div className="people-assessment-heading">
+                        <span>{summaryLabel}</span>
+                        <Badge tone={row.bundleStatus ? ASSESSMENT_BUNDLE_STATUS_TONES[row.bundleStatus] : undefined}>{row.status}</Badge>
+                      </div>
                       <span>
                         {!groupedBundles && row.stage ? `Intake - ${row.stage}` : row.label}
                       </span>
@@ -239,7 +255,7 @@ export default function People({ navigate, openModal }) {
                       )}
                     </QueueCell>
                     <QueueCell label="Status" slot="state" className="people-status">
-                      <Badge>{row.status}</Badge>
+                      <Badge tone={row.bundleStatus ? ASSESSMENT_BUNDLE_STATUS_TONES[row.bundleStatus] : undefined}>{row.status}</Badge>
                     </QueueCell>
                     <QueueCell label="Required data" slot="metric" className="people-completeness">
                       <div className={`people-completeness-summary ${completeness.requiredPercentage === 100 ? "complete-100" : ""}`}>
@@ -251,18 +267,11 @@ export default function People({ navigate, openModal }) {
                         ) : (
                           <strong>{completeness.requiredPercentage}%</strong>
                         )}
-                        <span
-                          className={`people-completeness-bar ${completeness.requiredPercentage === 100 ? "complete-100" : ""}`}
-                          role="progressbar"
-                          aria-label={`${completeness.requiredPercentage}% of required data complete`}
-                          aria-valuemin="0"
-                          aria-valuemax="100"
-                          aria-valuenow={completeness.requiredPercentage}
-                        >
-                          <span
-                            style={{ width: `${completeness.requiredPercentage}%` }}
-                          />
-                        </span>
+                        <ProgressBar
+                          className="people-completeness-bar"
+                          value={completeness.requiredPercentage}
+                          label={`${completeness.requiredPercentage}% of required data complete`}
+                        />
                         {validationIssue && (
                           <span className="people-validation-indicator">
                             <button
@@ -300,7 +309,7 @@ export default function People({ navigate, openModal }) {
                       {episode?.owner || p.owner || "Unassigned"}
                     </QueueCell>
                     <QueueCell label="Episode" slot="date" className="people-episode" verbatim>
-                      <span>{episodeDisplayStatus(episode)}</span>
+                      <span>{episodeDisplayStatus(episode, state.settings)}</span>
                       <small>
                         {episode
                           ? `Started ${formatDate(episode.start)}`
@@ -330,7 +339,7 @@ export default function People({ navigate, openModal }) {
           <span>
             Showing {showingFrom}–{showingTo} of {people.length} people
           </span>
-          <span>{groupedBundles ? `Next / latest ${appTerm("measures", "singular").toLowerCase()} shown first` : 'Highest-priority instrument shown first'}</span>
+          <span>{groupedBundles ? 'Assessment Pack shown first' : 'Highest-priority measure shown first'}</span>
           <Pagination
             label="People"
             page={page}

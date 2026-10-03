@@ -26,11 +26,11 @@ export default function InstrumentLibrary({ onClose }) {
   return (
     <>
     <Modal
-      title={preview ? "Instrument preview" : "Instrument library"}
+      title={preview ? "Measure preview" : "Measure library"}
       subtitle={
         preview
           ? preview.version
-          : `${catalog.length} sample instruments`
+          : `${catalog.length} codebook measures`
       }
       onClose={preview ? backToLibrary : onClose}
       closeLabel={preview ? "Close preview" : "Close dialog"}
@@ -40,20 +40,20 @@ export default function InstrumentLibrary({ onClose }) {
     >
       <div className="form-body instrument-library" hidden={!!preview}>
         <Notice>
-          Original sample instruments for exploring the workspace. These are
-          not validated clinical measures and do not calculate scores.
+          These measures capture coded fields from the headspace EP 2025
+          extract. Use the approved assessment protocol for clinical collection.
         </Notice>
         <ActionGroup className="instrument-library-actions">
-          <Button type="button" variant="primary" onClick={()=>setPendingFeature("Create instrument")}>Create instrument</Button>
-          <Button type="button" variant="secondary" onClick={()=>setPendingFeature("Import instrument")}>Import</Button>
+          <Button type="button" variant="primary" onClick={()=>setPendingFeature("Create measure")}>Create measure</Button>
+          <Button type="button" variant="secondary" onClick={()=>setPendingFeature("Import measure")}>Import</Button>
         </ActionGroup>
         <SearchInput
           value={search}
           onChange={setSearch}
-          placeholder="Search instruments"
+          placeholder="Search measures"
         />
         <p className="muted" role="status">
-          {instruments.length} of {catalog.length} instruments
+          {instruments.length} of {catalog.length} measures
         </p>
         <div className="instrument-list">
           {instruments.map((instrument) => (
@@ -88,7 +88,7 @@ export default function InstrumentLibrary({ onClose }) {
             </article>
           ))}
           {!instruments.length && (
-            <Empty title="No matching instruments">
+            <Empty title="No matching measures">
               Try a different name or topic.
             </Empty>
           )}

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createDefaultWorkspace, reducer, TODAY } from "./model.js";
+import { createDefaultWorkspace, createSeed, reducer, TODAY, upgradeSampleData } from "./model.js";
 import { canAssess, intakeTasks } from "./intake.js";
 import { episodeDisplayStatus, peopleForList } from "./people.js";
 import { ageAtCommencement, derivedEpisodeStatus, derivedEpisodeStream } from "./batch1Registration.js";
@@ -37,7 +37,8 @@ test("fictional measure flow keeps each status beside its current measure", () =
     const hasReview = episode.collections.some(item => item.mvpTimepointId);
     assert.equal(hasReview, measure.startsWith("90-day review"));
     assert.ok(episode.collections.every(item =>
-      !item.mvpInitialAssessment || item.mvpRespondent === "Person"), id);
+      !item.mvpInitialAssessment || item.mvpRespondent === "Person" ||
+      id === 'YS-1033' && item.mvpRespondent === 'Clinician'), id);
     const reviewRoles = new Set(episode.collections.filter(item => item.mvpTimepointId)
       .map(item => item.mvpRespondent));
     assert.deepEqual([...reviewRoles].sort(), hasReview ? ["Clinician", "Person"] : []);
@@ -46,6 +47,41 @@ test("fictional measure flow keeps each status beside its current measure", () =
   }
   assert.equal(workspace.people.some(person => person.id.startsWith("YS-DEMO-PROFILE") ||
     person.id.startsWith("YS-DEMO-INITIAL") || person.id.startsWith("YS-DEMO-REVIEW")), false);
+  assert.equal(workspace.people.some(person => person.id === "YS-1031" || person.id === "YS-1032"), false);
+});
+
+test('Jordan Lee includes a clinician initial assessment and fictional contacts', () => {
+  const workspace = createDefaultWorkspace();
+  const jordan = workspace.people.find(person => person.id === 'YS-1033');
+  const episode = jordan.episodes.find(item => item.id === 'EP-YS-1033-01');
+  const clinician = episode.collections.find(record => record.mvpInitialAssessment && record.mvpRespondent === 'Clinician');
+  assert.equal(clinician?.version, 'Clinician initial assessment v1.0');
+  assert.equal(clinician?.channel, 'Clinician entry');
+  assert.deepEqual(episode.appointments.filter(item => item.id.startsWith('APT-YS-1033-')).map(item => item.id).sort(),
+    ['APT-YS-1033-follow-up', 'APT-YS-1033-initial', 'APT-YS-1033-planning-contact', 'APT-YS-1033-welcome-call']);
+  assert.equal(ensureSampleMvpFlow(workspace, TODAY), workspace);
+});
+
+test("MVP removes only untouched intake examples from saved fictional data", () => {
+  const saved = createSeed();
+  saved.settings.advancedAssessmentOptions = false;
+  saved.people.find(person => person.id === "YS-1032").intakes[0].nextAction = "Edited locally";
+  const migrated = ensureSampleMvpFlow(saved, TODAY);
+  assert.equal(migrated.people.some(person => person.id === "YS-1031"), false);
+  assert.equal(migrated.people.find(person => person.id === "YS-1032")?.intakes[0].nextAction, "Edited locally");
+});
+
+test("saved workspaces retire obsolete demo and scratch people without removing renamed records", () => {
+  const saved = createDefaultWorkspace();
+  const example = saved.people[0];
+  saved.people.push({ ...structuredClone(example), id: "YS-DEMO-REVIEW", name: "Riley Chen" });
+  saved.people.push({ ...structuredClone(example), id: "YS-1035", name: "test" });
+  saved.people.push({ ...structuredClone(example), id: "YS-1036", name: "11" });
+  saved.people.push({ ...structuredClone(example), id: "YS-DEMO-INITIAL", name: "Renamed person" });
+  const upgraded = upgradeSampleData(saved);
+  assert.equal(upgraded.people.some((person) => person.id === "YS-DEMO-REVIEW"), false);
+  assert.equal(upgraded.people.some((person) => person.id === "YS-1035" || person.id === "YS-1036"), false);
+  assert.equal(upgraded.people.some((person) => person.id === "YS-DEMO-INITIAL"), true);
 });
 
 test("saved fictional profiles drop old family and clinician initial measures without adding people", () => {

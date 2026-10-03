@@ -13,13 +13,13 @@ The shared product vocabulary lives in [src/terminology.js](../src/terminology.j
 
 | Context | Preferred label | Values / meaning |
 | --- | --- | --- |
-| Assessment setup, instrument filters, response sessions and answer evidence | **${TERMINOLOGY.collectionMethod.label}** | ${TERMINOLOGY.collectionMethod.options.map(([, label]) => label).join(', ')} |
+| Assessment Pack setup, measure filters, response sessions and answer evidence | **${TERMINOLOGY.collectionMethod.label}** | ${TERMINOLOGY.collectionMethod.options.map(([, label]) => label).join(', ')} |
 | Service-contact forms, details and care chronology | **${TERMINOLOGY.contactMethod.label}** | How the contact takes place; for example In person, Phone or Video |
 | Consent-request forms, details and filters | **${TERMINOLOGY.deliveryMethod.label}** | How the request is delivered or presented |
 
-An in-person service contact can collect answers through Clinic tablet or Clinician entry. Those fields describe different facts. SMS link is an assessment collection method; SMS is a contact-method value. Do not map one to the other automatically.
+An in-person contact can collect answers through Clinic tablet or Clinician entry. Those fields describe different facts. SMS link is a measure collection method; SMS is a contact-method value. Do not map one to the other automatically.
 
-Use **${COLLECTION_METHOD_SETTING_LABEL}** for the setting that enables assessment method selection. Use the complete option labels in compact and full views alike. Use **Planned collection method** when an assessment has a selected method but no response session yet.
+Use **${COLLECTION_METHOD_SETTING_LABEL}** for the setting that enables method selection for a Collection Occasion. Use the complete option labels in compact and full views alike. Use **Planned collection method** when a Collection Occasion has a selected method but no response session yet.
 
 ## Shared glossary
 
@@ -30,11 +30,13 @@ ${Object.values(TERMINOLOGY).map(term => `| **${cell(term.label)}** | ${cell(dis
 ## Usage and compatibility
 
 - Import shared labels and collection-method options from \u0060src/terminology.js\u0060. Do not create a new local list or shorten option labels to Clinician, Tablet or SMS.
-- Use **Respondent** throughout assessments and individual instruments. **Recipient** remains valid for service contacts and consent requests.
-- Keep Created, Draft and Completed in the simple assessment view. Full views retain separate assignment, response and clinical-review statuses; these dimensions are not interchangeable.
+- Use **Respondent** for the person supplying measure answers. **Recipient** remains valid for contacts and consent requests.
+- A Pack is the defined set; a Collection Occasion is that Pack issued to one young person at one point in time; each completed measure in it is a Response. Do not use Measure for a Pack or Collection Occasion.
+- Keep Created, Draft and Completed in the simple collection view. Full views retain separate assignment, response and clinical-review statuses; these dimensions are not interchangeable.
+- The current persisted \u0060episode.collections[]\u0060 items represent individual assigned measures. A Collection Occasion is represented by their shared pack instance; the existing storage shape is retained.
 - Preserve existing storage keys (including \u0060channel\u0060, \u0060deliveryMode\u0060, \u0060recipient\u0060 and \u0060assessmentModality\u0060), persisted values, identifiers and historical audit records. Changing a visible label does not migrate data or alter a workflow.
 - Dated stakeholder documents and earlier handovers are historical snapshots. Use this glossary for current vocabulary; do not silently rewrite those snapshots.
-- Eligibility, mandatory instrument/contact linkage, care-intensity mappings and clinical intervals require separate decisions. This glossary does not settle them.
+- Eligibility, mandatory measure/contact linkage, care-intensity mappings and clinical intervals require separate decisions. This glossary does not settle them.
 
 After changing the vocabulary, run \u0060npm run terminology:generate\u0060, \u0060npm run terminology:check\u0060, the relevant domain tests, typecheck and build. Review the rendered fields in both assessment views and in narrow layouts.
 `;

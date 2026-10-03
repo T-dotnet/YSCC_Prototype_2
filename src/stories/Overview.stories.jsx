@@ -1,7 +1,7 @@
 const groups = [
   ["Foundations", "F01–F06", "Live colour, type, space, and shape tokens", "Responsive and focus contracts still need explicit story coverage"],
   ["Primitives", "A01–A12", "Actions, badges, identity, search, fields, pickers, validation", "Icon action, tags, choice controls, and progress need extraction"],
-  ["Compositions", "M01–M16", "Headings, panels, tabs, filters, responsive queue, consolidated record rows, compact assessment states, dialogs, feedback and semantic Care timeline", "Popover and grouped assessment summary remain feature-owned"],
+  ["Compositions", "M01–M16", "Headings, panels, tabs, filters, responsive queue, consolidated record rows, compact assessment states, dialogs, feedback, semantic Care timeline and current Administration surfaces", "Popover and grouped assessment summary remain feature-owned"],
   ["Templates", "O01–O11", "Person record context, People page excerpt, assessment cards and the current Report dashboard", "Full workspace, intake and participant templates need isolated fixtures"],
 ];
 

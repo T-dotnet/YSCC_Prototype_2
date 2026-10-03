@@ -15,22 +15,22 @@ import {
 } from "../assessmentFeatures";
 import { Button, PageHeading, Panel, Switch, Tabs } from "../components/UI";
 import { mvpAssessmentMode, mvpPathwayEnabled, mvpClinicianCreationEnabled, mvpBundleEditingEnabled } from '../mvpAssessmentPathway';
-import { phase2MvpPresetActive } from '../featurePresets.js';
+import { mvpPresetActive } from '../featurePresets.js';
 
 export default function AssessmentFeatures({navigate,openModal}) {
   const { state, commit } = useStore();
   const view=useQueueView();
   const [tab,setTab]=useState(() => view.params.get('tab') === 'preferences' ? 'preferences' : 'assessments');
-  const tabs=[{value:'assessments',label:appTerm("measures")},{value:'preferences',label:'Appearance & sample data'}];
+  const tabs=[{value:'assessments',label:'Assessment Pack'},{value:'preferences',label:'Appearance & sample data'}];
   const settings = state.settings || {};
   const mvp = mvpAssessmentMode(settings);
   const features = [
-    ["groupAssessmentsByBundle", "Group instruments into assessments", "Show instruments together in the assessment ledger. Use New assessment to choose an assessment or create one from selected instruments.", assessmentBundleGroupingEnabled(settings)],
-    ["bundleAccordions", "Assessment accordions", "Expand assessment details inside the assessment ledger. When off, assessment details open in a dialog. Applies when Group instruments into assessments is on.", assessmentBundleAccordionsEnabled(settings)],
-    ["showAssessmentDueDates", "Assessment due dates", "Show due dates for assessments and instruments, with Due today and Past due labels. Show one upcoming instrument per type while a response is in progress.", assessmentDueDatesEnabled(settings)],
+    ["groupAssessmentsByBundle", "Group measures into Collection Occasions", "Show measures together by Collection Occasion. Use New Collection Occasion to choose an Assessment Pack or create one from selected measures.", assessmentBundleGroupingEnabled(settings)],
+    ["bundleAccordions", "Assessment accordions", "Expand assessment details inside the assessment ledger. When off, assessment details open in a dialog. Applies when Group measures into assessments is on.", assessmentBundleAccordionsEnabled(settings)],
+    ["showAssessmentDueDates", "Assessment due dates", "Show due dates for assessments and measures, with Due today and Past due labels. Show one upcoming measure per type while a response is in progress.", assessmentDueDatesEnabled(settings)],
     ["scheduleAssessments", "Schedule assessments", "Allow future assessment due dates and planned contacts. When off, assessments start immediately, planned contacts are hidden, and contacts can only be recorded.", assessmentSchedulingEnabled(settings)],
     ["linkAssessmentAppointments", "Link service contacts and assessments", "Choose related contacts during assessment and appointment work, and show their links in both records.", assessmentContactLinkingEnabled(settings)],
-    ["assessmentModality", COLLECTION_METHOD_SETTING_LABEL, "Choose Clinician entry, Clinic tablet, or SMS link when starting an assessment. SMS is available only when Assessment SMS flow is on. When off, the assessment opens on the tablet path.", assessmentModalityEnabled(settings)],
+    ["assessmentModality", COLLECTION_METHOD_SETTING_LABEL, "Choose Clinician entry, Clinic tablet, or SMS link when starting a Collection Occasion. SMS is available only when SMS link collection is on. When off, collection opens on the tablet path.", assessmentModalityEnabled(settings)],
   ];
 
   return (
@@ -39,16 +39,27 @@ export default function AssessmentFeatures({navigate,openModal}) {
       <Tabs id="settings" label="Settings sections" items={tabs} value={tab} onChange={value=>{setTab(value);view.set('tab',value,'assessments');}} />
       <div role="tabpanel" id="settings-panel" aria-labelledby={`settings-tab-${tab === 'preferences' ? 1 : 0}`}>
       {tab === 'preferences' ? <AppearanceSampleSettings navigate={navigate} openModal={openModal} /> : <>
+      <Panel title="Assessment pathway" className="admin-panel">
+        <div className="admin-row">
+          <span className="admin-icon"><SlidersHorizontal size={24} /></span>
+          <div>
+            <h3>Stage 2 assessment flexibility</h3>
+            <p>When off, use the fixed MVP pathway: scheduled 90-day reviews with patient and clinician measures.</p>
+          </div>
+          <Switch label="Stage 2 assessment flexibility" checked={!mvp}
+            onChange={(event) => commit({ type: 'SET_ADVANCED_ASSESSMENT_OPTIONS', enabled: event.target.checked })} />
+        </div>
+      </Panel>
       <Panel title="Feature preset" className="admin-panel">
         <div className="admin-row">
           <span className="admin-icon"><SlidersHorizontal size={24} /></span>
           <div>
-            <h3>Phase 2 MVP</h3>
-            <p>Turn on Assessment SMS flow, Phase 2 care activity MVP, Keep measures and contacts separate, MVP assessment pathway, and General report. Turn off all other feature switches, including Stage 2 assessment flexibility.</p>
-            {phase2MvpPresetActive(settings) && <p role="status">Preset applied</p>}
+            <h3>MVP preset</h3>
+            <p>Turn on General report, SMS link collection, Show measure activity in Contacts, MVP schedule presets, Care point heading, Place Record outcome below the table, Separate measures and contacts, Create initial and 90-day assessments, and Record assessment outcome. Turn off the other feature switches, including Stage 2 assessment flexibility.</p>
+            {mvpPresetActive(settings) && <p role="status">Preset applied</p>}
           </div>
-          <Button type="button" disabled={phase2MvpPresetActive(settings)}
-            onClick={() => commit({ type: 'APPLY_PHASE_2_MVP_PRESET' })}>Apply preset</Button>
+          <Button type="button" disabled={mvpPresetActive(settings)}
+            onClick={() => commit({ type: 'APPLY_MVP_PRESET' })}>Apply preset</Button>
         </div>
       </Panel>
       <Panel title="Workspace features" className="admin-panel">
@@ -63,79 +74,55 @@ export default function AssessmentFeatures({navigate,openModal}) {
             onChange={(event) => commit({ type: 'SET_GENERAL_REPORT_VISIBILITY', enabled: event.target.checked })} />
         </div>
       </Panel>
-      <Panel title={appTerm("measures")} className="admin-panel">
-        <div className="admin-row">
-          <span className="admin-icon"><SlidersHorizontal size={24} /></span>
-          <div>
-            <h3>Stage 2 assessment flexibility</h3>
-            <p>When off, use the fixed MVP pathway: scheduled 90-day reviews with patient and clinician measures.</p>
-          </div>
-          <Switch label="Stage 2 assessment flexibility" checked={!mvp}
-            onChange={(event) => commit({ type: 'SET_ADVANCED_ASSESSMENT_OPTIONS', enabled: event.target.checked })} />
-        </div>
-        <div className="admin-row">
-          <span className="admin-icon"><SlidersHorizontal size={24} /></span>
-          <div><h3>Assessment SMS flow</h3><p>Offer the sample SMS link as a collection method in either assessment pathway.</p></div>
-          <Switch label="Assessment SMS flow" checked={assessmentSmsEnabled(settings)}
-            onChange={(event) => commit({ type: 'SET_ASSESSMENT_FEATURE', feature: 'assessmentSms', enabled: event.target.checked })} />
-        </div>
+      <Panel title="Assessment Pack" className="admin-panel">
         {mvp ? <>
         <div className="admin-row">
           <span className="admin-icon"><SlidersHorizontal size={24} /></span>
-          <div><h3>Phase 2 care activity MVP</h3><p>Show {appTerm("measures", "singular").toLowerCase()} activity and contacts in {appTerm("contacts")}. Hide contextual events and make Add event open the contact form.</p></div>
-          <Switch label="Phase 2 care activity MVP" checked={!!settings.phase2CareActivity}
+          <div><h3>Show measure activity in Contacts</h3><p>Show {appTerm("measures", "singular").toLowerCase()} activity alongside contacts. Hide contextual events; Add event opens the contact form.</p></div>
+          <Switch label="Show measure activity in Contacts" checked={!!settings.phase2CareActivity}
             onChange={(event) => commit({ type: "SET_PHASE2_CARE_ACTIVITY", enabled: event.target.checked })} />
         </div>
+        {settings.phase2CareActivity && <div className="admin-row">
+          <span className="admin-icon"><SlidersHorizontal size={24} /></span>
+          <div><h3>MVP schedule presets</h3><p>Replace detailed schedules with care point presets for new profiles, assessments, 90-day reviews, discharge, and existing referral or status events. Only 90-day reviews repeat.</p></div>
+          <Switch label="MVP schedule presets" checked={settings.mvpSchedulePresets !== false}
+            onChange={event => commit({ type: 'SET_MVP_SCHEDULE_PRESETS', enabled: event.target.checked })} />
+        </div>}
+        {settings.phase2CareActivity && <div className="admin-row">
+          <span className="admin-icon"><SlidersHorizontal size={24} /></span>
+          <div><h3>Care point heading</h3><p>Show the selected care point name, such as Initial assessment, as the heading in the person Assessment tab.</p></div>
+          <Switch label="Care point heading" checked={settings.mvpCarePointHeading === true}
+            onChange={event => commit({ type: 'SET_MVP_CARE_POINT_HEADING', enabled: event.target.checked })} />
+        </div>}
+        {settings.phase2CareActivity && settings.mvpCarePointHeading === true && <div className="admin-row admin-row-subsetting">
+          <span className="admin-icon"><SlidersHorizontal size={24} /></span>
+          <div><h3>Place Record outcome below the table</h3><p>Show the Record outcome action below the active Assessment table. When off, show it beside the care point heading.</p></div>
+          <Switch label="Place Record outcome below the table" checked={settings.mvpOutcomeBelowTable !== false}
+            onChange={event => commit({ type: 'SET_MVP_OUTCOME_BELOW_TABLE', enabled: event.target.checked })} />
+        </div>}
         <div className="admin-row">
           <span className="admin-icon"><SlidersHorizontal size={24} /></span>
-          <div><h3>Keep measures and contacts separate</h3><p>Hide contact links in measure details and instrument links in contacts. Save responses and drafts without asking for contact links or completion details.</p></div>
-          <Switch label="Keep measures and contacts separate" checked={!!settings.mvpSeparateMeasuresContacts}
+          <div><h3>Separate measures and contacts</h3><p>Hide links between measures and contacts. Staff can save responses and drafts without linking a contact or adding completion details.</p></div>
+          <Switch label="Separate measures and contacts" checked={!!settings.mvpSeparateMeasuresContacts}
             onChange={(event) => commit({ type: "SET_MVP_SEPARATE_MEASURES_CONTACTS", enabled: event.target.checked })} />
         </div>
           <div className="admin-row">
             <span className="admin-icon"><SlidersHorizontal size={24} /></span>
-            <div><h3>Clinician-created assessments</h3><p>Show New assessment in the {appTerm("measures")} tab and user-created sample assessments.</p></div>
-            <Switch label="Clinician-created assessments" checked={mvpClinicianCreationEnabled(settings)}
-              onChange={event => commit({type:'SET_MVP_CLINICIAN_CREATION',enabled:event.target.checked})} />
-          </div>
-          <div className="admin-row">
-            <span className="admin-icon"><SlidersHorizontal size={24} /></span>
-            <div><h3>Edit system-generated bundles</h3><p>Allow staff to add or remove untouched instruments for one person. All included instruments remain mandatory.</p></div>
-            <Switch label="Edit system-generated bundles" checked={mvpBundleEditingEnabled(settings)}
-              onChange={event => commit({type:'SET_MVP_BUNDLE_EDITING',enabled:event.target.checked})} />
-          </div>
-          <div className="admin-row">
-            <span className="admin-icon"><SlidersHorizontal size={24} /></span>
             <div>
-              <h3>MVP assessment pathway</h3>
-              <p>Every 90 days · the General and Psychosis patient bundles follow Batch 3 Data item instruments. Other streams use prototype questionnaires, and the clinician review uses a fictional staff-completed instrument. Each respondent has a separate bundle and collection method. Scheduled review reminders appear in Notifications.</p>
-              <p>Batch 2 and 3 instruments capture codebook fields; they are not approved clinical questionnaire reproductions.</p>
-              <p>When off, no new pathway assessments are prepared. Existing assessments and responses stay in the ledger.</p>
+              <h3>Create initial and 90-day assessments</h3>
+              <p>Prepare an initial assessment and scheduled 90-day reviews for each program stream. Review reminders appear in Notifications.</p>
+              <p>Psychosis reviews use Batch 3 Data item measures. Other streams use fictional staff-completed reviews until approved measures are available. Batch 2 and 3 measures are codebook fields, not approved clinical questionnaires.</p>
+              <p>When off, no new pathway assessments are prepared. Existing assessments and responses remain available.</p>
             </div>
-            <Switch label="MVP assessment pathway" checked={mvpPathwayEnabled(settings)}
+            <Switch label="Create initial and 90-day assessments" checked={mvpPathwayEnabled(settings)}
               onChange={event => commit({type:'SET_MVP_ASSESSMENT_PATHWAY',enabled:event.target.checked})} />
-          </div>
-          <div className="admin-row">
-            <span className="admin-icon"><SlidersHorizontal size={24} /></span>
-            <div><h3>Profile tab</h3><p>Show Profile as a person record tab. When off, show More info in the person header with a profile summary and an Edit action.</p></div>
-            <Switch label="Show Profile tab" checked={settings.mvpProfileTab !== false}
-              onChange={event => commit({ type: 'SET_MVP_PROFILE_TAB', enabled: event.target.checked })} />
           </div>
           {mvpPathwayEnabled(settings) && <div className="admin-row">
             <span className="admin-icon"><SlidersHorizontal size={24} /></span>
-            <div><h3>New-profile Measures view</h3><p>Show the Collect response workspace in new MVP profiles. Turn off to show the normal Measures ledger.</p></div>
-            <Switch label="Collect response view for new profiles" checked={settings.mvpNewProfileCollectWorkspace !== false}
-              onChange={event => commit({ type: 'SET_MVP_NEW_PROFILE_COLLECT_WORKSPACE', enabled: event.target.checked })} />
+            <div><h3>Record assessment outcome</h3><p>Show Record outcome beside the response action at every stage of an initial assessment configured to change status to Ongoing review. The Batch 2 outcome is required before that status change.</p></div>
+            <Switch label="Record assessment outcome" checked={settings.mvpRecordAssessmentOutcome !== false}
+              onChange={event => commit({type:'SET_MVP_RECORD_ASSESSMENT_OUTCOME',enabled:event.target.checked})} />
           </div>}
-          <div className="admin-row">
-            <span className="admin-icon"><SlidersHorizontal size={24} /></span>
-            <div>
-              <h3>Highlight scheduled 90-day review</h3>
-              <p>When off, show scheduled reviews alongside user-created assessments in the assessment table.</p>
-            </div>
-            <Switch label="Highlight scheduled 90-day review" checked={settings.mvpReviewHighlight !== false}
-              onChange={(event) => commit({ type: 'SET_MVP_REVIEW_HIGHLIGHT', enabled: event.target.checked })} />
-          </div>
         </> : <>
         <div className="admin-row">
           <span className="admin-icon"><SlidersHorizontal size={24} /></span>
@@ -156,6 +143,55 @@ export default function AssessmentFeatures({navigate,openModal}) {
         ))}
         </>}
       </Panel>
+      <Panel title="Other features" className="admin-panel">
+        <div className="admin-row">
+          <span className="admin-icon"><SlidersHorizontal size={24} /></span>
+          <div><h3>SMS link collection</h3><p>Let staff choose an SMS link when collecting measure responses. When off, existing SMS measures wait until this is turned back on.</p></div>
+          <Switch label="SMS link collection" checked={assessmentSmsEnabled(settings)}
+            onChange={(event) => commit({ type: 'SET_ASSESSMENT_FEATURE', feature: 'assessmentSms', enabled: event.target.checked })} />
+        </div>
+        {mvp && <div className="admin-row">
+          <span className="admin-icon"><SlidersHorizontal size={24} /></span>
+          <div><h3>Tags on person records</h3><p>Show each person's tags and the Add tag action beside their name.</p></div>
+          <Switch label="Tags on person records" checked={settings.mvpShowPersonTags === true}
+            onChange={event => commit({ type: 'SET_MVP_SHOW_PERSON_TAGS', enabled: event.target.checked })} />
+        </div>}
+      </Panel>
+      {mvp && <Panel title="Collection and person record options" className="admin-panel">
+        <div className="admin-row">
+          <span className="admin-icon"><SlidersHorizontal size={24} /></span>
+          <div><h3>Clinician-created Collection Occasions</h3><p>Show New Collection Occasion in the Assessment Pack tab and user-created sample collections.</p></div>
+          <Switch label="Clinician-created assessments" checked={mvpClinicianCreationEnabled(settings)}
+            onChange={event => commit({type:'SET_MVP_CLINICIAN_CREATION',enabled:event.target.checked})} />
+        </div>
+        <div className="admin-row">
+          <span className="admin-icon"><SlidersHorizontal size={24} /></span>
+          <div><h3>Edit system-generated bundles</h3><p>Allow staff to add or remove untouched measures for one person. All included measures remain mandatory.</p></div>
+          <Switch label="Edit system-generated bundles" checked={mvpBundleEditingEnabled(settings)}
+            onChange={event => commit({type:'SET_MVP_BUNDLE_EDITING',enabled:event.target.checked})} />
+        </div>
+        <div className="admin-row">
+          <span className="admin-icon"><SlidersHorizontal size={24} /></span>
+          <div><h3>Profile tab</h3><p>Show Profile as a person record tab. When off, show More info in the person header with a profile summary and an Edit action.</p></div>
+          <Switch label="Show Profile tab" checked={settings.mvpProfileTab !== false}
+            onChange={event => commit({ type: 'SET_MVP_PROFILE_TAB', enabled: event.target.checked })} />
+        </div>
+        {mvpPathwayEnabled(settings) && <div className="admin-row">
+          <span className="admin-icon"><SlidersHorizontal size={24} /></span>
+          <div><h3>New-profile Assessment Pack view</h3><p>Show the Collect response workspace in new MVP profiles. Turn off to show the normal Assessment Pack ledger.</p></div>
+          <Switch label="Collect response view for new profiles" checked={settings.mvpNewProfileCollectWorkspace !== false}
+            onChange={event => commit({ type: 'SET_MVP_NEW_PROFILE_COLLECT_WORKSPACE', enabled: event.target.checked })} />
+        </div>}
+        <div className="admin-row">
+          <span className="admin-icon"><SlidersHorizontal size={24} /></span>
+          <div>
+            <h3>Highlight scheduled 90-day review</h3>
+            <p>When off, show scheduled reviews alongside user-created assessments in the assessment table.</p>
+          </div>
+          <Switch label="Highlight scheduled 90-day review" checked={settings.mvpReviewHighlight !== false}
+            onChange={(event) => commit({ type: 'SET_MVP_REVIEW_HIGHLIGHT', enabled: event.target.checked })} />
+        </div>
+      </Panel>}
       </>}
       </div>
     </>

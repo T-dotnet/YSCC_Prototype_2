@@ -14,7 +14,7 @@ import { assessmentContactLinkingEnabled, assessmentSmsEnabled } from "../assess
 import { mvpAssessmentMode } from "../mvpAssessmentPathway";
 import { canCollectInEpisode, displayFamilyName, displayPersonName, formatDate } from "../model";
 import {
-  DEMO_INSTRUMENT,
+  STANDARD_INSTRUMENTS,
   getInstrument,
   questionnaireState,
 } from "../instruments";
@@ -42,7 +42,7 @@ export default function Questionnaire({ session, navigate, onEnd }) {
   const [savedDraftContact, setSavedDraftContact] = useState(null);
   const [submitError, setSubmitError] = useState("");
   const dirty = answers.some((answer, index) => answer !== (session ? c?.draftAnswers || [] : [])[index]);
-  const instrument = session ? getInstrument(c?.version) : DEMO_INSTRUMENT;
+  const instrument = session ? getInstrument(c?.version) : STANDARD_INSTRUMENTS[0];
   const linkedAppointmentId = simpleAssessments ? null :
     c?.attempts.at(-1)?.appointmentId || c?.appointmentId;
   const linkedAppointment =
@@ -156,8 +156,8 @@ export default function Questionnaire({ session, navigate, onEnd }) {
         <Logo />
         <span>
           {preview
-            ? "Sample instrument · practice only"
-            : "Instrument · sample content"}
+            ? "Sample measure · practice only"
+            : "Measure · sample content"}
         </span>
       </header>
       <main className="questionnaire">
@@ -176,7 +176,7 @@ export default function Questionnaire({ session, navigate, onEnd }) {
             }
           >
             {savedDraftContact
-              ? simpleAssessments ? "Your draft is saved on the instrument. You can continue it in another session." : `Your answers are saved on the instrument. ${savedDraftContact === "none" ? "No contact was linked." : "The contact is linked under Related contacts."} You can continue the instrument in another session.`
+              ? simpleAssessments ? "Your draft is saved on the measure. You can continue it in another session." : `Your answers are saved on the measure. ${savedDraftContact === "none" ? "No contact was linked." : "The contact is linked under Related contacts."} You can continue the measure in another session.`
               : "The participant view has been cleared. In a live service, staff would sign in again before opening the workspace."}
           </Success>
         ) : finished ? (
@@ -197,7 +197,7 @@ export default function Questionnaire({ session, navigate, onEnd }) {
             {storageError
               ? "Your sample response is held in this open tab; browser storage is unavailable."
               : preview
-                ? "You’ve completed the sample instrument. This preview is separate from a care record."
+                ? "You’ve completed the sample measure. This preview is separate from a care record."
                 : "Your sample answers have been added to the record for the care team to review."}{" "}
             This does not mean that a clinical review has taken place.
           </Success>
@@ -254,7 +254,7 @@ export default function Questionnaire({ session, navigate, onEnd }) {
                   <p>
                     <strong>
                       {preview
-                        ? "Practice instrument"
+                        ? "Practice measure"
                         : "Requested by Northside Centre"}
                     </strong>
                     {p
@@ -296,11 +296,11 @@ export default function Questionnaire({ session, navigate, onEnd }) {
                   className="participant-next"
                   onClick={beginQuestionnaire}
                 >
-                  Begin instrument
+                  Begin measure
                   <ArrowRight size={20} />
                 </Button>
                 <p className="privacy-copy">
-                  These are demonstration questions, not a clinical instrument.
+                  These are demonstration questions, not a clinical measure.
                 </p>
               </>
             ) : pendingAnswers ? (
@@ -360,7 +360,7 @@ export default function Questionnaire({ session, navigate, onEnd }) {
                   <LifeBuoy size={18} />
                   Need help or a break?
                 </button>
-                <button onClick={requestEnd}>Leave instrument</button>
+                <button onClick={requestEnd}>Leave measure</button>
               </div>
             )}
             {submitError && !pendingAnswers && (
@@ -428,7 +428,7 @@ export default function Questionnaire({ session, navigate, onEnd }) {
             </p>
             <ActionGroup className="actions">
               <Button onClick={() => setHelp(false)}>
-                Continue instrument
+                Continue measure
               </Button>
               <Button
                 onClick={() => {

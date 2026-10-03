@@ -1,13 +1,14 @@
-import { LABELS, appTerm } from "./terminology.js";
+import { LABELS } from "./terminology.js";
 import { asBundle, bundleCollection, bundleContext, bundleIntervalDays, bundleTimingMode, bundleRepeats, bundleAgeMatches, bundleAssessmentsForCreation, bundleAdditionalAssessments, bundleSelectionForEpisode, collectionBelongsToBundle, bundleCollectionEditable, newBundleError, instrumentSupportsRespondent } from "./assessmentBundles.js";
-import { ensureSampleAssessmentBundles, SAMPLE_ASSESSMENT_BUNDLES } from "./sampleAssessmentBundles.js";
 import { reconcileAssessmentSchedules, scheduleRuleError } from "./assessmentSchedules.js";
 import { mvpAssessmentMode, mvpPathwayEnabled, mvpBlankAssessmentTemplate, mvpClinicianCreationEnabled, mvpBundleEditingEnabled, mvpReviewBundles, MVP_REVIEW_BUNDLES, mvpReviewBundleError, MVP_INITIAL_BUNDLES, mvpInitialBundles, mvpInitialBundleError } from './mvpAssessmentPathway.js';
 import { PROFILE_FIELDS, PROFILE_EPISODE_FIELDS } from './batch1Registration.js';
 import { clientProfileInstrument, clientProfileBundle, clientProfileBundleError } from './clientProfileMeasure.js';
-import { validMeasureStatusChange } from './measureStatusChange.js';
+import { completedStatusTransitions, validMeasureStatusChange } from './measureStatusChange.js';
+import { isRequiredStatusOutcomeTransition, statusOutcomeRuleFor, visibleStatusOutcomeOptions, validCustomStatusOutcomeRule } from './statusOutcomeRules.js';
 import { ensureSampleMvpFlow } from './sampleMvpFlow.js';
-import { PHASE_2_MVP_PRESET, phase2MvpPresetActive } from './featurePresets.js';
+import { MVP_PRESET, mvpPresetActive } from './featurePresets.js';
+import { ASSESSMENT_OUTCOME_OPTIONS, visibleAssessmentOutcomeOptions, assessmentOutcomeRecord, initialAssessmentHasOutcomeStatus } from './assessmentOutcome.js';
 import {
   createQualitativeSampleAnswers,
   createLikertSampleAnswers,
@@ -67,7 +68,7 @@ import {
   appointmentOutcomeError,
 } from "./appointments.js";
 
-import { carePeriodError, currentCarePeriod, nextDate, previousDate } from "./carePeriods.js";
+import { carePeriodError, currentCarePeriod, nextDate, previousDate, PROGRAM_STREAMS } from "./carePeriods.js";
 import { addAssessmentContactLink, assessmentContactLinks } from "./assessmentContacts.js";
 import { EPISODE_REVIEW_TYPES, episodeReviewActionError, episodeReviewSchedule } from "./episodeReviews.js";
 import { careJourneyForEpisode, episodeLinkReason } from "./ysccModel.js";
@@ -75,6 +76,7 @@ import { K10_SCORING_METHOD } from "./k10.js";
 import { MEASURE_INSTRUMENTS, measureInstrument, sampleMeasureTotal } from "./measureQuestionnaires.js";
 import { QUALITY_STATUSES, getQualityIssues, validISODate } from "./dataQuality.js";
 import { mergeAnswerSources } from "./responseSessions.js";
+import { allowedCollectionMethods } from './allowedCollectionMethods.js';
 
 export const PERSON_TAG_OPTIONS = [
   "Follow-up needed",
@@ -334,13 +336,50 @@ const sampleCareLevels = {
   "YS-1033": { name: "Jordan Lee", episodes: { "EP-YS-1033-01": "Mid" } },
   "YS-1034": { name: "Jordan Ellis", episodes: { "EP-1034-01": "Mid" } },
 };
+const sampleEpisodeStreams = {
+  "YS-1024": "Psychosis", "YS-1025": "Eating Disorder",
+  "YS-1026": "Personality", "YS-1027": "Mood",
+  "YS-1028": "Psychosis", "YS-1029": "Eating Disorder",
+  "YS-1033": "Personality", "YS-1034": "Mood",
+};
+
+function reclassifyLegacySampleStreams(state) {
+  let changed = false;
+  const people = state.people.map(person => {
+    if (sampleCareLevels[person.id]?.name !== person.name) return person;
+    const target = sampleEpisodeStreams[person.id];
+    const episodes = person.episodes.map(episode => {
+      const old = episode.programStream;
+      if (!['General', 'Complex'].includes(old) || old === target) return episode;
+      changed = true;
+      const renamed = value => typeof value === 'string'
+        ? value.replaceAll(` · ${old}`, ` · ${target}`) : value;
+      const renamedDefinition = value => typeof value === 'string'
+        ? value.replaceAll(`-${old.toUpperCase()}`, `-${target.toUpperCase()}`) : value;
+      return { ...episode, programStream: target,
+        carePeriods: (episode.carePeriods || []).map(period => ({ ...period,
+          programStream: period.programStream === old ? target : period.programStream })),
+        collections: (episode.collections || []).map(record => ({ ...record,
+          label: renamed(record.label), bundleName: renamed(record.bundleName),
+          bundleContext: record.bundleContext?.programStream === old
+            ? { ...record.bundleContext, programStream: target } : record.bundleContext,
+          mvpInitialBundleDefinitionId: renamedDefinition(record.mvpInitialBundleDefinitionId),
+          mvpBundleDefinitionId: renamedDefinition(record.mvpBundleDefinitionId),
+        })),
+      };
+    });
+    return episodes.some((episode, index) => episode !== person.episodes[index])
+      ? { ...person, episodes } : person;
+  });
+  return changed ? { ...state, people } : state;
+}
 
 function withSampleCareLevels(state) {
   const missing = state.people.some((person) => {
     const fixture = sampleCareLevels[person.id];
     return fixture?.name === person.name && person.episodes.some((episode) =>
       fixture.episodes[episode.id] && !episode.carePeriods?.length &&
-      (!episode.programStream || episode.programStream === "General"));
+      (!episode.programStream || episode.programStream === sampleEpisodeStreams[person.id]));
   });
   if (!missing) return state;
   const next = structuredClone(state);
@@ -350,14 +389,14 @@ function withSampleCareLevels(state) {
     for (const episode of person.episodes) {
       const level = fixture.episodes[episode.id];
       if (!level || episode.carePeriods?.length ||
-          (episode.programStream && episode.programStream !== "General")) continue;
-      episode.programStream = "General";
+          (episode.programStream && episode.programStream !== sampleEpisodeStreams[person.id])) continue;
+      episode.programStream = sampleEpisodeStreams[person.id];
       episode.carePeriods = [{
         id: `${episode.id}-sample-starting-level`,
         episodeId: episode.id,
         startDate: episode.start,
         endDateExclusive: episode.end ? nextDate(episode.end) : null,
-        programStream: "General",
+        programStream: sampleEpisodeStreams[person.id],
         careLevel: level,
         deliveringUnit: "Northside Centre",
         entryReason: "Starting level recorded",
@@ -634,7 +673,7 @@ function ensureMvpMockContacts(state) {
 }
 
 const withSampleFixtures = (state) =>
-  ensureMvpMockContacts(ensureSampleAssessmentBundles(ensureJordanDueExamples(ensureSampleAssessmentCreatedDates(refreshOpenSampleDates(ensureCoherentMockData(ensureJordanPartialSmsExample(
+  ensureMvpMockContacts(ensureJordanDueExamples(ensureSampleAssessmentCreatedDates(refreshOpenSampleDates(ensureCoherentMockData(ensureJordanPartialSmsExample(
     ensureJordanDeliveryAttemptExamples(
       ensureJordanAssessmentContactExamples(
         ensureJordanFutureAssessment(
@@ -642,7 +681,56 @@ const withSampleFixtures = (state) =>
         ),
       ),
     ),
-  ))))), isSampleAssessmentPerson));
+  ))))));
+
+function retireMockCollections(state) {
+  const instruments = new Map(INSTRUMENTS.map(instrument => [instrument.version, instrument]));
+  const available = new Set(instruments.keys());
+  const removed = new Set();
+  let migratedAnswers = false;
+  const people = state.people.map(person => ({ ...person, episodes: person.episodes.map(episode => {
+    const collections = (episode.collections || []).filter(record => {
+      const instrument = instruments.get(record.version);
+      // The closed-episode demonstration retains its historical questionnaires.
+      // They remain readable through getInstrument even though they are no
+      // longer offered for new assessment plans.
+      if ((instrument || (person.id === 'YS-1033' && person.name === 'Jordan Lee' &&
+          record.id === 'MVP-INITIAL-EP-YS-1033-01-clinician-0' &&
+          record.version === 'Clinician initial assessment v1.0' && getInstrument(record.version)) ||
+        (person.id === "YS-DEMO-CLOSE" &&
+          person.fixtureLabel === "Fictional closed episode with patient follow-up" &&
+          getInstrument(record.version))) &&
+          (!record.mvpTimepointId || getInstrument(record.version)?.respondents.includes(record.respondent))) return true;
+      removed.add(record.id);
+      return false;
+    }).map(record => {
+      if (record.version !== 'Client profile · Young person v1.0' ||
+          record.answers?.length !== 10 && record.draftAnswers?.length !== 10) return record;
+      migratedAnswers = true;
+      const answers = record.answers?.length === 10 ? record.answers.slice(2) : record.answers;
+      const draftAnswers = record.draftAnswers?.length === 10 ? record.draftAnswers.slice(2) : record.draftAnswers;
+      const answerSources = { ...record.answerSources };
+      const draftAnswerSources = { ...record.draftAnswerSources };
+      delete answerSources.name;
+      delete answerSources.dob;
+      delete draftAnswerSources.name;
+      delete draftAnswerSources.dob;
+      return { ...record, answers, draftAnswers, answerSources, draftAnswerSources };
+    });
+    const remaining = new Set(collections.map(record => record.id));
+    return { ...episode, collections,
+      events: (episode.events || []).filter(event => !event.collectionId || remaining.has(event.collectionId)),
+      assessmentContactLinks: (episode.assessmentContactLinks || []).filter(link => remaining.has(link.collectionId)),
+      assessmentBundleInstances: (episode.assessmentBundleInstances || []).map(instance => ({ ...instance,
+        collectionIds: (instance.collectionIds || []).filter(id => remaining.has(id)) }))
+        .filter(instance => instance.collectionIds.length),
+      assessmentBundleOffers: (episode.assessmentBundleOffers || []).filter(offer =>
+        available.has(offer.assessment?.version)),
+    };
+  }) }));
+  return removed.size || migratedAnswers ? { ...state, people,
+    audit: (state.audit || []).filter(entry => !removed.has(entry.collectionId)) } : state;
+}
 
 export function sampleAppointmentsForSeed(seedIndex) {
   switch (seedIndex) {
@@ -2589,14 +2677,14 @@ function enrichMockClosurePerson(person) {
       detail: "Required checks reviewed and assessment ownership recorded for this fictional example.",
     });
 
-  episode.programStream ||= "General";
+  episode.programStream ||= "Mood";
   episode.carePeriods ??= [];
   if (!episode.carePeriods.length) episode.carePeriods.push({
     id: `${episode.id}-starting-level`,
     episodeId: episode.id,
     startDate: episode.start,
     endDateExclusive: nextDate(episode.end),
-    programStream: "General",
+    programStream: "Mood",
     careLevel: "Mid",
     deliveringUnit: "Northside Centre",
     entryReason: "Fictional starting level recorded for this example",
@@ -2608,6 +2696,11 @@ function enrichMockClosurePerson(person) {
   });
 
   episode.appointments ??= [];
+  episode.collections ??= [];
+  for (const collection of closureCollections(person, episode)) {
+    if (!episode.collections.some((item) => item.id === collection.id))
+      episode.collections.push(collection);
+  }
   for (const [key, date, type, duration, note] of [
     ["initial", "2026-08-14", "Initial assessment", 60, "Earlier questionnaire responses collected at the initial assessment."],
     ["midpoint", "2026-09-02", "Care review", 45, "Progress responses discussed and final next steps considered."],
@@ -2661,7 +2754,7 @@ function enrichMockClosurePerson(person) {
   episode.events ??= [];
   const levelEvent = {
     id: "E-YS-DEMO-CLOSE-level", date: "2026-08-12", title: "Starting care level recorded",
-    detail: "General stream · Mid level · fictional starting level", actionType: "SET_INITIAL_CARE_LEVEL",
+    detail: "Mood stream · Mid level · fictional starting level", actionType: "SET_INITIAL_CARE_LEVEL",
   };
   if (!episode.events.some((item) => item.id === levelEvent.id)) episode.events.push(levelEvent);
   for (const event of [
@@ -2696,7 +2789,7 @@ function enrichMockClosurePerson(person) {
       nextSteps: "Close the planned care episode, then invite a separate closure assessment and care experience feedback response.",
     },
   });
-  person.closureFixtureRevision = 4;
+  person.closureFixtureRevision = 5;
   return person;
 }
 
@@ -2811,6 +2904,26 @@ function upgradeIntakeFlow(state) {
 }
 
 export function upgradeSampleData(state) {
+  state = reclassifyLegacySampleStreams(state);
+  const allowedInstrumentVersions = new Set(INSTRUMENTS.map(instrument => instrument.version));
+  const savedRules = state.settings?.assessmentScheduleRules || [];
+  const batchRules = savedRules.filter(rule => rule.assessments?.length &&
+    rule.assessments.every(item => allowedInstrumentVersions.has(item.version)));
+  if (batchRules.length !== savedRules.length)
+    state = { ...state, settings: { ...state.settings, assessmentScheduleRules: batchRules } };
+  // Retire obsolete stage fixtures and the two named scratch entries from the
+  // older fictional workspace. Match both ID and name so renamed records stay.
+  const legacyStageExamples = new Map([
+    ["YS-DEMO-PROFILE", "Avery Morgan"],
+    ["YS-DEMO-INITIAL", "Samira Lee"],
+    ["YS-DEMO-REVIEW", "Riley Chen"],
+    ["YS-1035", "test"],
+    ["YS-1036", "11"],
+  ]);
+  if (state.people?.some((person) => legacyStageExamples.get(person.id) === person.name)) {
+    state = { ...state, people: state.people.filter((person) =>
+      legacyStageExamples.get(person.id) !== person.name) };
+  }
   if (!state.settings || ["simpleAssessments", "scheduleAssessments", "showAssessmentDueDates", "linkAssessmentAppointments", "assessmentSms", "groupAssessmentsByBundle", "bundleAccordions", "advancedAssessmentOptions"]
     .some((feature) => typeof state.settings[feature] !== "boolean")) {
     state = {
@@ -2842,7 +2955,7 @@ export function upgradeSampleData(state) {
       ),
     ),
   );
-  if (hasOldQuestionnaire) return createSeed();
+  if (hasOldQuestionnaire) return retireMockCollections(createSeed());
   if (state.people.some((person) => person.episodes.some((episode) =>
     episode.collections.some((collection) => collection.version === "Demo check-in v2.0")))) {
     state = JSON.parse(JSON.stringify(state));
@@ -2855,7 +2968,7 @@ export function upgradeSampleData(state) {
     }
   }
   if (state.sampleRevision < 28 || !state.sampleRevision)
-    return withSampleFixtures(improveRiverIntakeSummary(removeJordanSep15UnstartedFollowUp(removeJordanOutlierFollowUp(improveJordanFollowUpLabels(prepareQualityState(prepareSeed(JSON.parse(JSON.stringify(state)))))))));
+    return retireMockCollections(withSampleFixtures(improveRiverIntakeSummary(removeJordanSep15UnstartedFollowUp(removeJordanOutlierFollowUp(improveJordanFollowUpLabels(prepareQualityState(prepareSeed(JSON.parse(JSON.stringify(state))))))))));
   const jordanFixture = state.people.find(
     (person) => person.id === "YS-1034" && person.fixtureLabel === "Fictional full-report example",
   );
@@ -2897,7 +3010,7 @@ export function upgradeSampleData(state) {
   const closureExample = state.people.find((person) =>
     person.id === "YS-DEMO-CLOSE" &&
     person.fixtureLabel === "Fictional closed episode with patient follow-up");
-  if (closureExample && closureExample.closureFixtureRevision !== 4) {
+  if (closureExample && closureExample.closureFixtureRevision !== 5) {
     state = JSON.parse(JSON.stringify(state));
     const person = state.people.find((item) => item.id === "YS-DEMO-CLOSE");
     const intake = person.intakes[0];
@@ -2905,7 +3018,7 @@ export function upgradeSampleData(state) {
     intake.consentReference = "Fictional completed-intake consent record";
     enrichMockClosurePerson(person);
   }
-  return withSampleFixtures(improveRiverIntakeSummary(removeJordanSep15UnstartedFollowUp(removeJordanOutlierFollowUp(improveJordanFollowUpLabels(state)))));
+  return retireMockCollections(withSampleFixtures(improveRiverIntakeSummary(removeJordanSep15UnstartedFollowUp(removeJordanOutlierFollowUp(improveJordanFollowUpLabels(state))))));
 }
 
 function addFictionalProgressReport(episode, { eventId, timestamp, content }) {
@@ -3890,7 +4003,7 @@ export function createSeed() {
             id: `EP-${1024 + i}-01`,
             number: "01",
             status: "Active",
-            programStream: "General",
+            programStream: sampleEpisodeStreams[`YS-${1024 + i}`],
             start: s[3] === "90-day review" ? "2026-06-15" : "2026-09-08",
             disposition: i === 0 ? "Admitted" : "Undecided",
             collections: [
@@ -4013,14 +4126,10 @@ export function createSeed() {
 
 export function createDefaultWorkspace() {
   const seed = createSeed();
-  const eventIds = seed.people.flatMap(person => person.episodes.flatMap(episode =>
-    (episode.events || []).map(event => event.id)));
-  const assessmentScheduleRules = SAMPLE_ASSESSMENT_BUNDLES.map(template => ({
-    ...structuredClone(template), activationEventIds: template.trigger === 'event' ? [...eventIds] : [],
-  }));
-  return ensureSampleMvpFlow({...seed,settings:{...seed.settings,assessmentScheduleRules,showGeneralReport:true,advancedAssessmentOptions:false,
-    mvpClinicianCreation:false,mvpBundleEditing:false,mvpAssessmentPathway:true,mvpReviewHighlight:false,
-    mvpNewProfileCollectWorkspace:true,mvpProfileTab:true}}, TODAY);
+  return retireMockCollections(ensureSampleMvpFlow({
+    ...seed,
+    settings: { ...seed.settings, ...MVP_PRESET, assessmentScheduleRules: [] },
+  }, TODAY));
 }
 
 export function collectionStatus(c) {
@@ -4046,14 +4155,7 @@ export const hasPendingClinicalReview = (c) =>
   !noClinicalReviewRequired(c) &&
   (c.review !== "Reviewed" || !!c.needsReview);
 const closureFollowUpComplete = (episode) =>
-  [
-    ["assessment", CLOSURE_ASSESSMENT_VERSION],
-    ["feedback", CLOSURE_FEEDBACK_VERSION],
-  ].every(([kind, version]) => {
-    const collection = episode.collections.find((item) =>
-      item.closureKind === kind && item.version === version);
-    return collection?.response === "Submitted" && !hasPendingClinicalReview(collection);
-  }) && episode.collections.filter(collection => collection.dischargeFollowUp && collection.bundleId)
+  episode.collections.filter(collection => collection.dischargeFollowUp && collection.bundleId)
     .every(collection => collection.assignment === "Cancelled" ||
       (collection.response === "Submitted" && !hasPendingClinicalReview(collection)));
 export const clinicalReviewStatus = (c) =>
@@ -4126,9 +4228,9 @@ export function reducer(state, action) {
   return next === state ? state : reconcileAssessmentSchedules(next, TODAY);
 }
 function reduceState(state, action) {
-  if (action.type === 'APPLY_PHASE_2_MVP_PRESET') {
-    if (phase2MvpPresetActive(state.settings)) return state;
-    return { ...state, settings: { ...state.settings, ...PHASE_2_MVP_PRESET } };
+  if (action.type === 'APPLY_MVP_PRESET') {
+    if (mvpPresetActive(state.settings)) return state;
+    return { ...state, settings: { ...state.settings, ...MVP_PRESET } };
   }
   if (action.type === 'SET_ADVANCED_ASSESSMENT_OPTIONS') {
     if (typeof action.enabled !== 'boolean' || (state.settings?.advancedAssessmentOptions !== false) === action.enabled) return state;
@@ -4148,6 +4250,52 @@ function reduceState(state, action) {
     if (!mvpAssessmentMode(state.settings) || typeof action.enabled !== 'boolean' ||
         (state.settings?.mvpProfileTab !== false) === action.enabled) return state;
     return { ...state, settings: { ...state.settings, mvpProfileTab: action.enabled } };
+  }
+  if (action.type === 'SET_MVP_SHOW_PERSON_TAGS') {
+    if (!mvpAssessmentMode(state.settings) || typeof action.enabled !== 'boolean' ||
+        (state.settings?.mvpShowPersonTags === true) === action.enabled) return state;
+    return { ...state, settings: { ...state.settings, mvpShowPersonTags: action.enabled } };
+  }
+  if (action.type === 'SET_MVP_RECORD_ASSESSMENT_OUTCOME') {
+    if (!mvpAssessmentMode(state.settings) || typeof action.enabled !== 'boolean' ||
+        (state.settings?.mvpRecordAssessmentOutcome !== false) === action.enabled) return state;
+    return { ...state, settings: { ...state.settings, mvpRecordAssessmentOutcome: action.enabled } };
+  }
+  if (action.type === 'SET_ASSESSMENT_OUTCOME_OPTIONS') {
+    if (!Array.isArray(action.options) || !action.options.length ||
+        action.options.some(option => !ASSESSMENT_OUTCOME_OPTIONS.includes(option)) ||
+        new Set(action.options).size !== action.options.length) return state;
+    const options = ASSESSMENT_OUTCOME_OPTIONS.filter(option => action.options.includes(option));
+    if (JSON.stringify(options) === JSON.stringify(visibleAssessmentOutcomeOptions(state.settings))) return state;
+    return { ...state, settings: { ...state.settings, assessmentOutcomeOptions: options } };
+  }
+  if (action.type === 'SAVE_ASSESSMENT_OUTCOME_CONFIG') {
+    if (typeof action.enabled !== 'boolean' || !Array.isArray(action.options) ||
+        !action.options.length || action.options.some(option =>
+          !ASSESSMENT_OUTCOME_OPTIONS.includes(option)) ||
+        new Set(action.options).size !== action.options.length) return state;
+    const options = ASSESSMENT_OUTCOME_OPTIONS.filter(option => action.options.includes(option));
+    if ((state.settings?.mvpRecordAssessmentOutcome !== false) === action.enabled &&
+        JSON.stringify(options) === JSON.stringify(visibleAssessmentOutcomeOptions(state.settings))) return state;
+    return { ...state, settings: { ...state.settings,
+      mvpRecordAssessmentOutcome: action.enabled, assessmentOutcomeOptions: options } };
+  }
+  if (action.type === 'SAVE_STATUS_OUTCOME_RULE') {
+    const rule = action.rule;
+    if (!validCustomStatusOutcomeRule(rule)) return state;
+    const rules = state.settings?.statusOutcomeRules || [];
+    const existing = rules.find(item => item.from === rule.from && item.to === rule.to);
+    if (existing && JSON.stringify(existing) === JSON.stringify(rule)) return state;
+    return { ...state, settings: { ...state.settings, statusOutcomeRules: [
+      ...rules.filter(item => item.from !== rule.from || item.to !== rule.to), rule,
+    ] } };
+  }
+  if (action.type === 'DELETE_STATUS_OUTCOME_RULE') {
+    if (isRequiredStatusOutcomeTransition(action.from, action.to)) return state;
+    const rules = state.settings?.statusOutcomeRules || [];
+    if (!rules.some(rule => rule.from === action.from && rule.to === action.to)) return state;
+    return { ...state, settings: { ...state.settings, statusOutcomeRules:
+      rules.filter(rule => rule.from !== action.from || rule.to !== action.to) } };
   }
   if (action.type === 'SAVE_MVP_INITIAL_BUNDLE') {
     const bundle = action.bundle;
@@ -4281,6 +4429,20 @@ function reduceState(state, action) {
     if (typeof action.enabled !== "boolean" || state.settings?.phase2CareActivity === action.enabled) return state;
     return { ...state, settings: { ...state.settings, phase2CareActivity: action.enabled } };
   }
+  if (action.type === 'SET_MVP_SCHEDULE_PRESETS') {
+    if (typeof action.enabled !== 'boolean' || (state.settings?.mvpSchedulePresets !== false) === action.enabled) return state;
+    return { ...state, settings: { ...state.settings, mvpSchedulePresets: action.enabled } };
+  }
+  if (action.type === 'SET_MVP_CARE_POINT_HEADING') {
+    if (!mvpAssessmentMode(state.settings) || typeof action.enabled !== 'boolean' ||
+        (state.settings?.mvpCarePointHeading === true) === action.enabled) return state;
+    return { ...state, settings: { ...state.settings, mvpCarePointHeading: action.enabled } };
+  }
+  if (action.type === 'SET_MVP_OUTCOME_BELOW_TABLE') {
+    if (!mvpAssessmentMode(state.settings) || typeof action.enabled !== 'boolean' ||
+        (state.settings?.mvpOutcomeBelowTable !== false) === action.enabled) return state;
+    return { ...state, settings: { ...state.settings, mvpOutcomeBelowTable: action.enabled } };
+  }
   if (action.type === "SET_MVP_SEPARATE_MEASURES_CONTACTS") {
     if (typeof action.enabled !== "boolean" || state.settings?.mvpSeparateMeasuresContacts === action.enabled) return state;
     return { ...state, settings: { ...state.settings, mvpSeparateMeasuresContacts: action.enabled } };
@@ -4290,9 +4452,7 @@ function reduceState(state, action) {
     if (!["scheduleAssessments", "showAssessmentDueDates", "linkAssessmentAppointments", "assessmentSms", "assessmentModality", "groupAssessmentsByBundle", "bundleAccordions"].includes(action.feature) ||
         typeof action.enabled !== "boolean" || state.settings?.[action.feature] === action.enabled) return state;
     const next = { ...state, settings: { ...state.settings, [action.feature]: action.enabled } };
-    return action.feature === "groupAssessmentsByBundle"
-      ? ensureSampleAssessmentBundles(next, isSampleAssessmentPerson)
-      : next;
+    return next;
   }
   const scheduleAssessments = assessmentSchedulingEnabled(state.settings);
   const linkAssessmentAppointments = assessmentContactLinkingEnabled(state.settings);
@@ -4334,7 +4494,7 @@ function reduceState(state, action) {
     const values = action.values || {};
     const name = values.name?.trim();
     if (!person || !episode || person.archivedAt || person.readOnly || !name ||
-        !validDate(values.dob) || values.dob > TODAY ||
+        values.dob && (!validDate(values.dob) || values.dob > TODAY) ||
         state.people.some(item => item.id !== person.id && !item.nameUnknown && item.name.toLowerCase() === name.toLowerCase()) ||
         values.clientPostcode && !/^\d{4}$/.test(values.clientPostcode) ||
         values.registeredCentrePostcode && !/^\d{4}$/.test(values.registeredCentrePostcode) ||
@@ -4343,7 +4503,7 @@ function reduceState(state, action) {
     const profileDetails = Object.fromEntries(PROFILE_EPISODE_FIELDS
       .map(key => [key, typeof values[key] === "string" ? values[key].trim() : ""]));
     const profile = Object.fromEntries(PROFILE_FIELDS.map(key => [key, typeof values[key] === "string" ? values[key].trim() : ""]));
-    const updated = { ...person, name, nameUnknown: false, dob: values.dob,
+    const updated = { ...person, name, nameUnknown: false, dob: values.dob || null,
       ...profile, episodes: person.episodes.map(item => {
         if (item.id !== episode.id) return item;
         const currentProfile = { ...person, ...profile, name, dob: values.dob, ...profileDetails };
@@ -4421,6 +4581,71 @@ function reduceState(state, action) {
     );
   };
   switch (action.type) {
+    case 'RECORD_ASSESSMENT_OUTCOME': {
+      const outcome = assessmentOutcomeRecord(e);
+      if (!mvpPathwayEnabled(state.settings) || state.settings?.mvpRecordAssessmentOutcome === false ||
+          !p || !e || !canAssess(p, e) ||
+          e.status !== 'Active' || p.archivedAt || p.readOnly || e.readOnly ||
+          !initialAssessmentHasOutcomeStatus(e, state.settings) ||
+          !visibleAssessmentOutcomeOptions(state.settings).includes(action.outcome) ||
+          (e.assessmentOutcome?.value === action.outcome &&
+            (!outcome || outcome.response === 'Submitted' && outcome.answers?.[0] === action.outcome))) return state;
+      const previous = e.assessmentOutcome?.value ||
+        (outcome?.response === 'Submitted' ? outcome.answers?.[0] : null);
+      e.assessmentOutcome = { value: action.outcome, variable: 'assessment_outcome',
+        recordedAt, recordedBy: staff?.name || 'Not recorded', recordedById: staff?.id || null };
+      if (outcome) {
+        const wasReviewed = outcome.review === 'Reviewed';
+        const wasSubmitted = outcome.response === 'Submitted';
+        const attempt = {
+          id: uid(), channel: outcome.channel || 'Clinician entry',
+          startedAt: recordedAt, endedAt: recordedAt, status: 'Response submitted',
+          recorderName: staff?.name || 'Not recorded', recorderId: staff?.id || null,
+        };
+        outcome.attempts ??= [];
+        if (outcome.attempts.at(-1) && !outcome.attempts.at(-1).endedAt) {
+          outcome.attempts.at(-1).endedAt = recordedAt;
+          outcome.attempts.at(-1).status = 'Outcome recorded separately';
+        }
+        outcome.attempts.push(attempt);
+        if (wasSubmitted) outcome.originalAnswers ??= [...(outcome.answers || [])];
+        outcome.answers = [action.outcome];
+        outcome.answerSources = { assessment_outcome: attempt.id };
+        delete outcome.draftAnswers;
+        delete outcome.draftAnswerSources;
+        outcome.response = 'Submitted';
+        outcome.assessmentProgress = 'Completed';
+        outcome.assignment = 'Fulfilled';
+        outcome.link = 'Ended';
+        outcome.submittedAt = wasSubmitted ? outcome.submittedAt || TODAY : TODAY;
+        outcome.submittedTimestamp = wasSubmitted ? outcome.submittedTimestamp || recordedAt : recordedAt;
+        outcome.submittedAttemptId = attempt.id;
+        outcome.review = 'Pending';
+        if (previous) outcome.revision = (outcome.revision || 0) + 1;
+        if (previous && wasReviewed) outcome.needsReview = true;
+      }
+      event(previous ? 'Assessment outcome changed' : 'Assessment outcome recorded',
+        previous ? `${previous} → ${action.outcome}` : action.outcome,
+        outcome ? { collectionId: outcome.id } : { collectionId: null });
+      break;
+    }
+    case 'RECORD_STATUS_TRANSITION_OUTCOME': {
+      const transition = completedStatusTransitions(e, state.settings).find(item =>
+        item.recordId === action.recordId && item.from === action.from && item.to === action.to);
+      const rule = statusOutcomeRuleFor(state.settings, action.from, action.to);
+      if (!p || !e || !canAssess(p, e) || e.status !== 'Active' ||
+          p.archivedAt || p.readOnly || e.readOnly || !transition || !rule?.enabled ||
+          rule.builtIn || !visibleStatusOutcomeOptions(rule).includes(action.outcome)) return state;
+      const previous = (e.statusOutcomes || []).find(item => item.recordId === action.recordId);
+      if (previous?.value === action.outcome) return state;
+      e.statusOutcomes = [...(e.statusOutcomes || []).filter(item => item.recordId !== action.recordId), {
+        recordId: action.recordId, from: action.from, to: action.to, value: action.outcome,
+        recordedAt, recordedBy: staff?.name || 'Not recorded', recordedById: staff?.id || null,
+      }];
+      event(previous ? 'Status outcome changed' : 'Status outcome recorded',
+        `${action.from} → ${action.to}: ${action.outcome}`, { collectionId: action.recordId });
+      break;
+    }
     case 'CUSTOMIZE_MVP_BUNDLE': {
       if (!mvpBundleEditingEnabled(state.settings) || !p || !e || p.archivedAt || p.readOnly || e.readOnly || e.status !== 'Active' ||
           !canAssess(p,e) || !action.bundleId || !['add','remove'].includes(action.operation)) return state;
@@ -4433,7 +4658,7 @@ function reduceState(state, action) {
         if (!target || records.length < 2 || !bundleCollectionEditable(target) ||
             target.draftAnswers?.some(answer => answer != null)) return state;
         e.collections = e.collections.filter(record => record.id !== target.id);
-        event('Review instrument removed', `${target.bundleName} · ${getInstrument(target.version)?.name || target.label}`,
+        event('Review measure removed', `${target.bundleName} · ${getInstrument(target.version)?.name || target.label}`,
           {collectionId:target.id,bundleId:action.bundleId});
       } else {
         const instrument = getInstrument(action.version);
@@ -4445,7 +4670,7 @@ function reduceState(state, action) {
           bundleAssessmentId:id,bundleRequirement:'Mandatory',response:'Not started',assignment:'Planned',
           link:'Not sent',attempts:[],answers:[],draftAnswers:[],submittedAt:null,submittedTimestamp:null,
           review:'Pending',reviewDate:null,reviewNote:null,createdAt:recordedAt});
-        event('Review instrument added', `${exemplar.bundleName} · ${instrument.name}`,
+        event('Review measure added', `${exemplar.bundleName} · ${instrument.name}`,
           {collectionId:id,bundleId:action.bundleId});
       }
       break;
@@ -4459,13 +4684,24 @@ function reduceState(state, action) {
       break;
     }
     case 'SET_MVP_BUNDLE_METHOD': {
-      if (!mvpAssessmentMode(state.settings) || !e || !['Clinician entry', 'Clinic tablet', 'SMS link'].includes(action.channel) ||
+      if (!e || !['Clinician entry', 'Clinic tablet', 'SMS link'].includes(action.channel) ||
           (action.channel === 'SMS link' && !assessmentSms) || !action.bundleId) return state;
-      const records = e.collections.filter(record => record.bundleId === action.bundleId && record.mvpTimepointId);
-      if (!records.length || records.every(record => record.channel === action.channel) ||
+      const records = e.collections.filter(record => record.bundleId === action.bundleId &&
+        (record.mvpTimepointId || record.mvpInitialAssessment || record.clientProfileMeasure ||
+          state.settings?.assessmentScheduleRules?.some(bundle => bundle.id === record.bundleId)));
+      const definition = records[0]?.clientProfileMeasure ? clientProfileBundle(state.settings)
+        : records[0]?.mvpInitialAssessment ? mvpInitialBundles(state.settings)
+          .find(bundle => bundle.id === records[0].mvpInitialBundleDefinitionId)
+        : records[0]?.mvpTimepointId ? mvpReviewBundles(state.settings)
+          .find(bundle => bundle.id === records[0].mvpBundleDefinitionId)
+        : state.settings?.assessmentScheduleRules?.find(bundle => bundle.id === action.bundleId);
+      const available = records[0]?.respondent === 'Clinician' ? ['Clinician entry']
+        : ['Clinician entry', 'Clinic tablet', ...(assessmentSms ? ['SMS link'] : [])];
+      if (!records.length || !definition || records.every(record => record.channel === action.channel) ||
+          !allowedCollectionMethods(definition, available).includes(action.channel) ||
           (records[0].respondent === 'Clinician' && action.channel !== 'Clinician entry') ||
           records.some(record => record.response !== 'Not started' ||
-            record.draftAnswers?.some(Boolean) || record.answers?.some(Boolean))) return state;
+            (!record.clientProfileMeasure && record.draftAnswers?.some(Boolean)) || record.answers?.some(Boolean))) return state;
       for (const record of records) {
         const activeAttempt = record.attempts?.at(-1);
         if (activeAttempt && !activeAttempt.endedAt) {
@@ -4477,7 +4713,7 @@ function reduceState(state, action) {
         record.channel = action.channel;
         record.assistance = action.channel === 'Clinician entry' && record.respondent !== 'Clinician' ? 'Transcribed' : 'Independent';
       }
-      event('Review collection method set', `${records[0].bundleName} · ${action.channel}`, { collectionId: null, bundleId: action.bundleId });
+      event('Assessment collection method set', `${records[0].bundleName} · ${action.channel}`, { collectionId: null, bundleId: action.bundleId });
       break;
     }
     case "ADD_PERSON_TAG":
@@ -4537,7 +4773,7 @@ function reduceState(state, action) {
     case "SET_INITIAL_CARE_LEVEL": {
       if (carePeriodError(e, action, staff, TODAY, DEMO_STAFF.filter((item) => item.role === "Clinician")))
         return state;
-      e.programStream = e.programStream || action.programStream;
+      e.programStream = PROGRAM_STREAMS.includes(e.programStream) ? e.programStream : action.programStream;
       const period = {
         id: uid(),
         episodeId: e.id,
@@ -4608,16 +4844,7 @@ function reduceState(state, action) {
           collection.link = "Revoked";
         }
       });
-      const closureAssignments = closureCollections(p, e);
-      e.collections.push(...closureAssignments);
-      for (const assignment of closureAssignments) {
-        event(
-          "Closure questionnaire assigned",
-          `${assignment.label} · ${p.name} · due ${formatDate(assignment.due)} · ${assignment.link === "Active" ? "sample link prepared, not sent" : "contact settings need review before link preparation"}`,
-          { collectionId: assignment.id },
-        );
-      }
-      event("Care episode closed for stream or level change", `${e.programStream} stream · ${previous.careLevel} to ${action.careLevel} · closure assessment and care experience feedback assigned · next episode ${newEpisodeNumber} starts ${action.effectiveDate}`, {
+      event("Care episode closed for stream or level change", `${e.programStream} stream · ${previous.careLevel} to ${action.careLevel} · next episode ${newEpisodeNumber} starts ${action.effectiveDate}`, {
         actionType: "END_CARE_EPISODE_FOR_LEVEL_CHANGE",
         date: action.effectiveDate,
         effectiveDate: action.effectiveDate,
@@ -5105,7 +5332,7 @@ function reduceState(state, action) {
         bundleRequirement:template.bundleId ? 'Additional' : undefined, bundleAssessmentId:uid(),
         createdAt:recordedAt, assignment:'Planned', response:'Not started', review:'Pending', link:'Not sent',
         answers:[], attempts:[], submittedAt:null, completedAt:null, responseDate:null, score:null, session:null, appointmentId:null, externalAppointment:null, answersUpdatedAt:null, reviewedAt:null});
-      event('Instrument added', instrument.name, {actionType:action.type});
+      event('Measure added', instrument.name, {actionType:action.type});
       break;
     }
     case "MARK_ASSESSMENT_NOT_REQUIRED": {
@@ -5139,7 +5366,7 @@ function reduceState(state, action) {
       if (!records.length || records.some(record => record.bundleSource === 'Scheduled' || record.bundleSource === 'System' || record.id?.startsWith('AUTO-') || (record.scheduleAnchor && record.bundleSource !== 'User'))) return state;
       e.archivedCollections = [...(e.archivedCollections || []), ...records.map(record=>({...record,archivedAt:recordedAt}))];
       e.collections = e.collections.filter(record=>!action.collectionIds.includes(record.id));
-      event('Assessment archived', 'User-created instruments retained in the archive.', {actionType:action.type});
+      event('Assessment archived', 'User-created measures retained in the archive.', {actionType:action.type});
       break;
     }
     case "UPDATE_ASSESSMENT_BUNDLE": {
@@ -5220,7 +5447,7 @@ function reduceState(state, action) {
         instance.collectionIds = e.collections.filter(collection => collection.bundleInstanceId === instance.id).map(collection => collection.id);
         instance.excludedOptionalIds = bundle.assessments.filter(item => item.requirement === "Optional" && !optionalIds.includes(item.id)).map(item => item.id);
       }
-      event(`${appTerm("measures", "singular")} updated`, `${bundle.name} · ${addedIds.length} added · ${removed.length} removed · drafts and completed ${appTerm("measures").toLowerCase()} kept`,
+      event('Collection Occasion updated', `${bundle.name} · ${addedIds.length} measures added · ${removed.length} removed · draft and completed responses kept`,
         {bundleId:bundle.id,addedCollectionIds:addedIds,removedCollectionIds:[...removedIds]});
       break;
     }
@@ -5269,7 +5496,7 @@ function reduceState(state, action) {
       e.assessmentBundleInstances = [...(e.assessmentBundleInstances || []), {id:action.id, bundleId:bundle.id,
         name:instanceName, customName:action.name !== undefined, context:bundleContext({...bundle,statusChange:action.statusChange ?? bundle.statusChange ?? ''}), createdAt:recordedAt, collectionIds:collections.map(collection => collection.id),
         excludedOptionalIds:bundle.assessments.filter(item => item.requirement === "Optional" && !optionalIds.includes(item.id)).map(item => item.id)}];
-      event(`${appTerm("measures", "singular")} created`, `${instanceName} · ${collections.length} ${appTerm("measures").toLowerCase()} · same care episode`,
+      event('Collection Occasion created', `${instanceName} · ${collections.length} measures · same episode`,
         {bundleId:bundle.id, bundleInstanceId:action.id});
       break;
     }
@@ -5280,7 +5507,7 @@ function reduceState(state, action) {
         e.status !== "Active" ||
         !action.label?.trim() ||
         !STANDARD_INSTRUMENTS.some(
-          (instrument) => instrument.version === (action.version ?? VERSION),
+          (instrument) => instrument.version === (action.version ?? STANDARD_INSTRUMENTS[0].version),
         ) ||
         (scheduleAssessments && (!/^\d{4}-\d{2}-\d{2}$/.test(action.due || "") || action.due < TODAY)) ||
         (!scheduleAssessments && (action.due || action.externalAppointment)) ||
@@ -5301,7 +5528,7 @@ function reduceState(state, action) {
       if (action.bundleId && !plannedBundle) return state;
       const plannedCollectionId = action.id || uid();
       const plannedBundleAssessment = plannedBundle?.assessments.find(item =>
-        item.version === (action.version ?? VERSION) && item.recipient === (action.respondent || "Person"));
+        item.version === (action.version ?? STANDARD_INSTRUMENTS[0].version) && item.recipient === (action.respondent || "Person"));
       e.collections.push({
         id: plannedCollectionId,
         ...(plannedBundle ? {
@@ -5316,7 +5543,7 @@ function reduceState(state, action) {
         due: scheduleAssessments ? action.due : "",
         scheduleFree: !scheduleAssessments,
         createdAt: recordedAt,
-        version: action.version ?? VERSION,
+        version: action.version ?? STANDARD_INSTRUMENTS[0].version,
         assignment: "Planned",
         response: "Not started",
         review: "Pending",
@@ -6142,17 +6369,6 @@ function reduceState(state, action) {
           c.link = "Revoked";
         }
       });
-      if (action.status === "Closed") {
-        const assignments = closureCollections(p, e);
-        e.collections.push(...assignments);
-        for (const assignment of assignments) {
-          event(
-            "Closure questionnaire assigned",
-            `${assignment.label} · ${p.name} · due ${formatDate(assignment.due)} · ${assignment.link === "Active" ? "sample link prepared, not sent" : "contact settings need review before link preparation"}`,
-            { collectionId: assignment.id },
-          );
-        }
-      }
       event(
         `Care episode ${action.status.toLowerCase()}`,
         `${action.reason} · ${

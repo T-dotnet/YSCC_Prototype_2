@@ -47,7 +47,7 @@ export default function Profile({ person, episode, intake, openModal, onSaved, o
     <Field label={label} hint={hint}>
       <input id={`profile-${key}`} type={type} value={draft[key] || ""}
         max={type === "date" ? TODAY : undefined}
-        required={key === "name" || key === "dob"}
+        required={key === "name"}
         onChange={event => change(key, event.target.value)} />
     </Field>
   );
@@ -120,7 +120,7 @@ export default function Profile({ person, episode, intake, openModal, onSaved, o
           </div>
       </ProfileSection>
       <ProfileSection title="Episode dates and referral" inDialog={!!onCancel}
-        description={`Current episode · ${episode.programStream || "General"} stream`}>
+        description={`Current episode · ${episode.programStream ? `${episode.programStream} stream` : "Stream not recorded"}`}>
           <div className="form-grid">
             {field("commencementDate", "Service commencement date", "date")}
             {field("referralDate", "Referral date", "date")}

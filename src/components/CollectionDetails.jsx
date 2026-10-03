@@ -59,7 +59,7 @@ export default function CollectionDetails({
       <div className="form-body collection-details">
         <section
           className="collection-details-summary"
-          aria-label="Collection status"
+          aria-label="Measure status"
         >
           <div className="collection-details-summary-heading">
             <div>
@@ -72,7 +72,7 @@ export default function CollectionDetails({
               {c.response === "Draft"
                 ? `${savedAnswerCount} ${savedAnswerCount === 1 ? "answer is" : "answers are"} saved. Start another session to continue on the same or a different collection method.`
                 : simpleAssessments
-                  ? "No draft has been saved yet. Start the instrument when ready."
+                  ? "No draft has been saved yet. Start the measure when ready."
                   : "No response has been submitted. Check delivery activity and contact arrangements before deciding whether another attempt is needed."}
             </p>
           )}
@@ -113,17 +113,17 @@ export default function CollectionDetails({
         </section>
         <details className="collection-details-accordion" open>
           <summary>
-            <span>Instrument and respondent</span>
+            <span>Measure and respondent</span>
             <ChevronDown size={18} aria-hidden="true" />
           </summary>
           <div className="collection-details-accordion-body">
             <dl className="metadata">
               <div>
-                <dt>Instrument</dt>
+                <dt>Measure</dt>
                 <dd>{c.version}</dd>
               </div>
               {c.bundleId && <>
-                <div><dt>Assessment</dt><dd>{c.bundleName}</dd></div>
+                <div><dt>Collection Occasion</dt><dd>{c.bundleName}</dd></div>
                 <div><dt>Requirement</dt><dd>{c.bundleRequirement}</dd></div>
               </>}
               <div>

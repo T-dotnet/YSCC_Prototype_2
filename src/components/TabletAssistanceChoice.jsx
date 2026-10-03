@@ -1,3 +1,5 @@
+import { RadioCard } from "./UI";
+
 export default function TabletAssistanceChoice({ assistance, onChange, headingLevel = "h4" }) {
   const Heading = headingLevel;
 
@@ -10,11 +12,11 @@ export default function TabletAssistanceChoice({ assistance, onChange, headingLe
           ["Independent", "Independent", "The person entered their answers without help"],
           ["Supported", "Assisted", "Someone helped the person complete their answers"],
         ].map(([value, label, description]) => (
-          <label className={`collection-method-card ${assistance === value ? "selected" : ""}`} key={value}>
-            <input type="radio" name="tabletAssistance" value={value} checked={assistance === value}
-              onChange={() => onChange(value)} required={value === "Independent"} />
+          <RadioCard className="collection-method-card" selected={assistance === value} key={value}
+            name="tabletAssistance" value={value} checked={assistance === value}
+            onChange={() => onChange(value)} required={value === "Independent"}>
             <span><strong>{label}</strong><small>{description}</small></span>
-          </label>
+          </RadioCard>
         ))}
       </div>
     </section>

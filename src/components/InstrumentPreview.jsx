@@ -43,7 +43,7 @@ export default function InstrumentPreview({
       <>
         <div className="form-body">
           <Notice>
-            This instrument version is unavailable in the workspace.
+            This measure version is unavailable in the workspace.
           </Notice>
         </div>
         {footer}
@@ -173,7 +173,7 @@ export default function InstrumentPreview({
       </div>
       {footer}
       {confirmReset && <Modal title="Reset preview answers?" onClose={() => setConfirmReset(false)}>
-        <div className="form-body"><p>Your practice answers for this instrument will be cleared.</p></div>
+        <div className="form-body"><p>Your practice answers for this measure will be cleared.</p></div>
         <ActionGroup className="modal-footer">
           <Button type="button" onClick={() => setConfirmReset(false)}>Cancel</Button>
           <Button type="button" variant="primary" onClick={reset}>Reset answers</Button>

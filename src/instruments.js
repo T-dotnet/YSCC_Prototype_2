@@ -469,8 +469,8 @@ export const CLINICIAN_REVIEW_INSTRUMENT = {
 export const MVP_STREAM_QUESTIONNAIRES = Object.fromEntries([
   ["Psychosis", "Psychosis stream check-in", "experiences and support"],
   ["Eating Disorder", "Eating disorder stream check-in", "daily routines and support"],
-  ["Complex", "Complex care stream check-in", "coordination and support"],
-  ["General", "General stream check-in", "care and support"],
+  ["Personality", "Personality stream check-in", "coordination and support"],
+  ["Mood", "Mood stream check-in", "mood and support"],
 ].map(([stream, name, focus]) => {
   const questions = [
     { ...choice("support-fit", "check-in", `How well is the support for ${focus} working for you?`,
@@ -491,8 +491,7 @@ export const MVP_STREAM_QUESTIONNAIRES = Object.fromEntries([
   }];
 }));
 
-export const INSTRUMENTS = [
-  ...CLIENT_PROFILE_INSTRUMENTS,
+const LEGACY_SAMPLE_INSTRUMENTS = [
   INITIAL_ASSESSMENT_INSTRUMENT,
   DEMO_INSTRUMENT,
   LIKERT_INSTRUMENT,
@@ -500,8 +499,6 @@ export const INSTRUMENTS = [
   NINETY_DAY_REVIEW_INSTRUMENT,
   CLINICIAN_INITIAL_INSTRUMENT,
   CLINICIAN_REVIEW_INSTRUMENT,
-  ...EP_BATCH_2_INSTRUMENTS,
-  ...EP_BATCH_3_INSTRUMENTS,
   ...Object.values(MVP_STREAM_QUESTIONNAIRES),
   sampleInstrument(
     "Episode closure assessment",
@@ -947,24 +944,28 @@ export const INSTRUMENTS = [
     ],
   ),
 ];
-export const STANDARD_INSTRUMENTS = INSTRUMENTS.filter(instrument => !instrument.mvpOnly && !instrument.clientProfileSection);
-
-const REVIEW_INSTRUMENT_VERSIONS = [
-  NINETY_DAY_REVIEW_INSTRUMENT.version,
-  "Episode closure assessment v1.0",
-  "Care experience feedback v1.0",
+// The non-Psychosis MVP streams use clearly labelled fictional check-ins until
+// approved stream instruments are available. Older demo definitions remain readable.
+const MVP_OTHER_STREAM_INSTRUMENTS = ["Eating Disorder", "Personality", "Mood"]
+  .map(stream => MVP_STREAM_QUESTIONNAIRES[stream]);
+export const INSTRUMENTS = [
+  ...CLIENT_PROFILE_INSTRUMENTS,
+  ...EP_BATCH_2_INSTRUMENTS,
+  ...EP_BATCH_3_INSTRUMENTS,
+  ...MVP_OTHER_STREAM_INSTRUMENTS,
+  CLINICIAN_REVIEW_INSTRUMENT,
 ];
-const reviewVersions = new Set(REVIEW_INSTRUMENT_VERSIONS);
+export const STANDARD_INSTRUMENTS = [...EP_BATCH_2_INSTRUMENTS, ...EP_BATCH_3_INSTRUMENTS];
+
 export const INSTRUMENT_GROUPS = [
-  { label: "Intake", instruments: [INITIAL_ASSESSMENT_INSTRUMENT] },
-  { label: "Assessments", instruments: STANDARD_INSTRUMENTS.filter((instrument) =>
-    instrument !== INITIAL_ASSESSMENT_INSTRUMENT && !reviewVersions.has(instrument.version)) },
-  { label: "Review", instruments: REVIEW_INSTRUMENT_VERSIONS.map((version) =>
-    INSTRUMENTS.find((instrument) => instrument.version === version)) },
+  { label: "Client profile", instruments: CLIENT_PROFILE_INSTRUMENTS },
+  { label: "Assessment", instruments: EP_BATCH_2_INSTRUMENTS },
+  { label: "90 Day Review", instruments: EP_BATCH_3_INSTRUMENTS },
+  { label: "Fictional stream check-ins", instruments: [...MVP_OTHER_STREAM_INSTRUMENTS, CLINICIAN_REVIEW_INSTRUMENT] },
 ];
 
 export const getInstrument = (version) =>
-  [LEGACY_INSTRUMENT, ...INSTRUMENTS].find(
+  [LEGACY_INSTRUMENT, ...INSTRUMENTS, ...LEGACY_SAMPLE_INSTRUMENTS].find(
     (instrument) => instrument.version === version ||
       (version === "Demo check-in v2.0" && instrument === DEMO_INSTRUMENT),
   ) || null;

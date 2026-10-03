@@ -1,11 +1,13 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, ListChecks } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ChevronDown, ListChecks, Search } from "lucide-react";
+import { COUNTRY_OPTIONS } from "../countryOptions";
+import { LANGUAGE_OPTIONS } from "../languageOptions";
 import {
   questionnaireState,
   questionTitle,
   setQuestionAnswer,
 } from "../instruments";
-import { Button, Notice, Checkbox } from "./UI";
+import { Button, Notice, Checkbox, Field, ProgressBar, RadioCard, Select } from "./UI";
 
 export default function QuestionnaireFlow({
   instrument,
@@ -30,6 +32,7 @@ export default function QuestionnaireFlow({
   const [missingOnly, setMissingOnly] = useState(false);
   const [branchMessage, setBranchMessage] = useState("");
   const heading = useRef(null);
+  const navigationRequested = useRef(false);
   const id = useId();
   const current =
     path.visible.find((entry) => entry.question.id === currentId) ||
@@ -46,6 +49,8 @@ export default function QuestionnaireFlow({
     : [];
   const Heading = headingLevel || (preview ? "h3" : "h1");
   useEffect(() => {
+    if (!navigationRequested.current) return;
+    navigationRequested.current = false;
     heading.current?.focus({ preventScroll: true });
     heading.current?.scrollIntoView({ block: "nearest" });
   }, [current?.question.id, review]);
@@ -86,8 +91,13 @@ export default function QuestionnaireFlow({
       : [...selected, option].join('||'));
   };
   const go = (entry) => {
+    navigationRequested.current = true;
     setCurrentId(entry.question.id);
     setReview(false);
+  };
+  const openReview = () => {
+    navigationRequested.current = true;
+    setReview(true);
   };
   const edit = (entry) => {
     setEditing(true);
@@ -103,16 +113,7 @@ export default function QuestionnaireFlow({
           </strong>
           <span>{path.percent}% of current path</span>
         </div>
-        <div
-          className="progress-track"
-          role="progressbar"
-          aria-label="Questions answered on current path"
-          aria-valuemin={0}
-          aria-valuemax={path.total}
-          aria-valuenow={path.answered}
-        >
-          <span style={{ width: `${path.percent}%` }} />
-        </div>
+        <ProgressBar value={path.answered} max={path.total} label="Questions answered on current path" />
         <p className="muted">
           Questions and progress adjust to your answers.{" "}
           {path.pending > 0
@@ -135,7 +136,7 @@ export default function QuestionnaireFlow({
             of {path.sections.length} complete
           </span>
         </summary>
-        <nav aria-label="Instrument sections">
+        <nav aria-label="Measure sections">
           {path.sections.map((s) => (
             <button
               type="button"
@@ -301,7 +302,7 @@ export default function QuestionnaireFlow({
             <button
               type="button"
               className="inline-link"
-              onClick={() => setReview(true)}
+              onClick={openReview}
             >
               Review answers
             </button>
@@ -309,9 +310,9 @@ export default function QuestionnaireFlow({
           <Heading ref={heading} tabIndex={-1} id={`${id}-question`}>
             {questionTitle(current.question, respondent)}
           </Heading>
-          <p className="question-hint" id={`${id}-hint`}>
+          {current.question.hint && <p className="question-hint" id={`${id}-hint`}>
             {current.question.hint}
-          </p>
+          </p>}
           {scale && (
             <p className="likert-instruction" id={`${id}-scale`}>
               <strong>{scale.label}</strong>
@@ -320,38 +321,43 @@ export default function QuestionnaireFlow({
           )}
           <fieldset
             className={`answer-options ${scale ? "likert-options" : ""}`}
-            aria-describedby={`${id}-hint${scale ? ` ${id}-scale` : ""}`}
+            aria-describedby={[current.question.hint && `${id}-hint`, scale && `${id}-scale`].filter(Boolean).join(' ') || undefined}
           >
             <legend className="sr-only">
               {questionTitle(current.question, respondent)}
             </legend>
-            {current.question.responseType === 'number' && <label>
-              Number
-              <input type="number" step="1" min={current.question.min ?? 0}
+            {current.question.responseType === 'number' && <div className="answer-input-field">
+              <Field label="Number"><input type="number" step="1" min={current.question.min ?? 0}
                 max={current.question.max ?? undefined} value={current.answer || ''}
-                onChange={event => choose(event.target.value)} />
-            </label>}
-            {current.question.responseType === 'date' && <label>
-              Date
-              <input type="date" value={current.answer || ''}
-                onChange={event => choose(event.target.value)} />
-            </label>}
-            {current.question.responseType === 'text' && <label>
-              Response
-              <input type="text" value={current.answer || ''}
-                onChange={event => choose(event.target.value)} />
-            </label>}
-            {current.question.multiple && current.question.options.map(option => <label key={option}>
-              <input type="checkbox" checked={!!current.answer?.split('||').includes(option)}
-                onChange={() => toggleMultiple(option)} /> {option}
-            </label>)}
-            {!current.question.multiple && current.question.options.length > 12 && <label>
-              Choose a response
-              <select value={current.answer || ''} onChange={event => choose(event.target.value)}>
-                <option value="">Select one</option>
-                {current.question.options.map(option => <option key={option} value={option}>{option}</option>)}
-              </select>
-            </label>}
+                onChange={event => choose(event.target.value)} /></Field>
+            </div>}
+            {current.question.responseType === 'date' && <div className="answer-input-field">
+              <Field label="Date"><input type="date" value={current.answer || ''}
+                onChange={event => choose(event.target.value)} /></Field>
+            </div>}
+            {current.question.id === 'clientCountryOfBirth' && <SearchListAnswer value={current.answer || ''} onChoose={choose}
+              options={COUNTRY_OPTIONS} noun="country or territory" plural="countries and territories" />}
+            {current.question.id === 'clientLanguageHome' && <SearchListAnswer value={current.answer || ''} onChoose={choose}
+              options={LANGUAGE_OPTIONS} noun="language" plural="languages" allowCustom />}
+            {current.question.responseType === 'text' && !['clientCountryOfBirth', 'clientLanguageHome'].includes(current.question.id) && <div className="answer-input-field">
+              <Field label="Response"><input type="text" value={current.answer || ''}
+                onChange={event => choose(event.target.value)} /></Field>
+            </div>}
+            {current.question.multiple && current.question.options.map(option => <Checkbox key={option}
+              label={option} verbatim className={`answer-multiple-option${current.answer?.split('||').includes(option) ? ' chosen' : ''}`}
+              checked={!!current.answer?.split('||').includes(option)}
+              onChange={() => toggleMultiple(option)} />)}
+            {!current.question.multiple && current.question.options.length > 12 && <div className="answer-select-field">
+              <Field label="Choose a response">
+                <Select label="Choose a response" value={current.answer === 'Not recorded' ? '' : current.answer || ''} onChange={event => choose(event.target.value)}>
+                  <option value="">Select one</option>
+                  {current.question.options.filter(option => option !== 'Not recorded').map(option => <option key={option} value={option}>{option}</option>)}
+                </Select>
+              </Field>
+            </div>}
+            {!current.question.multiple && current.question.options.length > 12 && current.question.options.includes('Not recorded') &&
+              <AnswerOption option="Not recorded" name={`${id}-${current.question.id}`}
+                selected={current.answer === 'Not recorded'} onChoose={choose} />}
             {!current.question.multiple && current.question.options.length <= 12 && (scale ? scaleOptions : current.question.options).map((option) => (
               <AnswerOption
                 key={option}
@@ -388,7 +394,7 @@ export default function QuestionnaireFlow({
               type="button"
               disabled={!position && !editing}
               onClick={() =>
-                editing ? setReview(true) : go(path.visible[position - 1])
+                editing ? openReview() : go(path.visible[position - 1])
               }
             >
               <ArrowLeft size={17} />
@@ -401,7 +407,7 @@ export default function QuestionnaireFlow({
               disabled={!current.answer}
               onClick={() => {
                 if (editing || position === path.total - 1) {
-                  setReview(true);
+                  openReview();
                   setEditing(false);
                 } else go(path.visible[position + 1]);
               }}
@@ -422,19 +428,68 @@ export default function QuestionnaireFlow({
 
 function AnswerOption({ option, name, selected, onChoose, likert = false }) {
   return (
-    <label
+    <RadioCard
       className={`answer-option ${likert ? "likert-option" : ""} ${selected ? "chosen" : ""}`}
+      selected={selected}
+      name={name}
+      value={option}
+      checked={selected}
+      onChange={() => onChoose(option)}
     >
-      <input
-        type="radio"
-        name={name}
-        value={option}
-        checked={selected}
-        onChange={() => onChoose(option)}
-      />
       <span className="radio-dot" />
       <span>{option}</span>
       {selected && <Check size={19} aria-hidden="true" />}
-    </label>
+    </RadioCard>
   );
+}
+
+function SearchListAnswer({ value, onChoose, options, noun, plural, allowCustom = false }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const input = useRef(null);
+  const trigger = useRef(null);
+  const searchId = useId();
+  const normalized = query.trim().toLocaleLowerCase();
+  const matches = options.filter(({ name, code }) =>
+    name.toLocaleLowerCase().includes(normalized) || code.toLowerCase().includes(normalized)
+  );
+  const custom = allowCustom && normalized && !options.some(({ name }) => name.toLocaleLowerCase() === normalized);
+  const select = (name) => {
+    onChoose(name);
+    setOpen(false);
+    setQuery('');
+    trigger.current?.focus();
+  };
+  return <div className="answer-search-field">
+    <span className="answer-search-label">Response</span>
+    <button type="button" ref={trigger} className="answer-search-trigger"
+      aria-expanded={open} aria-controls={searchId}
+      onClick={() => { setOpen(!open); setQuery(''); }}>
+      <span className={value && value !== 'Not recorded' ? '' : 'answer-search-placeholder'}>
+        {value && value !== 'Not recorded' ? value : `Select ${noun}`}
+      </span>
+      <ChevronDown size={18} aria-hidden="true" />
+    </button>
+    {open && <div className="answer-search-panel" id={searchId}>
+      <label className="answer-search-input-wrap">
+        <Search size={18} aria-hidden="true" />
+        <span className="sr-only">Search {plural}</span>
+        <input ref={input} autoFocus type="search" value={query} placeholder={`Search ${plural}`}
+          onChange={event => setQuery(event.target.value)}
+          onKeyDown={event => {
+            if (event.key === 'Escape') { setOpen(false); trigger.current?.focus(); }
+            if (event.key === 'Enter' && matches.length === 1) { event.preventDefault(); select(matches[0].name); }
+            else if (event.key === 'Enter' && custom && matches.length === 0) { event.preventDefault(); select(query.trim()); }
+          }} />
+      </label>
+      <div className="answer-search-results" role="listbox" aria-label={plural}>
+        {matches.map(({ code, name }) => <button key={code} type="button" role="option"
+          aria-selected={value === name} className="answer-search-option" onClick={() => select(name)}>{name}
+          {value === name && <Check size={18} aria-hidden="true" />}</button>)}
+        {custom && <button type="button" role="option" aria-selected={value === query.trim()}
+          className="answer-search-option" onClick={() => select(query.trim())}>Use “{query.trim()}”</button>}
+        {!matches.length && !custom && <p className="answer-search-empty">No matching {plural}</p>}
+      </div>
+    </div>}
+  </div>;
 }

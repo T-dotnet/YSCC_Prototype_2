@@ -34,7 +34,7 @@ export const GOVERNED_MEASURES = [
     respondents: ["Parent/carer", "Young person (11–17)"],
     timings: STANDARD_TIMING,
     scoring: "Use the licensed, version-specific PMHC-MDS SDQ scoring rules.",
-    missingData: "Use the instrument rule; insufficient completed items produce missing summary scores.",
+    missingData: "Use the measure rule; insufficient completed items produce missing summary scores.",
   },
   {
     key: "sidas",

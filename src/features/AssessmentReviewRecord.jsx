@@ -26,7 +26,7 @@ export default function AssessmentReviewRecord({
 
   if (!person || !episode || !collection)
     return (
-      <Empty title="Instrument review record unavailable">
+      <Empty title="Measure review record unavailable">
         <Button onClick={() => navigate(`/people/${personId}?tab=assessment`)}>
           Back to Assessment
         </Button>

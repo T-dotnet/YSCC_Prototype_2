@@ -1,6 +1,7 @@
 import { asBundle } from './assessmentBundles.js';
 import { PROGRAM_STREAMS } from './carePeriods.js';
 import { clientProfileBundle } from './clientProfileMeasure.js';
+import { INSTRUMENTS } from './instruments.js';
 import {
   mvpAssessmentMode,
   mvpInitialBundles,
@@ -11,18 +12,15 @@ import {
   MVP_REVIEW_BUNDLES,
 } from './mvpAssessmentPathway.js';
 
-const mvpMockBundles = [
-  {id:'MVP-DISCHARGE-PERSON', name:'Discharge · Young person', respondent:'Person', channel:'Clinic tablet', enabled:true, example:true, schedule:'At discharge', coreVersion:'Life and care check-in v1.0', statusChange:''},
-  {id:'MVP-DISCHARGE-CLINICIAN', name:'Discharge · Clinician', respondent:'Clinician', channel:'Clinician entry', enabled:true, example:true, schedule:'At discharge', coreVersion:'Clinician care review v1.0', statusChange:''},
-];
-
 export const mvpDisplayBundles = settings => {
   const reviews = mvpReviewBundles(settings);
   const profile = clientProfileBundle(settings);
+  const displayedReviews = reviews.map(bundle => ({ ...bundle,
+    schedule: bundle.after === 'intake'
+      ? `${bundle.repeat ? 'Every' : 'Once'} ${bundle.days} days after initial assessment completion`
+      : undefined }));
   return [...(profile ? [{ ...profile, profileMeasure: true, programStream: 'All', careLevel: 'All', minAge: null, maxAge: null }] : []),
-    ...mvpInitialBundles(settings), ...['Person', 'Clinician'].flatMap(respondent =>
-    ['General', ...PROGRAM_STREAMS.filter(stream => stream !== 'General')].flatMap(stream =>
-      reviews.filter(bundle => MVP_REVIEW_BUNDLES.find(item => item.id === bundle.id)?.respondent === respondent && bundle.programStream === stream))), ...mvpMockBundles];
+    ...mvpInitialBundles(settings), ...displayedReviews];
 };
 
 export const mvpDisplayBattery = (bundle, stream) => bundle.example
@@ -32,9 +30,11 @@ export const mvpDisplayBattery = (bundle, stream) => bundle.example
 
 export const administrationMeasureBundles = settings => {
   const rules = settings?.assessmentScheduleRules || [];
+  const available = new Set(INSTRUMENTS.map(instrument => instrument.version));
   return [
     ...(mvpAssessmentMode(settings) ? mvpDisplayBundles(settings) : []),
-    ...rules.filter(rule => !mvpAssessmentMode(settings) || rule.createdInMvp).map(asBundle),
+    ...rules.filter(rule => (!mvpAssessmentMode(settings) || rule.createdInMvp) &&
+      rule.assessments?.length && rule.assessments.every(item => available.has(item.version))).map(asBundle),
   ];
 };
 
