@@ -159,7 +159,7 @@ export function Quality({ openModal, navigate }) {
       />
       <Panel
         title="Validation issues"
-        action={<Badge>{unresolved.length} unresolved</Badge>}
+        action={<span className="muted">{unresolved.length} unresolved</span>}
         className="quality-queue queue-list-panel"
       >
         <ListFilterBar
