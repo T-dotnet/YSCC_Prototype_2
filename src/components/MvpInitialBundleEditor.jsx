@@ -15,7 +15,7 @@ const parameterOptions = [['careLevel', 'Care level'],
   ['minAge', 'Minimum age (years)'], ['maxAge', 'Maximum age (years)'], ['profileValue', 'Profile data field']];
 
 export default function MvpInitialBundleEditor({ bundle, settings, onClose, onSave }) {
-  const [draft, setDraft] = useState(() => (settings?.phase2CareActivity && settings?.mvpSchedulePresets !== false) && (!['specific-measure', 'intake', 'care-period'].includes(bundle.after) || bundle.timing === 'date') ? { ...bundle, timing: 'days', after: 'specific-measure', delayDays: 0, triggerMeasureId: 'MVP-CLIENT-PROFILE', triggerMeasureStatus: 'completed', dueDate: '' } : bundle);
+  const [draft, setDraft] = useState(() => (settings?.phase2CareActivity && settings?.mvpSchedulePresets !== false) && (!['specific-measure', 'intake', 'care-period'].includes(bundle.after) || bundle.timing === 'date') ? { ...bundle, timing: 'days', after: 'specific-measure', delayDays: 0, triggerMeasureId: 'MVP-CLIENT-PROFILE', triggerMeasureStatus: 'completed', triggerMeasureIds:['MVP-CLIENT-PROFILE'], triggerMeasureStatuses:['completed'], dueDate: '' } : bundle);
   const [version, setVersion] = useState('');
   const [parameterToAdd, setParameterToAdd] = useState('');
   const [parameters, setParameters] = useState(parameterOptions.map(([key]) => key).filter(key =>
@@ -54,7 +54,7 @@ export default function MvpInitialBundleEditor({ bundle, settings, onClose, onSa
           {(settings?.phase2CareActivity && settings?.mvpSchedulePresets !== false) ? <div className="bundle-name-field mvp-preset-pair">
             <div className="mvp-preset-content">
               <div className="mvp-preset-label">Care point preset</div>
-            <Select className="mvp-care-point-select" label="Care point preset" value={draft.after || 'specific-measure'} onChange={event => setDraft(current => ({ ...current, timing: 'days', after: event.target.value, delayDays: 0, dueDate: '', triggerMeasureId: event.target.value === 'specific-measure' ? 'MVP-CLIENT-PROFILE' : current.triggerMeasureId, triggerMeasureStatus: 'completed' }))}>
+            <Select className="mvp-care-point-select" label="Care point preset" value={draft.after || 'specific-measure'} onChange={event => setDraft(current => ({ ...current, timing: 'days', after: event.target.value, delayDays: 0, dueDate: '', triggerMeasureId: event.target.value === 'specific-measure' ? 'MVP-CLIENT-PROFILE' : current.triggerMeasureId, triggerMeasureStatus: 'completed', triggerMeasureIds: event.target.value === 'specific-measure' ? ['MVP-CLIENT-PROFILE'] : current.triggerMeasureIds, triggerMeasureStatuses:['completed'] }))}>
               <option value="specific-measure">Assessment</option>
               <option value="intake">Intake</option>
               <option value="care-period">Care episode starts</option>
@@ -70,7 +70,7 @@ export default function MvpInitialBundleEditor({ bundle, settings, onClose, onSa
           {(draft.timing || 'days') === 'days' ? <>
             <FieldInput label="Time (days)" type="number" min="0" max="728" step="1" required value={draft.delayDays} onChange={event => change('delayDays', Number(event.target.value))} />
             <FieldSelect label="After" value={draft.after || 'specific-measure'} onChange={event => change('after', event.target.value)}>
-              <option value="specific-measure">Specific measure</option><option value="intake">Intake</option><option value="care-period">Care episode starts</option>
+              <option value="specific-measure">Specific Assessment Pack</option><option value="intake">Intake</option><option value="care-period">Care episode starts</option>
             </FieldSelect>
             <SpecificMeasureFields draft={draft} settings={settings} change={change} />
           </> : <FieldInput label="Due date" type="date" required value={draft.dueDate || ''} onChange={event => change('dueDate', event.target.value)} />}

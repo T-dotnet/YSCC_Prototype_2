@@ -5,7 +5,7 @@ import { ChevronDown, LockKeyhole, Trash2 } from 'lucide-react';
 import { useStore } from '../store';
 import { INSTRUMENTS, STANDARD_INSTRUMENTS } from '../instruments';
 import { PROGRAM_STREAMS, CARE_LEVELS } from '../carePeriods';
-import { bundleError, asBundle, bundleName, BUNDLE_EVENT_TYPES, bundleAgeLabel, bundleTiming, instrumentSupportsRespondent } from '../assessmentBundles';
+import { bundleError, asBundle, bundleName, BUNDLE_EVENT_TYPES, bundleAgeLabel, bundleTiming, bundleScheduleHint, instrumentSupportsRespondent } from '../assessmentBundles';
 import { assessmentSmsEnabled } from '../assessmentFeatures';
 import { ActionGroup, EditAction, DeleteAction, Panel, Button, Badge, Modal, ModalFooter, Field, FieldInput, FieldSelect, Select, Checkbox, Switch, IconButton } from './UI';
 import { QueueRow, QueueCell } from './QueueRow';
@@ -16,7 +16,7 @@ import { administrationMeasureBundles, instrumentVersionsForAdministrationMeasur
 import MvpReviewBundleEditor from './MvpReviewBundleEditor';
 import MvpInitialBundleEditor from './MvpInitialBundleEditor';
 import SpecificMeasureFields from './SpecificMeasureFields';
-import { measureSourceOptions, specificMeasureError } from '../measureTriggers';
+import { measureSourceOptions, measureTriggerIds, measureTriggerStatuses, specificMeasureError } from '../measureTriggers';
 import ProfileValueTriggerFields from './ProfileValueTriggerFields';
 import { PROFILE_TRIGGER_FIELDS, profileValueTriggerError } from '../profileValueTriggers';
 import { CLIENT_PROFILE_INSTRUMENTS, clientProfileBundle, DEFAULT_CLIENT_PROFILE_BUNDLE } from '../clientProfileMeasure';
@@ -28,11 +28,15 @@ import { collectionMethodSummary } from '../allowedCollectionMethods.js';
 import { MVP_SCHEDULE_PRESETS, presetForBundle } from '../mvpSchedulePresets.js';
 
 const profileConfig = ({ id, name, channel, allowedCollectionMethods, respondent, enabled, instrumentVersions,
-  timing, after, delayDays, dueDate, triggerMeasureId, triggerMeasureStatus,
+  timing, after, delayDays, dueDate, triggerMeasureId, triggerMeasureStatus, triggerMeasureIds, triggerMeasureStatuses,
   triggerDataEnabled, triggerDataField, triggerDataValue, programStream, careLevel, minAge, maxAge, statusChange }) =>
   ({ id, name, channel, allowedCollectionMethods, respondent, enabled, instrumentVersions,
-    timing, after, delayDays, dueDate, triggerMeasureId, triggerMeasureStatus,
+    timing, after, delayDays, dueDate, triggerMeasureId, triggerMeasureStatus, triggerMeasureIds, triggerMeasureStatuses,
     triggerDataEnabled, triggerDataField, triggerDataValue, programStream, careLevel, minAge, maxAge, statusChange });
+const packTriggerSummary = (bundle, settings) => {
+  const names = new Map(measureSourceOptions(settings).map(item => [item.id, item.name]));
+  return `${measureTriggerStatuses(bundle).map(value => value.replace('not-required', 'not required')).join(' or ')} · ${measureTriggerIds(bundle).map(id => names.get(id) || id).join(' or ')}`;
+};
 const mvpInstrumentSummary = bundle => {
   if (bundle.profileMeasure) return `${bundle.instrumentVersions.length} total`;
   if (MVP_INITIAL_BUNDLES.some(item => item.id === bundle.id)) return `${mvpInitialVersions(bundle, bundle.programStream).length} total`;
@@ -130,7 +134,7 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
         <Switch label="Automatic assessment due dates" checked={!!state.settings?.automaticAssessmentDueDates}
           onChange={event=>commit({type:'SET_AUTOMATIC_ASSESSMENT_DUE_DATES', enabled:event.target.checked})}/>
       </div>
-      <p>Schedule assessments from an event or for a specific date. Event-based schedules can repeat when configured with a time interval.</p>
+      <p>Schedule assessments after a selected event. Schedules can repeat when configured with a time interval.</p>
       <p>Assignments are prepared in this browser. Live SMS and tablet delivery are not connected. SMS measures wait while Assessment SMS flow is off. Existing measures and answers are retained.</p>
     </Panel>}
     <section className="assessment-schedule-settings stack" aria-label="Assessment Packs">
@@ -200,8 +204,8 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
           <div className="panel-body">
             <dl className="metadata bundle-summary-conditions">
               <div><dt>{(state.settings?.phase2CareActivity && state.settings?.mvpSchedulePresets !== false) ? 'Care point' : 'Schedule'}</dt><dd>{bundle.profileMeasure ? bundle.timing === 'date' ? `Due ${bundle.dueDate}` :
-                `After ${bundle.after === 'specific-measure' ? `${bundle.triggerMeasureStatus} · ${measureSourceOptions(state.settings).find(item => item.id === bundle.triggerMeasureId)?.name || bundle.triggerMeasureId}` : bundle.after === 'intake' ? 'intake' : bundle.after === 'care-period' ? 'care episode starts' : 'new profile'}${bundle.delayDays ? ` + ${bundle.delayDays} days` : ''}`
-                : MVP_INITIAL_BUNDLES.some(item => item.id === bundle.id) ? bundle.timing === 'date' ? `Due ${bundle.dueDate}` : `${bundle.after === 'specific-measure' ? `After ${bundle.triggerMeasureStatus} · ${bundle.triggerMeasureId === 'MVP-CLIENT-PROFILE' ? 'Client profile' : bundle.triggerMeasureId}` : bundle.after === 'intake' ? 'After intake' : 'After care episode starts'}${bundle.delayDays ? ` + ${bundle.delayDays} days` : ''}` : bundle.schedule || bundleTiming(bundle)}</dd></div>
+                `After ${bundle.after === 'specific-measure' ? packTriggerSummary(bundle, state.settings) : bundle.after === 'intake' ? 'intake' : bundle.after === 'care-period' ? 'care episode starts' : 'new profile'}${bundle.delayDays ? ` + ${bundle.delayDays} days` : ''}`
+                : MVP_INITIAL_BUNDLES.some(item => item.id === bundle.id) ? bundle.timing === 'date' ? `Due ${bundle.dueDate}` : `${bundle.after === 'specific-measure' ? `After ${packTriggerSummary(bundle, state.settings)}` : bundle.after === 'intake' ? 'After intake' : 'After care episode starts'}${bundle.delayDays ? ` + ${bundle.delayDays} days` : ''}` : bundle.schedule || bundleTiming(bundle)}</dd></div>
               {bundle.triggerDataEnabled && <div><dt>Data field</dt><dd>{PROFILE_TRIGGER_FIELDS.find(field => field.id === bundle.triggerDataField)?.label}: {bundle.triggerDataValue}</dd></div>}
               <div><dt>{LABELS.respondent}</dt><dd>{bundle.respondent === 'Person' ? 'Patient' : 'Clinician'}</dd></div>
               <div><dt>Allowed collection methods</dt><dd>{collectionMethodSummary(bundle)}</dd></div>
@@ -342,13 +346,8 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
               <p className="muted bundle-name-field">{presetForBundle(draft)?.description || 'Choose when this Assessment Pack is prepared.'}</p>
               </div>
               <StatusChangeFields compact value={draft.statusChange} onChange={value=>change('statusChange',value)} />
-            </div> :             <div className="bundle-name-field bundle-timing-fields">
+            </div> :             <div className="bundle-name-field bundle-timing-fields assessment-pack-schedule">
               <h3 className="bundle-name-field bundle-timing-heading">Schedule</h3>
-              <FieldSelect label="Trigger" required value={draft.trigger === 'event' ? 'days' : ['days','date'].includes(draft.timing) ? draft.timing : ''} onChange={event=> {
-                const timing = event.target.value;
-                setDraft(current=>({...current,trigger:timing === 'event' ? 'event' : 'current',timing,repeat:timing === 'days' ? current.repeat : false}));
-                setError('');
-              }}>{!['days','date'].includes(draft.timing) && draft.trigger !== 'event' && <option value="" disabled>Choose Event or Date</option>}<option value="days">Event</option><option value="date">Date</option></FieldSelect>
               {draft.trigger === 'event' && <>
                 <FieldSelect label="Event category" required value={draft.eventType} onChange={e=>change('eventType',e.target.value)}><option value="">Choose an event category</option>{BUNDLE_EVENT_TYPES.map(e=><option key={e.value} value={e.value}>{e.label}</option>)}</FieldSelect>
                 <FieldInput label="Days after event" required type="number" min="0" max="730" step="1" value={draft.delayDays} onChange={e=>change('delayDays',Number(e.target.value))}/>
@@ -358,18 +357,20 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
                 <FieldInput label="Time (days)" required type="number" min="1" max="728" step="1" value={draft.days} onChange={e=>change('days',Number(e.target.value))}/>
                 <FieldSelect label="After" value={draft.after || 'care-period'} onChange={e=>setDraft(current=>({...current,after:e.target.value,...(e.target.value === 'referral' ? {repeat:false,referralStatus:current.referralStatus || 'Accepted'} : {})}))}>
                   {!mvp && !draft.after && <option value="care-period">Care period starts</option>}
+                  <option value="new-profile">New profile</option>
                   <option value="intake">Intake</option>
-                  <option value="specific-measure">Specific measure</option>
-                  {mvp ? <><option value="referral">Referral</option><option value="discharge">Discharge</option></> : <><option value="discharge">Discharge</option><option value="referral">Referral</option></>}
-                  {(mvp ? BUNDLE_EVENT_TYPES.filter(event=>event.value==='level-change') : BUNDLE_EVENT_TYPES).map(event=><option key={event.value} value={event.value}>{event.label}</option>)}
+                  <option value="referral">Referral</option>
+                  <option value="discharge">Discharge</option>
+                  <option value="specific-measure">Specific Assessment Pack</option>
+                  <option value="program-change">Program changed</option>
+                  <option value="care-level-change">Care level changed</option>
+                  {draft.after === 'level-change' && <option value="level-change">Program or care level changed</option>}
+                  {!mvp && BUNDLE_EVENT_TYPES.filter(event=>!['program-change','care-level-change','level-change'].includes(event.value)).map(event=><option key={event.value} value={event.value}>{event.label}</option>)}
                 </FieldSelect>
                 <SpecificMeasureFields draft={draft} settings={state.settings} change={change} />
                 {draft.after === 'referral' ? <FieldSelect label="Referral status" required value={draft.referralStatus || 'Accepted'} onChange={e=>change('referralStatus',e.target.value)}>{['Accepted','Denied','Reworked','Modified'].map(status=><option key={status} value={status}>{status}</option>)}</FieldSelect> : <Checkbox className="bundle-repeat-choice" label="Repeat" checked={draft.repeat} aria-describedby={`bundle-repeat-hint-${draft.id}`} onChange={event=>change('repeat',event.target.checked)}/>}
               </>}
-              <p id={`bundle-repeat-hint-${draft.id}`} className={`muted ${draft.timing === 'days' ? 'bundle-repeat-hint' : 'bundle-name-field'}`}>{draft.trigger === 'event' ? 'Runs once for each matching event.' : draft.timing === 'intake' ? 'Runs once when intake is completed for this care episode.'
-                : draft.timing === 'discharge' ? 'Runs once when this care episode closes.'
-                  : draft.timing === 'date' ? 'Runs once on the selected date.'
-                  : draft.repeat ? `Repeats every ${draft.days} days after ${draft.after === 'intake' ? 'intake' : draft.after === 'discharge' ? 'discharge' : (draft.after === 'referral' ? `referral ${draft.referralStatus || 'Accepted'}` : BUNDLE_EVENT_TYPES.find(event=>event.value===draft.after)?.label) || 'the care period starts'}.` : `Runs once ${draft.days} days after ${draft.after === 'intake' ? 'intake' : draft.after === 'discharge' ? 'discharge' : (draft.after === 'referral' ? `referral ${draft.referralStatus || 'Accepted'}` : BUNDLE_EVENT_TYPES.find(event=>event.value===draft.after)?.label) || 'the care period starts'}.`}</p>
+              <p id={`bundle-repeat-hint-${draft.id}`} className={`muted ${draft.timing === 'days' ? 'bundle-repeat-hint' : 'bundle-name-field'}`}>{bundleScheduleHint(draft)}</p>
             </div>}
           <>
             <h3 className="bundle-name-field bundle-collection-heading">Parameter</h3>

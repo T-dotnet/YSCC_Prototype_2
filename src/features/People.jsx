@@ -10,7 +10,7 @@ import { comparePeople, episodeDisplayStatus, peopleForList, peopleBundleSummary
 import { ASSESSMENT_BUNDLE_STATUS_TONES } from '../assessmentBundleStatus.js';
 import { sortQueueRows } from "../queueSort";
 import { patientIdentifier, patientSecondaryDetail } from "../patientIdentity";
-import { ActiveFilters, SortableHeader, useQueueSort } from "../components/QueueControls";
+import { SortableHeader, useQueueSort } from "../components/QueueControls";
 import StandardTable from "../components/StandardTable";
 import { QueueCell, QueueRow } from "../components/QueueRow";
 import ListFilterBar from "../components/ListFilterBar";
@@ -177,10 +177,11 @@ export default function People({ navigate, openModal }) {
           onQueryChange={setQuery}
           placeholder="Search people"
           shown={people.length}
-          total={peopleForList(listPeople, status, '', state.settings).length}
+          total={listPeople.length}
           noun="people"
           activeAdvancedCount={Number(assessmentStatus !== "All statuses")}
-          resultAction={<ActiveFilters items={activeFilterItems} onClear={clearAll} inline />}
+          activeFilters={activeFilterItems}
+          onClear={clearAll}
           advanced={
             <Select
               label={groupedBundles ? "Assessment status" : "Measure status"}

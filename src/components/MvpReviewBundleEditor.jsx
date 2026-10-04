@@ -73,13 +73,13 @@ export default function MvpReviewBundleEditor({ bundle, settings, onClose, onSav
           <FieldSelect label="Trigger" value={draft.timing} onChange={event => setDraft(current => ({ ...current, timing: event.target.value, repeat: event.target.value === 'days' ? current.repeat : false }))}><option value="days">Event</option><option value="date">Date</option></FieldSelect>
           {draft.timing === 'days' ? <>
             <FieldInput label="Time (days)" type="number" min="1" max="728" step="1" required value={draft.days} onChange={event => change('days', Number(event.target.value))} />
-            <FieldSelect label="After" value={draft.after} onChange={event => change('after', event.target.value)}><option value="intake">Intake</option><option value="care-period">Care episode starts</option><option value="specific-measure">Specific measure</option></FieldSelect>
+            <FieldSelect label="After" value={draft.after} onChange={event => change('after', event.target.value)}><option value="intake">Intake</option><option value="care-period">Care episode starts</option><option value="specific-measure">Specific Assessment Pack</option></FieldSelect>
             <SpecificMeasureFields draft={draft} settings={settings} change={change} />
             <Checkbox className="bundle-repeat-choice" label="Repeat" checked={draft.repeat} onChange={event => change('repeat', event.target.checked)} />
           </> : <FieldInput label="Due date" type="date" required value={draft.dueDate || ''} onChange={event => change('dueDate', event.target.value)} />}
           <p className="muted bundle-name-field">{draft.timing === 'date' ? 'Runs once on the selected date.' : draft.repeat
-            ? `Repeats every ${draft.days} days after ${draft.after === 'specific-measure' ? 'the selected measure status' : draft.after === 'intake' ? 'intake' : 'the care episode starts'}.`
-            : `Runs once ${draft.days} days after ${draft.after === 'specific-measure' ? 'the selected measure status' : draft.after === 'intake' ? 'intake' : 'the care episode starts'}.`}</p>
+            ? `Repeats every ${draft.days} days after ${draft.after === 'specific-measure' ? 'the selected Assessment Pack status' : draft.after === 'intake' ? 'intake' : 'the care episode starts'}.`
+            : `Runs once ${draft.days} days after ${draft.after === 'specific-measure' ? 'the selected Assessment Pack status' : draft.after === 'intake' ? 'intake' : 'the care episode starts'}.`}</p>
 </>}
           <h3 className="bundle-name-field bundle-collection-heading">Parameter</h3>
           <div className="bundle-name-field bundle-parameter-row">

@@ -4,13 +4,15 @@ import { PROGRAM_STREAMS, CARE_LEVELS, carePeriodAt } from './carePeriods.js';
 import { CARE_EVENT_TYPES, SYSTEM_EVENT_TYPES, REPORT_EVENT_TYPES } from './careEvents.js';
 import { assessmentSmsEnabled } from './assessmentFeatures.js';
 import { responseDate } from './responseDate.js';
-import { measureStatusSources, specificMeasureError } from './measureTriggers.js';
+import { measureStatusSources, measureTriggerIds, measureTriggerStatuses, specificMeasureError } from './measureTriggers.js';
 import { profileValueMatches, profileValueTriggerError } from './profileValueTriggers.js';
 import { validMeasureStatusChange } from './measureStatusChange.js';
 import { allowedCollectionMethodsError } from './allowedCollectionMethods.js';
 
 export const BUNDLE_EVENT_TYPES = [
   { value: 'episode-started', label: 'Care episode started' },
+  { value: 'program-change', label: 'Program changed' },
+  { value: 'care-level-change', label: 'Care level changed' },
   { value: 'level-change', label: 'Program or care level changed' },
   ...[...CARE_EVENT_TYPES, ...SYSTEM_EVENT_TYPES, ...REPORT_EVENT_TYPES].map(({value, label}) => ({value, label})),
 ];
@@ -37,11 +39,44 @@ export function bundleTiming(bundle) {
   if (bundleTimingMode(bundle) === 'discharge') return 'At discharge';
   if (bundleTimingMode(bundle) === 'date') return bundle.dueDate ? `Due ${bundle.dueDate}` : 'Date not recorded';
   const days = bundleIntervalDays(bundle);
-  const after = bundle.after === 'specific-measure' ? `${bundle.triggerMeasureStatus} status of a specific measure` : bundle.after === 'referral' ? `referral ${(bundle.referralStatus || 'Accepted').toLowerCase()}` : bundle.after === 'intake' ? 'intake' : bundle.after === 'discharge' ? 'discharge' : BUNDLE_EVENT_TYPES.find(event=>event.value===bundle.after)?.label;
+  const after = bundle.after === 'specific-measure' ? `${measureTriggerStatuses(bundle).join(' or ')} status of ${measureTriggerIds(bundle).length} Assessment Pack${measureTriggerIds(bundle).length === 1 ? '' : 's'}` : bundle.after === 'referral' ? `referral ${(bundle.referralStatus || 'Accepted').toLowerCase()}` : bundle.after === 'new-profile' ? 'new profile' : bundle.after === 'intake' ? 'intake' : bundle.after === 'discharge' ? 'discharge' : BUNDLE_EVENT_TYPES.find(event=>event.value===bundle.after)?.label;
   if (after) return bundleRepeats(bundle) ? `Every ${days} days after ${after}` : `Once, ${days} days after ${after}`;
   return Number.isFinite(days) ? bundleRepeats(bundle)
     ? `Every ${days} ${days === 1 ? 'day' : 'days'}`
     : `Once, ${days} ${days === 1 ? 'day' : 'days'} after care period starts` : 'Timing not recorded';
+}
+export function bundleScheduleHint(bundle) {
+  if (bundle.trigger === 'event') {
+    if (!Number.isInteger(bundle.delayDays) || bundle.delayDays < 0) return 'Enter the number of days after the event.';
+    return bundle.delayDays === 0 ? 'Due once on each matching event date.'
+      : `Due once for each matching event, ${bundle.delayDays} ${bundle.delayDays === 1 ? 'day' : 'days'} later.`;
+  }
+  const timing = bundleTimingMode(bundle);
+  if (timing === 'date') return 'Due once on the selected date.';
+  if (timing === 'intake') return 'Due once when intake is completed and care proceeds.';
+  if (timing === 'discharge') return 'Due once when this care episode closes.';
+  const days = bundleIntervalDays(bundle);
+  if (!Number.isInteger(days) || days < 1) return 'Enter a valid time in days to preview this schedule.';
+  const interval = `${days} ${days === 1 ? 'day' : 'days'}`;
+  const after = bundle.after || 'care-period';
+  if (after === 'specific-measure' && (!measureTriggerIds(bundle).length || !measureTriggerStatuses(bundle).length))
+    return 'Choose Assessment Packs and statuses to preview this schedule.';
+  if (after === 'referral')
+    return `Due once for each referral marked ${bundle.referralStatus || 'Accepted'}, ${interval} later.`;
+  const event = BUNDLE_EVENT_TYPES.find(item => item.value === after);
+  const anchor = ({
+    'new-profile': 'the new profile is created',
+    intake: 'intake is completed and care proceeds',
+    discharge: 'this care episode closes',
+    'specific-measure': 'any selected Assessment Pack reaches any selected status',
+    'program-change': 'the program changes',
+    'care-level-change': 'the care level changes',
+    'level-change': 'the program or care level changes',
+    'care-period': 'the care period starts',
+  })[after] || (event ? 'the selected event occurs' : 'the care period starts');
+  return bundleRepeats(bundle)
+    ? `First due ${interval} after ${anchor}, then every ${interval}.`
+    : `Due once ${interval} after ${anchor}.`;
 }
 export function assessmentBundleGroups(episode, visibleCollections, rules = []) {
   const groups = new Map();
@@ -162,7 +197,7 @@ export function bundleError(bundle, bundles=[]) {
     if (bundleTimingMode(bundle) !== 'days' && bundle.repeat === true) return 'Repeat is only available for Time (days).';
     if (bundleTimingMode(bundle) === 'date' && (!/^\d{4}-\d{2}-\d{2}$/.test(bundle.dueDate || '') || !Number.isFinite(Date.parse(bundle.dueDate)) || new Date(bundle.dueDate).toISOString().slice(0,10) !== bundle.dueDate)) return 'Enter a valid due date.';
     if (bundleTimingMode(bundle) === 'days') {
-      if (bundle.after && !['care-period','intake','discharge','referral','specific-measure',...BUNDLE_EVENT_TYPES.map(event=>event.value)].includes(bundle.after)) return 'Choose an event to schedule after.';
+      if (bundle.after && !['care-period','new-profile','intake','discharge','referral','specific-measure',...BUNDLE_EVENT_TYPES.map(event=>event.value)].includes(bundle.after)) return 'Choose an event to schedule after.';
       if (specificMeasureError(bundle)) return specificMeasureError(bundle);
       const days = bundleIntervalDays(bundle);
       if (!Number.isInteger(days) || days < 1 || days > 728) return 'Enter a time from 1 to 728 days.';
@@ -211,7 +246,7 @@ export function bundleCollection(offer, today) {
     bundleEventId:offer.eventId || null, bundleTimingSourceId:offer.timingSourceId || null,
     ...(offer.dischargeFollowUp ? {dischargeFollowUp:true} : {})};
 }
-function matchingEvents(bundle, episode, today) {
+function matchingEvents(bundle, episode, today, person) {
   return (episode.events || []).filter(event => {
     if (bundle.activationEventIds?.includes(event.id) || event.supersededBy || event.voidedAt) return false;
     const date = event.effectiveDate || event.eventDate || event.date;
@@ -220,6 +255,15 @@ function matchingEvents(bundle, episode, today) {
       return event.actionType === 'START_ASSESSMENT' || event.title === 'Initial assessment added after intake' || event.title === 'Care episode started' || event.title === 'Care episode started after level change';
     if (bundle.eventType === 'referral') return (event.eventType === 'referral' || event.kind === 'referral') && (event.referralStatus || event.status || event.outcome) === (bundle.referralStatus || 'Accepted');
     if (bundle.eventType === 'level-change') return event.title === 'Care episode started after level change';
+    if (bundle.eventType === 'program-change' || bundle.eventType === 'care-level-change') {
+      if (event.actionType !== 'CHANGE_CARE_LEVEL') return false;
+      const previous = person?.episodes?.find(item => item.id === (event.previousEpisodeId || episode.previousEpisodeId));
+      const previousPeriod = previous?.carePeriods?.at(-1);
+      const currentPeriod = episode.carePeriods?.[0];
+      return bundle.eventType === 'program-change'
+        ? !!previous && previous.programStream !== (currentPeriod?.programStream || episode.programStream)
+        : !!previousPeriod && previousPeriod.careLevel !== currentPeriod?.careLevel;
+    }
     return event.actionType === 'ADD_CARE_EVENT' && event.eventType === bundle.eventType;
   });
 }
@@ -250,10 +294,11 @@ export function reconcileAssessmentBundles(state, today) {
         const timing = bundle.trigger === 'current' ? bundleTimingMode(bundle) : 'event';
         const anchorTiming = timing === 'days' ? bundle.after || 'care-period' : timing;
         if (anchorTiming === 'discharge' ? episode.status !== 'Closed' : episode.status !== 'Active') continue;
+        if (anchorTiming === 'new-profile' && (episode.number ? episode.number !== '01' : episode !== person.episodes[0])) continue;
         const intake = anchorTiming === 'intake' ? person.intakes?.find(record =>
           record.episodeId === episode.id && record.status === 'Completed' && record.outcome === 'Proceed') : null;
         if (anchorTiming === 'intake' && !intake) continue;
-        const date = anchorTiming === 'discharge' ? episode.end : anchorTiming === 'intake'
+        const date = anchorTiming === 'discharge' ? episode.end : anchorTiming === 'new-profile' ? episode.start : anchorTiming === 'intake'
           ? intake.decisionAt?.slice(0,10) || episode.start : today;
         if (!date || date > today || !bundleAgeMatches(bundle, person, date)) continue;
         const period = carePeriodAt(episode, date);
@@ -266,11 +311,12 @@ export function reconcileAssessmentBundles(state, today) {
             collection.bundleSource === 'Manual' && collection.bundleAssessmentId === item.id && collection.response !== 'Submitted' &&
             !['Paused','Cancelled'].includes(collection.assignment) &&
             (!['Draft','In progress'].includes(collection.response) || !collection.due || collection.due > today))) continue;
-          const sources = bundle.trigger === 'event' ? matchingEvents(bundle, episode, today).map(event => ({anchor:event.effectiveDate || event.eventDate || event.date, eventId:event.id}))
-            : anchorTiming === 'specific-measure' ? measureStatusSources({...episode, collections}, bundle.triggerMeasureId, bundle.triggerMeasureStatus, today)
-            : anchorTiming === 'intake' ? [{anchor:date,timingSourceId:intake.id}]
+          const sources = bundle.trigger === 'event' ? matchingEvents(bundle, episode, today, person).map(event => ({anchor:event.effectiveDate || event.eventDate || event.date, eventId:event.id}))
+            : anchorTiming === 'specific-measure' ? measureStatusSources({...episode, collections}, measureTriggerIds(bundle), measureTriggerStatuses(bundle), today)
+            : anchorTiming === 'new-profile' ? [{anchor:date,timingSourceId:person.id}]
+              : anchorTiming === 'intake' ? [{anchor:date,timingSourceId:intake.id}]
               : anchorTiming === 'discharge' ? [{anchor:date,timingSourceId:episode.id,dischargeFollowUp:true}]
-                : timing === 'date' ? [{anchor:bundle.dueDate}] : timing === 'days' && (anchorTiming === 'referral' || BUNDLE_EVENT_TYPES.some(event=>event.value===anchorTiming)) ? matchingEvents({...bundle,trigger:'event',eventType:anchorTiming},episode,today).map(event=>({anchor:event.effectiveDate || event.eventDate || event.date,eventId:event.id})) : [{anchor:period.startDate}];
+                : timing === 'date' ? [{anchor:bundle.dueDate}] : timing === 'days' && (anchorTiming === 'referral' || BUNDLE_EVENT_TYPES.some(event=>event.value===anchorTiming)) ? matchingEvents({...bundle,trigger:'event',eventType:anchorTiming},episode,today,person).map(event=>({anchor:event.effectiveDate || event.eventDate || event.date,eventId:event.id})) : [{anchor:period.startDate}];
           for (const source of sources) {
             let due;
             if (bundle.trigger === 'current') {

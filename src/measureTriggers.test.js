@@ -40,6 +40,47 @@ test('a scheduled measure follows Client profile completion and is created once'
   assert.equal(reconcileAssessmentBundles(scheduled, '2026-10-05'), scheduled);
 });
 
+test('multiple source Assessment Packs and statuses trigger from either matching event', () => {
+  const rule = { id: 'FOLLOW-UP-MULTI', name: 'Follow-up', trigger: 'current', timing: 'days',
+    after: 'specific-measure', triggerMeasureIds: [sourceId, 'OTHER-PACK'],
+    triggerMeasureStatuses: ['completed', 'overdue'], days: 1, repeat: false,
+    programStream: 'All', careLevel: 'All', enabled: true, channel: 'Clinic tablet', recipient: 'Person',
+    assessments: [{ id: 'one', version: 'EP Batch 2 · Living Situation v1.0', requirement: 'Mandatory' }] };
+  const sourceRecords = [
+    ...records.map(record => ({ ...record, response: 'Submitted', submittedAt: '2026-10-02' })),
+    { id: 'other', bundleId: 'OTHER-PACK', response: 'Not started', due: '2026-10-02' },
+  ];
+  const episode = { id: 'EP', status: 'Active', start: '2026-10-01',
+    carePeriods: [{ startDate: '2026-10-01', endDateExclusive: null, programStream: 'Mood', careLevel: 'Mid' }],
+    collections: sourceRecords };
+  assert.equal(specificMeasureError(rule), null);
+  assert.equal(measureStatusSources(episode, rule.triggerMeasureIds, rule.triggerMeasureStatuses, '2026-10-04').length, 2);
+  const initial = { settings: { automaticAssessmentDueDates: true, assessmentScheduleRules: [rule] },
+    people: [{ id: 'P', episodes: [episode] }] };
+  const scheduled = reconcileAssessmentBundles(initial, '2026-10-04');
+  const created = scheduled.people[0].episodes[0].collections.filter(record => record.scheduleRuleId === rule.id);
+  assert.equal(created.length, 2);
+  assert.equal(reconcileAssessmentBundles(scheduled, '2026-10-04'), scheduled);
+});
+
+test('new profile schedules from the first episode without a completed intake', () => {
+  const rule = { id: 'NEW-PROFILE', name: 'Profile follow-up', trigger: 'current', timing: 'days',
+    after: 'new-profile', days: 3, repeat: false, programStream: 'All', careLevel: 'All',
+    enabled: true, channel: 'Clinic tablet', recipient: 'Person',
+    assessments: [{ id: 'one', version: 'EP Batch 2 · Living Situation v1.0', requirement: 'Mandatory' }] };
+  const episode = (id, number, start) => ({ id, number, status: 'Active', start,
+    carePeriods: [{ startDate: start, endDateExclusive: null, programStream: 'Mood', careLevel: 'Mid' }],
+    collections: [] });
+  const initial = { settings: { automaticAssessmentDueDates: true, assessmentScheduleRules: [rule] },
+    people: [{ id: 'P', episodes: [episode('EP-1', '01', '2026-10-01'), episode('EP-2', '02', '2026-10-02')] }] };
+  const scheduled = reconcileAssessmentBundles(initial, '2026-10-04');
+  const first = scheduled.people[0].episodes[0].collections.filter(record => record.scheduleRuleId === rule.id);
+  assert.equal(first.length, 1);
+  assert.equal(first[0].due, '2026-10-04');
+  assert.equal(scheduled.people[0].episodes[1].collections.length, 0);
+  assert.equal(reconcileAssessmentBundles(scheduled, '2026-10-04'), scheduled);
+});
+
 test('a profile data field value gates an otherwise ready measure', () => {
   const rule = { id: 'FIELD-RULE', name: 'Field rule', trigger: 'current', timing: 'days', after: 'care-period',
     days: 1, repeat: false, programStream: 'All', careLevel: 'All', enabled: true,

@@ -19522,7 +19522,9 @@ thead th,
 .allowed-collection-options > label { display:flex; flex-direction:row; align-items:center; gap:var(--space-2); padding:var(--space-2); border-radius:var(--control-radius); cursor:pointer; }
 .allowed-collection-options > label:hover { background:var(--line-soft); }
 .allowed-collection-options input[type="checkbox"] { width:auto; min-width:auto; margin:0; }
+.checkbox-multi-select-options { max-height: min(300px, 50vh); overflow-y: auto; }
 .bundle-timing-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--space-3) var(--space-4); }
+.assessment-bundle-settings-modal .assessment-pack-schedule { row-gap:var(--space-4); }
 .mvp-care-point-select { width:100%; min-width:0; }
 .mvp-care-point-select select { width:100%; min-width:0; }
 .mvp-preset-label { color:var(--ink-soft); font-size:var(--type-form-label); font-weight:var(--type-weight-regular); line-height:1.4; }
@@ -19540,6 +19542,7 @@ thead th,
 .bundle-timing-heading { margin:var(--space-2) 0 0; }
 .bundle-collection-heading { margin:var(--space-2) 0 0; }
 .assessment-schedule-fields .bundle-repeat-choice { grid-column:2; flex-direction:row; align-items:center; align-self:end; min-height:44px; }
+.assessment-pack-schedule .bundle-repeat-choice { grid-column:1; }
 .bundle-timing-fields > p { margin:0; }
 .bundle-timing-fields > .bundle-repeat-hint { grid-column:1 / -1; }
 @media(max-width:600px) {
@@ -19782,6 +19785,7 @@ thead th,
 /* Assessment ledger follows People's labelled rows at the same breakpoint. */
 @container (max-width:860px) {
   .standard-table-compact-controls { display:flex; justify-content:flex-end; margin-bottom:var(--space-3); }
+  .standard-table-container:has(.assessment-bundle-table) .standard-table-compact-controls { justify-content:flex-start; }
   .standard-table-compact-controls .select-wrap { width:min(100%, 320px); }
   .standard-table-compact-controls .select-wrap select { width:100%; min-width:0; }
   .assessment-bundle-table { min-width:0; }
@@ -20445,72 +20449,37 @@ thead th,
 .assessment-ledger-surface #person-panel > .stack:has(> .assessment-filter-bar) { row-gap:var(--space-4); }
 .assessment-ledger-surface .assessment-filter-bar + .assessment-list { margin-top:calc(-1 * var(--space-4)); }
 
-/* Quick filters and their actions share one row, with search at the right edge. */
+/* Every list uses the Contacts pattern: tabs, controls, optional fields, results. */
 .list-filter-bar,
 .worklist-main-panel .list-filter-bar {
-  grid-template-columns:minmax(0, 1fr) minmax(320px, 460px);
-  align-items:center;
+  grid-template-columns:minmax(0, 1fr);
+  align-items:stretch;
 }
 .list-filter-bar > .care-event-quick-filters { grid-column:1; grid-row:1; min-width:0; }
-.list-filter-bar > .care-event-search-row { grid-column:2; grid-row:1; justify-content:flex-end; min-width:0; }
-.list-filter-bar > .care-event-advanced-filters { grid-column:1 / -1; grid-row:2; }
-.list-filter-bar > .care-event-results-count { grid-column:1 / -1; grid-row:2; }
-.list-filter-bar:has(> .care-event-advanced-filters:not([hidden])) > .care-event-results-count { grid-row:3; }
+.list-filter-bar > .care-event-search-row { grid-column:1; grid-row:2; justify-content:flex-end; min-width:0; padding:var(--space-3) 0; }
+.list-filter-bar > .care-event-advanced-filters { grid-column:1; grid-row:3; }
+.list-filter-bar > .care-event-results-count { grid-column:1; grid-row:3; min-height:64px; }
+.list-filter-bar:has(> .care-event-advanced-filters:not([hidden])) > .care-event-results-count { grid-row:4; }
 .list-filter-bar .care-event-search-row > .search {
-  flex:0 1 280px;
-  width:280px;
-  max-width:280px;
+  flex:0 1 320px;
+  width:320px;
+  max-width:320px;
   font-weight:var(--type-weight-regular);
-}
-@media (max-width:1000px) {
-  .list-filter-bar,
-  .worklist-main-panel .list-filter-bar { grid-template-columns:minmax(0, 1fr); }
-  .list-filter-bar > .care-event-search-row { grid-column:1; grid-row:2; }
-  .list-filter-bar > .care-event-advanced-filters,
-  .list-filter-bar > .care-event-results-count { grid-row:3; }
-  .list-filter-bar:has(> .care-event-advanced-filters:not([hidden])) > .care-event-results-count { grid-row:4; }
 }
 @media (max-width:700px) {
 .list-filter-bar .care-event-search-row > .search { flex:1 1 0; width:auto; max-width:none; }
 }
 
-/* Administration lists use the shared People filter rhythm: tabs, controls, then results. */
-.administration-filter-bar,
-.worklist-main-panel .administration-filter-bar {
-  grid-template-columns:minmax(0, 1fr);
-  gap:0;
-}
-.administration-filter-bar > .care-event-quick-filters {
-  grid-column:1;
-  grid-row:1;
-  min-width:0;
-}
-.administration-filter-bar > .care-event-search-row {
-  grid-column:1;
-  grid-row:2;
-  justify-content:flex-end;
-  padding:var(--space-3) 0;
-  border-top:1px solid var(--line);
-}
-.administration-filter-bar > .care-event-advanced-filters { grid-column:1; grid-row:3; }
-.administration-filter-bar > .care-event-results-count {
-  grid-column:1;
-  grid-row:3;
-  min-height:64px;
-  border-top:1px solid var(--line);
-}
-.administration-filter-bar:has(> .care-event-advanced-filters:not([hidden])) > .care-event-results-count { grid-row:4; }
-.administration-filter-bar .care-event-search-row > .search { flex:0 1 320px; width:320px; max-width:320px; }
-.administration-filter-bar .care-event-results-count > .active-filters-row {
+.list-filter-bar .care-event-results-count > .active-filters-row {
   flex:1;
   align-items:center;
   margin:0;
   padding:0;
   min-width:0;
 }
-.administration-filter-bar .care-event-results-count .text-button-small { margin-left:auto; }
+.list-filter-bar .care-event-results-count .text-button-small { margin-left:auto; }
 @media (max-width:700px) {
-  .administration-filter-bar .care-event-search-row > .search { flex:1 1 0; width:auto; max-width:none; }
+  .list-filter-bar .care-event-search-row > .search { flex:1 1 0; width:auto; max-width:none; }
 }
 
 .modal-footer .assessment-not-required-action { margin-right:auto; }

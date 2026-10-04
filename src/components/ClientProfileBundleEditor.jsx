@@ -4,7 +4,7 @@ import { ActionGroup, Button, Checkbox, Field, FieldInput, FieldSelect, Modal, S
 import BundleAssessmentRow from './BundleAssessmentRow';
 import ConfirmRemoval from './ConfirmRemoval';
 import SpecificMeasureFields from './SpecificMeasureFields';
-import { measureSourceOptions } from '../measureTriggers';
+import { measureSourceOptions, measureTriggerIds } from '../measureTriggers';
 import ProfileValueTriggerFields from './ProfileValueTriggerFields';
 import { CARE_LEVELS, PROGRAM_STREAMS } from '../carePeriods';
 import StatusChangeFields from './StatusChangeFields';
@@ -28,7 +28,7 @@ export default function ClientProfileBundleEditor({ bundle, settings, onClose, o
   const available = CLIENT_PROFILE_INSTRUMENTS.filter(item => !selected.includes(item.version));
   const sourceOptions = measureSourceOptions(settings, draft.id).filter(item =>
     settings?.assessmentScheduleRules?.some(rule => rule.id === item.id &&
-      !(rule.after === 'specific-measure' && rule.triggerMeasureId === draft.id)));
+      !(rule.after === 'specific-measure' && measureTriggerIds(rule).includes(draft.id))));
   const save = event => {
     event.preventDefault();
     const validation = clientProfileBundleError(draft, settings);
@@ -74,7 +74,7 @@ export default function ClientProfileBundleEditor({ bundle, settings, onClose, o
               onChange={event => change('delayDays', Number(event.target.value))} />
             <FieldSelect label="After" value={draft.after || 'new-profile'} onChange={event => change('after', event.target.value)}>
               <option value="new-profile">New profile</option><option value="intake">Intake</option>
-              <option value="care-period">Care episode starts</option><option value="specific-measure">Specific measure</option>
+              <option value="care-period">Care episode starts</option><option value="specific-measure">Specific Assessment Pack</option>
             </FieldSelect>
             <SpecificMeasureFields draft={draft} settings={settings} change={change} sourceOptions={sourceOptions} />
           </> : <FieldInput label="Due date" type="date" required value={draft.dueDate || ''}

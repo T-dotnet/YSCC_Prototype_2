@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { asBundle, bundleError, bundleTiming, reconcileAssessmentBundles } from './assessmentBundles.js';
+import { asBundle, bundleError, bundleScheduleHint, bundleTiming, reconcileAssessmentBundles } from './assessmentBundles.js';
 import { canCollectInEpisode, createSeed, reducer, upgradeSampleData } from './model.js';
 import { getInstrument } from './instruments.js';
 
@@ -31,6 +31,31 @@ test('timing validation and legacy defaults preserve recurring day bundles', () 
   assert.equal(bundleTiming(rule({timing:'discharge',repeat:false})),'At discharge');
 });
 
+test('schedule help text describes every trigger and one-time or repeating behavior', () => {
+  const examples = [
+    [{after:'new-profile',days:28,repeat:true}, 'First due 28 days after the new profile is created, then every 28 days.'],
+    [{after:'new-profile',days:1,repeat:false}, 'Due once 1 day after the new profile is created.'],
+    [{after:'intake',days:7,repeat:false}, 'Due once 7 days after intake is completed and care proceeds.'],
+    [{after:'referral',referralStatus:'Denied',days:2,repeat:true}, 'Due once for each referral marked Denied, 2 days later.'],
+    [{after:'discharge',days:14,repeat:true}, 'First due 14 days after this care episode closes, then every 14 days.'],
+    [{after:'specific-measure',triggerMeasureIds:['pack-a','pack-b'],triggerMeasureStatuses:['completed','overdue'],days:3,repeat:false},
+      'Due once 3 days after any selected Assessment Pack reaches any selected status.'],
+    [{after:'program-change',days:5,repeat:false}, 'Due once 5 days after the program changes.'],
+    [{after:'care-level-change',days:5,repeat:false}, 'Due once 5 days after the care level changes.'],
+    [{after:'care-period',days:7,repeat:true}, 'First due 7 days after the care period starts, then every 7 days.'],
+    [{after:'other',days:4,repeat:false}, 'Due once 4 days after the selected event occurs.'],
+    [{trigger:'event',eventType:'level-change',delayDays:0}, 'Due once on each matching event date.'],
+    [{trigger:'event',eventType:'level-change',delayDays:1}, 'Due once for each matching event, 1 day later.'],
+    [{timing:'date',dueDate:'2026-10-20'}, 'Due once on the selected date.'],
+    [{timing:'intake'}, 'Due once when intake is completed and care proceeds.'],
+    [{timing:'discharge'}, 'Due once when this care episode closes.'],
+    [{after:'specific-measure',triggerMeasureIds:[],triggerMeasureStatuses:[]}, 'Choose Assessment Packs and statuses to preview this schedule.'],
+    [{days:0}, 'Enter a valid time in days to preview this schedule.'],
+  ];
+  for (const [settings, expected] of examples)
+    assert.equal(bundleScheduleHint(rule(settings)),expected,JSON.stringify(settings));
+});
+
 test('one-time day bundles retain completed work and skipped optional choices without another cycle', () => {
   const initial = make(rule({repeat:false,assessments:[assessment(),assessment({id:'optional',requirement:'Optional',channel:'Clinician entry'})]}));
   const next = reconcileAssessmentBundles(initial,today);
@@ -59,6 +84,30 @@ test('intake bundles use completed intake for the episode and match conditions o
   assert.equal(reconcileAssessmentBundles(next,'2026-12-01'),next);
   initial.settings.assessmentScheduleRules[0].careLevel='High';
   assert.equal(reconcileAssessmentBundles(initial,today),initial);
+});
+
+test('program and care level changes trigger only their matching Assessment Packs', () => {
+  const rules = [
+    rule({id:'program-change',name:'Program follow-up',after:'program-change',repeat:false}),
+    rule({id:'care-level-change',name:'Care level follow-up',after:'care-level-change',repeat:false}),
+  ];
+  const stateFor = (oldStream, oldLevel) => ({
+    settings:{automaticAssessmentDueDates:true,assessmentScheduleRules:rules},
+    people:[{id:'person',episodes:[
+      {id:'new',status:'Active',start:'2026-09-20',programStream:'Mood',previousEpisodeId:'old',
+        carePeriods:[{startDate:'2026-09-20',endDateExclusive:null,programStream:'Mood',careLevel:'Mid'}],
+        events:[{id:'change',actionType:'CHANGE_CARE_LEVEL',previousEpisodeId:'old',
+          title:'Care episode started after level change',effectiveDate:'2026-09-20'}],collections:[]},
+      {id:'old',status:'Closed',start:'2026-09-01',programStream:oldStream,
+        carePeriods:[{startDate:'2026-09-01',endDateExclusive:'2026-09-20',programStream:oldStream,careLevel:oldLevel}],
+        collections:[]},
+    ]}],
+  });
+  const created = state => state.people[0].episodes[0].collections.map(item => item.scheduleRuleId).sort();
+  assert.deepEqual(created(reconcileAssessmentBundles(stateFor('Psychosis','Mid'),today)),['program-change']);
+  assert.deepEqual(created(reconcileAssessmentBundles(stateFor('Mood','High'),today)),['care-level-change']);
+  assert.deepEqual(created(reconcileAssessmentBundles(stateFor('Psychosis','High'),today)),['care-level-change','program-change']);
+  assert.deepEqual(created(reconcileAssessmentBundles(stateFor('Mood','Mid'),today)),[]);
 });
 
 test('discharge bundles run once on the closure date and retain collection eligibility', () => {

@@ -3,7 +3,7 @@ import { addDays, validReviewDate } from './episodeReviews.js';
 import { INSTRUMENTS, MVP_STREAM_QUESTIONNAIRES, CLINICIAN_REVIEW_INSTRUMENT, questionnaireState } from './instruments.js';
 import { EP_BATCH_2_INSTRUMENTS, EP_BATCH_3_INSTRUMENTS } from './epCodebookInstruments.js';
 import { clientProfileRecords, clientProfileCompletionDate, clientProfileBundle, clientProfileBundleError, CLIENT_PROFILE_BUNDLE_ID } from './clientProfileMeasure.js';
-import { measureStatusSources, specificMeasureError } from './measureTriggers.js';
+import { measureStatusSources, measureTriggerIds, measureTriggerStatuses, specificMeasureError } from './measureTriggers.js';
 import { profileValueMatches, profileValueTriggerError } from './profileValueTriggers.js';
 import { validMeasureStatusChange } from './measureStatusChange.js';
 import { initialAssessmentReadyForOutcome, assessmentOutcomeProceeds } from './assessmentOutcome.js';
@@ -186,7 +186,7 @@ function ensureClientProfiles(state, today) {
           !profileValueMatches(config, person, episode)) return episode;
       const intake = person.intakes?.find(item => item.episodeId === episode.id && item.status === 'Completed' && item.outcome === 'Proceed');
       const source = config.timing === 'date' ? { anchor: config.dueDate } :
-        config.after === 'specific-measure' ? measureStatusSources(episode, config.triggerMeasureId, config.triggerMeasureStatus, today)[0] :
+        config.after === 'specific-measure' ? measureStatusSources(episode, measureTriggerIds(config), measureTriggerStatuses(config), today)[0] :
           config.after === 'intake' ? intake && { anchor: intake.decisionAt?.slice(0, 10) || episode.start } :
             { anchor: episode.start };
       if (!source?.anchor) return episode;
@@ -212,10 +212,13 @@ function ensureInitialAssessments(state, today) {
       const startPeriod = carePeriodAt(episode, episode.start);
       const stream = startPeriod?.programStream || episode.programStream;
       if (!PROGRAM_STREAMS.includes(stream)) return episode;
-      const sourceFor = bundle => bundle.after === 'specific-measure'
-        ? (!person.clientProfileRequired || !clientProfileBundle(state.settings)?.enabled) && bundle.triggerMeasureId === CLIENT_PROFILE_BUNDLE_ID
-          ? [{ anchor: episode.start }] : measureStatusSources(episode, bundle.triggerMeasureId, bundle.triggerMeasureStatus, today)
-        : [{ anchor: bundle.after === 'intake' ? episode.reviewAnchorDate || episode.start : episode.start }];
+      const sourceFor = bundle => {
+        if (bundle.after !== 'specific-measure') return [{ anchor: episode.start }];
+        const sources = measureStatusSources(episode, measureTriggerIds(bundle), measureTriggerStatuses(bundle), today);
+        return (!person.clientProfileRequired || !clientProfileBundle(state.settings)?.enabled) &&
+          measureTriggerIds(bundle).includes(CLIENT_PROFILE_BUNDLE_ID)
+          ? [{ anchor: episode.start }, ...sources] : sources;
+      };
       const matchingYoungBundles = initialBundles.filter(bundle => bundle.enabled && bundle.programStream === stream &&
         reviewBundleMatches(bundle, person, startPeriod, stream, episode.start) &&
         profileValueMatches(bundle, person, episode) &&
@@ -461,7 +464,7 @@ export function reconcileMvpAssessmentPathway(state, today) {
         if (latestDue && (episode.collections || []).some(record => record.mvpTimepointId &&
           record.due === latestDue && synchronizedRoles.includes(record.mvpRespondent) && record.response !== 'Submitted')) continue;
         const source = bundle.after === 'specific-measure'
-          ? measureStatusSources(episode, bundle.triggerMeasureId, bundle.triggerMeasureStatus, today)[0] : null;
+          ? measureStatusSources(episode, measureTriggerIds(bundle), measureTriggerStatuses(bundle), today)[0] : null;
         if (bundle.after === 'specific-measure' && !source) continue;
         const anchor = source?.anchor || (bundle.after === 'care-period' ? period?.startDate : episode.reviewAnchorDate || episode.start);
         const firstDue = bundle.after === 'specific-measure' ? addDays(anchor, bundle.days) : person.mvpProfile ? addDays(initialCompletedAt, MVP_REVIEW_DAYS) :

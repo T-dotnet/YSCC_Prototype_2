@@ -7,6 +7,7 @@ import { profileValueTriggerError } from './profileValueTriggers.js';
 import { CARE_LEVELS, PROGRAM_STREAMS } from './carePeriods.js';
 import { validMeasureStatusChange } from './measureStatusChange.js';
 import { allowedCollectionMethodsError } from './allowedCollectionMethods.js';
+import { measureTriggerIds, measureTriggerStatuses } from './measureTriggers.js';
 
 export const CLIENT_PROFILE_BUNDLE_ID = 'MVP-CLIENT-PROFILE';
 export const CLIENT_PROFILE_NAME = 'Client profile';
@@ -79,14 +80,16 @@ export function clientProfileBundleError(bundle, settings) {
     if (!Number.isInteger(bundle.delayDays ?? 0) || bundle.delayDays < 0 || bundle.delayDays > 728)
       return 'Enter a time from 0 to 728 days.';
     if (bundle.after === 'specific-measure') {
-      if (!bundle.triggerMeasureId || bundle.triggerMeasureId === CLIENT_PROFILE_BUNDLE_ID ||
-          !['completed', 'overdue', 'not-required'].includes(bundle.triggerMeasureStatus))
-        return 'Choose another measure and its status.';
-      if (settings && !settings.assessmentScheduleRules?.some(rule => rule.id === bundle.triggerMeasureId))
-        return 'Choose an existing measure to trigger Client profile.';
-      if (settings?.assessmentScheduleRules?.some(rule => rule.id === bundle.triggerMeasureId &&
-          rule.after === 'specific-measure' && rule.triggerMeasureId === CLIENT_PROFILE_BUNDLE_ID))
-        return 'This schedule would create a loop with Client profile. Choose another measure.';
+      const ids = measureTriggerIds(bundle);
+      const statuses = measureTriggerStatuses(bundle);
+      if (!ids.length || ids.includes(CLIENT_PROFILE_BUNDLE_ID) || !statuses.length ||
+          statuses.some(status => !['completed', 'overdue', 'not-required'].includes(status)))
+        return 'Choose other Assessment Packs and their statuses.';
+      if (settings && ids.some(id => !settings.assessmentScheduleRules?.some(rule => rule.id === id)))
+        return 'Choose existing Assessment Packs to trigger Client profile.';
+      if (settings?.assessmentScheduleRules?.some(rule => ids.includes(rule.id) &&
+          rule.after === 'specific-measure' && measureTriggerIds(rule).includes(CLIENT_PROFILE_BUNDLE_ID)))
+        return 'This schedule would create a loop with Client profile. Choose another Assessment Pack.';
     }
   }
   if (!Array.isArray(bundle.instrumentVersions) || !bundle.instrumentVersions.length ||

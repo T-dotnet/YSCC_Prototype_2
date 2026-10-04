@@ -82,12 +82,6 @@ export default function AssessmentFeatures({navigate,openModal}) {
           <Switch label="Show measure activity in Contacts" checked={!!settings.phase2CareActivity}
             onChange={(event) => commit({ type: "SET_PHASE2_CARE_ACTIVITY", enabled: event.target.checked })} />
         </div>
-        {settings.phase2CareActivity && <div className="admin-row">
-          <span className="admin-icon"><SlidersHorizontal size={24} /></span>
-          <div><h3>MVP schedule presets</h3><p>Replace detailed schedules with care point presets for new profiles, assessments, 90-day reviews, discharge, and existing referral or status events. Only 90-day reviews repeat.</p></div>
-          <Switch label="MVP schedule presets" checked={settings.mvpSchedulePresets !== false}
-            onChange={event => commit({ type: 'SET_MVP_SCHEDULE_PRESETS', enabled: event.target.checked })} />
-        </div>}
         <div className="admin-row">
           <span className="admin-icon"><SlidersHorizontal size={24} /></span>
           <div><h3>Separate measures and contacts</h3><p>Hide links between measures and contacts. Staff can save responses and drafts without linking a contact or adding completion details.</p></div>
@@ -125,6 +119,14 @@ export default function AssessmentFeatures({navigate,openModal}) {
         ))}
         </>}
       </Panel>
+      {mvp && settings.phase2CareActivity && <Panel title="MVP schedule presets" className="admin-panel">
+        <div className="admin-row">
+          <span className="admin-icon"><SlidersHorizontal size={24} /></span>
+          <div><h3>MVP schedule presets</h3><p>Replace detailed schedules with care point presets for new profiles, assessments, 90-day reviews, discharge, and existing referral or status events. Only 90-day reviews repeat.</p></div>
+          <Switch label="MVP schedule presets" checked={settings.mvpSchedulePresets !== false}
+            onChange={event => commit({ type: 'SET_MVP_SCHEDULE_PRESETS', enabled: event.target.checked })} />
+        </div>
+      </Panel>}
       {mvp && <Panel title="Assessment display and outcomes" className="admin-panel">
         {settings.phase2CareActivity && <div className="admin-row">
           <span className="admin-icon"><SlidersHorizontal size={24} /></span>

@@ -1,19 +1,14 @@
-import { measureSourceOptions, MEASURE_STATUS_OPTIONS } from '../measureTriggers';
-import { FieldSelect } from './UI';
+import { measureSourceOptions, measureTriggerIds, measureTriggerStatuses, MEASURE_STATUS_OPTIONS } from '../measureTriggers';
+import CheckboxMultiSelect from './CheckboxMultiSelect';
 
 export default function SpecificMeasureFields({ draft, settings, change, sourceOptions }) {
   if (draft.after !== 'specific-measure') return null;
   return <>
-    <FieldSelect label="Measure" verbatim required value={draft.triggerMeasureId || ''}
-      onChange={event => change('triggerMeasureId', event.target.value)}>
-      <option value="">Choose a measure</option>
-      {(sourceOptions || measureSourceOptions(settings, draft.id)).map(item =>
-        <option key={item.id} value={item.id}>{item.name}</option>)}
-    </FieldSelect>
-    <FieldSelect label="Status" required value={draft.triggerMeasureStatus || ''}
-      onChange={event => change('triggerMeasureStatus', event.target.value)}>
-      <option value="">Choose a status</option>
-      {MEASURE_STATUS_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-    </FieldSelect>
+    <CheckboxMultiSelect label="Assessment Packs" placeholder="Choose Assessment Packs"
+      options={(sourceOptions || measureSourceOptions(settings, draft.id)).map(item => ({ value:item.id, label:item.name }))}
+      values={measureTriggerIds(draft)} onChange={values => change('triggerMeasureIds', values)} />
+    <CheckboxMultiSelect label="Statuses" placeholder="Choose statuses"
+      options={MEASURE_STATUS_OPTIONS.map(([value, label]) => ({ value, label }))}
+      values={measureTriggerStatuses(draft)} onChange={values => change('triggerMeasureStatuses', values)} />
   </>;
 }
