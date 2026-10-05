@@ -2,6 +2,7 @@ import StandardTable from "../components/StandardTable";
 import AssessmentScheduleSettings from "../components/AssessmentScheduleSettings";
 import AdminInstrumentsTable from "../components/AdminInstrumentsTable";
 import AdminOutcomeOptions from "../components/AdminOutcomeOptions";
+import AdminStatuses from "../components/AdminStatuses";
 import ProductTerminology from "../components/ProductTerminology";
 import useQueueView from "../useQueueView";
 import { lazy, Suspense, useMemo } from "react";
@@ -354,7 +355,16 @@ export function Administration({ openModal, navigate }) {
   const { state } = useStore();
   const staff = currentStaff(state);
   const view = useQueueView();
-  const adminTabs = ["workspace", "bundles", "instruments", "data-dictionary", "outcomes"];
+  const showRecordOutcomes = state.settings?.mvpRecordAssessmentOutcome !== false;
+  const adminTabItems = [
+    { value: "workspace", label: "Workspace" },
+    { value: "bundles", label: "Assessment Packs" },
+    { value: "instruments", label: "Measures" },
+    { value: "data-dictionary", label: "Data dictionary" },
+    ...(showRecordOutcomes ? [{ value: "outcomes", label: "Record outcomes" }] : []),
+    { value: "statuses", label: "Statuses" },
+  ];
+  const adminTabs = adminTabItems.map(tab => tab.value);
   const adminTab = adminTabs.includes(view.params.get("tab")) ? view.params.get("tab") : "workspace";
   return (
     <>
@@ -363,12 +373,13 @@ export function Administration({ openModal, navigate }) {
         subtitle="The foundations of a consistent care experience."
       />
       <Tabs id="administration" panelId="administration-panel" label="Administration sections" className="administration-tabs" autoReveal
-        items={[{ value: "workspace", label: "Workspace" }, { value: "bundles", label: "Assessment Packs" }, { value: "instruments", label: "Measures" }, { value: "data-dictionary", label: "Data dictionary" }, { value: "outcomes", label: "Record outcomes" }]}
+        items={adminTabItems}
         value={adminTab} onChange={(value) => view.set("tab", value, "workspace")} />
       <div role="tabpanel" id="administration-panel" className="administration-tab-content" aria-labelledby={`administration-tab-${adminTabs.indexOf(adminTab)}`}>
       {adminTab === "bundles" && <AssessmentScheduleSettings />}
       {adminTab === "instruments" && <AdminInstrumentsTable settings={state.settings} />}
-      {adminTab === "outcomes" && <AdminOutcomeOptions />}
+      {showRecordOutcomes && adminTab === "outcomes" && <AdminOutcomeOptions />}
+      {adminTab === "statuses" && <AdminStatuses settings={state.settings} />}
       {adminTab === "data-dictionary" && <Suspense fallback={<p role="status">Opening data dictionary…</p>}><AdminDataDictionary /></Suspense>}
       {adminTab === "workspace" && <div className="stack">
       <div className="section-toolbar administration-section-heading">
@@ -410,6 +421,13 @@ export function Administration({ openModal, navigate }) {
             "Manage outcomes",
           ],
           [
+            ClipboardList,
+            "Statuses",
+            "Browse the statuses used by Assessment Packs, care episodes, contacts and work queues",
+            "statuses",
+            "Browse statuses",
+          ],
+          [
             MessageSquare,
             "Messages & delivery",
             "A sample invitation for account-free collection",
@@ -423,7 +441,9 @@ export function Administration({ openModal, navigate }) {
             "scope",
             "View workspace",
           ],
-        ].filter(([, , , type]) => type !== "messages" || assessmentSmsEnabled(state.settings))
+        ].filter(([, , , type]) =>
+          (type !== "messages" || assessmentSmsEnabled(state.settings)) &&
+          (type !== "outcomes" || showRecordOutcomes))
           .map(([Icon, title, desc, type, action]) => (
           <div className="admin-row" key={title}>
             <span className="admin-icon">
@@ -433,7 +453,7 @@ export function Administration({ openModal, navigate }) {
               <h3>{title}</h3>
               <p>{desc}</p>
             </div>
-            <Button onClick={() => ["bundles", "instruments", "outcomes", "data-dictionary"].includes(type) ? navigate(`/administration?tab=${type}`) : openModal({ type })}>
+            <Button onClick={() => ["bundles", "instruments", "outcomes", "data-dictionary", "statuses"].includes(type) ? navigate(`/administration?tab=${type}`) : openModal({ type })}>
               {action}
               <ArrowRight size={17} />
             </Button>

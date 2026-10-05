@@ -26,16 +26,28 @@ import StatusChangeFields, { StatusChangeValue } from './StatusChangeFields';
 import AllowedCollectionMethods from './AllowedCollectionMethods';
 import { collectionMethodSummary } from '../allowedCollectionMethods.js';
 import { MVP_SCHEDULE_PRESETS, presetForBundle } from '../mvpSchedulePresets.js';
+import EpisodeStatusFields from './EpisodeStatusFields';
 
 const profileConfig = ({ id, name, channel, allowedCollectionMethods, respondent, enabled, instrumentVersions,
   timing, after, delayDays, dueDate, triggerMeasureId, triggerMeasureStatus, triggerMeasureIds, triggerMeasureStatuses,
-  triggerDataEnabled, triggerDataField, triggerDataValue, programStream, careLevel, minAge, maxAge, statusChange }) =>
+  triggerDataEnabled, triggerDataField, triggerDataValue, triggerEpisodeStatus, programStream, careLevel, minAge, maxAge, statusChange }) =>
   ({ id, name, channel, allowedCollectionMethods, respondent, enabled, instrumentVersions,
     timing, after, delayDays, dueDate, triggerMeasureId, triggerMeasureStatus, triggerMeasureIds, triggerMeasureStatuses,
-    triggerDataEnabled, triggerDataField, triggerDataValue, programStream, careLevel, minAge, maxAge, statusChange });
+    triggerDataEnabled, triggerDataField, triggerDataValue, triggerEpisodeStatus, programStream, careLevel, minAge, maxAge, statusChange });
 const packTriggerSummary = (bundle, settings) => {
   const names = new Map(measureSourceOptions(settings).map(item => [item.id, item.name]));
   return `${measureTriggerStatuses(bundle).map(value => value.replace('not-required', 'not required')).join(' or ')} · ${measureTriggerIds(bundle).map(id => names.get(id) || id).join(' or ')}`;
+};
+const mockPackScheduleSummary = (bundle, settings) => {
+  const initial = MVP_INITIAL_BUNDLES.some(item => item.id === bundle.id);
+  if (bundle.timing === 'date') return `Due ${bundle.dueDate}`;
+  const anchor = bundle.after === 'specific-measure' ? packTriggerSummary(bundle, settings)
+    : bundle.after === 'episode-status' ? `episode status ${bundle.triggerEpisodeStatus}` : '';
+  if (!anchor) return bundle.schedule || bundleTiming(bundle);
+  const days = bundle.profileMeasure || initial ? bundle.delayDays || 0 : bundle.days;
+  if (days === 0) return `On ${anchor}`;
+  return !bundle.profileMeasure && !initial && bundle.repeat
+    ? `Every ${days} days after ${anchor}` : `Once, ${days} days after ${anchor}`;
 };
 const mvpInstrumentSummary = bundle => {
   if (bundle.profileMeasure) return `${bundle.instrumentVersions.length} total`;
@@ -47,7 +59,7 @@ const mvpInstrumentSummary = bundle => {
 };
 
 const blankAssessment = () => ({id:crypto.randomUUID(), version:'', requirement:'Mandatory'});
-const blankBundle = () => ({id:crypto.randomUUID(), name:'', channel:'Clinician entry', recipient:'Person', trigger:'current', eventType:'', programStream:'All', careLevel:'All', minAge:null, maxAge:null, timing:'days', after:'intake', dueDate:'', repeat:true, days:28, delayDays:0, enabled:true, statusChange:'', assessments:[]});
+const blankBundle = () => ({id:crypto.randomUUID(), name:'', channel:'Clinician entry', recipient:'Person', trigger:'current', eventType:'', programStream:'All', careLevel:'All', minAge:null, maxAge:null, timing:'days', after:'', dueDate:'', repeat:true, days:28, delayDays:0, enabled:true, statusChange:'', assessments:[]});
 const parameterOptions = [
   ['programStream', 'Program stream'], ['careLevel', 'Care level'],
   ['minAge', 'Minimum age (years)'], ['maxAge', 'Maximum age (years)'],
@@ -116,6 +128,7 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
   })}));
   const save = event => {
     event.preventDefault();
+    if (draft.trigger !== 'event' && draft.timing === 'days' && !draft.after) {setError('Choose what starts the schedule.'); return;}
     if (mvp && (state.settings?.phase2CareActivity && state.settings?.mvpSchedulePresets !== false) && !presetForBundle(draft)) {
       setError('Choose a care point preset.'); return;
     }
@@ -203,13 +216,13 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
           </ActionGroup>}>
           <div className="panel-body">
             <dl className="metadata bundle-summary-conditions">
-              <div><dt>{(state.settings?.phase2CareActivity && state.settings?.mvpSchedulePresets !== false) ? 'Care point' : 'Schedule'}</dt><dd>{bundle.profileMeasure ? bundle.timing === 'date' ? `Due ${bundle.dueDate}` :
+              <div><dt>{(state.settings?.phase2CareActivity && state.settings?.mvpSchedulePresets !== false) ? 'Care point' : 'Schedule'}</dt><dd>{state.settings?.mvpSchedulePresets === false ? mockPackScheduleSummary(bundle, state.settings) : bundle.profileMeasure ? bundle.timing === 'date' ? `Due ${bundle.dueDate}` :
                 `After ${bundle.after === 'specific-measure' ? packTriggerSummary(bundle, state.settings) : bundle.after === 'intake' ? 'intake' : bundle.after === 'care-period' ? 'care episode starts' : 'new profile'}${bundle.delayDays ? ` + ${bundle.delayDays} days` : ''}`
                 : MVP_INITIAL_BUNDLES.some(item => item.id === bundle.id) ? bundle.timing === 'date' ? `Due ${bundle.dueDate}` : `${bundle.after === 'specific-measure' ? `After ${packTriggerSummary(bundle, state.settings)}` : bundle.after === 'intake' ? 'After intake' : 'After care episode starts'}${bundle.delayDays ? ` + ${bundle.delayDays} days` : ''}` : bundle.schedule || bundleTiming(bundle)}</dd></div>
               {bundle.triggerDataEnabled && <div><dt>Data field</dt><dd>{PROFILE_TRIGGER_FIELDS.find(field => field.id === bundle.triggerDataField)?.label}: {bundle.triggerDataValue}</dd></div>}
               <div><dt>{LABELS.respondent}</dt><dd>{bundle.respondent === 'Person' ? 'Patient' : 'Clinician'}</dd></div>
               <div><dt>Allowed collection methods</dt><dd>{collectionMethodSummary(bundle)}</dd></div>
-              <div><dt>Status change</dt><dd><StatusChangeValue verbatim value={bundle.statusChange} /></dd></div>
+              <div><dt>Status change after completion</dt><dd><StatusChangeValue verbatim value={bundle.statusChange} /></dd></div>
               {!bundle.example && <><div><dt>{LABELS.programStream}</dt><dd>{bundle.programStream === 'All' ? 'All program streams' : bundle.programStream}</dd></div><div><dt>Care level</dt><dd>{bundle.careLevel === 'All' ? 'All care levels' : bundle.careLevel}</dd></div><div><dt>Age</dt><dd>{bundleAgeLabel(bundle)}</dd></div></>}
             </dl>
             <details className="bundle-summary-assessments">
@@ -251,7 +264,7 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
           ? [['Trigger', BUNDLE_EVENT_TYPES.find(e=>e.value===bundle.eventType)?.label], ['Due', bundleTiming(bundle)]]
           : [[LABELS.programStream, bundle.programStream==='All' ? 'All program streams' : bundle.programStream], ['Care level', bundle.careLevel==='All' ? 'All care levels' : bundle.careLevel], ['Age', bundleAgeLabel(bundle)], [mvp && (state.settings?.phase2CareActivity && state.settings?.mvpSchedulePresets !== false) ? 'Care point' : 'Schedule', mvp && (state.settings?.phase2CareActivity && state.settings?.mvpSchedulePresets !== false) ? presetForBundle(bundle)?.label || bundleTiming(bundle) : bundleTiming(bundle)]];
         conditions.push(['Allowed collection methods', collectionMethodSummary(bundle)], [LABELS.respondent, bundle.recipient==='Person' ? 'Patient' : bundle.recipient]);
-        conditions.push(['Status change', <StatusChangeValue verbatim value={bundle.statusChange} />]);
+        conditions.push(['Status change after completion', <StatusChangeValue verbatim value={bundle.statusChange} />]);
         return <Panel key={bundle.id} className="assessment-bundle-summary"
           title={<span className="bundle-summary-heading"><span className="bundle-summary-title">{bundle.name}</span><small className="bundle-summary-id">ID: {bundle.id}</small></span>}
           action={<ActionGroup className="button-row bundle-summary-actions">
@@ -355,38 +368,38 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
               {draft.trigger !== 'event' && draft.timing === 'date' && <FieldInput label="Due date" required type="date" value={draft.dueDate || ''} onChange={e=>change('dueDate',e.target.value)}/>}
               {draft.trigger !== 'event' && draft.timing === 'days' && <>
                 <FieldInput label="Time (days)" required type="number" min="1" max="728" step="1" value={draft.days} onChange={e=>change('days',Number(e.target.value))}/>
-                <FieldSelect label="After" value={draft.after || 'care-period'} onChange={e=>setDraft(current=>({...current,after:e.target.value,...(e.target.value === 'referral' ? {repeat:false,referralStatus:current.referralStatus || 'Accepted'} : {})}))}>
-                  {!mvp && !draft.after && <option value="care-period">Care period starts</option>}
-                  <option value="new-profile">New profile</option>
-                  <option value="intake">Intake</option>
-                  <option value="referral">Referral</option>
-                  <option value="discharge">Discharge</option>
+                <FieldSelect label="After" required value={draft.after || ''} onChange={e=>setDraft(current=>({...current,after:e.target.value}))}>
+                  <option value="">Choose a trigger</option>
+                  {['new-profile', 'intake', 'referral', 'discharge'].includes(draft.after) &&
+                    <option value={draft.after}>{({ 'new-profile':'New profile', intake:'Intake', referral:'Referral', discharge:'Discharge' })[draft.after]} (existing schedule)</option>}
                   <option value="specific-measure">Specific Assessment Pack</option>
+                  <option value="episode-status">Specific episode status</option>
                   <option value="program-change">Program changed</option>
                   <option value="care-level-change">Care level changed</option>
                   {draft.after === 'level-change' && <option value="level-change">Program or care level changed</option>}
                   {!mvp && BUNDLE_EVENT_TYPES.filter(event=>!['program-change','care-level-change','level-change'].includes(event.value)).map(event=><option key={event.value} value={event.value}>{event.label}</option>)}
                 </FieldSelect>
                 <SpecificMeasureFields draft={draft} settings={state.settings} change={change} />
-                {draft.after === 'referral' ? <FieldSelect label="Referral status" required value={draft.referralStatus || 'Accepted'} onChange={e=>change('referralStatus',e.target.value)}>{['Accepted','Denied','Reworked','Modified'].map(status=><option key={status} value={status}>{status}</option>)}</FieldSelect> : <Checkbox className="bundle-repeat-choice" label="Repeat" checked={draft.repeat} aria-describedby={`bundle-repeat-hint-${draft.id}`} onChange={event=>change('repeat',event.target.checked)}/>}
+                <EpisodeStatusFields draft={draft} change={change} />
+                {draft.after === 'referral' ? <FieldSelect label="Referral status" required value={draft.referralStatus || 'Accepted'} onChange={e=>change('referralStatus',e.target.value)}>{['Accepted','Denied','Reworked','Modified'].map(status=><option key={status} value={status}>{status}</option>)}</FieldSelect> : !(draft.after === 'episode-status' && draft.triggerEpisodeStatus === 'Discharged') && <Checkbox className="bundle-repeat-choice" label="Repeat" checked={draft.repeat} aria-describedby={`bundle-repeat-hint-${draft.id}`} onChange={event=>change('repeat',event.target.checked)}/>}
               </>}
               <p id={`bundle-repeat-hint-${draft.id}`} className={`muted ${draft.timing === 'days' ? 'bundle-repeat-hint' : 'bundle-name-field'}`}>{bundleScheduleHint(draft)}</p>
             </div>}
           <>
-            <h3 className="bundle-name-field bundle-collection-heading">Parameter</h3>
+            <h3 className="bundle-name-field bundle-collection-heading">Show if</h3>
             {!!parameters.length && <div className="bundle-name-field bundle-parameter-list">
               {parameters.filter(key => availableParameterOptions.some(([value]) => value === key)).map(key => <div key={key} className="bundle-parameter-row">
                 {key === 'profileValue' ? <ProfileValueTriggerFields draft={draft} change={change} />
                   : key === 'programStream' ? <FieldSelect label="Program stream" required value={draft.programStream === 'All' ? '' : draft.programStream} onChange={e=>change(key,e.target.value)}><option value="" disabled>Choose a program stream</option>{PROGRAM_STREAMS.map(value=><option key={value} value={value}>{value}</option>)}</FieldSelect>
                   : key === 'careLevel' ? <FieldSelect label="Care level" required value={draft.careLevel === 'All' ? '' : draft.careLevel} onChange={e=>change(key,e.target.value)}><option value="" disabled>Choose a care level</option>{CARE_LEVELS.map(value=><option key={value} value={value}>{value}</option>)}</FieldSelect>
                     : <FieldInput label={key === 'minAge' ? 'Minimum age (years)' : 'Maximum age (years)'} required type="number" min="0" max="120" step="1" placeholder="Enter age" value={draft[key] ?? ''} onChange={e=>change(key,e.target.value==='' ? null:Number(e.target.value))}/>}
-                <IconButton icon={Trash2} label={`Remove ${parameterOptions.find(([value])=>value===key)?.[1]} parameter`} className="bundle-editor-delete" onClick={()=>setPendingParameterRemoval(key)} />
+                <IconButton icon={Trash2} label={`Remove ${parameterOptions.find(([value])=>value===key)?.[1]} condition`} className="bundle-editor-delete" onClick={()=>setPendingParameterRemoval(key)} />
               </div>)}
             </div>}
             {availableParameterOptions.some(([key]) => !parameters.includes(key)) && <div className="bundle-name-field new-bundle-extra-picker">
-              <Field label="Parameter to add">
+              <Field label="Condition to add">
                 <Select value={parameterToAdd} onChange={event=>setParameterToAdd(event.target.value)}>
-                  <option value="">Choose a parameter</option>
+                  <option value="">Choose a condition</option>
                   {availableParameterOptions.filter(([key])=>!parameters.includes(key)).map(([key,label])=><option key={key} value={key}>{label}</option>)}
                 </Select>
               </Field>
@@ -394,7 +407,7 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
                 if (parameterToAdd === 'profileValue') change('triggerDataEnabled', true);
                 setParameters(current=>[...current,parameterToAdd]);
                 setParameterToAdd('');
-              }}>Add parameter</Button>
+              }}>Add condition</Button>
             </div>}
             {draft.trigger === 'current' && (parameters.includes('minAge') || parameters.includes('maxAge')) && <p className="muted bundle-name-field">Age limits include both endpoints and use the recorded date of birth. A missing birth date will not match an age-limited assessment.</p>}
 
@@ -449,7 +462,7 @@ export default function AssessmentScheduleSettings({ editorOnly = false, onClose
           }}>Delete measure</Button>
         </ActionGroup>
       </Modal>}
-      <ConfirmRemoval item={pendingParameterRemoval ? { name: `${parameterOptions.find(([value]) => value === pendingParameterRemoval)?.[1]} parameter`, type: 'parameter' } : null}
+      <ConfirmRemoval item={pendingParameterRemoval ? { name: `${parameterOptions.find(([value]) => value === pendingParameterRemoval)?.[1]} condition`, type: 'condition' } : null}
         onCancel={() => setPendingParameterRemoval(null)} onConfirm={() => {
           removeParameter(pendingParameterRemoval);
           setPendingParameterRemoval(null);

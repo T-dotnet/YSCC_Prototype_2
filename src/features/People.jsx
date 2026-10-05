@@ -4,6 +4,7 @@ import { Plus, Upload, ChevronRight, CircleAlert, CheckCircle2 } from "lucide-re
 import { useStore } from "../store";
 import { assessmentSchedulingEnabled, assessmentBundleGroupingEnabled } from "../assessmentFeatures";
 import { mvpAssessmentMode } from "../mvpAssessmentPathway";
+import { EPISODE_DISPLAY_STATUSES } from "../batch1Registration";
 import { formatDate, TODAY } from "../model";
 import { getQualityIssues, recordCompleteness } from "../dataQuality";
 import { comparePeople, episodeDisplayStatus, peopleForList, peopleBundleSummary } from "../people";
@@ -39,7 +40,7 @@ export default function People({ navigate, openModal }) {
   const view = useQueueView();
   const query = view.params.get("q") || "";
   const { sort: sortConfig, toggleSort } = useQueueSort({ key: "priority", direction: "asc" });
-  const episodeStages = [...(mvpMode ? [] : ["Intake"]), "Profiling", "Assessment", "Ongoing review", "Not proceed", "Paused", "Closed", "Completed", "Discharged"];
+  const episodeStages = [...(mvpMode ? [] : ["Intake"]), ...EPISODE_DISPLAY_STATUSES];
   const currentRows = peopleForList(listPeople, 'All episodes', '', state.settings);
   const availableStages = [...new Set(currentRows.map((row) => episodeDisplayStatus(row.episode, state.settings)))];
   const episodeFilters = ["All episodes", ...episodeStages.filter((stage) => availableStages.includes(stage)),

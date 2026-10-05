@@ -3,6 +3,7 @@ import { SortableHeader, useQueueSort } from "./QueueControls";
 import { cloneElement, useEffect, useId, useRef, useState } from 'react';
 import { episodeWithVisibleContacts } from "../assessmentFeatures.js";
 import { contactsForAssessments } from '../assessmentContacts';
+import { appointmentDisplayStatus } from '../appointments.js';
 import { earliestPendingAssessment } from '../assessmentDue';
 import { INSTRUMENTS, STANDARD_INSTRUMENTS, getInstrument } from '../instruments';
 import InstrumentPreview from './InstrumentPreview';
@@ -126,7 +127,7 @@ export default function AssessmentBundleDetails({ group, episode, delivery, stat
                   <td data-label="Contact">{contact.contactType || contact.appointmentType || contact.practitionerService || 'Service contact'}
                     {contact.practitionerService && (contact.contactType || contact.appointmentType) && <small>{contact.practitionerService}</small>}
                   </td>
-                  <td data-label="Status"><Badge>{contact.attendance || 'Not recorded'}</Badge></td>
+                  <td data-label="Status"><Badge>{appointmentDisplayStatus(contact, TODAY)}</Badge></td>
                 </tr>;
               }) : <tr><td colSpan={4} className="muted">No contacts associated with these measures.</td></tr>}</tbody>
             </RelatedRecordsTable>

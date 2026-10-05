@@ -1,4 +1,5 @@
 import { assessmentDueLabel, earliestPendingAssessment } from './assessmentDue.js';
+import { badgeTone } from './badgeTone.js';
 
 export const ASSESSMENT_BUNDLE_STATUS_LABELS = {
   'not-required': 'Not required',
@@ -11,16 +12,16 @@ export const ASSESSMENT_BUNDLE_STATUS_LABELS = {
   'not-started': 'Not started',
 };
 
-export const ASSESSMENT_BUNDLE_STATUS_TONES = {
-  'not-required': 'neutral',
-  completed: 'green',
-  overdue: 'coral',
-  'due-soon': 'amber',
-  'in-progress': 'blue',
-  'record-outcome': 'amber',
-  new: 'purple',
-  'not-started': 'neutral',
-};
+export const ASSESSMENT_BUNDLE_STATUS_TONES = Object.fromEntries(
+  Object.entries(ASSESSMENT_BUNDLE_STATUS_LABELS).map(([key, label]) => [key, badgeTone(label)]),
+);
+
+export function assessmentBundleIsFinished(records, statusFor) {
+  return records.length > 0 && (
+    records.every(record => statusFor(record) === 'Completed') ||
+    records.every(record => statusFor(record) === 'Not required')
+  );
+}
 
 export function assessmentBundleStatus(records, today, {
   statusFor = record => record.notRequiredReason ? 'Not required' : record.response === 'Submitted' ? 'Completed' : 'Not started',

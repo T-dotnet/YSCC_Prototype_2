@@ -6,13 +6,13 @@ import { mvpBattery, mvpReviewBundleError, mvpReviewItems } from '../mvpAssessme
 import { ActionGroup, Button, Checkbox, Field, FieldInput, FieldSelect, Modal, Select } from './UI';
 import BundleAssessmentRow from './BundleAssessmentRow';
 import ConfirmRemoval from './ConfirmRemoval';
-import SpecificMeasureFields from './SpecificMeasureFields';
+import MockAssessmentPackSchedule from './MockAssessmentPackSchedule';
 import ProfileValueTriggerFields from './ProfileValueTriggerFields';
 import StatusChangeFields from './StatusChangeFields';
 import AllowedCollectionMethods from './AllowedCollectionMethods';
 
 const parameterOptions = [['careLevel', 'Care level'], ['minAge', 'Minimum age (years)'],
-  ['maxAge', 'Maximum age (years)'], ['profileValue', 'Profile data field']];
+  ['maxAge', 'Maximum age (years)'], ['profileValue', 'Data dictionary item']];
 
 export default function MvpReviewBundleEditor({ bundle, settings, onClose, onSave }) {
   const [draft, setDraft] = useState(() => (settings?.phase2CareActivity && settings?.mvpSchedulePresets !== false) ? { ...bundle, timing: 'days', after: 'intake', days: 90, repeat: true, dueDate: '' } : bundle);
@@ -48,12 +48,7 @@ export default function MvpReviewBundleEditor({ bundle, settings, onClose, onSav
           <FieldInput className="bundle-name-field" label="Assessment Pack name" ref={nameInput} required maxLength={80} value={draft.name} onChange={event => change('name', event.target.value)} />
           <Checkbox className="bundle-name-field assessment-schedule-enabled" label="Enable this Assessment Pack" checked={draft.enabled} onChange={event => change('enabled', event.target.checked)} />
           <h3 className="bundle-name-field bundle-collection-heading">Collection settings</h3>
-          <FieldSelect label={LABELS.respondent} value={draft.respondent} onChange={event => {
-            const respondent = event.target.value;
-            setDraft(current => ({ ...current, respondent, channel: respondent === 'Clinician' ? 'Clinician entry' : current.channel, assessments: mvpBattery(current.programStream, respondent)
-              .map((itemVersion, index) => ({ id: `${current.programStream}-${index}`, version: itemVersion, requirement: 'Mandatory' })) }));
-            setError('');
-          }}><option value="Person">Patient</option><option value="Clinician">Clinician</option></FieldSelect>
+          <FieldSelect label={LABELS.respondent} value="Clinician" disabled><option value="Clinician">Clinician</option></FieldSelect>
           <AllowedCollectionMethods bundle={draft} methods={draft.respondent === 'Clinician' ? ['Clinician entry']
             : COLLECTION_METHOD_OPTIONS.filter(([value]) => value !== 'SMS link' || settings.assessmentSms !== false)
               .map(([value]) => value)} onChange={methods => {
@@ -68,20 +63,8 @@ export default function MvpReviewBundleEditor({ bundle, settings, onClose, onSav
             <p className="muted">Prepare a review every 90 days after initial assessment completion while the care episode is active.</p>
             </div>
             <StatusChangeFields compact value={draft.statusChange} onChange={value => change('statusChange', value)} />
-          </div> : <>
-          <h3 className="bundle-name-field bundle-collection-heading">Schedule</h3>
-          <FieldSelect label="Trigger" value={draft.timing} onChange={event => setDraft(current => ({ ...current, timing: event.target.value, repeat: event.target.value === 'days' ? current.repeat : false }))}><option value="days">Event</option><option value="date">Date</option></FieldSelect>
-          {draft.timing === 'days' ? <>
-            <FieldInput label="Time (days)" type="number" min="1" max="728" step="1" required value={draft.days} onChange={event => change('days', Number(event.target.value))} />
-            <FieldSelect label="After" value={draft.after} onChange={event => change('after', event.target.value)}><option value="intake">Intake</option><option value="care-period">Care episode starts</option><option value="specific-measure">Specific Assessment Pack</option></FieldSelect>
-            <SpecificMeasureFields draft={draft} settings={settings} change={change} />
-            <Checkbox className="bundle-repeat-choice" label="Repeat" checked={draft.repeat} onChange={event => change('repeat', event.target.checked)} />
-          </> : <FieldInput label="Due date" type="date" required value={draft.dueDate || ''} onChange={event => change('dueDate', event.target.value)} />}
-          <p className="muted bundle-name-field">{draft.timing === 'date' ? 'Runs once on the selected date.' : draft.repeat
-            ? `Repeats every ${draft.days} days after ${draft.after === 'specific-measure' ? 'the selected Assessment Pack status' : draft.after === 'intake' ? 'intake' : 'the care episode starts'}.`
-            : `Runs once ${draft.days} days after ${draft.after === 'specific-measure' ? 'the selected Assessment Pack status' : draft.after === 'intake' ? 'intake' : 'the care episode starts'}.`}</p>
-</>}
-          <h3 className="bundle-name-field bundle-collection-heading">Parameter</h3>
+          </div> : <MockAssessmentPackSchedule draft={draft} settings={settings} change={change} timeKey="days" repeat />}
+          <h3 className="bundle-name-field bundle-collection-heading">Show if</h3>
           <div className="bundle-name-field bundle-parameter-row">
             <FieldSelect label="Program stream" required value={draft.programStream} onChange={event => {
               const programStream = event.target.value;
@@ -100,8 +83,8 @@ export default function MvpReviewBundleEditor({ bundle, settings, onClose, onSav
               : <FieldInput label={key === 'minAge' ? 'Minimum age (years)' : 'Maximum age (years)'} required type="number" min="0" max="120" step="1" value={draft[key] ?? ''} onChange={event => change(key, event.target.value === '' ? null : Number(event.target.value))} />}
             <Button type="button" onClick={() => setPendingParameterRemoval(key)}>Remove</Button>
           </div>)}
-          {parameters.length < parameterOptions.length && <div className="bundle-name-field new-bundle-extra-picker"><Field label="Parameter to add"><Select value={parameterToAdd} onChange={event => setParameterToAdd(event.target.value)}><option value="">Choose a parameter</option>{parameterOptions.filter(([key]) => !parameters.includes(key)).map(([key,label]) => <option key={key} value={key}>{label}</option>)}</Select></Field>
-            <Button type="button" disabled={!parameterToAdd} onClick={() => { if (parameterToAdd === 'profileValue') change('triggerDataEnabled', true); setParameters(current => [...current, parameterToAdd]); setParameterToAdd(''); }}>Add parameter</Button></div>}
+          {parameters.length < parameterOptions.length && <div className="bundle-name-field new-bundle-extra-picker"><Field label="Condition to add"><Select value={parameterToAdd} onChange={event => setParameterToAdd(event.target.value)}><option value="">Choose a condition</option>{parameterOptions.filter(([key]) => !parameters.includes(key)).map(([key,label]) => <option key={key} value={key}>{label}</option>)}</Select></Field>
+            <Button type="button" disabled={!parameterToAdd} onClick={() => { if (parameterToAdd === 'profileValue') change('triggerDataEnabled', true); setParameters(current => [...current, parameterToAdd]); setParameterToAdd(''); }}>Add condition</Button></div>}
         </div>
         {!(settings?.phase2CareActivity && settings?.mvpSchedulePresets !== false) && <StatusChangeFields value={draft.statusChange} onChange={value => change('statusChange', value)} />}
         <section className="bundle-editor-assessments">
@@ -119,7 +102,7 @@ export default function MvpReviewBundleEditor({ bundle, settings, onClose, onSav
       </div>
       <ActionGroup className="modal-footer"><Button type="button" onClick={onClose}>Cancel</Button><Button type="submit" variant="primary">Save Assessment Pack</Button></ActionGroup>
     </form>
-    <ConfirmRemoval item={pendingParameterRemoval ? { name: `${parameterOptions.find(([value]) => value === pendingParameterRemoval)?.[1]} parameter`, type: 'parameter' } : null}
+    <ConfirmRemoval item={pendingParameterRemoval ? { name: `${parameterOptions.find(([value]) => value === pendingParameterRemoval)?.[1]} condition`, type: 'condition' } : null}
       onCancel={() => setPendingParameterRemoval(null)} onConfirm={() => {
         const key = pendingParameterRemoval;
         setParameters(current => current.filter(value => value !== key));

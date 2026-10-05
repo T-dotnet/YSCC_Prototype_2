@@ -3,15 +3,15 @@ import { CLIENT_PROFILE_INSTRUMENTS, clientProfileBundleError } from '../clientP
 import { ActionGroup, Button, Checkbox, Field, FieldInput, FieldSelect, Modal, Select } from './UI';
 import BundleAssessmentRow from './BundleAssessmentRow';
 import ConfirmRemoval from './ConfirmRemoval';
-import SpecificMeasureFields from './SpecificMeasureFields';
+import MockAssessmentPackSchedule from './MockAssessmentPackSchedule';
 import { measureSourceOptions, measureTriggerIds } from '../measureTriggers';
 import ProfileValueTriggerFields from './ProfileValueTriggerFields';
 import { CARE_LEVELS, PROGRAM_STREAMS } from '../carePeriods';
 import StatusChangeFields from './StatusChangeFields';
 import AllowedCollectionMethods from './AllowedCollectionMethods';
 
-const parameterOptions = [['careLevel', 'Care level'], ['minAge', 'Minimum age (years)'],
-  ['maxAge', 'Maximum age (years)'], ['profileValue', 'Profile data field']];
+const parameterOptions = [['programStream', 'Program stream'], ['careLevel', 'Care level'], ['minAge', 'Minimum age (years)'],
+  ['maxAge', 'Maximum age (years)'], ['profileValue', 'Data dictionary item']];
 
 export default function ClientProfileBundleEditor({ bundle, settings, onClose, onSave }) {
   const [draft, setDraft] = useState(() => (settings?.phase2CareActivity && settings?.mvpSchedulePresets !== false) && (!['new-profile', 'intake', 'care-period'].includes(bundle.after) || bundle.timing === 'date') ? { ...bundle, timing: 'days', after: 'new-profile', delayDays: 0, dueDate: '' } : bundle);
@@ -19,6 +19,7 @@ export default function ClientProfileBundleEditor({ bundle, settings, onClose, o
   const [parameterToAdd, setParameterToAdd] = useState('');
   const [parameters, setParameters] = useState(parameterOptions.map(([key]) => key).filter(key =>
     key === 'profileValue' ? !!bundle.triggerDataEnabled :
+      key === 'programStream' ? bundle.programStream && bundle.programStream !== 'All' :
       key === 'careLevel' ? bundle.careLevel && bundle.careLevel !== 'All' : bundle[key] != null));
   const [error, setError] = useState('');
   const [pendingParameterRemoval, setPendingParameterRemoval] = useState(null);
@@ -64,31 +65,17 @@ export default function ClientProfileBundleEditor({ bundle, settings, onClose, o
             <p className="muted">{draft.after === 'intake' ? 'Prepare once when intake is completed.' : draft.after === 'care-period' ? 'Prepare once when the care episode starts.' : 'Prepare once when a new profile is created.'}</p>
             </div>
             <StatusChangeFields compact value={draft.statusChange} onChange={value => change('statusChange', value)} />
-          </div> : <>
-          <h3 className="bundle-name-field bundle-collection-heading">Schedule</h3>
-          <Field label="Trigger"><Select value={draft.timing || 'days'} onChange={event => change('timing', event.target.value)}>
-            <option value="days">Event</option><option value="date">Date</option>
-          </Select></Field>
-          {(draft.timing || 'days') === 'days' ? <>
-            <FieldInput label="Time (days)" type="number" min="0" max="728" step="1" required value={draft.delayDays ?? 0}
-              onChange={event => change('delayDays', Number(event.target.value))} />
-            <FieldSelect label="After" value={draft.after || 'new-profile'} onChange={event => change('after', event.target.value)}>
-              <option value="new-profile">New profile</option><option value="intake">Intake</option>
-              <option value="care-period">Care episode starts</option><option value="specific-measure">Specific Assessment Pack</option>
-            </FieldSelect>
-            <SpecificMeasureFields draft={draft} settings={settings} change={change} sourceOptions={sourceOptions} />
-          </> : <FieldInput label="Due date" type="date" required value={draft.dueDate || ''}
-            onChange={event => change('dueDate', event.target.value)} />}
-          <p className="muted bundle-name-field">Client profile is prepared once for each eligible profile.</p>
-</>}
-          <h3 className="bundle-name-field bundle-collection-heading">Parameter</h3>
-          <div className="bundle-name-field bundle-parameter-row"><FieldSelect label="Program stream"
-            value={draft.programStream || 'All'} onChange={event => change('programStream', event.target.value)}>
-            <option value="All">All program streams</option>
-            {PROGRAM_STREAMS.map(stream => <option key={stream} value={stream}>{stream}</option>)}
-          </FieldSelect></div>
+          </div> : <MockAssessmentPackSchedule draft={draft} settings={settings} change={change}
+            timeKey="delayDays" sourceOptions={sourceOptions} />}
+          <h3 className="bundle-name-field bundle-collection-heading">Show if</h3>
           {parameters.map(key => <div key={key} className="bundle-name-field bundle-parameter-row">
             {key === 'profileValue' ? <ProfileValueTriggerFields draft={draft} change={change} />
+              : key === 'programStream' ? <FieldSelect label="Program stream" required
+                value={draft.programStream === 'All' ? '' : draft.programStream}
+                onChange={event => change('programStream', event.target.value)}>
+                <option value="" disabled>Choose a program stream</option>
+                {PROGRAM_STREAMS.map(stream => <option key={stream} value={stream}>{stream}</option>)}
+              </FieldSelect>
               : key === 'careLevel' ? <FieldSelect label="Care level" value={draft.careLevel || 'All'}
                 onChange={event => change(key, event.target.value)}><option value="All">All care levels</option>
                 {CARE_LEVELS.map(level => <option key={level} value={level}>{level}</option>)}</FieldSelect>
@@ -98,16 +85,16 @@ export default function ClientProfileBundleEditor({ bundle, settings, onClose, o
             <Button type="button" onClick={() => setPendingParameterRemoval(key)}>Remove</Button>
           </div>)}
           {parameters.length < parameterOptions.length && <div className="bundle-name-field new-bundle-extra-picker">
-            <Field label="Parameter to add"><Select value={parameterToAdd}
+            <Field label="Condition to add"><Select value={parameterToAdd}
               onChange={event => setParameterToAdd(event.target.value)}>
-              <option value="">Choose a parameter</option>
+              <option value="">Choose a condition</option>
               {parameterOptions.filter(([key]) => !parameters.includes(key)).map(([key, label]) =>
                 <option key={key} value={key}>{label}</option>)}
             </Select></Field>
             <Button type="button" disabled={!parameterToAdd} onClick={() => {
               if (parameterToAdd === 'profileValue') change('triggerDataEnabled', true);
               setParameters(current => [...current, parameterToAdd]); setParameterToAdd('');
-            }}>Add parameter</Button>
+            }}>Add condition</Button>
           </div>}
         </div>
         {!(settings?.phase2CareActivity && settings?.mvpSchedulePresets !== false) && <StatusChangeFields value={draft.statusChange} onChange={value => change('statusChange', value)} />}
@@ -126,13 +113,13 @@ export default function ClientProfileBundleEditor({ bundle, settings, onClose, o
       </div>
       <ActionGroup className="modal-footer"><Button type="button" onClick={onClose}>Cancel</Button><Button type="submit" variant="primary">Save Assessment Pack</Button></ActionGroup>
     </form>
-    <ConfirmRemoval item={pendingParameterRemoval ? { name: `${parameterOptions.find(([value]) => value === pendingParameterRemoval)?.[1]} parameter`, type: 'parameter' } : null}
+    <ConfirmRemoval item={pendingParameterRemoval ? { name: `${parameterOptions.find(([value]) => value === pendingParameterRemoval)?.[1]} condition`, type: 'condition' } : null}
       onCancel={() => setPendingParameterRemoval(null)} onConfirm={() => {
         const key = pendingParameterRemoval;
         setParameters(current => current.filter(value => value !== key));
         setDraft(current => key === 'profileValue'
           ? { ...current, triggerDataEnabled: false, triggerDataField: '', triggerDataValue: '' }
-          : { ...current, [key]: key === 'careLevel' ? 'All' : null });
+          : { ...current, [key]: key === 'careLevel' || key === 'programStream' ? 'All' : null });
         setError('');
         setPendingParameterRemoval(null);
       }} />

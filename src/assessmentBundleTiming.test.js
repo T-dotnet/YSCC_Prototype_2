@@ -128,6 +128,24 @@ test('discharge bundles run once on the closure date and retain collection eligi
   }
 });
 
+test('Discharged episode status schedules once from the closure date', () => {
+  const initial = make(rule({ after:'episode-status', triggerEpisodeStatus:'Discharged',
+    days:3, repeat:false }));
+  episode(initial).status='Closed';
+  episode(initial).disposition='Discharged';
+  episode(initial).end='2026-09-20';
+  episode(initial).carePeriods[0].endDateExclusive='2026-09-21';
+  const next = reconcileAssessmentBundles(initial,today);
+  const collection = episode(next).collections[0];
+  assert.equal(collection.due,'2026-09-23');
+  assert.equal(collection.dischargeFollowUp,true);
+  assert.equal(canCollectInEpisode(episode(next),collection),true);
+  assert.equal(reconcileAssessmentBundles(next,today),next);
+  const closed = structuredClone(initial);
+  episode(closed).disposition='Other';
+  assert.equal(reconcileAssessmentBundles(closed,today),closed);
+});
+
 test('saving and reloading retains timing, and optional discharge assessments can be included after closure', () => {
   let state=createSeed();
   const personId='YS-DEMO-CLOSE';

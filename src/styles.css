@@ -70,6 +70,9 @@
   --status-info-border: #dbe6eb;
   --status-info-ink: #4c6271;
   --status-info-mark: #3c6987;
+  --status-terminal-bg: #edf7f7;
+  --status-terminal-border: #b7dadd;
+  --status-terminal-ink: #00666a;
   --status-attention-mark: #a37727;
   --status-attention-bright: #f59e0b;
   --status-risk-mark: #b95752;
@@ -1910,6 +1913,11 @@ small {
   background: var(--category-assessment-bg);
   color: var(--data-blue-strong);
   border-color: var(--category-assessment-border);
+}
+.badge.teal {
+  background: var(--status-terminal-bg);
+  color: var(--status-terminal-ink);
+  border-color: var(--status-terminal-border);
 }
 .badge.neutral {
   background: var(--surface-subtle);
@@ -14758,6 +14766,17 @@ h6 {
   min-width: 0;
   padding-top: var(--space-4);
 }
+.administration-status-groups { display: grid; gap: var(--space-3); }
+.administration-status-group > summary {
+  gap: var(--space-3);
+  padding-block: var(--space-3);
+  font-size: var(--type-body);
+}
+.administration-status-group > summary > small { font-size: var(--type-metadata); font-weight: var(--type-weight-regular); }
+.administration-status-group .collection-details-accordion-body { padding: 0 var(--space-5) var(--space-4); }
+.administration-status-group .standard-table td:first-child { width: 30%; white-space: nowrap; }
+.administration-status-source { display: block; margin-top: var(--space-1); color: var(--muted); overflow-wrap: anywhere; }
+.administration-status-source code { color: inherit; white-space: normal; overflow-wrap: anywhere; }
 .administration-tab-content > .stack > .admin-panel {
   margin-top: 0;
 }

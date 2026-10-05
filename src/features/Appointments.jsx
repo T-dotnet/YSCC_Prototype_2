@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import {
   appointmentDetails,
+  appointmentDisplayStatus,
   appointmentIsOverdue,
   appointmentRecordDate,
   appointmentTitle,
@@ -103,7 +104,7 @@ const appointmentWhen = (appointment) => {
 function AppointmentCard({ appointment, episode, openModal, showAssessmentLinks }) {
   const overdue = appointmentIsOverdue(appointment, TODAY);
   const when = appointmentWhen(appointment);
-  const status = overdue ? "Overdue" : appointment.attendance;
+  const status = appointmentDisplayStatus(appointment, TODAY);
   const appointmentType = appointment.contactName || appointment.contactType || appointment.appointmentType || "Service contact";
   const recordOutcome = () =>
     openModal({

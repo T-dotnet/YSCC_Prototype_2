@@ -6,13 +6,13 @@ import { mvpInitialBundleError, mvpInitialVersions } from '../mvpAssessmentPathw
 import { ActionGroup, Button, Checkbox, Field, FieldInput, FieldSelect, Modal, Select } from './UI';
 import BundleAssessmentRow from './BundleAssessmentRow';
 import ConfirmRemoval from './ConfirmRemoval';
-import SpecificMeasureFields from './SpecificMeasureFields';
+import MockAssessmentPackSchedule from './MockAssessmentPackSchedule';
 import ProfileValueTriggerFields from './ProfileValueTriggerFields';
 import StatusChangeFields from './StatusChangeFields';
 import AllowedCollectionMethods from './AllowedCollectionMethods';
 
 const parameterOptions = [['careLevel', 'Care level'],
-  ['minAge', 'Minimum age (years)'], ['maxAge', 'Maximum age (years)'], ['profileValue', 'Profile data field']];
+  ['minAge', 'Minimum age (years)'], ['maxAge', 'Maximum age (years)'], ['profileValue', 'Data dictionary item']];
 
 export default function MvpInitialBundleEditor({ bundle, settings, onClose, onSave }) {
   const [draft, setDraft] = useState(() => (settings?.phase2CareActivity && settings?.mvpSchedulePresets !== false) && (!['specific-measure', 'intake', 'care-period'].includes(bundle.after) || bundle.timing === 'date') ? { ...bundle, timing: 'days', after: 'specific-measure', delayDays: 0, triggerMeasureId: 'MVP-CLIENT-PROFILE', triggerMeasureStatus: 'completed', triggerMeasureIds:['MVP-CLIENT-PROFILE'], triggerMeasureStatuses:['completed'], dueDate: '' } : bundle);
@@ -62,21 +62,8 @@ export default function MvpInitialBundleEditor({ bundle, settings, onClose, onSa
             <p className="muted">{draft.after === 'intake' ? 'Prepare once after intake is completed.' : draft.after === 'care-period' ? 'Prepare once when the care episode starts.' : 'Prepare once after Client profile is completed.'}</p>
             </div>
             <StatusChangeFields compact value={draft.statusChange} onChange={value => change('statusChange', value)} />
-          </div> : <>
-          <h3 className="bundle-name-field bundle-collection-heading">Schedule</h3>
-          <Field label="Trigger"><Select value={draft.timing || 'days'} onChange={event => change('timing', event.target.value)}>
-            <option value="days">Event</option><option value="date">Date</option>
-          </Select></Field>
-          {(draft.timing || 'days') === 'days' ? <>
-            <FieldInput label="Time (days)" type="number" min="0" max="728" step="1" required value={draft.delayDays} onChange={event => change('delayDays', Number(event.target.value))} />
-            <FieldSelect label="After" value={draft.after || 'specific-measure'} onChange={event => change('after', event.target.value)}>
-              <option value="specific-measure">Specific Assessment Pack</option><option value="intake">Intake</option><option value="care-period">Care episode starts</option>
-            </FieldSelect>
-            <SpecificMeasureFields draft={draft} settings={settings} change={change} />
-          </> : <FieldInput label="Due date" type="date" required value={draft.dueDate || ''} onChange={event => change('dueDate', event.target.value)} />}
-          <p className="muted bundle-name-field">For new profiles, the initial assessment follows Client profile completion by default. Existing assessments are retained.</p>
-</>}
-          <h3 className="bundle-name-field bundle-collection-heading">Parameter</h3>
+          </div> : <MockAssessmentPackSchedule draft={draft} settings={settings} change={change} timeKey="delayDays" />}
+          <h3 className="bundle-name-field bundle-collection-heading">Show if</h3>
           <div className="bundle-name-field bundle-parameter-row">
             <FieldSelect label="Program stream" required value={draft.programStream} onChange={event => {
               const programStream = event.target.value;
@@ -93,8 +80,8 @@ export default function MvpInitialBundleEditor({ bundle, settings, onClose, onSa
                 : <FieldInput label={key === 'minAge' ? 'Minimum age (years)' : 'Maximum age (years)'} required type="number" min="0" max="120" step="1" value={draft[key] ?? ''} onChange={event => change(key, event.target.value === '' ? null : Number(event.target.value))} />}
             <Button type="button" onClick={() => setPendingParameterRemoval(key)}>Remove</Button>
           </div>)}
-          {parameters.length < parameterOptions.length && <div className="bundle-name-field new-bundle-extra-picker"><Field label="Parameter to add"><Select value={parameterToAdd} onChange={event => setParameterToAdd(event.target.value)}><option value="">Choose a parameter</option>{parameterOptions.filter(([key]) => !parameters.includes(key)).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</Select></Field>
-            <Button type="button" disabled={!parameterToAdd} onClick={() => { if (parameterToAdd === 'profileValue') change('triggerDataEnabled', true); setParameters(current => [...current, parameterToAdd]); setParameterToAdd(''); }}>Add parameter</Button></div>}
+          {parameters.length < parameterOptions.length && <div className="bundle-name-field new-bundle-extra-picker"><Field label="Condition to add"><Select value={parameterToAdd} onChange={event => setParameterToAdd(event.target.value)}><option value="">Choose a condition</option>{parameterOptions.filter(([key]) => !parameters.includes(key)).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</Select></Field>
+            <Button type="button" disabled={!parameterToAdd} onClick={() => { if (parameterToAdd === 'profileValue') change('triggerDataEnabled', true); setParameters(current => [...current, parameterToAdd]); setParameterToAdd(''); }}>Add condition</Button></div>}
         </div>
         {!(settings?.phase2CareActivity && settings?.mvpSchedulePresets !== false) && <StatusChangeFields value={draft.statusChange} onChange={value => change('statusChange', value)} />}
         <section className="bundle-editor-assessments">
@@ -108,7 +95,7 @@ export default function MvpInitialBundleEditor({ bundle, settings, onClose, onSa
       </div>
       <ActionGroup className="modal-footer"><Button type="button" onClick={onClose}>Cancel</Button><Button type="submit" variant="primary">Save Assessment Pack</Button></ActionGroup>
     </form>
-    <ConfirmRemoval item={pendingParameterRemoval ? { name: `${parameterOptions.find(([value]) => value === pendingParameterRemoval)?.[1]} parameter`, type: 'parameter' } : null}
+    <ConfirmRemoval item={pendingParameterRemoval ? { name: `${parameterOptions.find(([value]) => value === pendingParameterRemoval)?.[1]} condition`, type: 'condition' } : null}
       onCancel={() => setPendingParameterRemoval(null)} onConfirm={() => {
         const key = pendingParameterRemoval;
         setParameters(current => current.filter(value => value !== key));

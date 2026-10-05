@@ -5,6 +5,11 @@ import { completedMeasureStatusChange } from './measureStatusChange.js';
 import { assessmentOutcomeAllowsOngoingReview, assessmentOutcomeEnabled, initialAssessmentStatusChange } from './assessmentOutcome.js';
 import { EP_BATCH_2_INSTRUMENTS } from './epCodebookInstruments.js';
 
+export const EPISODE_DISPLAY_STATUSES = [
+  'Profiling', 'Assessment', 'Ongoing review', 'Not proceed',
+  'Paused', 'Closed', 'Completed', 'Discharged',
+];
+
 const assessmentOutcomeInstrument = EP_BATCH_2_INSTRUMENTS.find(
   instrument => instrument.codebookDataItem === 'Assessment Outcome');
 const assessmentOutcomeIndex = assessmentOutcomeInstrument?.questions.findIndex(

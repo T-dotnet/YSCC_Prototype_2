@@ -8,10 +8,10 @@ export function StatusChangeValue({ value }) {
 export default function StatusChangeFields({ value, onChange, compact = false }) {
   return <section className="bundle-editor-assessments">
     <header className="bundle-editor-assessments-heading">
-      {compact ? <div className="mvp-preset-label">Status change</div> : <h3>Status change</h3>}
+      {compact ? <div className="mvp-preset-label">Status change after completion</div> : <h3>Status change after completion</h3>}
     </header>
     <div className="assessment-schedule-fields">
-      <Select className="bundle-name-field status-change-select" label="Status change" value={value || ''} onChange={event => onChange(event.target.value)}>
+      <Select className="bundle-name-field status-change-select" label="Status change after completion" value={value || ''} onChange={event => onChange(event.target.value)}>
           <option value="">No status change</option>
           {MEASURE_STATUS_CHANGES.map(status => <option key={status} value={status}>{status}</option>)}
       </Select>

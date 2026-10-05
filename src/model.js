@@ -106,7 +106,10 @@ export const canCollectInEpisode = (episode, collection) =>
   (episode?.status === "Closed" &&
     ((collection?.closureKind === "assessment" && collection.version === CLOSURE_ASSESSMENT_VERSION) ||
       (collection?.closureKind === "feedback" && collection.version === CLOSURE_FEEDBACK_VERSION) ||
-      (!!collection?.dischargeFollowUp && !!collection.bundleId && collection.bundleContext?.timing === "discharge")));
+      (!!collection?.dischargeFollowUp && !!collection.bundleId &&
+        (collection.bundleContext?.timing === "discharge" ||
+          (collection.bundleContext?.after === "episode-status" &&
+            collection.bundleContext?.triggerEpisodeStatus === "Discharged")))));
 const closureDueDate = () =>
   new Date(Date.parse(`${TODAY}T12:00:00Z`) + 7 * 86400000)
     .toISOString().slice(0, 10);
@@ -4406,7 +4409,8 @@ function reduceState(state, action) {
     if (offers.length !== new Set(action.offerIds).size || offers.some(o=> {
       const bundle = state.settings.assessmentScheduleRules.find(b=>b.id===o.bundleId);
       return !bundle?.enabled ||
-        (episode.status === "Closed" && (!o.dischargeFollowUp || bundleTimingMode(bundle) !== "discharge")) ||
+        (episode.status === "Closed" && !(o.dischargeFollowUp && bundleTimingMode(bundle) === "discharge") &&
+          !(bundle.after === "episode-status" && bundle.triggerEpisodeStatus === "Discharged")) ||
         !bundleAgeMatches(bundle, person, episode.status === "Closed" ? episode.end : TODAY) || !bundle.assessments?.some(i=>i.id===o.assessment.id) ||
         (action.decision === "Include" && ((!assessmentSmsEnabled(state.settings) && o.assessment.channel === "SMS link") || (o.assessment.recipient === "Family respondent" && !person.family)));
     })) return state;

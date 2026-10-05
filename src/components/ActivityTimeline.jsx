@@ -27,6 +27,7 @@ import { SearchInput, Select, Button, Empty } from "./UI";
 import RecordItem from "./RecordItem";
 import RelatedRecordsAccordion from "./RelatedRecordsAccordion";
 import { contactsForAssessment, assessmentsForContact } from "../assessmentContacts";
+import { appointmentDisplayStatus } from "../appointments.js";
 import ListFilterBar from "./ListFilterBar";
 import TimelineExpandAll from "./TimelineExpandAll";
 import { useStore } from "../store";
@@ -373,9 +374,7 @@ function ContinuousHistory({ entries, episode, person, onCorrectEvent, onRecordA
                   ? collection.response === "Submitted" ? "Completed" : collection.response === "Draft" ? "Draft" : "Not started"
                   : collectionStatus(collection)
                 : contactSummary
-                  ? appointment.attendance === "Planned" && appointment.plannedDate <= TODAY
-                    ? appointment.plannedDate < TODAY ? "Overdue" : "Today"
-                    : appointment.attendance
+                  ? appointmentDisplayStatus(appointment, TODAY)
                   : groupByDate ? "Recorded" : undefined}
               className={`record-item-compact${isSelectedSource ? " care-event-selected" : ""}`}
               facts={visiblePrimaryFacts.map(toFact)}

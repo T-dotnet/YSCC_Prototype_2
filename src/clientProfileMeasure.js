@@ -6,6 +6,7 @@ import {
 import { profileValueTriggerError } from './profileValueTriggers.js';
 import { CARE_LEVELS, PROGRAM_STREAMS } from './carePeriods.js';
 import { validMeasureStatusChange } from './measureStatusChange.js';
+import { episodeStatusTriggerError } from './episodeStatusTrigger.js';
 import { allowedCollectionMethodsError } from './allowedCollectionMethods.js';
 import { measureTriggerIds, measureTriggerStatuses } from './measureTriggers.js';
 
@@ -48,7 +49,11 @@ export const clientProfileBundle = settings => {
   const configured = settings?.clientProfileBundle?.instrumentVersions;
   const retained = Array.isArray(configured)
     ? configured.filter(version => available.includes(version)) : available;
-  return { ...DEFAULT_CLIENT_PROFILE_BUNDLE, ...settings?.clientProfileBundle,
+  const saved = settings?.clientProfileBundle || {};
+  const schedule = settings?.mvpSchedulePresets === false && saved.after !== 'episode-status' &&
+    (saved.after || DEFAULT_CLIENT_PROFILE_BUNDLE.after) === 'new-profile'
+    ? { after: 'episode-status', triggerEpisodeStatus: 'Assessment' } : {};
+  return { ...DEFAULT_CLIENT_PROFILE_BUNDLE, ...saved, ...schedule,
     instrumentVersions: retained.length ? retained : available };
 };
 
@@ -75,8 +80,9 @@ export function clientProfileBundleError(bundle, settings) {
   if (!['days', 'date'].includes(bundle.timing || 'days')) return 'Choose Event or Date.';
   if (bundle.timing === 'date' && !validDate(bundle.dueDate)) return 'Enter a valid due date.';
   if ((bundle.timing || 'days') === 'days') {
-    if (!['new-profile', 'intake', 'care-period', 'specific-measure'].includes(bundle.after || 'new-profile'))
+    if (!['new-profile', 'intake', 'care-period', 'specific-measure', 'episode-status'].includes(bundle.after || 'new-profile'))
       return 'Choose what starts the schedule.';
+    if (episodeStatusTriggerError(bundle)) return episodeStatusTriggerError(bundle);
     if (!Number.isInteger(bundle.delayDays ?? 0) || bundle.delayDays < 0 || bundle.delayDays > 728)
       return 'Enter a time from 0 to 728 days.';
     if (bundle.after === 'specific-measure') {

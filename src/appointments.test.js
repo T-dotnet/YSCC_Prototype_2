@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { activityEntries, careEventEntries, changeLogEntries } from "./activity.js";
-import { appointmentDetails, appointmentMatchesCollectionDate } from "./appointments.js";
+import { appointmentDetails, appointmentDisplayStatus, appointmentMatchesCollectionDate } from "./appointments.js";
 import { associatedCareItems, historyItem } from "./historyItem.js";
 import { assessmentsForContact, contactsForAssessment } from "./assessmentContacts.js";
 import { DEMO_INSTRUMENT, INITIAL_ASSESSMENT_INSTRUMENT } from "./instruments.js";
@@ -61,6 +61,17 @@ const plannedContact = {
   attendance: "Planned",
   notes: "Awaiting outcome.",
 };
+
+test("contact display labels reflect the planned date without changing attendance", () => {
+  const today = "2026-10-04";
+  const planned = { attendance: "Planned", plannedDate: "2026-10-05" };
+  assert.equal(appointmentDisplayStatus(planned, today), "Planned");
+  assert.equal(appointmentDisplayStatus({ ...planned, plannedDate: today }, today), "Today");
+  assert.equal(appointmentDisplayStatus({ ...planned, plannedDate: "2026-10-03" }, today), "Overdue");
+  for (const attendance of ["Attended", "Cancelled", "Did not attend"])
+    assert.equal(appointmentDisplayStatus({ ...planned, attendance, plannedDate: "2026-10-03" }, today), attendance);
+  assert.equal(planned.attendance, "Planned");
+});
 
 test("an attended appointment retains planned and actual contact details", () => {
   const state = createSeed();

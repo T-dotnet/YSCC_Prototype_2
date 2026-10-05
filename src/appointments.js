@@ -247,6 +247,12 @@ export function appointmentIsOverdue(appointment, today) {
   return appointment.attendance === "Planned" && appointment.plannedDate < today;
 }
 
+export function appointmentDisplayStatus(appointment, today) {
+  if (appointment.attendance !== "Planned") return appointment.attendance || "Not recorded";
+  if (appointmentIsOverdue(appointment, today)) return "Overdue";
+  return appointment.plannedDate === today ? "Today" : "Planned";
+}
+
 export function appointmentTitle(appointment) {
   const noun = appointment.contactType ? "Service contact" : "Contact";
   return appointment.attendance === "Planned"

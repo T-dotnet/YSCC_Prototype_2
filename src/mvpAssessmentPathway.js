@@ -8,6 +8,7 @@ import { profileValueMatches, profileValueTriggerError } from './profileValueTri
 import { validMeasureStatusChange } from './measureStatusChange.js';
 import { initialAssessmentReadyForOutcome, assessmentOutcomeProceeds } from './assessmentOutcome.js';
 import { allowedCollectionMethodsError } from './allowedCollectionMethods.js';
+import { episodeStatusSource, episodeStatusTriggerError } from './episodeStatusTrigger.js';
 
 export const mvpAssessmentMode = settings => settings?.advancedAssessmentOptions === false;
 export const mvpPathwayEnabled = settings => mvpAssessmentMode(settings) && settings?.mvpAssessmentPathway !== false;
@@ -80,8 +81,9 @@ export function mvpInitialBundleError(bundle, settings) {
     return 'Choose Any or allowed collection methods that include the planned method.';
   if (!['days', 'date'].includes(bundle.timing || 'days')) return 'Choose Event or Date.';
   if ((bundle.timing || 'days') === 'days' && (!Number.isInteger(bundle.delayDays) || bundle.delayDays < 0 || bundle.delayDays > 728)) return 'Enter a time from 0 to 728 days after the selected trigger.';
-  if ((bundle.timing || 'days') === 'days' && !['care-period', 'intake', 'specific-measure'].includes(bundle.after)) return 'Choose what starts the schedule.';
+  if ((bundle.timing || 'days') === 'days' && !['care-period', 'intake', 'specific-measure', 'episode-status'].includes(bundle.after)) return 'Choose what starts the schedule.';
   if ((bundle.timing || 'days') === 'days' && specificMeasureError(bundle, settings)) return specificMeasureError(bundle, settings);
+  if ((bundle.timing || 'days') === 'days' && episodeStatusTriggerError(bundle)) return episodeStatusTriggerError(bundle);
   if (profileValueTriggerError(bundle)) return profileValueTriggerError(bundle);
   if (bundle.timing === 'date' && (!validReviewDate(bundle.dueDate) || bundle.repeat)) return 'Enter a valid due date.';
   if (bundle.careLevel !== 'All' && !CARE_LEVELS.includes(bundle.careLevel)) return 'Choose a care level.';
@@ -102,11 +104,15 @@ export const MVP_REVIEW_BUNDLES = ['Clinician'].flatMap(respondent => reviewStre
   statusChange: 'Ongoing review',
 })));
 export const mvpReviewBundles = settings => {
+  const withCurrentSchedule = bundle => settings?.mvpSchedulePresets === false && bundle.after === 'intake' &&
+    bundle.days === MVP_REVIEW_DAYS ? { ...bundle, after: 'specific-measure',
+      triggerMeasureIds: [MVP_INITIAL_BUNDLES.find(item => item.programStream === bundle.programStream)?.id].filter(Boolean),
+      triggerMeasureStatuses: ['completed'] } : bundle;
   const saved = settings?.mvpReviewBundles;
-  if (!saved) return MVP_REVIEW_BUNDLES;
+  if (!saved) return MVP_REVIEW_BUNDLES.map(withCurrentSchedule);
   return saved.flatMap(bundle => {
     const original = MVP_REVIEW_BUNDLES.find(item => item.id === bundle.id);
-    return original ? [{ ...original, ...bundle, respondent: 'Clinician', channel: 'Clinician entry' }] : [];
+    return original ? [withCurrentSchedule({ ...original, ...bundle, respondent: 'Clinician', channel: 'Clinician entry' })] : [];
   });
 };
 
@@ -142,8 +148,9 @@ export function mvpReviewBundleError(bundle, settings) {
   if ([bundle.minAge, bundle.maxAge].some(value => value != null && (!Number.isInteger(value) || value < 0 || value > 120)) ||
       bundle.minAge != null && bundle.maxAge != null && bundle.minAge > bundle.maxAge) return 'Enter a valid age range.';
   if (!['days', 'date'].includes(bundle.timing)) return 'Choose a schedule.';
-  if (bundle.timing === 'days' && !['intake', 'care-period', 'specific-measure'].includes(bundle.after)) return 'Choose what starts the schedule.';
+  if (bundle.timing === 'days' && !['intake', 'care-period', 'specific-measure', 'episode-status'].includes(bundle.after)) return 'Choose what starts the schedule.';
   if (bundle.timing === 'days' && specificMeasureError(bundle, settings)) return specificMeasureError(bundle, settings);
+  if (bundle.timing === 'days' && episodeStatusTriggerError(bundle)) return episodeStatusTriggerError(bundle);
   if (profileValueTriggerError(bundle)) return profileValueTriggerError(bundle);
   if (bundle.timing === 'days' && (!Number.isInteger(bundle.days) || bundle.days < 1 || bundle.days > 728)) return 'Enter a time from 1 to 728 days.';
   if (bundle.timing === 'date' && (!validReviewDate(bundle.dueDate) || bundle.repeat)) return 'Enter a valid date for a one-off review.';
@@ -186,7 +193,8 @@ function ensureClientProfiles(state, today) {
           !profileValueMatches(config, person, episode)) return episode;
       const intake = person.intakes?.find(item => item.episodeId === episode.id && item.status === 'Completed' && item.outcome === 'Proceed');
       const source = config.timing === 'date' ? { anchor: config.dueDate } :
-        config.after === 'specific-measure' ? measureStatusSources(episode, measureTriggerIds(config), measureTriggerStatuses(config), today)[0] :
+        config.after === 'specific-measure' ? measureStatusSources(episode, measureTriggerIds(config), measureTriggerStatuses(config), today, state.settings)[0] :
+        config.after === 'episode-status' ? episodeStatusSource(episode, state.settings, config.triggerEpisodeStatus, today) :
           config.after === 'intake' ? intake && { anchor: intake.decisionAt?.slice(0, 10) || episode.start } :
             { anchor: episode.start };
       if (!source?.anchor) return episode;
@@ -213,8 +221,9 @@ function ensureInitialAssessments(state, today) {
       const stream = startPeriod?.programStream || episode.programStream;
       if (!PROGRAM_STREAMS.includes(stream)) return episode;
       const sourceFor = bundle => {
+        if (bundle.after === 'episode-status') return [episodeStatusSource(episode, state.settings, bundle.triggerEpisodeStatus, today)].filter(Boolean);
         if (bundle.after !== 'specific-measure') return [{ anchor: episode.start }];
-        const sources = measureStatusSources(episode, measureTriggerIds(bundle), measureTriggerStatuses(bundle), today);
+        const sources = measureStatusSources(episode, measureTriggerIds(bundle), measureTriggerStatuses(bundle), today, state.settings);
         return (!person.clientProfileRequired || !clientProfileBundle(state.settings)?.enabled) &&
           measureTriggerIds(bundle).includes(CLIENT_PROFILE_BUNDLE_ID)
           ? [{ anchor: episode.start }, ...sources] : sources;
@@ -464,10 +473,12 @@ export function reconcileMvpAssessmentPathway(state, today) {
         if (latestDue && (episode.collections || []).some(record => record.mvpTimepointId &&
           record.due === latestDue && synchronizedRoles.includes(record.mvpRespondent) && record.response !== 'Submitted')) continue;
         const source = bundle.after === 'specific-measure'
-          ? measureStatusSources(episode, measureTriggerIds(bundle), measureTriggerStatuses(bundle), today)[0] : null;
-        if (bundle.after === 'specific-measure' && !source) continue;
+          ? measureStatusSources(episode, measureTriggerIds(bundle), measureTriggerStatuses(bundle), today, state.settings)[0]
+          : bundle.after === 'episode-status'
+            ? episodeStatusSource(episode, state.settings, bundle.triggerEpisodeStatus, today) : null;
+        if (['specific-measure', 'episode-status'].includes(bundle.after) && !source) continue;
         const anchor = source?.anchor || (bundle.after === 'care-period' ? period?.startDate : episode.reviewAnchorDate || episode.start);
-        const firstDue = bundle.after === 'specific-measure' ? addDays(anchor, bundle.days) : person.mvpProfile ? addDays(initialCompletedAt, MVP_REVIEW_DAYS) :
+        const firstDue = ['specific-measure', 'episode-status'].includes(bundle.after) ? addDays(anchor, bundle.days) : person.mvpProfile ? addDays(initialCompletedAt, MVP_REVIEW_DAYS) :
           bundle.timing === 'date' ? bundle.dueDate :
           bundle.after === 'intake' && episode.reviewSchedule?.confirmed && validReviewDate(episode.reviewSchedule?.outcome?.due) && bundle.days === MVP_REVIEW_DAYS
             ? episode.reviewSchedule.outcome.due : addDays(anchor, bundle.days);
